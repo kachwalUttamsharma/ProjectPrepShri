@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="01-basics/week-02-conditions-loops/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../01-basics/week-01-first-steps/lesson.html">Python Basics</a> / <a href="../../01-basics/week-02-conditions-loops/lesson.html">Week 2 · Conditions and loops</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="01-basics/week-02-conditions-loops/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>01-basics/week-02-conditions-loops/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 2 exercises. Replace each `...` with your code."""</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">sign</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return 'positive', 'negative' or 'zero' for the number n."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">grade</span><span class="p">(</span><span class="n">score</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a letter: 90+ 'A', 80-89 'B', 70-79 'C', 60-69 'D', below 60 'F'.</span>
+<span class="sd">    Hint: if / elif / else, check from the highest down."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">sum_to_n</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return 1 + 2 + ... + n. sum_to_n(0) -&gt; 0. Hint: accumulator + range(1, n + 1)."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">count_vowels</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return how many vowels (a, e, i, o, u, either case) are in s."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">fizzbuzz</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a list of strings for 1..n: 'Fizz' if divisible by 3, 'Buzz' if by 5,</span>
+<span class="sd">    'FizzBuzz' if by both, otherwise the number as a string.</span>
+<span class="sd">    fizzbuzz(5) -&gt; ['1', '2', 'Fizz', '4', 'Buzz']</span>
+<span class="sd">    Hint: check divisibility by 15 FIRST."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">factorial</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return n! = 1 * 2 * ... * n, with 0! = 1. Hint: accumulator starting at 1."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">is_prime</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return True if n is a prime number (only divisible by 1 and itself).</span>
+<span class="sd">    Numbers below 2 are not prime. Hint: try divisors 2..n-1 and return False early."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">collatz_steps</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Starting at n (&gt;= 1): if even, n = n // 2; if odd, n = 3 * n + 1.</span>
+<span class="sd">    Return how many steps until n becomes 1. collatz_steps(6) -&gt; 8</span>
+<span class="sd">    (6,3,10,5,16,8,4,2,1). collatz_steps(1) -&gt; 0. Hint: while loop."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">first_repeated_char</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the first character that appears a second time while scanning left to right,</span>
+<span class="sd">    or None if there is none. 'abcba' -&gt; 'b'. 'abc' -&gt; None.</span>
+<span class="sd">    Hint: keep a string of characters seen so far; use `in` and an early return."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">right_triangle</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a string with n lines; line i has i '*' characters. Lines are joined with</span>
+<span class="sd">    '\\n' and there is no trailing newline. right_triangle(3) -&gt; '*\\n**\\n***'</span>
+<span class="sd">    Hint: build a list of lines, then '\\n'.join(lines). Return '' for n = 0."""</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../01-basics/week-02-conditions-loops/lesson.html">← Week 2 · Conditions and loops: Lesson</a><a class="next" href="../../01-basics/week-02-conditions-loops/test_exercises.py.html">Week 2 · Conditions and loops: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

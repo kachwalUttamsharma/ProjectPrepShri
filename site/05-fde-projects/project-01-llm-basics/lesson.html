@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Project 1: LLM basics (prompts, structured output, streaming, cost) | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="05-fde-projects/project-01-llm-basics/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../05-fde-projects/project-01-llm-basics/lesson.html">FDE Projects</a> / <a href="../../05-fde-projects/project-01-llm-basics/lesson.html">Project 1 · LLM basics</a> / <span>Lesson</span></nav><button id="mark-done" data-id="05-fde-projects/project-01-llm-basics/lesson">Mark as done</button></div><article class="doc">
+<h1 id="project-1-llm-basics-prompts-structured-output-streaming-cost">Project 1: LLM basics (prompts, structured output, streaming, cost)</h1>
+<p>Budget: ~2 hours. Tests need <strong>no network and no API key</strong>.</p>
+<h2 id="customer-scenario">Customer scenario</h2>
+<p>Northwind Logistics gets ~2,000 messy shipping emails a day ("pls send 3 pallets asap!!! to dock 4"). Ops staff retype them into their system. They ask: <em>"Can the AI read these and give us clean records?"</em> Your job this week is the foundation every later project uses: talk to a model in a way that is <strong>testable, structured, retryable, and costed</strong>.</p>
+<h2 id="the-one-design-rule-inject-the-model">The one design rule: inject the model</h2>
+<p>Every function takes <code>llm</code>, a plain callable <code>llm(prompt: str) -&gt; str</code>. In production it wraps the Anthropic SDK; in tests it is a <code>FakeLLM</code> returning scripted replies. Benefits: no API key in CI, deterministic tests, and you can swap vendors, add logging, caching or cost tracking by wrapping the callable (see <code>UsageTracker.wrap</code>).</p>
+<h2 id="concepts">Concepts</h2>
+<ul>
+<li><strong>Prompt building</strong>: system role, instructions, few-shot examples, then the input. Keep layout in one function so you can version and test it.</li>
+<li><strong>Structured output</strong>: models return text, not objects. Ask for JSON, then <em>never trust it</em>: extract (fences, chatter), parse, validate fields and types.</li>
+<li><strong>Retry with feedback</strong>: on bad output, re-ask with the specific error. Cap attempts (cost and latency!). Rebuild from the original prompt rather than stacking repair messages.</li>
+<li><strong>Streaming</strong>: responses arrive as chunks (or SSE <code>data:</code> lines). Show text as it arrives; users perceive streaming as much faster. Handle empty chunks and <code>[DONE]</code>.</li>
+<li><strong>Tokens and cost</strong>: cost = tokens x price. <code>len/4</code> is a good-enough budget estimate. Customers always ask "what will this cost per month?" Have a number.</li>
+</ul>
+<h2 id="exercises-exercisespy">Exercises (<code>exercises.py</code>)</h2>
+<p><code>build_prompt</code>, <code>extract_json</code>, <code>validate_fields</code>, <code>get_structured</code>, <code>collect_stream</code>, <code>parse_sse_lines</code>, <code>estimate_tokens</code>, <code>estimate_cost</code>, <code>UsageTracker</code>. Run: <code>.venv/bin/pytest 05-fde-projects/project-01-llm-basics -q</code>.</p>
+<h2 id="how-an-fde-would-approach-it">How an FDE would approach it</h2>
+<ol>
+<li>Get 10-20 <em>real</em> emails from the customer on day one. Their mess is not your mess.</li>
+<li>Define the output schema with the customer's ops lead (which fields, which are required, what "unknown" means).</li>
+<li>Start with the simplest prompt; look at failures; add examples for the failures.</li>
+<li>Add validation and a retry cap before the demo, not after the first crash.</li>
+<li>Compute rough cost per email x volume and say it out loud: "about $X per month".</li>
+</ol>
+<h2 id="optional-manual-step-the-real-model">Optional manual step: the real model</h2>
+<p>Not part of the tests. Needs <code>ANTHROPIC_API_KEY</code> in your environment.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">anthropic</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_prompt</span><span class="p">,</span> <span class="n">get_structured</span>
+
+<span class="n">client</span> <span class="o">=</span> <span class="n">anthropic</span><span class="o">.</span><span class="n">Anthropic</span><span class="p">()</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">llm</span><span class="p">(</span><span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">messages</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">=</span><span class="s2">"claude-sonnet-5-5"</span><span class="p">,</span>
+        <span class="n">max_tokens</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span>
+        <span class="n">messages</span><span class="o">=</span><span class="p">[{</span><span class="s2">"role"</span><span class="p">:</span> <span class="s2">"user"</span><span class="p">,</span> <span class="s2">"content"</span><span class="p">:</span> <span class="n">prompt</span><span class="p">}],</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">msg</span><span class="o">.</span><span class="n">content</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span>
+
+<span class="n">prompt</span> <span class="o">=</span> <span class="n">build_prompt</span><span class="p">(</span><span class="s2">"You extract shipping data."</span><span class="p">,</span> <span class="s2">"Reply with JSON only: name, qty, urgent."</span><span class="p">,</span>
+                      <span class="p">[],</span> <span class="s2">"pls send 3 pallets asap"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">get_structured</span><span class="p">(</span><span class="n">llm</span><span class="p">,</span> <span class="n">prompt</span><span class="p">,</span> <span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="s2">"qty"</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="s2">"urgent"</span><span class="p">:</span> <span class="nb">bool</span><span class="p">}))</span>
+
+<span class="c1"># streaming</span>
+<span class="k">with</span> <span class="n">client</span><span class="o">.</span><span class="n">messages</span><span class="o">.</span><span class="n">stream</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">"claude-sonnet-5-5"</span><span class="p">,</span> <span class="n">max_tokens</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span>
+                            <span class="n">messages</span><span class="o">=</span><span class="p">[{</span><span class="s2">"role"</span><span class="p">:</span> <span class="s2">"user"</span><span class="p">,</span> <span class="s2">"content"</span><span class="p">:</span> <span class="s2">"Say hi"</span><span class="p">}])</span> <span class="k">as</span> <span class="n">s</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="n">collect_stream</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">collect_stream</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">text_stream</span><span class="p">,</span> <span class="n">on_chunk</span><span class="o">=</span><span class="k">lambda</span> <span class="n">c</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s2">""</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)))</span>
+</code></pre></div>
+
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li><code>json.loads</code> directly on model output (fences and chatter break it).</li>
+<li>Accepting <code>True</code> as an int, or a string "3" as a number.</li>
+<li>Unbounded retries: a bad prompt then burns money in a loop.</li>
+<li>Appending repair messages every retry so the prompt grows each time.</li>
+<li>Forgetting output tokens cost ~5x input tokens.</li>
+<li>Calling the real API in unit tests.</li>
+</ul>
+<h2 id="demo-tips">Demo tips</h2>
+<ul>
+<li>Show a messy email in, clean JSON out, side by side.</li>
+<li>Deliberately show one failure and the retry fixing it: customers trust systems that visibly handle errors.</li>
+<li>Stream the response in the demo; it feels instant.</li>
+<li>End with the cost slide: per email, per day, per month.</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../../12-cs-fundamentals/rapid-fire.html">← CS Fundamentals: Rapid-fire Q&amp;A</a><a class="next" href="../../05-fde-projects/project-01-llm-basics/exercises.py.html">Project 1 · LLM basics: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

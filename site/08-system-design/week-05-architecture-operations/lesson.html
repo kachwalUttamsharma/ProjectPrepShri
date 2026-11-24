@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 5 - Architecture and Operations: Services, APIs, Observability, Deployment, Multi-Region, Security, LLM Systems | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="08-system-design/week-05-architecture-operations/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../08-system-design/README.html">System Design</a> / <a href="../../08-system-design/week-05-architecture-operations/lesson.html">Week 5 · Architecture and operations</a> / <span>Lesson</span></nav><button id="mark-done" data-id="08-system-design/week-05-architecture-operations/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-5-architecture-and-operations-services-apis-observability-deployment-multi-region-security-llm-systems">Week 5 - Architecture and Operations: Services, APIs, Observability, Deployment, Multi-Region, Security, LLM Systems</h1>
+<p>Time budget: ~3 hrs. Read lesson (1.5h), Q&amp;A aloud (1h), cheatsheet (30m).
+Numbers marked "(check current docs)" change over time; verify before quoting.
+AWS cross-links: <a href="../../07-aws/week-05-integration-ops-security/lesson.html">../../07-aws/week-05-integration-ops-security</a> (API Gateway, CloudWatch, KMS, Secrets, WAF) and <a href="../../07-aws/week-06-architecture-fde/lesson.html">../../07-aws/week-06-architecture-fde</a> (Well-Architected, HA/DR, FastAPI+RAG walkthrough).</p>
+<p>Weeks 1-4 gave you the building blocks (caches, DBs, queues, consensus). This week is about how real systems are shaped, shipped, watched, and secured. Interviewers use this material for "deep dive" and "operational" follow-ups: "how do you deploy it?", "how do you know it is broken?", "what if a region dies?".</p>
+<hr />
+<h2 id="1-monolith-vs-microservices">1. Monolith vs microservices</h2>
+<div class="highlight"><pre><span></span><code> MONOLITH (one deployable)                MICROSERVICES (many deployables)
+ +-----------------------------+          +------+  +------+  +--------+
+ | users | orders | payments   |          | users|  |orders|  |payments|
+ | (modules, in-process calls) |          +--+---+  +--+---+  +---+----+
+ +--------------+--------------+             |  network |  calls   |
+                |                         +--v--+   +---v--+   +---v--+
+            one database                  | DB  |   | DB   |   | DB   |
+                                          +-----+   +------+   +------+
+</code></pre></div>
+
+<p>What microservices buy you</p>
+<ul>
+<li>Independent deploy and scale: ship <code>payments</code> without redeploying everything; scale the hot path only.</li>
+<li>Team autonomy (Conway's law: architecture mirrors org structure). Value shows up past ~dozens of engineers.</li>
+<li>Fault isolation and technology freedom (use Python for ML, Go for the proxy).</li>
+</ul>
+<p>What they cost (say this out loud, it signals maturity)</p>
+<ul>
+<li>Every function call becomes a network call: latency, partial failure, timeouts, retries (week 3).</li>
+<li>Distributed data: no cross-service joins or ACID transactions; need sagas, outbox, eventual consistency (weeks 3-4).</li>
+<li>Operational load: service discovery, tracing, versioning, CI/CD per service, on-call.</li>
+<li>Testing integration is harder (contract tests, staging environments).</li>
+</ul>
+<p>Decision guide
+| Situation | Pick |
+|---|---|
+| Early startup, unclear domain boundaries, &lt;20 engineers | Monolith (modular) |
+| Clear bounded contexts, many teams, different scaling profiles | Microservices |
+| Monolith hurting | Strangler fig: carve services out one at a time behind a router |
+| Distributed monolith (services must deploy together, share DB) | Worst of both; merge or fix boundaries |</p>
+<p>Boundaries: split by business capability (DDD bounded context), not by technical layer. Each service owns its data; others go through its API or events. "Database per service" is the rule; shared DB is a smell.</p>
+<p>Real-world: Amazon/Netflix/Uber went to microservices at scale (Uber has thousands); Shopify and Stack Overflow ran large "modular monoliths" for years; Amazon Prime Video moved a monitoring pipeline from serverless microservices back to a monolith to cut cost (publicly written up, check current details).</p>
+<p>How interviewers probe: "Would you start with microservices for this?" Good answer: start with a modular monolith unless team size/scaling forces otherwise; design clean seams so extraction is cheap.</p>
+<p>Common patterns</p>
+<ul>
+<li>Strangler fig, anti-corruption layer (translate between legacy and new models), sidecar (proxy/log shipper next to the app), BFF (backend-for-frontend: one API shape per client type).</li>
+</ul>
+<hr />
+<h2 id="2-api-design">2. API design</h2>
+<h3 id="21-rest-grpc-graphql">2.1 REST, gRPC, GraphQL</h3>
+<div class="highlight"><pre><span></span><code> REST     : resources + HTTP verbs, JSON, cacheable, ubiquitous. GET /orders/42
+ gRPC     : HTTP/2 + Protobuf, typed contracts, streaming, fast, binary. Internal service-to-service.
+ GraphQL  : single endpoint, client specifies fields; avoids over/under-fetching. Complexity moves to server.
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th></th>
+<th>REST</th>
+<th>gRPC</th>
+<th>GraphQL</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Best for</td>
+<td>Public APIs, CRUD</td>
+<td>Internal low-latency, streaming, polyglot</td>
+<td>Many client types, nested data (mobile/web)</td>
+</tr>
+<tr>
+<td>Payload</td>
+<td>JSON (text)</td>
+<td>Protobuf (compact binary)</td>
+<td>JSON</td>
+</tr>
+<tr>
+<td>Caching</td>
+<td>HTTP caching/CDN easy</td>
+<td>Hard (not HTTP-cacheable by default)</td>
+<td>Hard (POST, one URL); needs persisted queries</td>
+</tr>
+<tr>
+<td>Browser</td>
+<td>Native</td>
+<td>Needs grpc-web</td>
+<td>Native</td>
+</tr>
+<tr>
+<td>Pitfalls</td>
+<td>Over/under-fetch, versioning</td>
+<td>Debuggability, LB needs HTTP/2-aware L7</td>
+<td>N+1 resolvers (use DataLoader), query cost/depth limits, authz per field</td>
+</tr>
+</tbody>
+</table>
+<p>Also: WebSockets/SSE for server push (SSE is common for LLM token streaming), webhooks for third-party callbacks.</p>
+<h3 id="22-good-rest-habits">2.2 Good REST habits</h3>
+<ul>
+<li>Nouns, plural: <code>/orders/{id}</code>; verbs via HTTP method. GET/PUT/DELETE idempotent; POST not (use Idempotency-Key header, week 3).</li>
+<li>Status codes: 200/201/204, 400 validation, 401 unauthenticated, 403 unauthorized, 404, 409 conflict, 422, 429 rate limited (with <code>Retry-After</code>), 5xx server, 503 overloaded.</li>
+<li>Consistent error body: <code>{"error": {"code": "...", "message": "...", "request_id": "..."}}</code>.</li>
+<li>PATCH for partial update; use ETag/<code>If-Match</code> for optimistic concurrency.</li>
+<li>Return a request id; accept a trace header.</li>
+</ul>
+<h3 id="23-pagination">2.3 Pagination</h3>
+<div class="highlight"><pre><span></span><code> Offset:  GET /items?offset=100000&amp;limit=20
+          SQL: ... OFFSET 100000 LIMIT 20  -&gt; DB scans and discards 100k rows. Slow deep; pages shift on inserts.
+ Cursor (keyset): GET /items?after=&lt;opaque cursor&gt;&amp;limit=20
+          SQL: WHERE (created_at, id) &lt; (:ts, :id) ORDER BY created_at DESC, id DESC LIMIT 20
+          Stable, O(log n) with an index. No random "jump to page 500".
+</code></pre></div>
+
+<p>Rules: cursor = opaque base64 of the last sort key (include a unique tiebreaker like id). Return <code>next_cursor</code>. Prefer cursor for feeds/large sets; offset acceptable for small admin tables. Cap <code>limit</code>.</p>
+<h3 id="24-versioning-and-compatibility">2.4 Versioning and compatibility</h3>
+<ul>
+<li>URL (<code>/v1/</code>), header (<code>Accept: application/vnd.x.v2+json</code>), or none with additive-only evolution.</li>
+<li>Backward-compatible changes: add optional fields/endpoints. Breaking: remove/rename fields, change types/semantics.</li>
+<li>Tolerant reader: clients ignore unknown fields. Protobuf: never reuse field numbers.</li>
+<li>Deprecation: announce, <code>Sunset</code> header, metrics on who still calls old versions, then remove.</li>
+<li>Rolling deploys mean old and new code coexist: always make DB and API changes backward compatible in two steps (expand, then contract).</li>
+</ul>
+<h3 id="25-other-api-concerns">2.5 Other API concerns</h3>
+<ul>
+<li>Idempotency, rate limiting (week 3), timeouts, bulk endpoints, long-running operations (return 202 + status URL or webhook), authn/authz, input validation, payload size limits.</li>
+<li>FastAPI note: Pydantic models give you validation + OpenAPI for free; use async only when the handler awaits I/O; run behind multiple workers.</li>
+</ul>
+<hr />
+<h2 id="3-service-discovery">3. Service discovery</h2>
+<p>Problem: instances come and go (autoscaling, deploys); how does A find B?</p>
+<div class="highlight"><pre><span></span><code> Client-side discovery            Server-side discovery           DNS-based / mesh
+ client -&gt; registry -&gt; pick       client -&gt; LB -&gt; instances        client -&gt; service name (DNS)
+ (Eureka, Consul + client lib)    (ALB, K8s Service, nginx)        K8s: kube-dns + kube-proxy; Envoy mesh (Istio/Linkerd)
+</code></pre></div>
+
+<ul>
+<li>Registry holds name -&gt; healthy instances; instances register (or the platform does) and send heartbeats; failing health checks remove them.</li>
+<li>Kubernetes: Service gives a stable virtual IP/DNS name; EndpointSlices track ready pods; readiness probes gate traffic.</li>
+<li>Service mesh (sidecar Envoy): discovery, mTLS, retries, timeouts, traffic shifting, telemetry moved out of app code. Cost: complexity and latency hop.</li>
+<li>Consistency: registries are AP-leaning/eventual (Eureka) or CP (Consul/etcd/ZooKeeper via Raft/ZAB, week 4). Stale entries happen: clients must retry/handle connection errors.</li>
+<li>Config discovery is related: etcd, Consul KV, AWS SSM/AppConfig.</li>
+</ul>
+<hr />
+<h2 id="4-api-gateway">4. API gateway</h2>
+<div class="highlight"><pre><span></span><code> Clients --&gt; [CDN/WAF] --&gt; [API Gateway] --&gt; service A
+                              |  authn (JWT validate), rate limit, routing,
+                              |  TLS termination, request transform, caching,
+                              |  aggregation, logging/metrics, canary routing
+                              +--&gt; service B ...
+</code></pre></div>
+
+<ul>
+<li>Single entry point for cross-cutting concerns; hides internal topology.</li>
+<li>Risks: single point of failure/bottleneck (run it redundant and stateless), business logic creeping in ("smart gateway" anti-pattern), extra hop latency.</li>
+<li>BFF variant: one gateway per client type.</li>
+<li>Products: AWS API Gateway, Kong, Envoy/Istio gateway, NGINX, Apigee. See <a href="../../07-aws/week-05-integration-ops-security/lesson.html">07-aws week 5</a> for AWS API Gateway specifics.</li>
+<li>Gateway vs load balancer vs mesh: LB distributes traffic; gateway handles north-south edge policy; mesh handles east-west service-to-service.</li>
+</ul>
+<hr />
+<h2 id="5-observability">5. Observability</h2>
+<p>Monitoring tells you something is wrong; observability lets you ask why, including for unknown unknowns.</p>
+<div class="highlight"><pre><span></span><code> METRICS  numbers over time, cheap, aggregatable -&gt; alerts, dashboards   (Prometheus, CloudWatch)
+ LOGS     discrete events with context, expensive at scale -&gt; debugging  (ELK/OpenSearch, Loki, Splunk)
+ TRACES   one request's path across services, with timing -&gt; latency/root cause (OpenTelemetry, Jaeger, X-Ray)
+</code></pre></div>
+
+<h3 id="51-metrics-frameworks">5.1 Metrics frameworks</h3>
+<ul>
+<li>RED (request-oriented services): Rate, Errors, Duration.</li>
+<li>USE (resources): Utilization, Saturation, Errors.</li>
+<li>Four golden signals (Google SRE): latency, traffic, errors, saturation.</li>
+<li>Use percentiles (p50/p95/p99), never averages; histograms not just means. Tail latency matters because fan-out multiplies it: a request touching 100 services each with p99 1s is slow ~63% of the time (1 - 0.99^100).</li>
+<li>Cardinality: never label metrics with user_id/request_id (explodes time series cost). Put high-cardinality data in logs/traces.</li>
+</ul>
+<h3 id="52-logging">5.2 Logging</h3>
+<ul>
+<li>Structured JSON, with <code>trace_id</code>, <code>request_id</code>, service, version, level. Log at boundaries, not in tight loops. Never log secrets/PII.</li>
+<li>Pipeline: app -&gt; stdout -&gt; agent (Fluent Bit/Vector) -&gt; Kafka (buffer) -&gt; index. Sampling and retention tiers control cost.</li>
+</ul>
+<h3 id="53-tracing">5.3 Tracing</h3>
+<div class="highlight"><pre><span></span><code> trace_id=abc
+ [gateway 0-120ms]
+   [auth 5-15ms]
+   [orders 20-110ms]
+       [db query 25-40ms]
+       [payments (RPC) 45-105ms]   &lt;- the slow span
+</code></pre></div>
+
+<ul>
+<li>Context propagation: W3C <code>traceparent</code> header passed on every call and message. OpenTelemetry is the vendor-neutral standard (SDKs + collector).</li>
+<li>Sampling: head-based (decide at start, cheap, may miss rare errors) vs tail-based (decide after trace completes, keeps slow/error traces, needs buffering).</li>
+<li>Exemplars link a metric spike to a specific trace.</li>
+</ul>
+<h3 id="54-alerting-and-slos-ties-to-week-1">5.4 Alerting and SLOs (ties to week 1)</h3>
+<ul>
+<li>Alert on symptoms users feel (SLO burn rate), not causes (CPU 80%). Multi-window burn-rate alerts: page when error budget is consumed fast (e.g. 2% of monthly budget in 1h; check SRE workbook for thresholds).</li>
+<li>Every page must be actionable, with a runbook link. Alert fatigue kills on-call.</li>
+<li>Health checks: liveness (restart me) vs readiness (send me traffic); deep health checks that call dependencies can cause cascading failures, so keep liveness shallow.</li>
+<li>Incident practice: detect, mitigate first (rollback, shed load, failover), then root cause; blameless postmortem with action items.</li>
+</ul>
+<h3 id="55-failure-modes">5.5 Failure modes</h3>
+<ul>
+<li>Telemetry pipeline outage during the incident (monitor the monitor; have a second signal).</li>
+<li>Metrics cardinality bill explosion. Log volume from debug level left on. Missing trace propagation across async boundaries (queues): put trace context in message headers.</li>
+<li>Clock skew confusing log ordering (week 4): rely on trace parent-child, not timestamps.</li>
+</ul>
+<p>How interviewers probe: "How would you know this feature is degraded before a customer tells you?" "A p99 latency spike, walk me through debugging." Good flow: dashboards (RED) -&gt; which service/endpoint -&gt; traces for slow requests -&gt; span shows dependency -&gt; logs for that trace -&gt; recent deploy/config change -&gt; mitigate (rollback) -&gt; postmortem.</p>
+<hr />
+<h2 id="6-deployment-strategies">6. Deployment strategies</h2>
+<div class="highlight"><pre><span></span><code> Rolling         v1 v1 v1 v1  -&gt; v2 v1 v1 v1 -&gt; v2 v2 v1 v1 -&gt; ... gradual replace; cheap; mixed versions coexist; slow rollback
+ Blue-green      [blue v1 LIVE] [green v2 idle] -&gt; test green -&gt; flip LB/DNS -&gt; blue kept for instant rollback; 2x capacity during switch
+ Canary          5% traffic -&gt; v2, watch metrics -&gt; 25% -&gt; 50% -&gt; 100%; auto-rollback on SLO breach; needs good metrics
+ Shadow/mirror   copy of live traffic sent to v2, responses discarded; test without user impact (careful with side effects)
+ Feature flags   deploy dark, enable per user/percent at runtime; decouples deploy from release; kill-switch
+ Recreate        stop v1, start v2; downtime; fine for dev/batch
+</code></pre></div>
+
+<ul>
+<li>Database migrations are the hard part: use expand/contract (add nullable column -&gt; deploy code writing both -&gt; backfill -&gt; switch reads -&gt; drop old). Never ship a migration that old code cannot tolerate.</li>
+<li>Rollback plan must be rehearsed. Immutable artifacts (container image digest), config separated from code, IaC (Terraform/CDK), CI/CD with automated tests and progressive delivery (Argo Rollouts, Flagger, AWS CodeDeploy).</li>
+<li>Stateful rollout: ordered, one at a time, wait for replication catch-up.</li>
+<li>Graceful shutdown: on SIGTERM stop accepting, finish in-flight, deregister; connection draining at LB.</li>
+<li>Failure modes: bad config pushed globally at once (cause of many large outages; stage config like code), canary too small/short to detect problem, flags never cleaned up, cache stampede after deploy cold start (week 1), thundering herd of reconnects.</li>
+</ul>
+<hr />
+<h2 id="7-multi-region-and-disaster-recovery">7. Multi-region and disaster recovery</h2>
+<h3 id="71-why-multi-region">7.1 Why multi-region</h3>
+<p>Latency to global users, regional failure tolerance, data residency/compliance (GDPR), and DR. Cost: complexity, cross-region latency (~50-150 ms between continents, check measurements), data consistency issues, egress fees.</p>
+<h3 id="72-patterns">7.2 Patterns</h3>
+<div class="highlight"><pre><span></span><code> Active-passive (warm/cold standby)     Active-active
+ Region A (serves)  --async repl--&gt;     Region A (serves) &lt;--bi-directional--&gt; Region B (serves)
+ Region B (standby, failover)           global routing by latency/geo; need conflict handling
+</code></pre></div>
+
+<ul>
+<li>Data is the hard part. Options: single-leader with regional read replicas (writes go to home region); partition users by home region (each user has one writer region, "cell/shard affinity"); multi-leader with conflict resolution (LWW, CRDTs; week 4); globally consistent DB (Spanner uses TrueTime + Paxos, higher write latency; DynamoDB Global Tables is multi-writer with last-writer-wins; Aurora Global Database has one writer region with fast replication; check current docs).</li>
+<li>Routing: DNS (Route 53 latency/failover/health checks; TTL slows failover), Anycast/global accelerators, global load balancers.</li>
+<li>Cell-based architecture: independent full-stack "cells" each serving a slice of customers; bounds blast radius.</li>
+</ul>
+<h3 id="73-dr-vocabulary">7.3 DR vocabulary</h3>
+<ul>
+<li>RPO (Recovery Point Objective): max tolerable data loss (time). RTO (Recovery Time Objective): max tolerable downtime.</li>
+</ul>
+<div class="highlight"><pre><span></span><code> Strategy          RPO        RTO         Cost
+ Backup/restore    hours      hours       $
+ Pilot light       minutes    tens of min $$   (data replicated, compute off)
+ Warm standby      seconds-m  minutes     $$$  (scaled-down full stack)
+ Active-active     ~0         ~0 (secs)   $$$$
+</code></pre></div>
+
+<ul>
+<li>Backups: 3-2-1 rule (3 copies, 2 media, 1 offsite), immutable/versioned, test restores (an untested backup is not a backup). Point-in-time recovery.</li>
+<li>Failover design: automated detection vs human decision (avoid flapping and split-brain; fencing, week 4), failback plan, runbooks, game days / chaos engineering (Netflix Chaos Monkey), regular DR drills.</li>
+<li>Failure modes: replication lag at failover causes data loss (RPO &gt; promised); split-brain with two active leaders; failover capacity insufficient (standby cannot handle full load); control-plane dependency in the failed region (the tool you need to fail over lives in the dead region); DNS TTL caching; config drift between regions.</li>
+<li>See <a href="../../07-aws/week-06-architecture-fde/lesson.html">07-aws week 6</a> for AWS-specific DR tiers.</li>
+</ul>
+<p>How interviewers probe: "What are your RPO/RTO?" "What happens to in-flight writes during failover?" "How do you avoid two regions both thinking they are primary?"</p>
+<hr />
+<h2 id="8-security-basics">8. Security basics</h2>
+<h3 id="81-authn-vs-authz">8.1 AuthN vs AuthZ</h3>
+<ul>
+<li>Authentication: who are you. Authorization: what may you do.</li>
+<li>Session cookies (server state, easy revoke) vs tokens. JWT: signed (not encrypted by default) JSON with claims; stateless verification; hard to revoke (use short expiry + refresh tokens, or denylist). Always validate signature, <code>exp</code>, <code>aud</code>, <code>iss</code>; never accept <code>alg: none</code>.</li>
+<li>OAuth 2.0 = delegated authorization (flows: authorization code + PKCE for apps, client credentials for service-to-service). OIDC = identity layer on top (ID token). SAML for enterprise SSO.</li>
+<li>Authz models: RBAC (roles), ABAC (attributes/policies), ReBAC (relationship-based, Google Zanzibar/SpiceDB-style for "can user X view doc Y"). Enforce least privilege and check authz on every request server-side (avoid IDOR: user changes <code>/orders/42</code> to <code>/orders/43</code>).</li>
+<li>Multi-tenancy: tenant id in every query and cache key; row-level security; per-tenant encryption keys for sensitive customers; noisy-neighbor quotas. Highly relevant to FDE/enterprise work.</li>
+<li>Service-to-service: mTLS (identity via certs, SPIFFE/SPIRE), workload identity (IAM roles, no static keys).</li>
+</ul>
+<h3 id="82-tls">8.2 TLS</h3>
+<div class="highlight"><pre><span></span><code> Client                               Server
+  |--- ClientHello (versions, ciphers) --&gt;|
+  |&lt;-- ServerHello + certificate ---------|   cert chain verified up to trusted CA
+  |--- key exchange (ECDHE) -------------&gt;|   forward secrecy: ephemeral keys
+  |&lt;=== encrypted application data =====&gt;|   symmetric (AES-GCM / ChaCha20)
+</code></pre></div>
+
+<ul>
+<li>Provides confidentiality, integrity, server authentication. TLS 1.3: 1 RTT handshake (0-RTT resumption with replay caveats). mTLS adds client cert.</li>
+<li>Terminate TLS at LB/gateway, re-encrypt internally (zero trust: do not trust the network).</li>
+<li>Cert rotation/expiry is a classic outage cause: automate (ACME/Let's Encrypt, ACM), alert on expiry.</li>
+<li>Encryption at rest: disk/DB encryption, envelope encryption with KMS (data key encrypts data; master key encrypts data key). Field-level encryption for PII.</li>
+</ul>
+<h3 id="83-secrets">8.3 Secrets</h3>
+<ul>
+<li>Never in code, git, images, or logs. Use a secrets manager (Vault, AWS Secrets Manager/SSM, GCP Secret Manager), inject at runtime, rotate automatically, short-lived dynamic credentials where possible, audit access.</li>
+<li>Prefer identity-based access (IAM role / workload identity) over long-lived keys.</li>
+<li>See <a href="../../07-aws/week-05-integration-ops-security/lesson.html">07-aws week 5</a> for KMS, Secrets Manager, WAF, Cognito.</li>
+</ul>
+<h3 id="84-common-web-risks-owasp-style">8.4 Common web risks (OWASP-style)</h3>
+<p>Injection (use parameterized queries), broken access control, SSRF, XSS/CSRF, insecure deserialization, vulnerable dependencies (SCA scanning), misconfiguration, DDoS (rate limit, WAF, CDN absorption), excessive data exposure. Defense in depth; secure defaults; input validation at the edge; audit logs.</p>
+<p>How interviewers probe: "Where do you validate the token? What happens when it's stolen? How do you do tenant isolation? Where are secrets stored?"</p>
+<hr />
+<h2 id="9-the-llm-rag-system-angle">9. The LLM / RAG system angle</h2>
+<p>Why it matters: forward-deployed roles often mean building LLM features for enterprise customers. The system design is mostly classic distributed systems with some new constraints: slow, expensive, nondeterministic backends.</p>
+<h3 id="91-what-is-different-about-llm-backends">9.1 What is different about LLM backends</h3>
+<ul>
+<li>Latency is seconds, not milliseconds: time-to-first-token (TTFT) plus per-token generation speed; total grows with output length. Stream tokens (SSE/WebSocket) to hide it.</li>
+<li>Cost is per token (input and output priced separately; output usually costs several times more; check current docs). Long contexts are costly and slower.</li>
+<li>Rate limits by requests per minute and tokens per minute per account/model; provider 429s and 5xx/overloaded are normal.</li>
+<li>Nondeterministic and can be wrong (hallucination); quality needs evals, not unit tests.</li>
+<li>Context window limit; prompt content is untrusted input (prompt injection).</li>
+</ul>
+<h3 id="92-reference-architecture">9.2 Reference architecture</h3>
+<div class="highlight"><pre><span></span><code> Client (SSE stream)
+    |
+ [API gateway: authn, tenant id, rate limit, quotas]
+    |
+ [Orchestrator service (FastAPI)]
+    |-- input guardrails (PII, injection, policy)
+    |-- semantic/exact cache lookup ---------------------&gt; [Redis / vector cache]
+    |-- query rewrite / routing (small model decides path)
+    |-- retrieval:  embed query -&gt; [vector DB + BM25 hybrid] -&gt; rerank -&gt; top-k chunks (tenant-filtered)
+    |-- prompt assembly (system + context + history, token budget)
+    |-- LLM call (model router; timeout; retry w/ backoff+jitter; fallback model/provider; circuit breaker)
+    |-- output guardrails (schema validate, groundedness/citations, PII redaction, moderation)
+    |-- log prompt/response/trace/cost/feedback (async, via queue)
+    v
+ stream response + citations
+
+ Offline: ingestion pipeline  docs -&gt; parse -&gt; chunk -&gt; embed -&gt; upsert (queue + workers, idempotent, versioned)
+</code></pre></div>
+
+<h3 id="93-latency-levers">9.3 Latency levers</h3>
+<ul>
+<li>Stream; cut prompt size (fewer/shorter chunks, summarize history); smaller/faster model for easy steps (routing/cascade: try small model, escalate if low confidence); parallelize independent calls (retrieval + intent classification); cache; prompt/prefix caching offered by providers (cheaper and faster for repeated long prefixes; check current docs); limit max output tokens; avoid sequential agent loops when one call works; co-locate with provider region.</li>
+<li>Budget example: retrieval 100-300 ms, rerank 100-200 ms, TTFT 0.5-2 s, generation 30-100 tokens/s (varies hugely by model; measure).</li>
+</ul>
+<h3 id="94-caching">9.4 Caching</h3>
+<ul>
+<li>Exact-match cache keyed on (normalized prompt, model, params, tenant, doc version): safe, low hit rate except repeated queries/templates.</li>
+<li>Semantic cache: embed query, return cached answer if similarity &gt; threshold. Higher hit rate but risk of wrong answers (similar wording, different meaning), and cross-tenant leakage if not partitioned by tenant/permissions. Set conservative thresholds, TTLs, and invalidate on source doc updates.</li>
+<li>Cache embeddings (same text -&gt; same vector), retrieval results, and provider prefix cache. Invalidation is hard when permissions change: key by ACL scope.</li>
+</ul>
+<h3 id="95-rate-limits-and-capacity">9.5 Rate limits and capacity</h3>
+<ul>
+<li>Two limiters: protect yourself from tenants (per-tenant requests and token quotas, token bucket measured in tokens), and respect the provider's limits (global token bucket shared across your fleet; queue and shed).</li>
+<li>Handle 429/overload: exponential backoff with jitter, honor <code>Retry-After</code>, fallback to alternate model or provider, queue non-interactive work (batch APIs are cheaper and asynchronous; check current docs), priority classes (interactive over batch), backpressure to client (503 with retry hint).</li>
+<li>Provisioned throughput vs on-demand: reserved capacity for steady load, on-demand for burst (check provider options).</li>
+<li>Timeouts: set per-call (e.g. TTFT timeout and total timeout); a hung LLM call must not hold a worker forever; bulkhead the LLM pool from other endpoints.</li>
+<li>Streaming and idle connections: LBs have idle timeouts (check current docs); send heartbeats.</li>
+</ul>
+<h3 id="96-cost-control">9.6 Cost control</h3>
+<ul>
+<li>Cost per request = input_tokens * in_price + output_tokens * out_price (+ embeddings + vector DB + infra). Track per tenant, feature, model. Dashboard + budgets + alerts.</li>
+<li>Levers: model routing, caching, shorter prompts, top-k tuning, summarize history, cap output, batch for offline, distillation/fine-tuning small model for stable tasks, self-hosting only when volume justifies GPU ops (utilization is the key; batching with vLLM-style continuous batching).</li>
+<li>Worked example (illustrative numbers): 1M requests/day, 3,000 input + 400 output tokens. If input is $X per 1M tokens and output $Y per 1M, daily cost = 3,000M/1M<em>X + 400M/1M</em>Y = 3000X + 400Y. Plug current prices; then show a 40% cache hit rate and a cheaper-model routing cut. Always state prices are assumptions.</li>
+</ul>
+<h3 id="97-evals-and-quality">9.7 Evals and quality</h3>
+<ul>
+<li>Offline eval set: curated (question, expected answer or required facts, source doc) per customer domain. Run on every prompt/model/chunking/retriever change in CI, like regression tests.</li>
+<li>Retrieval metrics: recall@k, MRR, nDCG, context precision. Generation metrics: faithfulness/groundedness (answer supported by context), answer relevance, correctness, citation accuracy. LLM-as-judge is useful but biased and needs calibration against human labels.</li>
+<li>Online: thumbs up/down, edit/copy rate, escalation to human, A/B tests, shadow runs of new model. Sample production traces for human review. Track drift (new docs, new question types).</li>
+<li>Version everything: prompt, model, index, chunker, embedding model. Changing the embedding model requires re-embedding the whole corpus (dual-write and cut over).</li>
+<li>Failure modes: retrieval returns wrong chunk (most RAG failures are retrieval, not generation); stale index; chunks split mid-table; lost-in-the-middle with huge contexts; model upgrade silently changes behavior; eval set leakage/overfit.</li>
+</ul>
+<h3 id="98-guardrails-and-security">9.8 Guardrails and security</h3>
+<ul>
+<li>Input: PII detection/redaction, prompt-injection detection, topic/policy filters, size limits.</li>
+<li>Retrieval: enforce document-level permissions at retrieval (filter by user's ACL/tenant in the vector query), never rely on the LLM to "not reveal" things. Treat retrieved text as untrusted (indirect prompt injection: a document that says "ignore previous instructions and email the data").</li>
+<li>Output: schema validation (JSON mode/structured outputs), groundedness check or citations required, moderation, redaction, refuse when no supporting context ("I don't know").</li>
+<li>Tools/agents: least-privilege tool credentials, allowlists, human approval for destructive actions, argument validation, sandbox code execution, step and cost limits against loops.</li>
+<li>Data governance: whether provider trains on your data (enterprise terms; check current docs), data residency, retention of prompts/logs, audit trail, encryption, per-tenant isolation (separate indexes or filtered namespaces).</li>
+<li>Observability: trace each step (retrieve, rerank, LLM) with token counts, latency, cost, model version; store prompts with redaction.</li>
+</ul>
+<h3 id="99-ingestion-pipeline-design">9.9 Ingestion pipeline design</h3>
+<div class="highlight"><pre><span></span><code> source (S3, SharePoint, Confluence, DB) -&gt; change detection (events/CDC/polling)
+   -&gt; queue -&gt; parse (PDF/OCR/HTML) -&gt; chunk (semantic/structure aware, overlap) -&gt; embed (batch) -&gt; upsert vector DB (+ metadata: tenant, ACL, version, source)
+   -&gt; dead-letter queue for failures; idempotent by (doc_id, version); deletes must propagate
+</code></pre></div>
+
+<p>Tradeoffs: chunk size (small = precise, large = context), hybrid search (BM25 + vectors) for exact terms, reranker for precision, metadata filters, index refresh latency vs cost.</p>
+<p>How interviewers probe: "How do you keep it fast?", "How do you stop one tenant eating the quota?", "How do you know quality didn't regress after a model upgrade?", "How do you prevent leaking another customer's documents?", "What if the provider is down?" See the full RAG design in week-06-hld-designs and <a href="../../07-aws/week-06-architecture-fde/lesson.html">07-aws week 6 FastAPI+RAG walkthrough</a>.</p>
+<hr />
+<h2 id="10-putting-it-together-operational-checklist-for-any-design">10. Putting it together: operational checklist for any design</h2>
+<ol>
+<li>Entry: CDN/WAF, gateway, authn/z, rate limit.</li>
+<li>Services: stateless, health checks, timeouts/retries/circuit breakers, idempotent.</li>
+<li>Data: replication, backups, migrations, tenant isolation.</li>
+<li>Observability: RED metrics, SLOs, structured logs, traces, alerts with runbooks.</li>
+<li>Delivery: CI/CD, canary, flags, rollback, config safety.</li>
+<li>Resilience: multi-AZ, DR plan with RPO/RTO, game days.</li>
+<li>Security: TLS, secrets, least privilege, audit.</li>
+<li>Cost: per-unit cost, biggest levers.</li>
+</ol>
+<p>Say these unprompted in the last 5 minutes of an interview; it separates senior answers.</p>
+<h2 id="self-check-answer-without-notes">Self-check (answer without notes)</h2>
+<ul>
+<li>Why might you pick a modular monolith first?</li>
+<li>Offset vs cursor pagination; why is offset slow?</li>
+<li>What does a canary need to be safe? What makes DB migrations hard in blue-green?</li>
+<li>Define RPO vs RTO and map to DR strategies.</li>
+<li>Where does tenant isolation get enforced in a RAG system?</li>
+<li>Three ways to cut LLM latency and three ways to cut LLM cost.</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../../08-system-design/week-04-distributed-algorithms/cheatsheet.html">← Week 4 · Distributed algorithms: Cheatsheet</a><a class="next" href="../../08-system-design/week-05-architecture-operations/interview-qa.html">Week 5 · Architecture and operations: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

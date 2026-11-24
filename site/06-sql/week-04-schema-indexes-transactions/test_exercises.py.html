@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>test_exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="06-sql/week-04-schema-indexes-transactions/test_exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../06-sql/week-04-schema-indexes-transactions/lesson.html">Week 4 · Schema, indexes, transactions</a> / <span>Tests (code)</span></nav><button id="mark-done" data-id="06-sql/week-04-schema-indexes-transactions/test_exercises.py">Mark as done</button></div><article class="doc">
+<h1>test_exercises.py</h1><p class="code-path"><code>06-sql/week-04-schema-indexes-transactions/test_exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">sqlite3</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">schema</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span><span class="n">db_accounts</span><span class="p">,</span> <span class="n">db_events</span><span class="p">,</span> <span class="n">db_flat_orders</span><span class="p">,</span> <span class="n">db_newsletter</span><span class="p">,</span> <span class="n">db_orders</span><span class="p">,</span>
+                    <span class="n">db_products</span><span class="p">,</span> <span class="n">db_stock</span><span class="p">,</span> <span class="n">db_students_courses</span><span class="p">,</span> <span class="n">db_subscriptions</span><span class="p">,</span>
+                    <span class="n">db_users_for_migration</span><span class="p">,</span> <span class="n">db_with_users</span><span class="p">,</span> <span class="n">fresh_conn</span><span class="p">,</span> <span class="n">plan</span><span class="p">,</span> <span class="n">script</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">cols</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="n">table</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">r</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="sa">f</span><span class="s2">"PRAGMA table_info(</span><span class="si">{</span><span class="n">table</span><span class="si">}</span><span class="s2">)"</span><span class="p">)]</span>
+
+
+<span class="c1"># ---------------------------------------------------------------- constraints</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_create_users_table</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">fresh_conn</span><span class="p">()</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">executescript</span><span class="p">(</span><span class="n">script</span><span class="p">(</span><span class="n">create_users_table</span><span class="p">()))</span>
+    <span class="k">assert</span> <span class="n">cols</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s2">"users"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"id"</span><span class="p">,</span> <span class="s2">"email"</span><span class="p">,</span> <span class="s2">"name"</span><span class="p">,</span> <span class="s2">"age"</span><span class="p">]</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSERT INTO users VALUES (1, 'a@x.com', 'A', 30)"</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSERT INTO users VALUES (2, 'b@x.com', 'B', NULL)"</span><span class="p">)</span>  <span class="c1"># age optional</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">sqlite3</span><span class="o">.</span><span class="n">IntegrityError</span><span class="p">):</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSERT INTO users VALUES (3, 'a@x.com', 'Dup', 20)"</span><span class="p">)</span>  <span class="c1"># unique email</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">sqlite3</span><span class="o">.</span><span class="n">IntegrityError</span><span class="p">):</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSERT INTO users VALUES (4, 'c@x.com', NULL, 20)"</span><span class="p">)</span>  <span class="c1"># name required</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">sqlite3</span><span class="o">.</span><span class="n">IntegrityError</span><span class="p">):</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSERT INTO users VALUES (5, NULL, 'E', 20)"</span><span class="p">)</span>  <span class="c1"># email required</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">sqlite3</span><span class="o">.</span><span class="n">IntegrityError</span><span class="p">):</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSERT INTO users VALUES (6, 'f@x.com', 'F', -1)"</span><span class="p">)</span>  <span class="c1"># age check</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_create_orders_table</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">db_with_users</span><span class="p">()</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">executescript</span><span class="p">(</span><span class="n">script</span><span class="p">(</span><span class="n">create_orders_table</span><span class="p">()))</span>
+    <span class="k">assert</span> <span class="n">cols</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s2">"orders"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"id"</span><span class="p">,</span> <span class="s2">"user_id"</span><span class="p">,</span> <span class="s2">"total"</span><span class="p">,</span> <span class="s2">"status"</span><span class="p">,</span> <span class="s2">"created_at"</span><span class="p">]</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSERT INTO orders (user_id, total) VALUES (1, 10.5)"</span><span class="p">)</span>
+    <span class="n">status</span><span class="p">,</span> <span class="n">created</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT status, created_at FROM orders"</span><span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">status</span> <span class="o">==</span> <span class="s2">"new"</span> <span class="ow">and</span> <span class="n">created</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">sqlite3</span><span class="o">.</span><span class="n">IntegrityError</span><span class="p">):</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSERT INTO orders (user_id, total) VALUES (99, 5)"</span><span class="p">)</span>  <span class="c1"># FK</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">sqlite3</span><span class="o">.</span><span class="n">IntegrityError</span><span class="p">):</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSERT INTO orders (user_id, total) VALUES (NULL, 5)"</span><span class="p">)</span>  <span class="c1"># NOT NULL</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">sqlite3</span><span class="o">.</span><span class="n">IntegrityError</span><span class="p">):</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSERT INTO orders (user_id, total) VALUES (1, -5)"</span><span class="p">)</span>  <span class="c1"># CHECK total</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">sqlite3</span><span class="o">.</span><span class="n">IntegrityError</span><span class="p">):</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSERT INTO orders (user_id, total, status) VALUES (1, 5, 'lost')"</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSERT INTO orders (user_id, total, status) VALUES (2, 7, 'paid')"</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"DELETE FROM users WHERE id = 1"</span><span class="p">)</span>  <span class="c1"># cascade</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT user_id FROM orders"</span><span class="p">)</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span> <span class="o">==</span> <span class="p">[(</span><span class="mi">2</span><span class="p">,)]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_create_enrollments_table</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">db_students_courses</span><span class="p">()</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">executescript</span><span class="p">(</span><span class="n">script</span><span class="p">(</span><span class="n">create_enrollments_table</span><span class="p">()))</span>
+    <span class="k">assert</span> <span class="n">cols</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s2">"enrollments"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"student_id"</span><span class="p">,</span> <span class="s2">"course_id"</span><span class="p">,</span> <span class="s2">"enrolled_on"</span><span class="p">]</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSERT INTO enrollments (student_id, course_id) VALUES (1, 10)"</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSERT INTO enrollments (student_id, course_id) VALUES (1, 20)"</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSERT INTO enrollments (student_id, course_id) VALUES (2, 10)"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT enrolled_on FROM enrollments LIMIT 1"</span><span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">sqlite3</span><span class="o">.</span><span class="n">IntegrityError</span><span class="p">):</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSERT INTO enrollments (student_id, course_id) VALUES (1, 10)"</span><span class="p">)</span>  <span class="c1"># twice</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">sqlite3</span><span class="o">.</span><span class="n">IntegrityError</span><span class="p">):</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSERT INTO enrollments (student_id, course_id) VALUES (9, 10)"</span><span class="p">)</span>  <span class="c1"># FK</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">sqlite3</span><span class="o">.</span><span class="n">IntegrityError</span><span class="p">):</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSERT INTO enrollments (student_id, course_id) VALUES (1, 99)"</span><span class="p">)</span>  <span class="c1"># FK</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_extract_customers</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">db_flat_orders</span><span class="p">()</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">executescript</span><span class="p">(</span><span class="n">script</span><span class="p">(</span><span class="n">extract_customers</span><span class="p">()))</span>
+    <span class="k">assert</span> <span class="n">cols</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s2">"customers"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"id"</span><span class="p">,</span> <span class="s2">"name"</span><span class="p">,</span> <span class="s2">"email"</span><span class="p">]</span>
+    <span class="n">rows</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT name, email FROM customers ORDER BY name"</span><span class="p">)</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">rows</span> <span class="o">==</span> <span class="p">[(</span><span class="s2">"Ann"</span><span class="p">,</span> <span class="s2">"ann@x.com"</span><span class="p">),</span> <span class="p">(</span><span class="s2">"Bob"</span><span class="p">,</span> <span class="s2">"bob@x.com"</span><span class="p">),</span> <span class="p">(</span><span class="s2">"Cy"</span><span class="p">,</span> <span class="s2">"cy@x.com"</span><span class="p">)]</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">sqlite3</span><span class="o">.</span><span class="n">IntegrityError</span><span class="p">):</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSERT INTO customers (name, email) VALUES ('Ann2', 'ann@x.com')"</span><span class="p">)</span>
+
+
+<span class="c1"># -------------------------------------------------------------------- indexes</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_index_for_user_lookup</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">db_events</span><span class="p">()</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="s2">"SELECT * FROM events WHERE user_id = 5"</span>
+    <span class="k">assert</span> <span class="s2">"scan"</span> <span class="ow">in</span> <span class="n">plan</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>  <span class="c1"># before: full table scan</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">executescript</span><span class="p">(</span><span class="n">script</span><span class="p">(</span><span class="n">index_for_user_lookup</span><span class="p">()))</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">plan</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="s2">"search"</span> <span class="ow">in</span> <span class="n">p</span> <span class="ow">and</span> <span class="s2">"using index"</span> <span class="ow">in</span> <span class="n">p</span> <span class="ow">and</span> <span class="s2">"scan"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">p</span><span class="p">,</span> <span class="n">p</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_index_for_user_time_range</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">db_events</span><span class="p">()</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="s2">"SELECT id FROM events WHERE user_id = 5 AND created_at &gt;= '2024-01-05' ORDER BY created_at"</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">executescript</span><span class="p">(</span><span class="n">script</span><span class="p">(</span><span class="n">index_for_user_time_range</span><span class="p">()))</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">plan</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="s2">"search"</span> <span class="ow">in</span> <span class="n">p</span> <span class="ow">and</span> <span class="s2">"user_id=?"</span> <span class="ow">in</span> <span class="n">p</span><span class="p">,</span> <span class="n">p</span>
+    <span class="k">assert</span> <span class="s2">"temp b-tree"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">p</span><span class="p">,</span> <span class="s2">"index should also provide the ORDER BY: "</span> <span class="o">+</span> <span class="n">p</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_covering_index_for_user_report</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">db_events</span><span class="p">()</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="s2">"SELECT kind, created_at FROM events WHERE user_id = 7"</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">executescript</span><span class="p">(</span><span class="n">script</span><span class="p">(</span><span class="n">covering_index_for_user_report</span><span class="p">()))</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">plan</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="s2">"covering index"</span> <span class="ow">in</span> <span class="n">p</span> <span class="ow">and</span> <span class="s2">"user_id=?"</span> <span class="ow">in</span> <span class="n">p</span><span class="p">,</span> <span class="n">p</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_one_active_subscription_per_user</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">db_subscriptions</span><span class="p">()</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">executescript</span><span class="p">(</span><span class="n">script</span><span class="p">(</span><span class="n">one_active_subscription_per_user</span><span class="p">()))</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSERT INTO subscriptions (user_id, active) VALUES (1, 0)"</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSERT INTO subscriptions (user_id, active) VALUES (1, 0)"</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSERT INTO subscriptions (user_id, active) VALUES (1, 1)"</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSERT INTO subscriptions (user_id, active) VALUES (2, 1)"</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">sqlite3</span><span class="o">.</span><span class="n">IntegrityError</span><span class="p">):</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSERT INTO subscriptions (user_id, active) VALUES (1, 1)"</span><span class="p">)</span>
+
+
+<span class="c1"># --------------------------------------------------------------- transactions</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_transfer_funds</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">db_accounts</span><span class="p">()</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">executescript</span><span class="p">(</span><span class="n">script</span><span class="p">(</span><span class="n">transfer_funds</span><span class="p">()))</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">c</span><span class="o">.</span><span class="n">in_transaction</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT id, balance FROM accounts ORDER BY id"</span><span class="p">)</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span> <span class="o">==</span> <span class="p">[(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">900</span><span class="p">),</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">600</span><span class="p">)]</span>
+    <span class="n">sql</span> <span class="o">=</span> <span class="n">transfer_funds</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="s2">"begin"</span> <span class="ow">in</span> <span class="n">sql</span> <span class="ow">and</span> <span class="s2">"commit"</span> <span class="ow">in</span> <span class="n">sql</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_rollback_demo</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">db_accounts</span><span class="p">()</span>
+    <span class="n">sql</span> <span class="o">=</span> <span class="n">script</span><span class="p">(</span><span class="n">rollback_demo</span><span class="p">())</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">executescript</span><span class="p">(</span><span class="n">sql</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">c</span><span class="o">.</span><span class="n">in_transaction</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT COUNT(*) FROM accounts"</span><span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()</span> <span class="o">==</span> <span class="p">(</span><span class="mi">2</span><span class="p">,)</span>
+    <span class="k">assert</span> <span class="s2">"delete"</span> <span class="ow">in</span> <span class="n">sql</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">and</span> <span class="s2">"rollback"</span> <span class="ow">in</span> <span class="n">sql</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_savepoint_demo</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">db_accounts</span><span class="p">()</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">executescript</span><span class="p">(</span><span class="n">script</span><span class="p">(</span><span class="n">savepoint_demo</span><span class="p">()))</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">c</span><span class="o">.</span><span class="n">in_transaction</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT note FROM audit ORDER BY id"</span><span class="p">)</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span> <span class="o">==</span> <span class="p">[(</span><span class="s2">"a"</span><span class="p">,),</span> <span class="p">(</span><span class="s2">"c"</span><span class="p">,)]</span>
+    <span class="k">assert</span> <span class="s2">"savepoint"</span> <span class="ow">in</span> <span class="n">savepoint_demo</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_optimistic_decrement</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">db_products</span><span class="p">()</span>
+    <span class="n">sql</span> <span class="o">=</span> <span class="n">script</span><span class="p">(</span><span class="n">optimistic_decrement</span><span class="p">())</span>
+    <span class="n">cur</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">sql</span><span class="p">,</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"version"</span><span class="p">:</span> <span class="mi">3</span><span class="p">})</span>
+    <span class="k">assert</span> <span class="n">cur</span><span class="o">.</span><span class="n">rowcount</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT stock, version FROM products"</span><span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()</span> <span class="o">==</span> <span class="p">(</span><span class="mi">9</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+    <span class="n">cur</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">sql</span><span class="p">,</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"version"</span><span class="p">:</span> <span class="mi">3</span><span class="p">})</span>  <span class="c1"># stale read</span>
+    <span class="k">assert</span> <span class="n">cur</span><span class="o">.</span><span class="n">rowcount</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT stock, version FROM products"</span><span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()</span> <span class="o">==</span> <span class="p">(</span><span class="mi">9</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_upsert_stock</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">db_stock</span><span class="p">()</span>
+    <span class="n">sql</span> <span class="o">=</span> <span class="n">script</span><span class="p">(</span><span class="n">upsert_stock</span><span class="p">())</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">sql</span><span class="p">,</span> <span class="p">{</span><span class="s2">"sku"</span><span class="p">:</span> <span class="s2">"pen"</span><span class="p">,</span> <span class="s2">"qty"</span><span class="p">:</span> <span class="mi">5</span><span class="p">})</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">sql</span><span class="p">,</span> <span class="p">{</span><span class="s2">"sku"</span><span class="p">:</span> <span class="s2">"ink"</span><span class="p">,</span> <span class="s2">"qty"</span><span class="p">:</span> <span class="mi">7</span><span class="p">})</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">sql</span><span class="p">,</span> <span class="p">{</span><span class="s2">"sku"</span><span class="p">:</span> <span class="s2">"ink"</span><span class="p">,</span> <span class="s2">"qty"</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT sku, qty FROM stock ORDER BY sku"</span><span class="p">)</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span> <span class="o">==</span> <span class="p">[(</span><span class="s2">"ink"</span><span class="p">,</span> <span class="mi">8</span><span class="p">),</span> <span class="p">(</span><span class="s2">"pen"</span><span class="p">,</span> <span class="mi">15</span><span class="p">)]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_subscribe_once</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">db_newsletter</span><span class="p">()</span>
+    <span class="n">sql</span> <span class="o">=</span> <span class="n">script</span><span class="p">(</span><span class="n">subscribe_once</span><span class="p">())</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">sql</span><span class="p">,</span> <span class="p">{</span><span class="s2">"email"</span><span class="p">:</span> <span class="s2">"a@x.com"</span><span class="p">})</span><span class="o">.</span><span class="n">rowcount</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">sql</span><span class="p">,</span> <span class="p">{</span><span class="s2">"email"</span><span class="p">:</span> <span class="s2">"a@x.com"</span><span class="p">})</span><span class="o">.</span><span class="n">rowcount</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT COUNT(*) FROM newsletter"</span><span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()</span> <span class="o">==</span> <span class="p">(</span><span class="mi">1</span><span class="p">,)</span>
+
+
+<span class="c1"># ---------------------------------------------------------- views / migrations</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_create_customer_totals_view</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">db_orders</span><span class="p">()</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">executescript</span><span class="p">(</span><span class="n">script</span><span class="p">(</span><span class="n">create_customer_totals_view</span><span class="p">()))</span>
+    <span class="k">assert</span> <span class="n">cols</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s2">"customer_totals"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"customer"</span><span class="p">,</span> <span class="s2">"total"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT customer, total FROM customer_totals"</span><span class="p">)</span><span class="o">.</span><span class="n">fetchall</span><span class="p">())</span> <span class="o">==</span> <span class="p">[</span>
+        <span class="p">(</span><span class="s2">"acme"</span><span class="p">,</span> <span class="mf">150.0</span><span class="p">),</span> <span class="p">(</span><span class="s2">"globex"</span><span class="p">,</span> <span class="mf">75.0</span><span class="p">)]</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSERT INTO orders VALUES (4, 'globex', 25)"</span><span class="p">)</span>  <span class="c1"># views are live</span>
+    <span class="k">assert</span> <span class="nb">dict</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT customer, total FROM customer_totals"</span><span class="p">)</span><span class="o">.</span><span class="n">fetchall</span><span class="p">())[</span><span class="s2">"globex"</span><span class="p">]</span> <span class="o">==</span> <span class="mf">100.0</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_add_is_active_column</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">db_users_for_migration</span><span class="p">()</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">executescript</span><span class="p">(</span><span class="n">script</span><span class="p">(</span><span class="n">add_is_active_column</span><span class="p">()))</span>
+    <span class="k">assert</span> <span class="n">cols</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s2">"users"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"id"</span><span class="p">,</span> <span class="s2">"email"</span><span class="p">,</span> <span class="s2">"is_active"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT is_active FROM users"</span><span class="p">)</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span> <span class="o">==</span> <span class="p">[(</span><span class="mi">1</span><span class="p">,),</span> <span class="p">(</span><span class="mi">1</span><span class="p">,)]</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSERT INTO users (id, email) VALUES (3, 'c@x.com')"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT is_active FROM users WHERE id = 3"</span><span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()</span> <span class="o">==</span> <span class="p">(</span><span class="mi">1</span><span class="p">,)</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../06-sql/week-04-schema-indexes-transactions/exercises.py.html">← Week 4 · Schema, indexes, transactions: Exercises (code)</a><a class="next" href="../../06-sql/week-04-schema-indexes-transactions/schema.py.html">Week 4 · Schema, indexes, transactions: schema.py →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

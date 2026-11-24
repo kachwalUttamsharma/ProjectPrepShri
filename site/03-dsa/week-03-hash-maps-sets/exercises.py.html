@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-03-hash-maps-sets/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-03-hash-maps-sets/lesson.html">Week 3 · Hash maps and sets</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="03-dsa/week-03-hash-maps-sets/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>03-dsa/week-03-hash-maps-sets/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 3 exercises: hash maps and sets. Replace each `...` with your code.</span>
+
+<span class="sd">Where several answers are valid, the tests check validity, not an exact output.</span>
+<span class="sd">"""</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">two_sum</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return indices [i, j], i != j, with nums[i] + nums[j] == target.</span>
+<span class="sd">    Exactly one valid pair exists. Any order of the two indices is accepted.</span>
+
+<span class="sd">    Example: [2, 7, 11, 15], 9 -&gt; [0, 1]; [3, 3], 6 -&gt; [0, 1]</span>
+<span class="sd">    Target: O(n) time, O(n) space. Hint: dict value -&gt; index, check complement first.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">ransom_note</span><span class="p">(</span><span class="n">note</span><span class="p">,</span> <span class="n">magazine</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return True if note can be built from the letters of magazine (each letter used once).</span>
+
+<span class="sd">    Example: "aa", "aab" -&gt; True; "aa", "ab" -&gt; False; "", "x" -&gt; True</span>
+<span class="sd">    Target: O(n + m) time, O(1) space (bounded alphabet). Hint: Counter.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">isomorphic_strings</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">t</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return True if s and t are isomorphic: characters of s can be replaced to get t,</span>
+<span class="sd">    with a consistent ONE-TO-ONE mapping (no two chars map to the same char).</span>
+
+<span class="sd">    Example: "egg", "add" -&gt; True; "foo", "bar" -&gt; False; "badc", "baba" -&gt; False</span>
+<span class="sd">    Target: O(n) time. Hint: keep both s-&gt;t and t-&gt;s maps.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">contains_nearby_duplicate</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return True if there are i != j with nums[i] == nums[j] and |i - j| &lt;= k.</span>
+
+<span class="sd">    Example: [1, 2, 3, 1], 3 -&gt; True; [1, 0, 1, 1], 1 -&gt; True; [1, 2, 3, 1, 2, 3], 2 -&gt; False</span>
+<span class="sd">    Target: O(n) time. Hint: dict value -&gt; last index seen.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">group_anagrams</span><span class="p">(</span><span class="n">strs</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Group the strings that are anagrams of each other. Return a list of groups</span>
+<span class="sd">    (lists). Group order and order inside groups do not matter.</span>
+
+<span class="sd">    Example: ["eat","tea","tan","ate","nat","bat"] -&gt; [["eat","tea","ate"],["tan","nat"],["bat"]]</span>
+<span class="sd">    Target: O(n * k log k) with sorted keys, or O(n * k) with count-tuple keys.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">top_k_frequent</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the k most frequent values (any order). A unique answer is guaranteed</span>
+<span class="sd">    (no ties across the k-th boundary).</span>
+
+<span class="sd">    Example: [1,1,1,2,2,3], 2 -&gt; [1, 2]; [1], 1 -&gt; [1]</span>
+<span class="sd">    Target: better than O(n log n): O(n) with bucket sort, or O(n log k) with a heap.</span>
+<span class="sd">    Hint: Counter, then buckets indexed by frequency.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">longest_consecutive</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the length of the longest run of consecutive integers (as a set of values,</span>
+<span class="sd">    order in nums irrelevant; duplicates count once).</span>
+
+<span class="sd">    Example: [100, 4, 200, 1, 3, 2] -&gt; 4 (1,2,3,4); [] -&gt; 0; [0,3,7,2,5,8,4,6,0,1] -&gt; 9</span>
+<span class="sd">    Target: O(n) time. Hint: only start counting at x where x - 1 is not in the set.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">subarray_sum_equals_k</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the number of contiguous subarrays whose sum equals k (nums may hold negatives).</span>
+
+<span class="sd">    Example: [1, 1, 1], 2 -&gt; 2; [1, 2, 3], 3 -&gt; 2; [1, -1, 0], 0 -&gt; 3</span>
+<span class="sd">    Target: O(n) time, O(n) space. Hint: prefix sums; count[prefix - k]. Seed count[0] = 1.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">four_sum_count</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">d</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Four equal-length lists. Return the number of tuples (i, j, k, l) with</span>
+<span class="sd">    a[i] + b[j] + c[k] + d[l] == 0.</span>
+
+<span class="sd">    Example: [1, 2], [-2, -1], [-1, 2], [0, 2] -&gt; 2</span>
+<span class="sd">    Target: O(n^2) time and space (not O(n^4)). Hint: map sums of a+b, look up -(c+d).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">LRUCache</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Least-recently-used cache with fixed capacity (capacity &gt;= 1).</span>
+
+<span class="sd">    get(key)       -&gt; value or -1 if absent; marks key as most recently used.</span>
+<span class="sd">    put(key, val)  -&gt; insert or update (update also marks as most recent); if the</span>
+<span class="sd">                      size would exceed capacity, evict the least recently used key.</span>
+<span class="sd">    Both operations must be O(1). Hint: collections.OrderedDict (move_to_end,</span>
+<span class="sd">    popitem(last=False)), or dict + doubly linked list.</span>
+
+<span class="sd">    Example: c = LRUCache(2); c.put(1, 1); c.put(2, 2); c.get(1) -&gt; 1;</span>
+<span class="sd">             c.put(3, 3) evicts key 2; c.get(2) -&gt; -1</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">capacity</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">put</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-03-hash-maps-sets/lesson.html">← Week 3 · Hash maps and sets: Lesson</a><a class="next" href="../../03-dsa/week-03-hash-maps-sets/test_exercises.py.html">Week 3 · Hash maps and sets: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

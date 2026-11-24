@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="01-basics/week-07-comprehensions-generators/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../01-basics/week-01-first-steps/lesson.html">Python Basics</a> / <a href="../../01-basics/week-07-comprehensions-generators/lesson.html">Week 7 · Comprehensions and generators</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="01-basics/week-07-comprehensions-generators/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>01-basics/week-07-comprehensions-generators/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 7 exercises. Replace each `...` with your code."""</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">squares_of_evens</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a list of the squares of the even numbers, in order.</span>
+<span class="sd">    [1, 2, 3, 4] -&gt; [4, 16]. Hint: list comprehension with an `if`."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">word_lengths</span><span class="p">(</span><span class="n">words</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a dict mapping each word to its length. ['a', 'bbb'] -&gt; {'a': 1, 'bbb': 3}.</span>
+<span class="sd">    Hint: dict comprehension."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">flatten</span><span class="p">(</span><span class="n">list_of_lists</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Flatten one level. [[1, 2], [3], []] -&gt; [1, 2, 3]. Hint: two `for`s in one comprehension."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">sort_by_length</span><span class="p">(</span><span class="n">words</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return words sorted by length; ties are alphabetical.</span>
+<span class="sd">    ['pear', 'fig', 'apple', 'kiwi'] -&gt; ['fig', 'kiwi', 'pear', 'apple']. Hint: key=lambda with a tuple."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">sort_by_score_desc</span><span class="p">(</span><span class="n">pairs</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""pairs is a list of (name, score). Return it sorted by score, highest first;</span>
+<span class="sd">    ties keep original order. [('a', 1), ('b', 3), ('c', 3)] -&gt; [('b', 3), ('c', 3), ('a', 1)].</span>
+<span class="sd">    Hint: sorted is stable; use reverse=True (it keeps tie order too)."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">index_of_max</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the index of the largest value (first one on ties); None for an empty list.</span>
+<span class="sd">    Hint: max(range(len(nums)), key=...) or enumerate."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">pairwise_sum</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Add two lists element by element (stop at the shorter). [1, 2, 3], [10, 20] -&gt; [11, 22].</span>
+<span class="sd">    Hint: zip."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">numbered</span><span class="p">(</span><span class="n">items</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return strings like '1. apple' numbered from 1. ['a', 'b'] -&gt; ['1. a', '2. b'].</span>
+<span class="sd">    Hint: enumerate(items, start=1)."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">evens_up_to</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""GENERATOR: yield the even numbers from 0 up to and including n, one at a time.</span>
+<span class="sd">    list(evens_up_to(7)) -&gt; [0, 2, 4, 6]. Use `yield`, do not build a list."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">fib_generator</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""INFINITE GENERATOR yielding 0, 1, 1, 2, 3, 5, 8, ... forever.</span>
+<span class="sd">    Tests take the first few with itertools.islice."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">chunks</span><span class="p">(</span><span class="n">items</span><span class="p">,</span> <span class="n">size</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""GENERATOR: yield consecutive slices of `items` of length `size` (last may be shorter).</span>
+<span class="sd">    list(chunks([1,2,3,4,5], 2)) -&gt; [[1,2],[3,4],[5]]. Raise ValueError if size &lt; 1</span>
+<span class="sd">    (note: a generator raises only once you start iterating it)."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">running_total</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""GENERATOR: yield the running (cumulative) sum. [1, 2, 3, 4] -&gt; 1, 3, 6, 10."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">top_n_words</span><span class="p">(</span><span class="n">text</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the n most frequent words (lowercase, split on whitespace) as a list of words.</span>
+<span class="sd">    Order: highest count first; ties alphabetical.</span>
+<span class="sd">    'b a b c a b' with n=2 -&gt; ['b', 'a']. Hint: count in a dict, then sorted with</span>
+<span class="sd">    key=lambda w: (-counts[w], w)."""</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../01-basics/week-07-comprehensions-generators/lesson.html">← Week 7 · Comprehensions and generators: Lesson</a><a class="next" href="../../01-basics/week-07-comprehensions-generators/test_exercises.py.html">Week 7 · Comprehensions and generators: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

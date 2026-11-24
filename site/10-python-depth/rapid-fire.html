@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Python rapid-fire: 40 questions | Study Hub</title><link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/pygments.css"></head>
+<body data-root="../" data-page-id="10-python-depth/rapid-fire" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../index.html">Home</a> / <a href="../10-python-depth/week-01-functions-deep-dive/lesson.html">Python Depth</a> / <span>Python rapid-fire: 40 questions</span></nav><button id="mark-done" data-id="10-python-depth/rapid-fire">Mark as done</button></div><article class="doc">
+<h1 id="python-rapid-fire-40-questions">Python rapid-fire: 40 questions</h1>
+<p>Answer each out loud in 15 seconds or less, then check. Spans weeks 1-4 of <code>10-python-depth</code>.</p>
+<h2 id="functions-and-iteration-week-1">Functions and iteration (week 1)</h2>
+<ol>
+<li><strong>Why is <code>def f(x, items=[])</code> a bug?</strong> Defaults are evaluated once at definition, so the same list is shared across calls. Use <code>None</code> and create inside.</li>
+<li><strong>What is a closure?</strong> A function that remembers variables from its enclosing scope after that scope has returned (<code>__closure__</code> cells).</li>
+<li><strong>Why do lambdas in a loop all return the last value?</strong> Closures capture variables, not values; bind with a default arg <code>lambda i=i: i</code>.</li>
+<li><strong>What does <code>functools.wraps</code> do?</strong> Copies <code>__name__</code>, <code>__doc__</code>, <code>__wrapped__</code> etc. from the wrapped function onto the wrapper so introspection/debugging still work.</li>
+<li><strong>How does a decorator with arguments work?</strong> Three layers: <code>deco(args)</code> returns a decorator, which takes <code>func</code> and returns the wrapper.</li>
+<li><strong><code>nonlocal</code> vs <code>global</code>?</strong> <code>nonlocal</code> rebinds a variable in the nearest enclosing function; <code>global</code> rebinds a module-level name. Reading needs neither.</li>
+<li><strong>Name the scope lookup order.</strong> LEGB: Local, Enclosing, Global, Builtin.</li>
+<li><strong>Generator vs list?</strong> A generator yields lazily, O(1) memory, single pass; a list holds everything and is re-iterable.</li>
+<li><strong>Iterable vs iterator?</strong> Iterable has <code>__iter__</code> returning an iterator; iterator has <code>__next__</code> (raises <code>StopIteration</code>) and <code>__iter__</code> returning itself.</li>
+<li><strong>What do <code>with</code> and <code>__enter__/__exit__</code> guarantee?</strong> Cleanup runs even on exceptions; returning true from <code>__exit__</code> suppresses the exception. <code>contextlib.contextmanager</code> makes one from a generator.</li>
+<li><strong>What does <code>lru_cache</code> require?</strong> Hashable arguments and a pure function; unbounded growth with <code>maxsize=None</code>; <code>cache_clear()</code> to reset.</li>
+<li><strong><code>*args</code> / <code>**kwargs</code>?</strong> Collect extra positional args into a tuple / keyword args into a dict; also used to unpack at call sites.</li>
+</ol>
+<h2 id="data-model-and-memory-week-2">Data model and memory (week 2)</h2>
+<ol start="13">
+<li><strong><code>is</code> vs <code>==</code>?</strong> <code>is</code> compares identity (same object), <code>==</code> compares value via <code>__eq__</code>. Use <code>is</code> for <code>None</code>.</li>
+<li><strong>Shallow vs deep copy?</strong> Shallow copies the container but shares inner objects; <code>copy.deepcopy</code> recursively copies (handling cycles).</li>
+<li><strong>Which types are hashable?</strong> Immutable ones (int, str, tuple of hashables, frozenset); lists/dicts/sets are not. Equal objects must have equal hashes.</li>
+<li><strong>How does CPython free memory?</strong> Reference counting immediately at zero, plus a cyclic garbage collector for reference cycles.</li>
+<li><strong>What does <code>__slots__</code> do?</strong> Replaces the per-instance <code>__dict__</code> with fixed fields: less memory, faster attribute access, no arbitrary new attributes.</li>
+<li><strong>Are dicts ordered?</strong> Yes, insertion-ordered (guaranteed since 3.7); average O(1) lookups via a hash table.</li>
+<li><strong>Is <code>sorted</code> stable?</strong> Yes; equal keys keep original order, which enables multi-key sorts by sorting in passes.</li>
+<li><strong><code>defaultdict</code> vs <code>Counter</code> vs <code>deque</code>?</strong> Missing-key factory dict; multiset counting with <code>most_common</code>; O(1) appends/pops at both ends.</li>
+<li><strong>What does <code>@dataclass</code> generate?</strong> <code>__init__</code>, <code>__repr__</code>, <code>__eq__</code> (and ordering/hash with options); <code>frozen=True</code> for immutability; use <code>field(default_factory=list)</code> for mutable defaults.</li>
+<li><strong><code>Protocol</code> vs ABC?</strong> Protocol is structural (duck typing checked statically); ABC is nominal (must inherit/register).</li>
+<li><strong>What does <code>Optional[int]</code> mean?</strong> <code>int | None</code>; it does not mean the argument is optional. Narrow with <code>if x is not None</code>.</li>
+<li><strong>What is a descriptor?</strong> An object with <code>__get__</code>/<code>__set__</code>/<code>__delete__</code> stored on a class; it powers properties, methods and <code>__slots__</code>.</li>
+<li><strong>When use <code>Enum</code>?</strong> A closed set of named constants with identity and iteration, instead of magic strings/ints.</li>
+</ol>
+<h2 id="concurrency-week-3">Concurrency (week 3)</h2>
+<ol start="26">
+<li><strong>What is the GIL?</strong> A CPython lock so only one thread runs Python bytecode at a time; threads still help for I/O (the lock is released while waiting). 3.13+ has an optional free-threaded build.</li>
+<li><strong>Threads, processes or asyncio?</strong> I/O-bound with few connections: threads; I/O-bound at massive scale: asyncio; CPU-bound: multiprocessing / process pool.</li>
+<li><strong>What is a race condition and how to prevent it?</strong> Outcome depends on interleaving (e.g. <code>counter += 1</code> is read-modify-write). Use a <code>Lock</code>, a queue, or avoid shared mutable state.</li>
+<li><strong><code>asyncio.gather</code> vs <code>create_task</code>?</strong> <code>gather</code> awaits several awaitables and returns results in order; <code>create_task</code> schedules a coroutine to run concurrently right away. <code>TaskGroup</code> adds structured cancellation.</li>
+<li><strong>Why does <code>time.sleep</code> in an <code>async def</code> hurt?</strong> It blocks the whole event loop. Use <code>await asyncio.sleep</code> or <code>run_in_executor</code>/<code>to_thread</code> for blocking calls.</li>
+<li><strong>How do you cancel a task / add a timeout?</strong> <code>task.cancel()</code> raises <code>CancelledError</code> at the next await (re-raise it); <code>asyncio.timeout()</code> / <code>wait_for</code> for deadlines.</li>
+<li><strong>What does <code>async def</code> vs <code>def</code> do in FastAPI?</strong> <code>async def</code> handlers run on the event loop (must not block); plain <code>def</code> handlers run in a threadpool.</li>
+<li><strong>What limits concurrency in asyncio?</strong> <code>asyncio.Semaphore</code> caps simultaneous operations (e.g. 10 outbound requests).</li>
+</ol>
+<h2 id="quality-and-tooling-week-4">Quality and tooling (week 4)</h2>
+<ol start="34">
+<li><strong>Fixture vs parametrize?</strong> Fixture provides setup/objects to tests; parametrize runs one test over many inputs.</li>
+<li><strong>Where do you <code>patch</code>?</strong> Where the name is looked up (the consumer module), not where it is defined.</li>
+<li><strong><code>raise X from e</code>?</strong> Explicitly chains the cause; <code>__cause__</code> shows in the traceback. <code>from None</code> suppresses it.</li>
+<li><strong>Why <code>logger.info("a %s", x)</code> not an f-string?</strong> Formatting is deferred until the record is actually emitted, and log aggregators can group by template.</li>
+<li><strong>What is a venv and why?</strong> An isolated environment with its own interpreter links and site-packages so projects don't clash on versions.</li>
+<li><strong>How to benchmark reliably?</strong> <code>timeit.repeat</code>, take the minimum, realistic inputs, profile with <code>cProfile</code> before optimising.</li>
+<li><strong>What do ruff and mypy catch?</strong> ruff: lint/format/import issues and common bugs; mypy: type inconsistencies from annotations, before running code.</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../10-python-depth/week-04-quality-and-tooling/test_exercises.py.html">← Week 4 · Quality and tooling: Tests (code)</a><a class="next" href="../09-behavioral-career/README.html">Behavioral and Career: Overview →</a></div></main><aside id="toc"></aside></div>
+<script src="../assets/data.js"></script><script src="../assets/app.js"></script></body></html>

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>practice.sql | Study Hub</title><link rel="stylesheet" href="../../../assets/style.css"><link rel="stylesheet" href="../../../assets/pygments.css"></head>
+<body data-root="../../../" data-page-id="06-sql/general-sql/01-language-map-ddl-dml/practice.sql" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../../index.html">Home</a> / <a href="../../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../../06-sql/general-sql/README.html">General SQL</a> / <a href="../../../06-sql/general-sql/01-language-map-ddl-dml/lesson.html">Part 1 · Language map, DDL and DML</a> / <span>practice.sql (code)</span></nav><button id="mark-done" data-id="06-sql/general-sql/01-language-map-ddl-dml/practice.sql">Mark as done</button></div><article class="doc">
+<h1>practice.sql</h1><p class="code-path"><code>06-sql/general-sql/01-language-map-ddl-dml/practice.sql</code></p>
+<div class="highlight"><pre><span></span><span class="c1">-- Part 01 practice. Setup first:  sqlite3 mydb.db &lt; setup.sql</span>
+<span class="c1">-- Then write your answer under each task and run:  sqlite3 mydb.db &lt; practice.sql</span>
+<span class="c1">-- (Tasks build on each other; if you wreck the data, rerun setup.sql, it drops and recreates the tables.)</span>
+<span class="c1">-- Run in a transaction when experimenting: BEGIN; ... ROLLBACK;</span>
+<span class="p">.</span><span class="n">headers</span><span class="w"> </span><span class="k">on</span>
+<span class="p">.</span><span class="k">mode</span><span class="w"> </span><span class="k">column</span>
+
+<span class="c1">-- T1. Create table instructors(id integer primary key, name text not null,</span>
+<span class="c1">--     email text unique, rating real constrained to 0..5 inclusive).</span>
+
+
+<span class="c1">-- T2. Add a nullable column instructor_id to courses that references instructors(id).</span>
+
+
+<span class="c1">-- T3. Insert two instructors in ONE statement: (1,'Dr. Rao','rao@example.com',4.5)</span>
+<span class="c1">--     and (2,'Ms. Kim','kim@example.com', no rating).</span>
+
+
+<span class="c1">-- T4. Assign instructor 1 to the courses with codes DB101 and PY101 (single UPDATE).</span>
+
+
+<span class="c1">-- T5. Add 5 points to every grade in course 1, but leave NULL grades alone.</span>
+<span class="c1">--     Then SELECT the enrollments to check (no student should exceed 100; think about whether you need a guard).</span>
+
+
+<span class="c1">-- T6. Upsert: a student with email 'asha@example.com' now lives in 'Mumbai' and is named 'Asha R. Rao'.</span>
+<span class="c1">--     Use INSERT ... ON CONFLICT so that no new row appears. SELECT * afterwards.</span>
+
+
+<span class="c1">-- T7. Try to insert a duplicate email 'ben@example.com' so that it is silently skipped.</span>
+<span class="c1">--     Verify the student count did not change.</span>
+
+
+<span class="c1">-- T8. Predict first, then run: INSERT INTO enrollments VALUES (1,1,50);  What error and why?</span>
+<span class="c1">--     Write your prediction as a comment here:</span>
+
+
+<span class="c1">-- T9. Predict first, then run: DELETE FROM courses WHERE id = 1;  Why does it fail?</span>
+<span class="c1">--     Which FK clause causes this? What would change if it were CASCADE?</span>
+
+
+<span class="c1">-- T10. Delete student 3 and see what was deleted using RETURNING. Then count enrollments:</span>
+<span class="c1">--      explain in a comment why the count dropped.</span>
+
+
+<span class="c1">-- T11. In a transaction: delete ALL enrollments, count them, ROLLBACK, count again.</span>
+
+
+<span class="c1">-- T12. Insert a new student (email only + name) and use RETURNING to get the generated id and joined_on default.</span>
+
+
+<span class="c1">-- T13. Write (as comments, you cannot run them in SQLite) the Postgres, MySQL and SQL Server versions of:</span>
+<span class="c1">--      "id column that auto-generates a bigint primary key".</span>
+<span class="c1">-- Postgres:</span>
+<span class="c1">-- MySQL:</span>
+<span class="c1">-- SQL Server:</span>
+
+
+<span class="c1">-- T14. Write (comment) a Postgres 15+ MERGE that syncs students from a table staging_students (email, full_name, city):</span>
+<span class="c1">--      update when matched and name differs, insert when not matched.</span>
+
+
+<span class="c1">-- T15. Using a safe habit: write the SELECT that previews which rows UPDATE students SET city = 'Unknown' WHERE city IS NULL</span>
+<span class="c1">--      would change, then do the UPDATE inside BEGIN/ROLLBACK and print the row count with changes().</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../../06-sql/general-sql/01-language-map-ddl-dml/setup.sql.html">← Part 1 · Language map, DDL and DML: setup.sql (code)</a><a class="next" href="../../../06-sql/general-sql/02-set-ops-functions-json/lesson.html">Part 2 · Set ops, functions, JSON: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../../assets/data.js"></script><script src="../../../assets/app.js"></script></body></html>

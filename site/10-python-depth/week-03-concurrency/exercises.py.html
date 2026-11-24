@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="10-python-depth/week-03-concurrency/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../10-python-depth/week-01-functions-deep-dive/lesson.html">Python Depth</a> / <a href="../../10-python-depth/week-03-concurrency/lesson.html">Week 3 · Concurrency</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="10-python-depth/week-03-concurrency/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>10-python-depth/week-03-concurrency/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 3 exercises: concurrency (asyncio + threads).</span>
+
+<span class="sd">Replace each `...` with your code. Tests use asyncio.run (no pytest-asyncio)</span>
+<span class="sd">and never touch the network. Run them with:</span>
+<span class="sd">    ../../.venv/bin/pytest -q</span>
+<span class="sd">"""</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">queue</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">contextlib</span>  <span class="c1"># handy for suppress()</span>
+
+
+<span class="c1"># Exercise 1 -------------------------------------------------------------</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">gather_in_order</span><span class="p">(</span><span class="o">*</span><span class="n">coros</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Run all coroutines concurrently; return their results as a list in the</span>
+<span class="sd">    SAME order as the arguments (not completion order).</span>
+<span class="sd">    Hint: asyncio.gather returns a list in argument order.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 2 -------------------------------------------------------------</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">bounded_gather</span><span class="p">(</span><span class="n">factories</span><span class="p">,</span> <span class="n">limit</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""`factories` is a list of zero-arg callables, each returning a coroutine.</span>
+<span class="sd">    Run them all concurrently but never more than `limit` at the same time.</span>
+<span class="sd">    Return results in input order.</span>
+<span class="sd">    Hint: asyncio.Semaphore(limit) + `async with sem:` inside a small wrapper.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 3 -------------------------------------------------------------</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">with_timeout</span><span class="p">(</span><span class="n">coro</span><span class="p">,</span> <span class="n">seconds</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Await `coro`; if it takes longer than `seconds`, cancel it and return</span>
+<span class="sd">    `default` instead of raising.</span>
+<span class="sd">    Hint: asyncio.wait_for raises asyncio.TimeoutError (alias of TimeoutError)</span>
+<span class="sd">    and cancels the inner coroutine for you.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 4 -------------------------------------------------------------</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">cancel_task</span><span class="p">(</span><span class="n">task</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Cancel `task`, wait for it to finish unwinding (its finally blocks must</span>
+<span class="sd">    run), swallow the CancelledError, and return True if the task ended up</span>
+<span class="sd">    cancelled, False otherwise (e.g. it had already finished).</span>
+<span class="sd">    Hint: task.cancel(); then `await task` inside contextlib.suppress(...);</span>
+<span class="sd">    finally return task.cancelled().</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 5 -------------------------------------------------------------</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">retry_async</span><span class="p">(</span><span class="n">factory</span><span class="p">,</span> <span class="n">attempts</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""`factory` is a zero-arg callable returning a fresh coroutine each call.</span>
+<span class="sd">    Try up to `attempts` times; return the first successful result. If every</span>
+<span class="sd">    attempt raises, re-raise the LAST exception. No sleeping between tries.</span>
+<span class="sd">    Hint: a coroutine can only be awaited once, so call factory() each time.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 6 -------------------------------------------------------------</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">AsyncResource</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Async context manager that records events in the shared list `log`:</span>
+<span class="sd">      enter           -&gt; appends "open:&lt;name&gt;" and returns self</span>
+<span class="sd">      exit (ok)       -&gt; appends "close:&lt;name&gt;"</span>
+<span class="sd">      exit (exception)-&gt; appends "error:&lt;name&gt;" then "close:&lt;name&gt;"</span>
+<span class="sd">    It must NOT swallow exceptions.</span>
+<span class="sd">    Hint: __aenter__ / __aexit__(self, exc_type, exc, tb); return False/None.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">log</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="fm">__aenter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="fm">__aexit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exc_type</span><span class="p">,</span> <span class="n">exc</span><span class="p">,</span> <span class="n">tb</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="c1"># Exercise 7 -------------------------------------------------------------</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">async_batches</span><span class="p">(</span><span class="n">agen</span><span class="p">,</span> <span class="n">size</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Async generator: consume the async iterator `agen` and yield lists of</span>
+<span class="sd">    `size` items; the final list may be shorter. [1..5], size 2 -&gt; [1,2] [3,4] [5]</span>
+<span class="sd">    Hint: `async for`, a buffer list, and `yield` inside an `async def`.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 8 -------------------------------------------------------------</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_blocking</span><span class="p">(</span><span class="n">fn</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Run the BLOCKING function fn(*args) in a worker thread so the event</span>
+<span class="sd">    loop stays free, and return its result.</span>
+<span class="sd">    Hint: asyncio.to_thread (or loop.run_in_executor(None, ...)).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 9 -------------------------------------------------------------</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ThreadSafeCounter</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Counter safe to use from many threads.</span>
+<span class="sd">    increment(n=1) adds n; `value` (a property) returns the current total.</span>
+<span class="sd">    Hint: `self._v += n` is read-modify-write, not atomic. Guard it with a</span>
+<span class="sd">    threading.Lock.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">increment</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="c1"># Exercise 10 ------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">worker_pool_queue</span><span class="p">(</span><span class="n">items</span><span class="p">,</span> <span class="n">fn</span><span class="p">,</span> <span class="n">n_workers</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Process `items` with exactly `n_workers` threads pulling jobs from a</span>
+<span class="sd">    queue.Queue. Return [fn(item) ...] in INPUT order. Empty input -&gt; [].</span>
+<span class="sd">    Hint: enqueue (index, item) pairs, then one None sentinel per worker;</span>
+<span class="sd">    workers loop `q.get()` until they see None; write results[index]; join all.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../10-python-depth/week-03-concurrency/interview-qa.html">← Week 3 · Concurrency: Interview Q&amp;A</a><a class="next" href="../../10-python-depth/week-03-concurrency/test_exercises.py.html">Week 3 · Concurrency: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 2 Cheatsheet - Data and Storage | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="08-system-design/week-02-data-storage/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../08-system-design/README.html">System Design</a> / <a href="../../08-system-design/week-02-data-storage/lesson.html">Week 2 · Data and storage</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="08-system-design/week-02-data-storage/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="week-2-cheatsheet-data-and-storage">Week 2 Cheatsheet - Data and Storage</h1>
+<h2 id="replication">Replication</h2>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Writes</th>
+<th>Conflicts</th>
+<th>Examples</th>
+<th>Watch for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Single-leader</td>
+<td>1 node</td>
+<td>none</td>
+<td>Postgres, MySQL, Mongo, Kafka, Redis</td>
+<td>failover data loss, split brain, lag</td>
+</tr>
+<tr>
+<td>Multi-leader</td>
+<td>1 per region</td>
+<td>yes</td>
+<td>CouchDB, MySQL group repl., DynamoDB global tables</td>
+<td>conflict resolution, LWW loss</td>
+</tr>
+<tr>
+<td>Leaderless</td>
+<td>any node</td>
+<td>yes</td>
+<td>Cassandra, Dynamo, Riak</td>
+<td>stale reads, repair, clock skew</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>Sync = no loss, slow/blocks. Async = fast, can lose acked writes. Semi-sync = 1 sync + rest async.</li>
+<li>Lag anomalies: read-your-writes (read own from leader), monotonic reads (pin user to replica), consistent prefix (same partition).</li>
+<li>Failover steps: detect -&gt; elect -&gt; reconfigure. Dangers: lost writes, split brain, flapping from short timeouts.</li>
+</ul>
+<h2 id="quorum">Quorum</h2>
+<ul>
+<li>W + R &gt; N =&gt; read/write sets overlap. N=3: QUORUM = 2 (W=2,R=2). Tolerates N-W write and N-R read failures.</li>
+<li>NOT linearizable by itself (sloppy quorum, LWW + skew, failed partial writes, concurrent writes).</li>
+<li>Repair: read repair, hinted handoff, anti-entropy (Merkle trees).</li>
+<li>Cassandra levels: ONE, QUORUM, LOCAL_QUORUM, ALL. DynamoDB: eventual (default) vs strong read.</li>
+</ul>
+<h2 id="partitioning">Partitioning</h2>
+<table>
+<thead>
+<tr>
+<th>Scheme</th>
+<th>Good</th>
+<th>Bad</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Range</td>
+<td>range scans, easy splits</td>
+<td>hot spot on sequential keys</td>
+</tr>
+<tr>
+<td>Hash</td>
+<td>even spread</td>
+<td>no range queries</td>
+</tr>
+<tr>
+<td>Consistent hash (+vnodes)</td>
+<td>add/remove node moves ~K/N keys</td>
+<td>needs routing map</td>
+</tr>
+<tr>
+<td>Fixed partitions (Kafka, Redis 16384 slots)</td>
+<td>simple rebalance</td>
+<td>count fixed up front</td>
+</tr>
+<tr>
+<td>- hash mod N: BAD (almost all keys move when N changes).</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>- Local sec. index: cheap write, scatter-gather read. Global: single-shard read, async multi-shard write.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>- Hot key fixes: cache, salt key (key#0..9), replicate, aggregate writes, isolate tenants.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>- Shard key checklist: dominant access pattern, high cardinality, even load, not monotonic, growth, resharding cost.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>- Routing: any-node forwarding / proxy tier / smart client; map in etcd/ZooKeeper or gossip.</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="sql-vs-nosql-quick-pick">SQL vs NoSQL quick pick</h2>
+<ul>
+<li>Relational: joins, ad hoc, ACID, fits primary+replicas -&gt; default start.</li>
+<li>KV/wide-column (DynamoDB, Cassandra): huge writes, key access, known queries, denormalize.</li>
+<li>Document (Mongo): aggregate-shaped, flexible schema.</li>
+<li>Distributed SQL (Spanner, Cockroach): SQL + ACID + horizontal/geo, pay latency/cost.</li>
+<li>Search: Elasticsearch. Cache: Redis. Blob: S3. OLAP: Redshift/BigQuery/ClickHouse. Time series: Timescale/Prometheus.</li>
+<li>Polyglot: source of truth + derived stores via CDC/outbox.</li>
+</ul>
+<h2 id="indexes">Indexes</h2>
+<ul>
+<li>B-tree: read/range friendly, in-place. LSM: write-heavy, SSTables + compaction + Bloom filters.</li>
+<li>Composite: leftmost prefix. Covering: index-only scan. Partial: index subset of rows.</li>
+<li>Over-indexing slows writes; hot index must fit in RAM; UUIDv4 PKs fragment B-trees.</li>
+<li>Use keyset pagination, not OFFSET. Create indexes concurrently.</li>
+<li>Geo: geohash, quadtree, S2, H3.</li>
+</ul>
+<h2 id="cap-pacelc">CAP / PACELC</h2>
+<ul>
+<li>CAP: during partition choose C (linearizable) or A (every live node answers). P is not optional. Per-operation.</li>
+<li>PACELC: if Partition -&gt; A or C; Else -&gt; Latency or Consistency.</li>
+<li>PA/EL: Cassandra, Dynamo, Riak. PC/EC: Spanner, Cockroach. CP: etcd, ZooKeeper, HBase.</li>
+</ul>
+<h2 id="consistency-ladder-strong-weak">Consistency ladder (strong -&gt; weak)</h2>
+<p>linearizable &gt; sequential &gt; causal &gt; session (RYW, monotonic reads/writes) &gt; eventual
+| Need | Pick |
+|---|---|
+| money, inventory, unique constraint, lock | linearizable / serializable |
+| chat ordering, replies | causal |
+| own profile edit | read-your-writes |
+| likes, feeds, counters | eventual |
+| cart | eventual + merge |</p>
+<h2 id="real-systems-one-liners">Real systems one-liners</h2>
+<ul>
+<li>Dynamo/Cassandra: ring + vnodes + leaderless quorum + LSM + gossip.</li>
+<li>DynamoDB: PK hash + SK range, GSI/LSI, Streams, txns (limited), global tables LWW.</li>
+<li>Spanner: Paxos groups per split + TrueTime commit-wait = external consistency.</li>
+<li>Kafka: partition = unit of ordering/parallelism; leader + ISR; acks=all + min.insync.replicas.</li>
+<li>Redis: async single-leader; Cluster 16384 slots; can lose acked writes on failover.</li>
+<li>etcd/ZooKeeper: Raft/ZAB, 3 or 5 nodes, small critical metadata.</li>
+<li>Aurora: 6 copies / 3 AZs, 4/6 write quorum, 3/6 read (check current docs).</li>
+</ul>
+<h2 id="failure-modes-list">Failure modes list</h2>
+<p>replication lag, split brain, lost acked writes, hot partition, resharding storm, scatter-gather tail latency, clock skew + LWW, tombstones, unbounded partitions, retry storms, index migration locks.</p>
+<h2 id="say-it-out-loud-lines">Say-it-out-loud lines</h2>
+<ul>
+<li>"Replication buys availability and read scale; partitioning buys write and storage scale."</li>
+<li>"Hashing balances keys, not load."</li>
+<li>"Quorum overlap is not linearizability."</li>
+<li>"CAP is only about partitions; PACELC covers the normal case: latency vs consistency."</li>
+<li>"Pick the weakest consistency that keeps the invariants."</li>
+<li>"Start with Postgres + replicas + cache; shard when a measured bottleneck demands it."</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../../08-system-design/week-02-data-storage/interview-qa.html">← Week 2 · Data and storage: Interview Q&amp;A</a><a class="next" href="../../08-system-design/week-03-coordination-messaging/lesson.html">Week 3 · Coordination and messaging: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

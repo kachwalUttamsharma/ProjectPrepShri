@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Part 06 interview Q&amp;A: engines, warehouses, modeling | Study Hub</title><link rel="stylesheet" href="../../../assets/style.css"><link rel="stylesheet" href="../../../assets/pygments.css"></head>
+<body data-root="../../../" data-page-id="06-sql/general-sql/06-engines-warehouses-modeling/interview-qa" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../../index.html">Home</a> / <a href="../../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../../06-sql/general-sql/README.html">General SQL</a> / <a href="../../../06-sql/general-sql/06-engines-warehouses-modeling/lesson.html">Part 6 · Engines, warehouses, modeling</a> / <span>Interview Q&amp;A</span></nav><button id="mark-done" data-id="06-sql/general-sql/06-engines-warehouses-modeling/interview-qa">Mark as done</button></div><article class="doc">
+<h1 id="part-06-interview-qa-engines-warehouses-modeling">Part 06 interview Q&amp;A: engines, warehouses, modeling</h1>
+<p>Version-specific details: check current docs. Non-SQLite snippets: not run here, verify.</p>
+<p><strong>1. OLTP vs OLAP?</strong>
+OLTP: many short transactions touching few rows, normalized schema, row storage, latency and correctness matter. OLAP: few long queries scanning many rows but few columns, denormalized (star) schema, columnar storage, throughput matters. Usually separate systems, linked by ELT/CDC.</p>
+<p><strong>2. Why are column stores faster for analytics?</strong>
+They read only the needed columns, compress similar values well, run vectorized, and skip blocks using min/max metadata. The cost: point lookups, single-row updates and wide-row reads are slower.</p>
+<p><strong>3. Why is a warehouse a poor choice for an application backend?</strong>
+Single-row writes and lookups are slow or costly, there is little or no enforced row-level integrity, transaction semantics are limited, and concurrency is tuned for a few heavy queries rather than thousands of tiny ones.</p>
+<p><strong>4. Name three differences between Postgres and MySQL (InnoDB).</strong>
+Postgres: heap tables with MVCC storing row versions in the table (needs VACUUM), richer types (JSONB, arrays, ranges), many index types (GIN, GiST, BRIN), transactional DDL. InnoDB: clustered index on the primary key, undo-log MVCC, default REPEATABLE READ with gap/next-key locks, historically looser type coercion unless strict <code>sql_mode</code>. DDL is mostly not transactional in MySQL. Check current docs for version changes.</p>
+<p><strong>5. When is SQLite the right choice?</strong>
+Embedded, single-process or low write concurrency: mobile/desktop apps, tests, caches, small tools, data exchange file. It is a library with one file; there is one writer at a time (WAL mode lets readers proceed during a write). Not for many concurrent writers over a network.</p>
+<p><strong>6. What does "constraints are informational" mean in BigQuery/Snowflake/Redshift?</strong>
+You can declare PK/FK/UNIQUE, and the optimizer may use them as hints, but the engine does not reject violating rows (NOT NULL is typically enforced; check current docs per product). So duplicates must be prevented by the pipeline.</p>
+<p><strong>7. What is a star schema? Why use it?</strong>
+One fact table (measures plus foreign keys at a declared grain) joined to denormalized dimension tables. Queries are simple (fact join few dimensions, group by attributes), predictable, and perform well on columnar engines. A snowflake schema further normalizes dimensions: less redundancy, more joins.</p>
+<p><strong>8. What is the grain of a fact table and why does it matter?</strong>
+The meaning of one row ("one line item per order"). Choosing it first prevents mixing levels (order-level and line-level amounts in one table), which causes double counting on SUM.</p>
+<p><strong>9. Additive, semi-additive, non-additive measures?</strong>
+Additive: sum across all dimensions (sales amount). Semi-additive: sum across some but not time (account balance; use latest or average over time). Non-additive: ratios, percentages; store numerator and denominator and divide after aggregation.</p>
+<p><strong>10. Explain SCD types 1, 2, 3.</strong>
+Type 1 overwrites (no history). Type 2 inserts a new version row with validity dates and a new surrogate key (full history). Type 3 keeps one previous value in an extra column (limited history). Type 0 never changes.</p>
+<p><strong>11. How do you implement SCD2 in SQL?</strong>
+Compare staging to current rows. Step 1: close changed current rows (<code>valid_to = change_date</code>, <code>is_current = 0</code>). Step 2: insert new current rows for changed and new keys. Do it in one transaction, close before insert. Many systems use MERGE. Point-in-time lookup: <code>valid_from &lt;= d AND d &lt; valid_to</code>.</p>
+<p><strong>12. Why a surrogate key in dimensions?</strong>
+Business keys can be reused, change, or repeat across SCD2 versions; surrogate keys are stable, small integers, independent of source systems, and let facts point to a specific version.</p>
+<p><strong>13. What goes wrong when joining a fact to an SCD2 dimension on the business key only?</strong>
+Each fact matches every version of the customer, multiplying rows and inflating sums. Either store the version's surrogate key on the fact at load time, or join with a date range condition.</p>
+<p><strong>14. What is partitioning and how is it different from sharding and indexing?</strong>
+Partitioning splits one table inside one database by range/list/hash so queries prune irrelevant pieces and old data can be dropped quickly. Sharding spreads data across servers (application or middleware must route; cross-shard joins and transactions are hard). An index is an additional structure for fast lookup; partitioning is about physical segmentation.</p>
+<p><strong>15. When does partitioning not help?</strong>
+When queries do not filter on the partition key (no pruning), when partitions are tiny and numerous (overhead), or when an index already serves point lookups. In MySQL the partition key must be part of unique keys (check current docs).</p>
+<p><strong>16. ETL vs ELT?</strong>
+ETL transforms before loading; ELT loads raw data first and transforms inside the warehouse with SQL (dbt-style). ELT leverages cheap elastic warehouse compute and keeps raw data replayable.</p>
+<p><strong>17. How do BigQuery, Snowflake and Redshift differ architecturally?</strong>
+BigQuery: serverless, storage and compute separated, on-demand billing by bytes scanned or reserved slots. Snowflake: virtual warehouses (compute clusters) separate from storage, micro-partitions, Time Travel and zero-copy clones. Redshift: cluster-based (RA3 separates storage; serverless option), you tune distribution and sort keys. Pricing/features change: check current docs.</p>
+<p><strong>18. How would you deduplicate in a warehouse that does not enforce unique keys?</strong>
+<code>ROW_NUMBER() OVER (PARTITION BY business_key ORDER BY loaded_at DESC) = 1</code> in a view or staging step, or MERGE on load.</p>
+<p><strong>19. A report query on production OLTP is slowing the app. Options?</strong>
+Read replica; materialized summary table; move to a warehouse via CDC/ELT; add the right index or rewrite; schedule off-peak; set statement timeouts and resource limits.</p>
+<p><strong>20. Design a model for "orders" analytics.</strong>
+Fact: <code>fact_order_line</code> (grain: one order line) with keys to <code>dim_date</code>, <code>dim_product</code>, <code>dim_customer</code>, <code>dim_store</code>, measures quantity, net_amount, discount; order number as a degenerate dimension. Customer as SCD2 if reports need the attributes at purchase time. Partition by order date; cluster by customer or product. Run the SQLite version in <a href="setup.sql.html">setup.sql</a>.</p>
+</article><div class="pager"><a class="prev" href="../../../06-sql/general-sql/06-engines-warehouses-modeling/lesson.html">← Part 6 · Engines, warehouses, modeling: Lesson</a><a class="next" href="../../../06-sql/general-sql/06-engines-warehouses-modeling/setup.sql.html">Part 6 · Engines, warehouses, modeling: setup.sql (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../../assets/data.js"></script><script src="../../../assets/app.js"></script></body></html>

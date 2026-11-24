@@ -1,0 +1,939 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 3 - Linux &amp; Shell for Engineers: Filesystem, Permissions, Processes, Text Tools, ssh, systemd, Debugging, Bash | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="12-cs-fundamentals/week-03-linux-shell/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../12-cs-fundamentals/README.html">CS Fundamentals</a> / <a href="../../12-cs-fundamentals/week-03-linux-shell/lesson.html">Week 3 · Linux and shell</a> / <span>Lesson</span></nav><button id="mark-done" data-id="12-cs-fundamentals/week-03-linux-shell/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-3-linux-shell-for-engineers-filesystem-permissions-processes-text-tools-ssh-systemd-debugging-bash">Week 3 - Linux &amp; Shell for Engineers: Filesystem, Permissions, Processes, Text Tools, ssh, systemd, Debugging, Bash</h1>
+<p>Time budget: ~7-8 hrs. Read lesson (3h), try commands in a Linux box/container (2h), Q&amp;A aloud (1.5h), cheatsheet (1h).
+Facts marked "(check current docs)" are version-dependent (distro, kernel, tool version); verify before quoting in an interview.</p>
+<p>Platform note: most of this runs on Linux. macOS is BSD-flavored: no /proc, no systemd, no strace (use dtruss/fs_usage, needs SIP tweaks), no <code>free</code>/<code>ss</code>/<code>iostat -x</code>. BSD vs GNU flag differences are called out as "macOS:" lines. To practice Linux on a Mac: <code>docker run -it --rm ubuntu:24.04 bash</code> (check current docs for tag) or a Multipass/Lima VM. systemd generally does NOT run inside a plain container.</p>
+<hr />
+<h2 id="1-filesystem-layout-fhs">1. Filesystem layout (FHS)</h2>
+<div class="highlight"><pre><span></span><code> /                     root of the single tree (no drive letters)
+ |-- bin, sbin, lib    essential binaries/libs (often symlinks into /usr on modern distros)
+ |-- usr/              userland: /usr/bin, /usr/lib, /usr/local (admin-installed software)
+ |-- etc/              host-wide CONFIG (text files): /etc/ssh, /etc/hosts, /etc/passwd, /etc/systemd
+ |-- var/              VARIABLE data: /var/log, /var/lib (DB data), /var/spool (cron, mail), /var/cache
+ |-- tmp/              scratch, world-writable + sticky; may be wiped at reboot
+ |-- home/             user home dirs (/root is root's home)
+ |-- opt/              self-contained third-party software
+ |-- proc/             VIRTUAL: process + kernel info (/proc/&lt;pid&gt;/..., /proc/meminfo, /proc/cpuinfo)
+ |-- sys/              VIRTUAL: kernel objects/devices/tunables (sysfs)
+ |-- dev/              device files: /dev/null, /dev/zero, /dev/urandom, /dev/sda, /dev/tty
+ |-- run/              runtime state since boot (tmpfs): pid files, sockets
+ |-- mnt, media        mount points
+</code></pre></div>
+
+<p>Key points</p>
+<ul>
+<li>Everything is a file: regular files, directories, devices, sockets, pipes. That is why <code>cat /proc/meminfo</code> and <code>echo &gt; /dev/null</code> work.</li>
+<li>Config in /etc, logs in /var/log, data in /var/lib, code in /usr or /opt. Knowing this = you can find things on an unfamiliar customer box in seconds.</li>
+<li>/proc and /sys are not on disk; they are kernel views. <code>ls -l /proc/&lt;pid&gt;/fd</code> lists open files of a process; <code>cat /proc/&lt;pid&gt;/cmdline | tr '\0' ' '</code> shows its args; <code>/proc/&lt;pid&gt;/environ</code> its env; <code>/proc/&lt;pid&gt;/limits</code> its ulimits.</li>
+<li>Inodes: a file name is a directory entry pointing to an inode. Hard link = another name for the same inode; symlink = a file holding a path. A disk can be "full" by blocks (<code>df -h</code>) or by inodes (<code>df -i</code>).</li>
+<li>Deleted-but-open files: <code>rm</code> removes the name; space is freed only when the last open fd closes. <code>lsof +L1</code> finds them. Classic "df says full, du says not".</li>
+<li>Mounts: <code>mount</code>, <code>findmnt</code>, <code>/etc/fstab</code> (persistent mounts). tmpfs is RAM-backed.</li>
+</ul>
+<p>Try it</p>
+<div class="highlight"><pre><span></span><code>ls -l /proc/self/fd          # Linux only
+df -h; df -i                 # space; inodes
+du -sh /var/log/* | sort -h | tail
+stat /etc/hosts              # inode, perms, times (macOS: stat -x /etc/hosts)
+</code></pre></div>
+
+<p>Gotcha: macOS has /Users instead of /home, /private/tmp, no /proc; paths in scripts are not portable.
+Gotcha: <code>du -sh *</code> skips dotfiles; <code>du -sh .[!.]* *</code> or <code>du -sh .</code> variants differ. <code>du</code> on macOS lacks <code>--max-depth</code> (use <code>-d 1</code>).</p>
+<p>How interviewers probe it: "Where do logs/config/data live?", "Why is df full but du small?" (deleted open file / hidden mount shadowing), "What is /proc?", "Hard vs soft link?", "Out of inodes but free space - why?" (millions of tiny files).</p>
+<hr />
+<h2 id="2-permissions">2. Permissions</h2>
+<div class="highlight"><pre><span></span><code> -rwxr-xr-x  1 alice dev  4096 Jan  1 app.sh
+ |\_/\_/\_/
+ | |  |  +-- other   r-x = 5
+ | |  +----- group   r-x = 5
+ | +-------- owner   rwx = 7
+ +---------- type: - file, d dir, l symlink, c/b device, s socket, p pipe
+
+ r=4 w=2 x=1      755 = rwxr-xr-x     644 = rw-r--r--     600 = rw-------
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th>Bit</th>
+<th>On a file</th>
+<th>On a directory</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>r</td>
+<td>read contents</td>
+<td>list names (ls)</td>
+</tr>
+<tr>
+<td>w</td>
+<td>modify contents</td>
+<td>create/delete/rename entries (needs x too)</td>
+</tr>
+<tr>
+<td>x</td>
+<td>execute</td>
+<td>enter (cd) / access entries by name</td>
+</tr>
+</tbody>
+</table>
+<p>Special bits</p>
+<div class="highlight"><pre><span></span><code> setuid (4xxx, s in owner x): exec runs as the FILE OWNER (e.g. /usr/bin/passwd)
+ setgid (2xxx, s in group x): exec runs as file group; on a DIR new files inherit the dir's group
+ sticky (1xxx, t in other x): on a dir, only file owner/dir owner can delete entries (/tmp is 1777)
+</code></pre></div>
+
+<p>Commands</p>
+<div class="highlight"><pre><span></span><code>chmod 640 f; chmod u+x,g-w f; chmod -R g+rX dir   # X = x only on dirs/already-exec files
+chown alice:dev f; chown -R app: /srv/app           # macOS: same syntax; no --reference
+umask            # default mask; new files = 666 &amp; ~umask, dirs = 777 &amp; ~umask
+umask 027        # files 640, dirs 750
+id; groups       # who am I
+sudo -l          # what may I sudo
+</code></pre></div>
+
+<p>Key points</p>
+<ul>
+<li>Permission check order: owner class -&gt; group class -&gt; other. Root bypasses (except capability/immutable/SELinux limits).</li>
+<li>Default umask 022 (files 644, dirs 755); 002 on some distros with per-user groups (check current docs).</li>
+<li>Executing a script needs x on the file AND the interpreter; reading needs r. Directories along the path need x (<code>namei -l /path</code> shows each hop; Linux).</li>
+<li>setuid is ignored on shell scripts by Linux for security; avoid setuid generally. Prefer capabilities (<code>setcap</code>) or sudo rules.</li>
+<li>ACLs (<code>getfacl</code>/<code>setfacl</code>), <code>chattr +i</code> (immutable), SELinux/AppArmor can deny even when rwx says yes. <code>ls -Z</code>, <code>getenforce</code>. Suspect them when perms look right but access fails (FDE classic on RHEL customers).</li>
+<li>Never <code>chmod 777</code> to "fix" it; find the actual user (<code>ps -o user</code>, <code>id</code>) and grant narrowly. SSH private keys must be 600 or ssh refuses.</li>
+</ul>
+<p>Gotcha: <code>chmod -R 755</code> makes all data files executable; use <code>find . -type d -exec chmod 755 {} +</code> and <code>-type f ... 644</code>, or <code>chmod -R u=rwX,go=rX</code>.
+Gotcha: deleting a file needs w on the DIRECTORY, not on the file.
+Gotcha: A service running as user <code>app</code> cannot read <code>/home/alice/...</code> if /home/alice is 700, even if the file itself is 644.</p>
+<p>How interviewers probe it: "What does 4755 mean?", "Why can't I delete this file though I own it?" (sticky/dir perms), "What does x mean on a directory?", "umask 027 -&gt; resulting modes?", "Container process reads fine as root but fails as non-root - why?"</p>
+<hr />
+<h2 id="3-processes-and-signals">3. Processes and signals</h2>
+<div class="highlight"><pre><span></span><code> init/systemd (PID 1)
+   |-- sshd --- sshd (session) --- bash --- python app.py      parent/child tree (pstree -p)
+   |-- cron
+   `-- uvicorn (service)
+ States (ps STAT): R running, S sleeping, D uninterruptible IO (cannot be killed!),
+                   T stopped, Z zombie (exited, parent has not wait()ed)
+</code></pre></div>
+
+<p>Key points</p>
+<ul>
+<li>fork() copies a process, exec() replaces its image. Every process has PID, PPID, UID, cwd, env, open fds, signal handlers.</li>
+<li>Zombie: already dead, only a table entry; kill does nothing; fix the parent (or kill the parent so init reaps it). Orphan: parent died, reparented to PID 1.</li>
+<li>D state: blocked in kernel IO (dead NFS, failing disk). SIGKILL cannot take effect until IO returns. Many D processes + high load average with low CPU = IO problem.</li>
+<li>Load average counts runnable + D-state tasks; compare to core count (<code>nproc</code>).</li>
+</ul>
+<p>Signals</p>
+<table>
+<thead>
+<tr>
+<th>Signal</th>
+<th>#</th>
+<th>Meaning</th>
+<th>Catchable</th>
+<th>Typical use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SIGHUP</td>
+<td>1</td>
+<td>terminal hung up</td>
+<td>yes</td>
+<td>daemons treat as "reload config" (nginx, sshd)</td>
+</tr>
+<tr>
+<td>SIGINT</td>
+<td>2</td>
+<td>Ctrl-C</td>
+<td>yes</td>
+<td>interactive interrupt</td>
+</tr>
+<tr>
+<td>SIGQUIT</td>
+<td>3</td>
+<td>Ctrl-\</td>
+<td>yes</td>
+<td>quit + core dump</td>
+</tr>
+<tr>
+<td>SIGKILL</td>
+<td>9</td>
+<td>forced kill</td>
+<td>NO</td>
+<td>last resort; no cleanup</td>
+</tr>
+<tr>
+<td>SIGTERM</td>
+<td>15</td>
+<td>polite terminate (default of <code>kill</code>)</td>
+<td>yes</td>
+<td>graceful shutdown</td>
+</tr>
+<tr>
+<td>SIGSTOP / SIGCONT</td>
+<td>19/18 (Linux)</td>
+<td>pause / resume</td>
+<td>STOP no</td>
+<td>job control (numbers differ on macOS)</td>
+</tr>
+<tr>
+<td>SIGUSR1/2</td>
+<td>10/12 (Linux)</td>
+<td>app-defined</td>
+<td>yes</td>
+<td>log rotate/debug dump</td>
+</tr>
+<tr>
+<td>SIGCHLD</td>
+<td>17</td>
+<td>child changed state</td>
+<td>yes</td>
+<td>parent reaping</td>
+</tr>
+</tbody>
+</table>
+<p>Graceful shutdown pattern: send SIGTERM -&gt; app stops accepting new work, finishes in-flight requests, closes DB connections, flushes, exits within a grace period -&gt; supervisor sends SIGKILL after timeout (systemd TimeoutStopSec default 90s; Kubernetes terminationGracePeriodSeconds default 30s; Docker stop 10s - check current docs).</p>
+<div class="highlight"><pre><span></span><code>kill PID            # SIGTERM
+kill -HUP PID       # reload
+kill -9 PID         # SIGKILL: last resort (leaves temp files, locks, half-written data)
+pkill -f 'uvicorn app:app'; pgrep -fa python
+kill -l             # list signals
+</code></pre></div>
+
+<p>PID 1 in containers</p>
+<ul>
+<li>The first process in a container is PID 1. The kernel gives PID 1 special treatment: signals with default action (like SIGTERM) are IGNORED unless PID 1 installs a handler. So a naive <code>python app.py</code> as PID 1 may not stop on <code>docker stop</code> until SIGKILL after 10s.</li>
+<li>PID 1 must also reap zombie children. Shell-form <code>CMD python app.py</code> runs <code>sh -c</code>, and sh may not forward signals. Use exec form <code>CMD ["uvicorn", ...]</code> or <code>exec python ...</code> in entrypoint scripts, and <code>--init</code> (tini) or <code>docker run --init</code> to get a proper init (check current docs).</li>
+<li>Python/uvicorn handle SIGTERM gracefully when run directly (uvicorn drains then exits).</li>
+</ul>
+<p>Job control (interactive shell)</p>
+<div class="highlight"><pre><span></span><code>cmd &amp;            # background        jobs        # list
+Ctrl-Z           # stop (SIGTSTP)   bg %1 / fg %1
+nohup cmd &gt; out.log 2&gt;&amp;1 &amp;    # ignore SIGHUP so it survives logout; output to file
+disown -h %1     # detach already-running job from shell
+tmux new -s fix  # persistent session: detach Ctrl-b d, reattach `tmux attach -t fix`
+</code></pre></div>
+
+<p>For FDEs: run long jobs inside tmux (or screen) on customer boxes so a dropped ssh does not kill them. For production services use systemd, not nohup.</p>
+<p>Gotcha: <code>kill -9</code> first is a bad habit: skips cleanup, leaves lock/pid files, may corrupt state. TERM, wait, then KILL.
+Gotcha: <code>kill</code> on a pipeline/child tree: negative PID kills a process group (<code>kill -TERM -PGID</code>).
+Gotcha: <code>$!</code> is the PID of last background job; <code>wait $!</code> waits and returns its exit code.</p>
+<p>How interviewers probe it: "SIGTERM vs SIGKILL?", "Why can't you trap SIGKILL?", "Why does my container take 10s to stop?" (PID 1 / shell form), "What is a zombie?", "Process stuck in D state?", "How do you keep a job alive after ssh drops?"</p>
+<hr />
+<h2 id="4-text-tools">4. Text tools</h2>
+<div class="highlight"><pre><span></span><code> producer --&gt; filter --&gt; filter --&gt; consumer          Unix philosophy: small tools, text streams
+ tail -f app.log | grep ERROR | awk '{print $5}' | sort | uniq -c | sort -rn | head
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Does</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>grep</td>
+<td>match lines (regex)</td>
+<td><code>grep -rniE 'timeout\|refused' /var/log/app</code> ; <code>-v</code> invert, <code>-c</code> count, <code>-A3 -B3</code> context, <code>-o</code> only match</td>
+</tr>
+<tr>
+<td>cut</td>
+<td>slice columns</td>
+<td><code>cut -d, -f1,3 data.csv</code> ; <code>cut -c1-10</code></td>
+</tr>
+<tr>
+<td>awk</td>
+<td>field-aware mini-language</td>
+<td><code>awk -F: '$3&gt;=1000 {print $1}' /etc/passwd</code> ; <code>awk '{s+=$NF} END{print s}'</code></td>
+</tr>
+<tr>
+<td>sed</td>
+<td>stream edit, mostly substitution</td>
+<td><code>sed -n '10,20p' f</code> ; <code>sed 's/foo/bar/g' f</code></td>
+</tr>
+<tr>
+<td>sort</td>
+<td>order lines</td>
+<td><code>sort -k2,2nr</code> ; <code>-u</code>, <code>-h</code> human sizes, <code>-t, -k3</code></td>
+</tr>
+<tr>
+<td>uniq</td>
+<td>collapse ADJACENT dupes (sort first!)</td>
+<td><code>sort \| uniq -c \| sort -rn</code></td>
+</tr>
+<tr>
+<td>tr</td>
+<td>char map/delete</td>
+<td><code>tr -d '\r'</code> ; <code>tr 'a-z' 'A-Z'</code></td>
+</tr>
+<tr>
+<td>wc, head, tail</td>
+<td>count, first/last N</td>
+<td><code>tail -n 100 -f</code>, <code>wc -l</code></td>
+</tr>
+<tr>
+<td>xargs</td>
+<td>turn stdin into args</td>
+<td><code>find . -name '*.log' -print0 \| xargs -0 -P4 gzip</code></td>
+</tr>
+<tr>
+<td>find</td>
+<td>walk tree by predicates</td>
+<td><code>find /var -type f -size +100M -mtime -1</code> ; <code>-exec cmd {} +</code></td>
+</tr>
+<tr>
+<td>tee</td>
+<td>split stream to file and stdout</td>
+<td><code>cmd \| tee out.txt</code></td>
+</tr>
+</tbody>
+</table>
+<p>Modern equivalents (install via brew/apt/cargo; not on every customer box)</p>
+<table>
+<thead>
+<tr>
+<th>Modern</th>
+<th>Replaces</th>
+<th>Better when</th>
+<th>Stick with the classic when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>rg (ripgrep)</td>
+<td>grep -r</td>
+<td>big trees; respects .gitignore, skips binaries, parallel, fast; sane <code>-r</code> is recursive default</td>
+<td>box lacks it (customer servers!), need POSIX portability, scripts</td>
+</tr>
+<tr>
+<td>fd</td>
+<td>find</td>
+<td>simple name search <code>fd '\.py$'</code>; fast; ignores .git</td>
+<td>complex predicates (-mtime, -perm, -size, -exec semantics)</td>
+</tr>
+<tr>
+<td>sd</td>
+<td>sed s///</td>
+<td>no escaping hell, PCRE-ish regex, <code>sd 'a(\d+)' 'b$1' f</code> edits in place</td>
+<td>line addressing, <code>sed -n 'Np'</code>, portability</td>
+</tr>
+<tr>
+<td>jq</td>
+<td>(none: parse JSON)</td>
+<td>any JSON: <code>curl -s api \| jq '.items[] \| {id,name}'</code>; <code>-r</code> raw; <code>-e</code> exit status</td>
+<td>not JSON</td>
+</tr>
+<tr>
+<td>bat</td>
+<td>cat</td>
+<td>syntax highlighting, paging, line numbers</td>
+<td>piping (bat detects pipes and acts like cat)</td>
+</tr>
+<tr>
+<td>ast-grep</td>
+<td>grep for code</td>
+<td>structural search/rewrite (<code>ast-grep -p 'print($A)'</code>)</td>
+<td>plain text</td>
+</tr>
+</tbody>
+</table>
+<p>Key points</p>
+<ul>
+<li>Rule of thumb: grep to filter lines, cut for fixed delimiters, awk when you need conditions/arithmetic/columns, sed for substitution, jq for JSON (never regex JSON).</li>
+<li>On a customer box you will have grep/awk/sed/find, probably not rg/fd. Know the classics cold; use modern ones locally.</li>
+<li>Always <code>find ... -print0 | xargs -0</code> for names with spaces. <code>xargs -P N</code> parallelizes; <code>-n1</code> one arg per command; <code>-I{}</code> placeholder.</li>
+<li>Log analysis staple: top client IPs</li>
+</ul>
+<div class="highlight"><pre><span></span><code>awk '{print $1}' access.log | sort | uniq -c | sort -rn | head -10
+</code></pre></div>
+
+<ul>
+<li>Count errors per minute: <code>grep ERROR app.log | cut -c1-16 | uniq -c</code>.</li>
+</ul>
+<p>macOS vs GNU</p>
+<ul>
+<li>macOS sed is BSD: in-place needs a suffix arg: <code>sed -i '' 's/a/b/' f</code> (GNU: <code>sed -i 's/a/b/' f</code>). <code>\+</code>, <code>\|</code>, <code>\b</code> and <code>\n</code> replacements often fail on BSD; use <code>sed -E</code>. Portable trick: <code>sed -i.bak ... f</code> works on both.</li>
+<li>BSD grep lacks <code>-P</code> (PCRE); use <code>grep -E</code> or install ggrep/rg. BSD <code>sort</code> lacks some GNU <code>-h</code>/<code>-V</code> in older versions; <code>date -d</code> is GNU only (macOS: <code>date -v-1d</code>); <code>readlink -f</code> missing on older macOS; <code>xargs -r</code> GNU only. <code>brew install coreutils gnu-sed</code> gives <code>gsed</code>, <code>gdate</code>.</li>
+<li><code>ls --color</code> GNU vs <code>ls -G</code> BSD.</li>
+</ul>
+<p>Gotcha: <code>grep pattern file | wc -l</code> counts lines; <code>grep -c</code> is the same but <code>-o ... | wc -l</code> counts matches.
+Gotcha: unquoted <code>*.log</code> is expanded by the shell, not the tool; quote regexes (<code>'a|b'</code>) so the shell does not interpret <code>|</code>.
+Gotcha: <code>uniq</code> without <code>sort</code> only merges adjacent lines.
+Gotcha: <code>sort</code> uses locale; <code>LC_ALL=C sort</code> is faster and byte-ordered.</p>
+<p>How interviewers probe it: "Top 10 IPs from an access log", "Find files &gt; 1 GB modified today", "Replace a string across a repo", "Why sort before uniq?", "grep vs awk?", "Parse JSON in shell" (jq).</p>
+<hr />
+<h2 id="5-pipes-redirects-file-descriptors">5. Pipes, redirects, file descriptors</h2>
+<div class="highlight"><pre><span></span><code> fd 0 stdin    fd 1 stdout    fd 2 stderr     (a process gets these three; more fds via open())
+
+ cmd &gt; out        stdout -&gt; file (truncate)      cmd &gt;&gt; out       append
+ cmd 2&gt; err       stderr -&gt; file                 cmd &lt; in         stdin from file
+ cmd &gt; out 2&gt;&amp;1   BOTH to out   (order matters!) cmd &amp;&gt; out       bash shorthand for both
+ cmd 2&gt;&amp;1 | grep  pipe both     cmd |&amp; grep      bash shorthand
+ cmd &gt; /dev/null 2&gt;&amp;1     discard everything     cmd 2&gt;/dev/null  discard errors only
+</code></pre></div>
+
+<p>Order matters: <code>cmd &gt; f 2&gt;&amp;1</code> = point fd1 at f, THEN point fd2 at where fd1 now goes (f). <code>cmd 2&gt;&amp;1 &gt; f</code> points fd2 at the old stdout (terminal) first, so stderr still hits the terminal.</p>
+<p>More</p>
+<div class="highlight"><pre><span></span><code>cat &lt;&lt;'EOF' &gt; conf.yml        # here-doc; quoted 'EOF' = no $var expansion; unquoted expands
+name: $HOME
+EOF
+cat &lt;&lt;&lt; "one-line here-string"
+cmd | tee out.log | grep X          # save AND continue; tee -a appends
+sudo sh -c 'echo x &gt; /etc/f'        # redirect happens in YOUR shell, not sudo's:
+echo x | sudo tee /etc/f &gt;/dev/null # fix for "permission denied" on sudo echo &gt; file
+diff &lt;(sort a) &lt;(sort b)            # process substitution: command output as a file path
+exec 3&gt;audit.log; echo hi &gt;&amp;3; exec 3&gt;&amp;-   # custom fd
+</code></pre></div>
+
+<ul>
+<li>Pipe <code>|</code> connects stdout of left to stdin of right; both run concurrently; a full pipe buffer blocks the writer (backpressure). stderr is not piped unless <code>2&gt;&amp;1</code>.</li>
+<li><code>$?</code> is the exit code of the LAST command; with <code>set -o pipefail</code> the pipeline fails if any stage fails. <code>${PIPESTATUS[@]}</code> (bash) gives all.</li>
+<li>Pipes run stages in subshells: <code>cmd | while read x; do n=$((n+1)); done</code> loses <code>n</code> afterwards. Use process substitution: <code>while read x; do ...; done &lt; &lt;(cmd)</code>.</li>
+<li><code>/dev/null</code> black hole, <code>/dev/zero</code> zeros, <code>/dev/urandom</code> random; <code>/dev/stdout</code>, <code>/dev/fd/N</code>.</li>
+<li>Redirecting a running process's output is not possible without tricks; look at <code>ls -l /proc/&lt;pid&gt;/fd</code> to see where it writes.</li>
+<li>Logging in services: write to stdout/stderr and let systemd/Docker capture; avoid app-managed files when possible.</li>
+</ul>
+<p>Gotcha: <code>&gt; file</code> truncates BEFORE the command runs: <code>sort f &gt; f</code> empties f. Use <code>sort -o f f</code> or a temp file.
+Gotcha: <code>cmd &gt; /dev/null 2&gt;&amp;1 &amp;</code> is the standard "run quietly in background" idiom.
+Gotcha: <code>2&gt;&amp;1</code> must come after <code>&gt;file</code>.</p>
+<p>How interviewers probe it: "What does <code>2&gt;&amp;1</code> do and does order matter?", "Why does <code>sudo echo &gt; /etc/x</code> fail?", "Explain <code>cmd &gt; /dev/null 2&gt;&amp;1</code>", "Process substitution vs pipe?", "What is a file descriptor?" (small int index into a process's open-file table).</p>
+<hr />
+<h2 id="6-ssh">6. ssh</h2>
+<div class="highlight"><pre><span></span><code> laptop                          bastion/jump               private host
+ ~/.ssh/id_ed25519 (private)     sshd                        sshd
+ ~/.ssh/id_ed25519.pub  ---copied to--&gt; ~/.ssh/authorized_keys (on server, perms 600; ~/.ssh 700)
+ ~/.ssh/known_hosts: server host-key fingerprints (detects MITM / rebuilt hosts)
+</code></pre></div>
+
+<p>Keys and agent</p>
+<div class="highlight"><pre><span></span><code>ssh-keygen -t ed25519 -C "me@corp"       # prefer ed25519 (rsa &gt;= 3072 if needed); set a passphrase
+ssh-copy-id user@host                    # install the public key (macOS: may need brew install ssh-copy-id)
+eval "$(ssh-agent -s)"; ssh-add ~/.ssh/id_ed25519   # agent holds decrypted key in memory
+ssh-add -l                               # list loaded keys
+ssh -A host                              # agent forwarding: convenient but risky (root on host can use your agent)
+ssh -J bastion user@private              # ProxyJump: prefer over -A
+</code></pre></div>
+
+<p>macOS: <code>ssh-add --apple-use-keychain</code> (older: <code>-K</code>) stores the passphrase in Keychain.</p>
+<p>~/.ssh/config (the FDE productivity tool)</p>
+<div class="highlight"><pre><span></span><code>Host bastion
+    HostName bastion.customer.com
+    User uttam
+    IdentityFile ~/.ssh/id_ed25519
+Host cust-*
+    User deploy
+    ProxyJump bastion
+    ServerAliveInterval 30
+    ServerAliveCountMax 3
+    ControlMaster auto
+    ControlPath ~/.ssh/cm-%r@%h:%p
+    ControlPersist 10m
+Host cust-api
+    HostName 10.0.4.12
+    LocalForward 5432 10.0.4.30:5432
+</code></pre></div>
+
+<p>Then <code>ssh cust-api</code>. ControlMaster multiplexes sessions over one connection (fast, no repeated MFA).</p>
+<p>Port forwarding</p>
+<div class="highlight"><pre><span></span><code> -L local:   ssh -L 8080:localhost:80 host    laptop:8080 --tunnel--&gt; host --&gt; localhost:80 (on host side)
+             ssh -L 5432:db.internal:5432 bastion   reach a private DB via a jump: psql -h localhost -p 5432
+ -R remote:  ssh -R 9000:localhost:3000 host  host:9000 --tunnel--&gt; laptop:3000  (expose my local service to them)
+ -D dynamic: ssh -D 1080 host                 SOCKS proxy through host
+ flags: -N no command, -f background, -T no tty:  ssh -fNL 8080:localhost:80 host
+</code></pre></div>
+
+<p>Mnemonic: -L = bring a remote service to ME (listen Locally); -R = push my service to THEM (listen Remotely). Remote listen on non-loopback needs <code>GatewayPorts</code> in sshd_config.</p>
+<p>File transfer</p>
+<div class="highlight"><pre><span></span><code>scp file user@host:/tmp/           # simple; legacy protocol in newer OpenSSH (check current docs)
+scp -J bastion f user@private:~/
+rsync -avz --progress src/ user@host:/dst/    # resumable, delta transfer; trailing / on src matters
+rsync -avz --delete -e "ssh -J bastion" ...   # --delete mirrors; dry-run first with -n
+</code></pre></div>
+
+<p>rsync <code>src/</code> copies contents; <code>src</code> copies the directory itself.</p>
+<p>Debug</p>
+<div class="highlight"><pre><span></span><code>ssh -vvv host                      # why auth fails
+ssh -o StrictHostKeyChecking=accept-new host    # first-time only; do not disable checking blindly
+ssh-keygen -R host                 # remove stale known_hosts entry after rebuild
+ssh host 'journalctl -u app -n 50 --no-pager'   # run one command (quote for remote shell)
+</code></pre></div>
+
+<p>Common failures: "Permission denied (publickey)" -&gt; wrong user/key, bad perms (~/.ssh 700, authorized_keys 600, home not group-writable), server <code>PasswordAuthentication no</code>; "REMOTE HOST IDENTIFICATION HAS CHANGED" -&gt; rebuilt host or MITM, verify before <code>ssh-keygen -R</code>; hangs -&gt; firewall/security group, DNS (<code>UseDNS</code>), use <code>-v</code>; "Connection closed" -&gt; sshd limits, MaxStartups, or tcp wrappers. Server side: <code>journalctl -u ssh</code> (Debian/Ubuntu) or <code>-u sshd</code> (RHEL), <code>/var/log/auth.log</code> or <code>/var/log/secure</code>.</p>
+<p>Gotcha: agent forwarding to untrusted hosts lets root there use your keys while connected; prefer ProxyJump.
+Gotcha: <code>ssh host cmd</code> runs a non-interactive, non-login shell; your ~/.bashrc PATH may not apply.
+Gotcha: Never commit private keys; keep <code>~/.ssh/config</code> host entries rather than long commands.</p>
+<p>How interviewers probe it: "How does key-based auth work?" (server challenges, client signs with private key, never sent), "-L vs -R with an example", "Reach a DB in a private subnet from your laptop", "What is known_hosts?", "scp vs rsync?", "Jump host config?"</p>
+<hr />
+<h2 id="7-systemd">7. systemd</h2>
+<div class="highlight"><pre><span></span><code> systemd (PID 1) manages UNITS: .service .socket .timer .target .mount ...
+ /usr/lib/systemd/system/   packaged units (do not edit)
+ /etc/systemd/system/       your units and overrides (wins)  -&gt; `systemctl edit app` writes drop-in override.conf
+ After editing: sudo systemctl daemon-reload
+</code></pre></div>
+
+<p>Linux only (macOS uses launchd/launchctl).</p>
+<p>Sample unit for a uvicorn FastAPI service: /etc/systemd/system/fastapi-app.service</p>
+<div class="highlight"><pre><span></span><code>[Unit]
+Description=FastAPI app (uvicorn)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=app
+Group=app
+WorkingDirectory=/opt/fastapi-app
+EnvironmentFile=/etc/fastapi-app.env
+ExecStart=/opt/fastapi-app/.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000 --workers 2
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=3
+StartLimitIntervalSec=60
+StartLimitBurst=5
+TimeoutStopSec=30
+KillSignal=SIGTERM
+LimitNOFILE=65536
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+</code></pre></div>
+
+<p>Notes: <code>/etc/fastapi-app.env</code> holds <code>KEY=value</code> lines, chmod 600, owned by root (no <code>export</code>, no quotes shell-expansion; systemd parses it itself). <code>Type=simple</code> fits uvicorn in foreground. Put a reverse proxy (nginx) in front for TLS. <code>--workers</code> and <code>--reload</code> are not the same: never use <code>--reload</code> in prod.</p>
+<p>Lifecycle</p>
+<div class="highlight"><pre><span></span><code>sudo systemctl daemon-reload
+sudo systemctl enable --now fastapi-app     # start now + at boot
+systemctl status fastapi-app                # state, PID, last log lines, exit code
+sudo systemctl restart|reload|stop fastapi-app
+systemctl is-active|is-enabled fastapi-app
+systemctl list-units --failed
+systemctl cat fastapi-app                   # effective unit incl. overrides
+systemd-analyze blame                       # slow boot units
+</code></pre></div>
+
+<p>Restart policies</p>
+<table>
+<thead>
+<tr>
+<th>Restart=</th>
+<th>Restarts when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>no (default)</td>
+<td>never</td>
+</tr>
+<tr>
+<td>on-failure</td>
+<td>non-zero exit, killed by signal (not clean exit), timeout</td>
+</tr>
+<tr>
+<td>on-abnormal</td>
+<td>signal/timeout/watchdog only</td>
+</tr>
+<tr>
+<td>always</td>
+<td>any exit, even clean (except explicit <code>systemctl stop</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>Crash loop protection: StartLimitBurst starts within StartLimitIntervalSec then the unit enters "failed (start-limit-hit)"; clear with <code>systemctl reset-failed app</code>. In newer systemd these keys live in [Unit]; older accept them in [Service] (check current docs).</p>
+<p>journalctl (systemd's log store)</p>
+<div class="highlight"><pre><span></span><code>journalctl -u fastapi-app -f                 # follow
+journalctl -u fastapi-app --since "1 hour ago" -p err
+journalctl -u fastapi-app -n 200 --no-pager
+journalctl -b -1 -p err                      # previous boot errors
+journalctl -k                                # kernel messages (like dmesg)
+journalctl --disk-usage; sudo journalctl --vacuum-time=7d
+</code></pre></div>
+
+<p>Persistence: journal may be volatile unless /var/log/journal exists (Storage=persistent) (check current docs). stdout/stderr of the service land in the journal automatically.</p>
+<p>Key points</p>
+<ul>
+<li>Exit code semantic: <code>status</code> shows <code>code=exited, status=1/FAILURE</code> or <code>signal=KILL</code> (OOM killer shows <code>signal=KILL</code> / "Out of memory" in journal).</li>
+<li>Timers (<code>.timer</code>) are the systemd alternative to cron: better logging, dependencies, <code>Persistent=true</code> catches up missed runs.</li>
+<li>Environment: services do NOT get your shell env. Use <code>Environment=</code> or <code>EnvironmentFile=</code>; <code>systemctl show -p Environment app</code>.</li>
+</ul>
+<p>Gotcha: forgetting <code>daemon-reload</code> after editing a unit -&gt; old config runs (systemd warns).
+Gotcha: relative paths in ExecStart are not allowed; use absolute paths to venv binaries.
+Gotcha: "Failed at step USER/EXEC" = user missing or exec bit/path wrong; <code>status=203/EXEC</code>; <code>217/USER</code>; <code>200/CHDIR</code> (WorkingDirectory missing).</p>
+<p>How interviewers probe it: "Write a unit file for a Python service", "Restart=always vs on-failure", "How do you see why a service died?" (status + journalctl -u), "enable vs start", "How does systemd stop a service?" (KillSignal, TimeoutStopSec then SIGKILL).</p>
+<hr />
+<h2 id="8-cron">8. cron</h2>
+<div class="highlight"><pre><span></span><code> +------------- minute (0-59)
+ | +----------- hour (0-23)
+ | | +--------- day of month (1-31)
+ | | | +------- month (1-12)
+ | | | | +----- day of week (0-7, 0 and 7 = Sunday)
+ | | | | |
+ * * * * *  command
+
+ */5 * * * *      every 5 min        0 2 * * *       02:00 daily
+ 30 3 * * 1-5     03:30 Mon-Fri      @reboot         at boot (also @daily, @hourly)
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>crontab -e; crontab -l          # per-user table (no user field)
+/etc/crontab, /etc/cron.d/*     # system tables HAVE a user field after the schedule
+</code></pre></div>
+
+<p>Env gotchas (the top cause of "works in shell, fails in cron")</p>
+<ul>
+<li>Minimal environment: PATH is often just <code>/usr/bin:/bin</code>; no profile/bashrc, no ssh-agent, no your venv. Use absolute paths, or set <code>PATH=</code> and <code>SHELL=/bin/bash</code> at top of the crontab.</li>
+<li><code>%</code> is special in crontab lines (newline); escape as <code>\%</code> (common in <code>date +\%F</code>).</li>
+<li>cwd is the home dir; <code>cd /app &amp;&amp; ./run.sh</code>.</li>
+<li>Day-of-month and day-of-week are OR'd when both restricted.</li>
+<li>Timezone is the system's (often UTC on servers); DST can skip/duplicate runs. cron does not catch up missed runs (anacron / systemd timer Persistent=true does).</li>
+<li>Overlap: slow job + short interval = pile-up. Guard with <code>flock -n /tmp/job.lock cmd</code> (Linux; macOS has no flock by default).</li>
+<li>macOS: cron exists but launchd is preferred; cron needs Full Disk Access in newer macOS (check current docs).</li>
+</ul>
+<p>Logging</p>
+<div class="highlight"><pre><span></span><code>*/10 * * * * cd /opt/app &amp;&amp; /opt/app/.venv/bin/python job.py &gt;&gt; /var/log/app/job.log 2&gt;&amp;1
+</code></pre></div>
+
+<ul>
+<li>Without redirects, output is mailed to the user (if MTA exists) or lost. Cron's own execution log: <code>journalctl -u cron</code> (Debian: <code>cron</code>, RHEL: <code>crond</code>) or <code>/var/log/syslog</code>, <code>/var/log/cron</code>.</li>
+<li>Add a heartbeat/dead-man check (e.g. ping a monitor on success) because silent failure is the default.</li>
+</ul>
+<p>Gotcha: <code>crontab -r</code> deletes your whole crontab with no confirm (right next to <code>-e</code>).
+Gotcha: Script lacks exec bit or shebang -&gt; failure only visible in mail/logs.</p>
+<p>How interviewers probe it: "Why does my script work manually but not under cron?", "Schedule for 02:30 on the first of month", "How to prevent overlapping runs?", "cron vs systemd timer?"</p>
+<hr />
+<h2 id="9-environment-variables-and-secrets-hygiene">9. Environment variables and secrets hygiene</h2>
+<div class="highlight"><pre><span></span><code> child process inherits a COPY of parent's exported env; children cannot change the parent's env.
+ FOO=1            shell variable only (not inherited)
+ export FOO=1     exported: visible to children
+ FOO=1 cmd        set for that one command only
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>env; printenv PATH; echo "$PATH" | tr : '\n'
+export PATH="$HOME/.local/bin:$PATH"     # prepend: your tools win
+unset FOO; env -i bash --noprofile --norc   # clean environment for repro
+</code></pre></div>
+
+<p>PATH: colon-separated search list, first match wins. <code>which -a python</code>, <code>type -a python</code>, <code>command -v python</code>. "Wrong python" bugs = PATH order or venv not activated (<code>.venv/bin/python</code> explicit is robust).</p>
+<p>Startup files: login shells read /etc/profile and ~/.profile or ~/.bash_profile; interactive non-login bash reads ~/.bashrc; zsh reads ~/.zshenv, ~/.zprofile, ~/.zshrc. macOS Terminal opens login shells; Linux terminals typically non-login. Non-interactive ssh commands and cron read almost nothing. Put env for services in unit files, not rc files.</p>
+<p>.env files</p>
+<ul>
+<li><code>.env</code> (KEY=value) is a convention loaded by libraries (python-dotenv, pydantic-settings, docker compose <code>env_file</code>) - not by the shell. Load into a shell with <code>set -a; source .env; set +a</code>. Parsing differs between tools (quotes, <code>export</code>, expansions).</li>
+<li>Never commit .env; commit <code>.env.example</code>. Add to .gitignore AND .dockerignore.</li>
+</ul>
+<p>Secrets hygiene</p>
+<ul>
+<li>Do not put secrets in command-line args: visible in <code>ps aux</code> and /proc/<pid>/cmdline, and shell history. Env vars are visible to same-user processes via /proc/<pid>/environ and inherited by every child; also leak into crash dumps and <code>docker inspect</code>.</li>
+<li>Prefer: secret manager (Vault, AWS Secrets Manager/SSM, GCP Secret Manager), mounted files with 0400 perms (<code>/run/secrets/...</code>), short-lived credentials/IAM roles over static keys.</li>
+<li>Avoid <code>set -x</code> around secrets (it echoes them). Prefix a command with a space to skip history (needs HISTCONTROL=ignorespace). Read secrets with <code>read -rs</code>.</li>
+<li>Rotate anything that was pasted in a ticket/chat/log. Redact before sharing logs with customers or in interviews.</li>
+<li>Check what leaked: <code>git log -p | rg -i 'aws_secret|api[_-]?key'</code>; tools like gitleaks/trufflehog (check current docs).</li>
+<li>Customer environments: use their approved vault; never copy their secrets to your laptop; use least-privilege, time-boxed access.</li>
+</ul>
+<p>Gotcha: <code>sudo</code> resets env (use <code>sudo -E</code> carefully or <code>sudo VAR=x cmd</code>); systemd and cron start with near-empty env.
+Gotcha: <code>export</code> in a script does not affect the calling shell unless you <code>source</code> it.</p>
+<p>How interviewers probe it: "Why does my env var disappear in cron/systemd/sudo?", "Where should secrets live?", "Why not pass the password on the CLI?", "Difference between shell variable and env variable?"</p>
+<hr />
+<h2 id="10-debugging-playbook">10. Debugging playbook</h2>
+<p>Method: 1) define the symptom and when it started, 2) check the four resources (CPU, memory, disk, network) plus the app log, 3) form ONE hypothesis, test with a read-only command, 4) change one thing, 5) record findings. (USE method: Utilization, Saturation, Errors per resource.) Prefer read-only tools on customer production.</p>
+<p>Symptom -&gt; tool decision table</p>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>First look</th>
+<th>Then</th>
+<th>Confirms</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Slow, CPU high</td>
+<td><code>top</code>/<code>htop</code> (sort by CPU, press 1 for per-core)</td>
+<td><code>ps -eo pid,pcpu,cmd --sort=-pcpu \| head</code>; <code>py-spy top -p PID</code> (Python); <code>strace -c -p PID</code></td>
+<td>one hot process, or system-time heavy (kernel), or steal (<code>%st</code>) in VM</td>
+</tr>
+<tr>
+<td>Slow, CPU low, load high</td>
+<td><code>vmstat 1</code>, <code>iostat -x 1</code> (r, b, wa columns)</td>
+<td><code>ps aux \| awk '$8 ~ /D/'</code></td>
+<td>IO wait or D-state processes</td>
+</tr>
+<tr>
+<td>Slow, memory</td>
+<td><code>free -h</code>, <code>vmstat 1</code> (si/so swap)</td>
+<td><code>ps -eo pid,rss,cmd --sort=-rss \| head</code></td>
+<td>swapping = thrash</td>
+</tr>
+<tr>
+<td>Hung (no response)</td>
+<td><code>ss -ltnp</code> (is it listening?), <code>curl -v --max-time 5</code></td>
+<td><code>strace -p PID</code> (blocked in what syscall?), <code>lsof -p PID</code>, <code>py-spy dump -p PID</code></td>
+<td>blocked on futex/read/connect/DB lock</td>
+</tr>
+<tr>
+<td>Crashing / restarting</td>
+<td><code>systemctl status</code>, <code>journalctl -u app -e</code></td>
+<td><code>dmesg -T \| rg -i 'killed process\|oom'</code>; core dumps (<code>coredumpctl</code>)</td>
+<td>exit code, signal, OOM</td>
+</tr>
+<tr>
+<td>Disk full</td>
+<td><code>df -h</code>, <code>df -i</code></td>
+<td><code>du -xh / --max-depth=1 \| sort -h</code> ; <code>lsof +L1</code></td>
+<td>big dir, deleted-open file, inode exhaustion</td>
+</tr>
+<tr>
+<td>Out of memory</td>
+<td><code>dmesg -T</code>, <code>journalctl -k</code></td>
+<td><code>free -h</code>; <code>ps --sort=-rss</code>; container cgroup limits</td>
+<td>OOM-killer victim line</td>
+</tr>
+<tr>
+<td>Cannot connect</td>
+<td><code>ss -ltnp</code>, <code>curl -v</code>, <code>nc -vz host port</code>, <code>dig host</code></td>
+<td><code>ip a</code>, <code>ip r</code>, <code>traceroute</code>/<code>mtr</code>, firewall (<code>iptables -S</code>, <code>nft list ruleset</code>)</td>
+<td>DNS vs routing vs firewall vs not listening</td>
+</tr>
+<tr>
+<td>Which process owns file/port</td>
+<td><code>lsof -i :8000</code>, <code>lsof file</code>, <code>ss -ltnp</code></td>
+<td><code>fuser -v</code></td>
+<td>PID and user</td>
+</tr>
+<tr>
+<td>Too many open files</td>
+<td><code>lsof -p PID \| wc -l</code>; <code>cat /proc/PID/limits</code></td>
+<td><code>ulimit -n</code>; unit <code>LimitNOFILE</code></td>
+<td>fd leak or low limit</td>
+</tr>
+</tbody>
+</table>
+<p>Tool notes</p>
+<ul>
+<li>top/htop: load average (1/5/15 min) vs <code>nproc</code>; %us user, %sy system, %wa IO wait, %st steal; RES vs VIRT (VIRT is mostly meaningless). htop: F6 sort, F5 tree, <code>t</code>. macOS: <code>top -o cpu</code>, Activity Monitor; no <code>free</code> (use <code>vm_stat</code>, <code>memory_pressure</code>).</li>
+<li>ps: <code>ps aux</code>, <code>ps -ef</code>, <code>ps -eo pid,ppid,stat,pcpu,pmem,rss,etime,cmd</code>; <code>pstree -p</code>. BSD/GNU option styles differ; <code>--sort</code> is GNU only (macOS: <code>ps aux -r</code> for CPU, <code>-m</code> memory).</li>
+<li>free -h: look at "available", not "free"; Linux uses spare RAM as page cache, which is good.</li>
+<li>vmstat 1: r (runnable), b (blocked), si/so (swap in/out), bi/bo (block IO), us/sy/id/wa/st. Ignore the first line (averages since boot). macOS vmstat differs.</li>
+<li>iostat -x 1 (sysstat package): %util near 100 and high await = disk saturated. macOS: <code>iostat -w 1</code>.</li>
+<li>lsof: <code>lsof -i :PORT</code>, <code>lsof -p PID</code>, <code>lsof +L1</code> (deleted but open), <code>lsof -u user</code>. Needs root for others' processes.</li>
+<li>ss (replaces netstat): <code>ss -ltnp</code> listening TCP + process; <code>ss -tan state established | wc -l</code>; <code>ss -s</code>. Many TIME_WAIT/CLOSE_WAIT: CLOSE_WAIT piling up = app not closing sockets. macOS: <code>netstat -an</code>, <code>lsof -iTCP -sTCP:LISTEN</code>.</li>
+<li>strace (Linux only; ptrace overhead can slow a prod process heavily, use briefly): <code>strace -f -tt -T -p PID</code>, <code>-e trace=network,file</code>, <code>-c</code> summary, <code>strace -f -o out.txt cmd</code>. See what a process is blocked on, which file it fails to open (ENOENT), and which config it reads. macOS: dtruss/dtrace needs SIP changes; <code>sample PID</code>, <code>fs_usage</code>.</li>
+<li>dmesg -T: kernel ring buffer (OOM kills, disk errors, segfaults); may need sudo; same data as <code>journalctl -k</code>.</li>
+<li>df/du: <code>df -hT</code>, <code>du -xsh /var/* \| sort -h</code>; <code>ncdu</code> is interactive. <code>-x</code> stays on one filesystem.</li>
+</ul>
+<p>Worked examples</p>
+<p>A) SLOW service (high CPU)</p>
+<div class="highlight"><pre><span></span><code>$ uptime            -&gt; load average: 7.8 on 4 cores
+$ top               -&gt; python PID 2211 at 380% CPU; %sy low (user-space work)
+$ py-spy top -p 2211 (or dump)   -&gt; time in json parsing in /report endpoint
+$ rg 'GET /report' access.log | wc -l   -&gt; traffic spike on that endpoint
+Fix: cache/paginate/rate-limit that endpoint; add worker or autoscale. Verify load falls.
+</code></pre></div>
+
+<p>If CPU low but load high: <code>vmstat 1</code> shows b&gt;0, wa high -&gt; <code>iostat -x 1</code> shows 100% util on /dev/nvme1n1 -&gt; a batch job doing full scans; move it or throttle (<code>ionice</code>).</p>
+<p>B) HUNG service (port open, requests never return)</p>
+<div class="highlight"><pre><span></span><code>$ ss -ltnp | rg 8000             -&gt; listening, Recv-Q growing (accept queue backed up)
+$ curl -m 5 -v localhost:8000/health   -&gt; connects, no response
+$ strace -f -p 2211 -tt -T       -&gt; blocked in futex / poll on fd 14
+$ ls -l /proc/2211/fd/14         -&gt; socket; lsof -p 2211 | rg 14 -&gt; to db:5432
+$ ss -tnp | rg 5432 | wc -l      -&gt; 100 established = connection pool exhausted
+Root cause: DB connection pool exhausted by slow query/lock; requests wait forever for a conn.
+Fix: timeouts on pool acquire + queries, kill long query, size pool. (py-spy dump shows all threads waiting in pool.get)
+</code></pre></div>
+
+<p>C) CRASHING service (restart loop)</p>
+<div class="highlight"><pre><span></span><code>$ systemctl status fastapi-app   -&gt; activating (auto-restart), status=1/FAILURE, or start-limit-hit
+$ journalctl -u fastapi-app -n 80 --no-pager
+    ModuleNotFoundError: No module named 'pydantic_settings'  (after a deploy)
+$ systemctl cat fastapi-app      -&gt; ExecStart uses /opt/app/.venv; check that venv has deps
+Fix: pip install -r requirements.txt into the venv, systemctl reset-failed, restart.
+If signal=KILL with no Python traceback: suspect OOM (case E).
+</code></pre></div>
+
+<p>D) DISK FULL</p>
+<div class="highlight"><pre><span></span><code>$ df -h              -&gt; /var 100%
+$ df -i              -&gt; inodes fine (else: many tiny files, e.g. session dirs)
+$ du -xh /var --max-depth=2 | sort -h | tail   -&gt; /var/log/app 38G
+$ ls -lhS /var/log/app | head   -&gt; app.log 37G (no rotation)
+$ du says less than df? -&gt; lsof +L1 shows deleted 37G app.log still open by PID 2211
+Fix: truncate in place `: &gt; app.log` (or `truncate -s 0`), NOT rm while open; for deleted-open file restart the process or `: &gt; /proc/2211/fd/N`.
+Prevent: logrotate (/etc/logrotate.d/), journald SystemMaxUse, container log limits.
+</code></pre></div>
+
+<p>E) OUT OF MEMORY</p>
+<div class="highlight"><pre><span></span><code>$ systemctl status app           -&gt; Main process exited, code=killed, status=9/KILL
+$ dmesg -T | rg -i 'out of memory|killed process'
+    Out of memory: Killed process 2211 (python) total-vm:9.1GB, anon-rss:6.8GB
+$ free -h                        -&gt; available ~100M; swap full
+$ ps -eo pid,rss,cmd --sort=-rss | head
+Cause: memory leak or too many workers x per-worker memory; in containers, the cgroup limit (check `docker stats`, dmesg "Memory cgroup out of memory", exit code 137 = 128+9).
+Fix: reduce workers, fix leak (tracemalloc/memray), raise limit, add swap/oom_score_adj as stopgap, set MemoryMax= in unit.
+</code></pre></div>
+
+<p>F) SLOW because of network/DNS (bonus)</p>
+<div class="highlight"><pre><span></span><code>$ curl -w '%{time_namelookup} %{time_connect} %{time_starttransfer} %{time_total}\n' -o /dev/null -s URL
+   -&gt; time_namelookup 5.0s  =&gt; DNS (check /etc/resolv.conf, `dig`, search/ndots in containers)
+</code></pre></div>
+
+<p>Gotcha: restart "fixes" it temporarily and destroys evidence. Capture first: <code>ps</code>, <code>ss</code>, <code>lsof</code>, <code>py-spy dump</code>, <code>dmesg</code>, <code>journalctl</code> snapshots, <code>strace</code> sample; then restart.
+Gotcha: strace/gdb on production can freeze or slow the process; prefer py-spy/<code>perf</code>/eBPF tools (check current docs) and keep traces short.
+Gotcha: Exit code 137 = SIGKILL (often OOM), 143 = SIGTERM, 139 = segfault, 126 = not executable, 127 = command not found.</p>
+<p>How interviewers probe it: "Server is slow - walk me through it", "Disk full but du disagrees", "Process killed with no logs - why?" (OOM killer, check dmesg), "What does load average mean?", "How to find what a hung process is doing?", "Port already in use?" (lsof -i / ss -ltnp). They want a systematic order and read-only first, not tool trivia.</p>
+<hr />
+<h2 id="11-bash-scripting-basics">11. Bash scripting basics</h2>
+<p>Strict mode and why</p>
+<div class="highlight"><pre><span></span><code>#!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
+</code></pre></div>
+
+<ul>
+<li><code>-e</code> exit on any command failing (with exceptions: inside <code>if</code>, <code>&amp;&amp;</code>/<code>||</code> lists, <code>while</code> conditions; so it is not a full safety net).</li>
+<li><code>-u</code> unset variable is an error (catches typos like <code>rm -rf "$DIR/"</code> with DIR empty).</li>
+<li><code>-o pipefail</code> pipeline status = first failing stage.</li>
+<li>Debug with <code>set -x</code> (trace), <code>bash -n script</code> (syntax check), <code>shellcheck script.sh</code> (static analysis; catches unquoted vars, bad tests; install via brew/apt).</li>
+</ul>
+<p>Quoting (most bugs live here)</p>
+<div class="highlight"><pre><span></span><code>f="my file.txt"
+rm $f            # WRONG: word-splits into 'my' and 'file.txt', and globs
+rm "$f"          # right
+"$@"             # all args, each preserved; "$*" joins into one string
+'single'         # literal; "double" expands $var and $(cmd); ${var:-default}; ${var%.txt}
+files=(a b "c d"); for x in "${files[@]}"; do ...; done   # arrays (bash; not POSIX sh)
+</code></pre></div>
+
+<p>Conditionals</p>
+<div class="highlight"><pre><span></span><code>if [[ -f "$f" &amp;&amp; -r "$f" ]]; then ...; elif [[ "$x" == *.py ]]; then ...; else ...; fi
+[[ -z "$v" ]]  empty   [[ -n "$v" ]] non-empty   [[ -d d ]]  [[ -e p ]]  [[ $n -gt 3 ]] (numeric)
+[[ $s == foo* ]] glob match   [[ $s =~ ^[0-9]+$ ]] regex   (( n &gt; 3 ))  arithmetic
+cmd &amp;&amp; echo ok || echo fail      # careful: `||` also runs if echo fails
+case "$1" in start) ... ;; stop|halt) ... ;; *) usage ;; esac
+</code></pre></div>
+
+<p><code>[[ ]]</code> is bash/zsh (safer, no word splitting); <code>[ ]</code> is POSIX <code>test</code> (needs quoting). If the shebang is <code>#!/bin/sh</code>, bashisms break (on Debian sh is dash).</p>
+<p>Loops and functions</p>
+<div class="highlight"><pre><span></span><code>for i in {1..5}; do echo "$i"; done
+for f in *.log; do [[ -e $f ]] || continue; gzip "$f"; done
+while IFS= read -r line; do echo "$line"; done &lt; file       # -r and IFS= preserve content
+while read -r a b; do ...; done &lt; &lt;(cmd)                    # no subshell variable loss
+retry() { local n=0; until "$@"; do ((++n &gt;= 5)) &amp;&amp; return 1; sleep $((2**n)); done; }
+</code></pre></div>
+
+<ul>
+<li>Functions: <code>local</code> for variables; return a status (0-255) with <code>return</code>, output data via stdout (<code>x=$(fn)</code>).</li>
+<li>Command substitution <code>$(...)</code> over backticks; it strips trailing newlines.</li>
+<li>Arithmetic: <code>$((a+b))</code>; bash has no floats (use <code>awk</code>/<code>bc</code>).</li>
+<li>Args: <code>$1..$9</code>, <code>$#</code>, <code>$0</code>, <code>${1:?usage: script ENV}</code> (die if missing), <code>getopts</code> for flags.</li>
+</ul>
+<p>Exit codes</p>
+<ul>
+<li>0 success, non-zero failure; 1 general, 2 misuse, 126 not executable, 127 not found, 128+N killed by signal N (130 = Ctrl-C, 137 = KILL, 143 = TERM). Your scripts: <code>exit 0/1</code>, and use distinct codes for distinct failures so callers (CI, cron, systemd) can react. <code>$?</code> is overwritten by every command; save it: <code>rc=$?</code>.</li>
+</ul>
+<p>trap (cleanup and signals)</p>
+<div class="highlight"><pre><span></span><code>tmp=$(mktemp -d)
+cleanup() { rm -rf "$tmp"; }
+trap cleanup EXIT                      # runs on normal exit, error exit (set -e), and Ctrl-C/TERM exit
+trap 'echo "failed at line $LINENO" &gt;&amp;2' ERR
+trap 'echo shutting down; kill "$child" 2&gt;/dev/null; exit 143' TERM INT
+</code></pre></div>
+
+<p>EXIT trap is the right place for temp files, locks, and "undo". SIGKILL cannot be trapped.</p>
+<p>Sample robust deploy + health-check script</p>
+<div class="highlight"><pre><span></span><code>#!/usr/bin/env bash
+# deploy.sh - deploy a release dir and verify health; roll back on failure.
+# usage: ./deploy.sh &lt;release-dir&gt; [health-url]
+set -euo pipefail
+
+readonly APP_DIR=/opt/fastapi-app
+readonly SERVICE=fastapi-app
+readonly RELEASE="${1:?usage: $0 &lt;release-dir&gt; [health-url]}"
+readonly HEALTH_URL="${2:-http://127.0.0.1:8000/health}"
+readonly LOCK=/tmp/${SERVICE}-deploy.lock
+
+log()  { printf '%s [deploy] %s\n' "$(date -u +%FT%TZ)" "$*" &gt;&amp;2; }
+die()  { log "ERROR: $*"; exit 1; }
+
+prev="$(readlink -f "$APP_DIR/current" || true)"   # macOS: use `readlink` without -f or greadlink
+
+rollback() {
+  if [[ -n "${prev:-}" &amp;&amp; -d "$prev" ]]; then
+    log "rolling back to $prev"
+    ln -sfn "$prev" "$APP_DIR/current"
+    sudo systemctl restart "$SERVICE" || true
+  fi
+}
+
+on_exit() {
+  local rc=$?
+  if (( rc != 0 )); then log "failed with exit code $rc"; rollback; fi
+  flock -u 9 2&gt;/dev/null || true
+}
+trap on_exit EXIT
+
+command -v curl &gt;/dev/null || die "curl not installed"
+[[ -d "$RELEASE" ]] || die "release dir not found: $RELEASE"
+
+exec 9&gt;"$LOCK"
+flock -n 9 || die "another deploy is running"     # Linux flock
+
+log "installing deps"
+python3 -m venv "$RELEASE/.venv"
+"$RELEASE/.venv/bin/pip" install -q -r "$RELEASE/requirements.txt"
+
+log "switching symlink -&gt; $RELEASE"
+ln -sfn "$RELEASE" "$APP_DIR/current"
+sudo systemctl restart "$SERVICE"
+
+log "waiting for health at $HEALTH_URL"
+for attempt in {1..30}; do
+  if curl -fsS --max-time 2 "$HEALTH_URL" &gt;/dev/null 2&gt;&amp;1; then
+    log "healthy after $attempt attempt(s)"
+    exit 0
+  fi
+  sleep 2
+done
+die "service not healthy after 60s"     # EXIT trap triggers rollback
+</code></pre></div>
+
+<p>Why it is robust: strict mode; required-arg check; quoted expansions; lock to avoid concurrent deploys; EXIT trap rolls back on ANY failure; health check with timeout and bounded retries (never loop forever); logs to stderr with timestamps; idempotent symlink swap (atomic with <code>ln -sfn</code>); non-zero exit for CI. Run <code>shellcheck deploy.sh</code> before shipping.</p>
+<p>When not to use bash: &gt;100 lines, data structures, JSON, error handling needs -&gt; use Python (<code>subprocess.run(..., check=True)</code>).</p>
+<p>Gotcha: <code>set -e</code> is ignored in <code>if cmd</code>, <code>cmd || true</code>, and inside functions called in a conditional context; check critical commands explicitly.
+Gotcha: <code>local x=$(cmd)</code> masks cmd's exit status; declare then assign.
+Gotcha: <code>for f in $(ls)</code> breaks on spaces; use globs or <code>find -print0</code>.
+Gotcha: <code>cd dir; rm -rf *</code> if cd fails deletes the wrong dir; <code>cd dir || exit</code> or use set -e and absolute paths.
+Gotcha: macOS ships bash 3.2 (GPL-v2); associative arrays, <code>${var,,}</code>, <code>mapfile</code> need bash 4+ (<code>brew install bash</code>); default shell is zsh. Use <code>#!/usr/bin/env bash</code>.</p>
+<p>How interviewers probe it: "What does set -euo pipefail do and where does -e not work?", "Why quote variables?", "Write a retry loop", "How do you clean up temp files on failure?" (trap EXIT), "How do you make a deploy script safe/idempotent?", "Exit code of a pipeline?", "bash vs python for this task?"</p>
+<hr />
+<h2 id="12-putting-it-together-fde-habits-on-a-customer-box">12. Putting it together: FDE habits on a customer box</h2>
+<div class="highlight"><pre><span></span><code> 1. Orient:    whoami; id; hostname; uname -a; cat /etc/os-release; uptime; date (timezone!)
+ 2. Persist:   tmux new -s &lt;ticket&gt;   (survive dropped ssh)
+ 3. Survey:    df -h; free -h; top; ss -ltnp; systemctl --failed; journalctl -p err -b | tail
+ 4. Narrow:    app logs (journalctl -u svc -f), config in /etc, env in unit file, recent deploys (ls -lt)
+ 5. Capture evidence before restarting; change one thing at a time; note commands run.
+ 6. Leave clean: no stray files in /tmp, no secrets in history, document the fix for the customer.
+</code></pre></div>
+
+<ul>
+<li>Constrained boxes: no root, no internet, no package install, old tools. Master classics (grep awk sed find ss/netstat ps) and read from /proc directly.</li>
+<li>Always know your blast radius: read-only first, <code>-n</code> dry-runs (rsync, find without -delete), backups before edits (<code>cp -a f f.bak.$(date +%F)</code>).</li>
+<li>Communicate: state hypothesis, evidence, action, and rollback plan; interviewers grade this as much as the commands.</li>
+</ul>
+<p>Try it end to end (Linux or container)</p>
+<div class="highlight"><pre><span></span><code>1. yes &gt; /tmp/big.log &amp;   # fill disk; watch df -h; kill it; compare df vs du with lsof +L1 after rm while running
+2. stress memory: python3 -c "x=[0]*10**9" under `ulimit -v 2000000` and read the error
+3. write the sample unit, add Restart=on-failure, kill -9 the PID and watch systemctl status / journalctl
+4. ssh -L to a local python3 -m http.server 8000; curl through the tunnel
+5. awk/sort/uniq on a generated access log; rewrite with rg + jq if logs are JSON
+6. run shellcheck on the deploy script and fix every warning
+</code></pre></div>
+
+<p>How interviewers probe it: "You ssh into a customer VM and the app is down. First five minutes?" Expect orient -&gt; persist -&gt; survey -&gt; narrow -&gt; evidence -&gt; fix -&gt; verify -&gt; communicate.</p>
+</article><div class="pager"><a class="prev" href="../../12-cs-fundamentals/week-02-operating-systems/cheatsheet.html">← Week 2 · Operating systems: Cheatsheet</a><a class="next" href="../../12-cs-fundamentals/week-03-linux-shell/interview-qa.html">Week 3 · Linux and shell: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

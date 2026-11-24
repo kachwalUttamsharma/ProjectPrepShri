@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 6 Labs (OPTIONAL, paper-first) | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="07-aws/week-06-architecture-fde/labs" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../07-aws/README.html">AWS</a> / <a href="../../07-aws/week-06-architecture-fde/lesson.html">Week 6 · Architecture and FDE angle</a> / <span>Labs</span></nav><button id="mark-done" data-id="07-aws/week-06-architecture-fde/labs">Mark as done</button></div><article class="doc">
+<h1 id="week-6-labs-optional-paper-first">Week 6 Labs (OPTIONAL, paper-first)</h1>
+<p>COST WARNING: Bedrock bills per token (and requires model access in the console), Aurora/OpenSearch/Fargate/ALB/NAT all bill hourly. Do the design on paper; only deploy a tiny version briefly, if at all.</p>
+<ol>
+<li>Paper: draw the RAG architecture from lesson.md from memory; annotate each arrow with protocol, auth, and failure mode.</li>
+<li>Paper: write a one-page decision record choosing pgvector vs OpenSearch for a made-up customer.</li>
+<li>Free: run the AWS Well-Architected Tool (free) against an imaginary workload; read the questions for Security and Reliability.</li>
+<li>Free: estimate the architecture in the AWS Pricing Calculator and export it. Compare Fargate vs Lambda for 5 req/s steady vs 0.1 req/s.</li>
+<li>Optional small spend: call Bedrock <code>converse</code> with a small model a handful of times from your laptop with a budget alarm set; delete nothing is needed but disable model access if unused.</li>
+<li>Local (no AWS): FastAPI + Postgres + pgvector in docker compose to practice the retrieval query.</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../07-aws/week-06-architecture-fde/cheatsheet.html">← Week 6 · Architecture and FDE angle: Cheatsheet</a><a class="next" href="../../07-aws/week-06-architecture-fde/scenarios.html">Week 6 - 10 System-Design Scenarios with Model Answers →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

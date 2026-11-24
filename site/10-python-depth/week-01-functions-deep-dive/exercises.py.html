@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="10-python-depth/week-01-functions-deep-dive/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../10-python-depth/week-01-functions-deep-dive/lesson.html">Python Depth</a> / <a href="../../10-python-depth/week-01-functions-deep-dive/lesson.html">Week 1 · Functions deep dive</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="10-python-depth/week-01-functions-deep-dive/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>10-python-depth/week-01-functions-deep-dive/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 1 exercises: functions deep-dive.</span>
+
+<span class="sd">Replace each `...` with your code. Read the docstring and hint first.</span>
+<span class="sd">Run tests:  ../../.venv/bin/pytest -q</span>
+<span class="sd">"""</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">functools</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">itertools</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">contextlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">contextmanager</span>
+
+
+<span class="c1"># Exercise 1 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">make_counter</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a function `counter()` that returns start+1, start+2, ... on</span>
+<span class="sd">    successive calls. Each make_counter() call has its own independent state.</span>
+
+<span class="sd">    Hint: closure + `nonlocal`.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 2 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">make_multipliers</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a list of n functions; the function at index i multiplies its</span>
+<span class="sd">    argument by i. make_multipliers(3)[2](10) == 20.</span>
+
+<span class="sd">    Hint: the classic late-binding trap. `lambda x: x * i` inside a loop sees</span>
+<span class="sd">    the FINAL i. Bind it with a default argument (i=i) or functools.partial.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 3 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">append_item</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">items</span><span class="o">=</span><span class="p">[]):</span>
+<span class="w">    </span><span class="sd">"""Append item to items and return items. If no list is passed, a FRESH</span>
+<span class="sd">    list must be used on every call (append_item(1) then append_item(2)</span>
+<span class="sd">    returns [2], not [1, 2]).</span>
+
+<span class="sd">    Hint: this signature is buggy on purpose. Use `items=None` and create the</span>
+<span class="sd">    list inside the function.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 4 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">count_calls</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Decorator. The wrapped function must still work normally, expose the</span>
+<span class="sd">    number of calls so far as attribute `.calls` (starts at 0), and keep the</span>
+<span class="sd">    original __name__ and __doc__.</span>
+
+<span class="sd">    Hint: functools.wraps; store the counter on the wrapper function object.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 5 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">retry</span><span class="p">(</span><span class="n">times</span><span class="p">,</span> <span class="n">exceptions</span><span class="o">=</span><span class="p">(</span><span class="ne">Exception</span><span class="p">,)):</span>
+<span class="w">    </span><span class="sd">"""Decorator FACTORY: @retry(3) calls the function up to `times` total</span>
+<span class="sd">    attempts, retrying only when one of `exceptions` is raised. If every</span>
+<span class="sd">    attempt fails, re-raise the last exception. Return the first success.</span>
+<span class="sd">    Other exception types propagate immediately. No sleeping.</span>
+
+<span class="sd">    Hint: three nested levels: retry -&gt; decorator -&gt; wrapper. Use functools.wraps.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 6 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">singleton</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Class decorator: after `@singleton class A`, calling A(...) always</span>
+<span class="sd">    returns the SAME instance (created on the first call with the first</span>
+<span class="sd">    call's arguments; later arguments are ignored).</span>
+
+<span class="sd">    Hint: keep a dict/closure variable of instances; return a function.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 7 -------------------------------------------------------------</span>
+<span class="nd">@contextmanager</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">temp_attr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Context manager: set obj.&lt;name&gt; = value inside the with-block, then</span>
+<span class="sd">    restore the old value afterwards (even if the block raised). If the</span>
+<span class="sd">    attribute did not exist before, delete it on exit.</span>
+
+<span class="sd">    Hint: @contextmanager generator; try/finally around the yield.</span>
+<span class="sd">    Use hasattr/getattr/setattr/delattr.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 8 -------------------------------------------------------------</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Countdown</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Iterator class: iterating Countdown(3) yields 3, 2, 1 and then stops.</span>
+<span class="sd">    It is a one-shot iterator: once exhausted, iterating again yields nothing.</span>
+
+<span class="sd">    Hint: implement __iter__ (return self) and __next__ (raise StopIteration</span>
+<span class="sd">    when done).</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__next__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="c1"># Exercise 9 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">chunked</span><span class="p">(</span><span class="n">iterable</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Generator: yield lists of up to n items from any iterable (the last</span>
+<span class="sd">    chunk may be shorter). Must be lazy: it must work on an infinite iterator.</span>
+<span class="sd">    n &lt; 1 raises ValueError (when iteration starts is fine).</span>
+
+<span class="sd">    chunked(range(5), 2) -&gt; [0, 1], [2, 3], [4]</span>
+<span class="sd">    Hint: iterator = iter(iterable); itertools.islice(iterator, n) in a loop.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 10 ------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">fib</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the nth Fibonacci number (fib(0)=0, fib(1)=1) with the naive</span>
+<span class="sd">    recursive definition, but make it fast with functools.lru_cache so that</span>
+<span class="sd">    fib(90) is instant and fib.cache_info() works.</span>
+
+<span class="sd">    Hint: one decorator line. Use @functools.lru_cache(maxsize=None).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">compose</span><span class="p">(</span><span class="o">*</span><span class="n">funcs</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a function applying funcs right to left:</span>
+<span class="sd">    compose(f, g, h)(x) == f(g(h(x))). compose() is the identity function.</span>
+
+<span class="sd">    Hint: functools.reduce over reversed(funcs).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 11 ------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">run_length_encode</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a list of (char, count) for consecutive runs.</span>
+<span class="sd">    'aaabcc' -&gt; [('a', 3), ('b', 1), ('c', 2)]; '' -&gt; [].</span>
+
+<span class="sd">    Hint: itertools.groupby(s); count with sum(1 for _ in group).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../10-python-depth/week-01-functions-deep-dive/interview-qa.html">← Week 1 · Functions deep dive: Interview Q&amp;A</a><a class="next" href="../../10-python-depth/week-01-functions-deep-dive/test_exercises.py.html">Week 1 · Functions deep dive: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 4 Cheatsheet - Git, Collaboration, CI/CD | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="12-cs-fundamentals/week-04-git-collaboration/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../12-cs-fundamentals/README.html">CS Fundamentals</a> / <a href="../../12-cs-fundamentals/week-04-git-collaboration/lesson.html">Week 4 · Git, review and CI/CD</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="12-cs-fundamentals/week-04-git-collaboration/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="week-4-cheatsheet-git-collaboration-cicd">Week 4 Cheatsheet - Git, Collaboration, CI/CD</h1>
+<p>Version-dependent items are marked "(check current docs)".</p>
+<h2 id="concepts">Concepts</h2>
+<table>
+<thead>
+<tr>
+<th>Concept</th>
+<th>One-liner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>blob / tree / commit / tag</td>
+<td>file bytes / directory listing / snapshot + parents + message / named pointer object</td>
+</tr>
+<tr>
+<td>Content-addressed</td>
+<td>object name = hash of content; same content stored once; immutable</td>
+</tr>
+<tr>
+<td>DAG</td>
+<td>commits point to parents; no cycles</td>
+</tr>
+<tr>
+<td>Branch</td>
+<td>file holding one commit hash (movable pointer)</td>
+</tr>
+<tr>
+<td>HEAD</td>
+<td>current branch (symbolic ref) or commit (detached)</td>
+</tr>
+<tr>
+<td>Working tree / index / repo</td>
+<td>files on disk / staged next commit / committed history</td>
+</tr>
+<tr>
+<td>Remote-tracking ref</td>
+<td><code>origin/main</code> = local cache of remote branch; updated by fetch</td>
+</tr>
+<tr>
+<td>fetch vs pull</td>
+<td>fetch updates origin/*; pull = fetch + merge (or rebase)</td>
+</tr>
+<tr>
+<td>Fast-forward</td>
+<td>branch pointer just moves; no merge commit</td>
+</tr>
+<tr>
+<td>Merge commit</td>
+<td>commit with two parents; preserves history</td>
+</tr>
+<tr>
+<td>Rebase</td>
+<td>replay commits on a new base as new commits (new hashes)</td>
+</tr>
+<tr>
+<td>Squash merge</td>
+<td>whole PR becomes one commit on target</td>
+</tr>
+<tr>
+<td>Golden rule</td>
+<td>do not rewrite shared/pushed history</td>
+</tr>
+<tr>
+<td>force-with-lease</td>
+<td>force push only if remote is where you last saw it</td>
+</tr>
+<tr>
+<td>Reflog</td>
+<td>local history of where HEAD/branches pointed; recovery net</td>
+</tr>
+<tr>
+<td>Detached HEAD</td>
+<td>HEAD at a commit, not a branch; make a branch before leaving</td>
+</tr>
+</tbody>
+</table>
+<h2 id="undo-matrix">Undo matrix</h2>
+<table>
+<thead>
+<tr>
+<th>Goal</th>
+<th>Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Unstage file</td>
+<td><code>git restore --staged f</code></td>
+</tr>
+<tr>
+<td>Discard working edits</td>
+<td><code>git restore f</code> (irreversible)</td>
+</tr>
+<tr>
+<td>Amend last commit (local)</td>
+<td><code>git commit --amend</code></td>
+</tr>
+<tr>
+<td>Undo commit, keep staged</td>
+<td><code>git reset --soft HEAD~1</code></td>
+</tr>
+<tr>
+<td>Undo commit, keep unstaged</td>
+<td><code>git reset --mixed HEAD~1</code></td>
+</tr>
+<tr>
+<td>Undo commit and changes</td>
+<td><code>git reset --hard HEAD~1</code></td>
+</tr>
+<tr>
+<td>Undo pushed commit</td>
+<td><code>git revert &lt;sha&gt;</code></td>
+</tr>
+<tr>
+<td>Undo merge commit</td>
+<td><code>git revert -m 1 &lt;merge-sha&gt;</code></td>
+</tr>
+<tr>
+<td>Recover lost commit</td>
+<td><code>git reflog</code> then <code>git reset --hard &lt;sha&gt;</code> or <code>git branch rescue &lt;sha&gt;</code></td>
+</tr>
+<tr>
+<td>Backport one commit</td>
+<td><code>git cherry-pick -x &lt;sha&gt;</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="strategies-and-delivery">Strategies and delivery</h2>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>One-liner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Trunk-based</td>
+<td>short-lived branches, merge to main daily, feature flags, always releasable</td>
+</tr>
+<tr>
+<td>GitHub flow</td>
+<td>feature branch -&gt; PR -&gt; merge -&gt; deploy</td>
+</tr>
+<tr>
+<td>Gitflow</td>
+<td>develop/release/hotfix branches; for versioned products; heavy</td>
+</tr>
+<tr>
+<td>Feature flag</td>
+<td>deploy != release; owner + expiry; remove after rollout</td>
+</tr>
+<tr>
+<td>Monorepo</td>
+<td>atomic changes, shared tooling; needs scalable build/CI</td>
+</tr>
+<tr>
+<td>Polyrepo</td>
+<td>clear ownership; version skew and cross-repo pain</td>
+</tr>
+<tr>
+<td>CI</td>
+<td>merge often, automated build/test on every push</td>
+</tr>
+<tr>
+<td>Continuous delivery</td>
+<td>always releasable; manual prod approval</td>
+</tr>
+<tr>
+<td>Continuous deployment</td>
+<td>every green build auto-deploys</td>
+</tr>
+<tr>
+<td>Rolling</td>
+<td>gradual replace; mixed versions; no extra capacity</td>
+</tr>
+<tr>
+<td>Blue-green</td>
+<td>two envs, flip traffic; instant rollback; 2x capacity</td>
+</tr>
+<tr>
+<td>Canary</td>
+<td>small % first, watch metrics, expand</td>
+</tr>
+<tr>
+<td>Expand/contract</td>
+<td>add new -&gt; dual write -&gt; backfill -&gt; switch reads -&gt; drop old later</td>
+</tr>
+<tr>
+<td>GitOps</td>
+<td>Git = desired state; Argo CD/Flux reconcile; deploy = merge, rollback = revert</td>
+</tr>
+<tr>
+<td>SemVer</td>
+<td>MAJOR breaking / MINOR feature / PATCH fix</td>
+</tr>
+<tr>
+<td>Artifact</td>
+<td>build once, deploy same immutable image by digest</td>
+</tr>
+<tr>
+<td>OIDC</td>
+<td>short-lived cloud creds via signed job token; needs <code>id-token: write</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="github-actions-essentials-check-current-docs-for-versions-and-labels">GitHub Actions essentials (check current docs for versions and labels)</h2>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>permissions: contents: read</code></td>
+<td>least-privilege default at workflow top; escalate per job</td>
+</tr>
+<tr>
+<td>Pin actions</td>
+<td>full commit SHA + version comment; tags are mutable</td>
+</tr>
+<tr>
+<td><code>ubuntu-latest</code> vs <code>ubuntu-24.04</code></td>
+<td>latest floats; pin label for reproducibility (check current docs)</td>
+</tr>
+<tr>
+<td><code>actions/checkout@v4</code>, <code>setup-python@v5</code></td>
+<td>example versions (check current docs)</td>
+</tr>
+<tr>
+<td><code>docker/setup-buildx-action@v3</code>, <code>login-action@v3</code>, <code>metadata-action@v5</code>, <code>build-push-action@v6</code></td>
+<td>example versions (check current docs)</td>
+</tr>
+<tr>
+<td><code>services:</code> + <code>--health-cmd</code></td>
+<td>DB container with readiness wait</td>
+</tr>
+<tr>
+<td><code>needs:</code> / <code>if:</code></td>
+<td>job ordering and conditions</td>
+</tr>
+<tr>
+<td><code>environment:</code></td>
+<td>protection rules, approvals, scoped secrets</td>
+</tr>
+<tr>
+<td><code>concurrency:</code></td>
+<td>cancel stale PR runs; never cancel deploys</td>
+</tr>
+<tr>
+<td><code>GITHUB_TOKEN</code></td>
+<td>auto, short-lived; <code>packages: write</code> to push to GHCR</td>
+</tr>
+<tr>
+<td><code>pull_request_target</code></td>
+<td>runs with secrets; never check out untrusted PR code with it</td>
+</tr>
+<tr>
+<td>Script injection</td>
+<td>pass <code>${{ ... }}</code> untrusted values through <code>env:</code>, not inline <code>run:</code></td>
+</tr>
+<tr>
+<td>Cache</td>
+<td>key on lockfile hash; <code>cache-from/to type=gha</code> for Docker layers</td>
+</tr>
+</tbody>
+</table>
+<h2 id="memorize">Memorize</h2>
+<ul>
+<li>A commit is a snapshot; a branch is a pointer; rebase = new hashes.</li>
+<li>Shared branch: revert, never reset/force. Private branch: rebase, amend, force-with-lease.</li>
+<li>Reset: soft keeps staged, mixed keeps unstaged, hard destroys working tree.</li>
+<li>Reflog saves committed work (local, ~30-90 days; check current docs). Uncommitted work is gone.</li>
+<li>During rebase, ours/theirs are swapped.</li>
+<li>Bisect run exit codes: 0 good, 1-127 bad, 125 skip.</li>
+<li>Secret committed = rotate first, scrub history second.</li>
+<li>Small PRs; describe what/why/test/risk/rollback; label nit vs blocking.</li>
+<li>Build once, deploy the same digest everywhere; fail fast; gate prod with an environment.</li>
+<li>Backward-compatible migrations (expand/contract) are what make rollback possible.</li>
+<li>Pin actions to SHAs, least-privilege permissions, OIDC over stored cloud keys.</li>
+<li>Local hooks are bypassable; re-run the same checks in CI.</li>
+</ul>
+<h2 id="command-reference">Command reference</h2>
+<div class="highlight"><pre><span></span><code># inspect
+git status -sb ; git log --oneline --graph --all ; git diff [--staged]
+git show &lt;sha&gt;[:path] ; git blame -L 10,20 f ; git log -S"text" ; git log -p -- path
+git cat-file -t|-p &lt;hash&gt; ; git ls-tree HEAD ; git rev-parse HEAD
+git reflog ; git describe --tags
+
+# branch / sync
+git switch -c feat ; git switch - ; git branch -d|-D feat
+git fetch --prune ; git pull --rebase ; git push -u origin feat
+git push --force-with-lease
+
+# integrate
+git merge [--no-ff|--squash] feat ; git merge --abort
+git rebase main ; git rebase -i HEAD~4 ; git rebase -i --autosquash main
+git rebase --onto newbase oldbase feat ; git rebase --continue|--abort
+git cherry-pick [-x] &lt;sha&gt; ; git cherry-pick --continue|--abort
+git commit --fixup &lt;sha&gt;
+
+# undo
+git restore f ; git restore --staged f ; git restore --source=&lt;sha&gt; f
+git reset --soft|--mixed|--hard &lt;ref&gt; ; git revert [-m 1] &lt;sha&gt; ; git clean -fdn
+git commit --amend
+
+# stash
+git stash push -m msg [-u] ; git stash list ; git stash pop|apply|drop
+
+# bisect
+git bisect start ; git bisect bad ; git bisect good &lt;ref&gt; ; git bisect run &lt;cmd&gt; ; git bisect reset
+
+# conflicts
+git diff --name-only --diff-filter=U ; git checkout --ours|--theirs f ; git mergetool
+git config --global rerere.enabled true
+git config --global merge.conflictstyle zdiff3      # Git 2.35+ (check current docs)
+
+# tags
+git tag -a v1.2.0 -m "msg" ; git push origin v1.2.0 ; git tag -d v1.2.0
+
+# ignore / hooks
+git rm --cached f ; git check-ignore -v path ; git config core.hooksPath .githooks
+pre-commit install ; pre-commit run --all-files ; pre-commit autoupdate
+</code></pre></div>
+</article><div class="pager"><a class="prev" href="../../12-cs-fundamentals/week-04-git-collaboration/interview-qa.html">← Week 4 · Git, review and CI/CD: Interview Q&amp;A</a><a class="next" href="../../12-cs-fundamentals/week-05-containers-orchestration/lesson.html">Week 5 · Containers and orchestration: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

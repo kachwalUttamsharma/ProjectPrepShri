@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="14-data-engineering/week-02-spark/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../14-data-engineering/week-02-spark/lesson.html">Week 2 · Spark</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="14-data-engineering/week-02-spark/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>14-data-engineering/week-02-spark/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 2 exercises: Spark ideas simulated in pure Python (stdlib only).</span>
+
+<span class="sd">pyspark is not needed. Each exercise models one concept: partitioning,</span>
+<span class="sd">shuffle, skew, joins, lazy evaluation, stages, coalesce vs repartition,</span>
+<span class="sd">window functions. Rows are plain dicts; a "dataset" is a list of rows and a</span>
+<span class="sd">"partitioned dataset" is a list of lists.</span>
+
+<span class="sd">Replace each `...` with your code. Run:</span>
+<span class="sd">    ../../.venv/bin/pytest -q</span>
+<span class="sd">"""</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">zlib</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">defaultdict</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">stable_hash</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Provided helper. Python's built-in hash() of str changes per process</span>
+<span class="sd">    (hash randomisation), so use crc32 for reproducible partitioning."""</span>
+    <span class="k">return</span> <span class="n">zlib</span><span class="o">.</span><span class="n">crc32</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">"utf-8"</span><span class="p">))</span>
+
+
+<span class="c1"># Exercise 1 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">hash_partition</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Split `rows` (list of dicts) into `n` partitions (list of n lists) by</span>
+<span class="sd">    hash of row[key]: partition index = stable_hash(row[key]) % n.</span>
+<span class="sd">    Rows keep their original relative order inside a partition.</span>
+<span class="sd">    Same key -&gt; same partition (this is what a shuffle guarantees).</span>
+<span class="sd">    Example: hash_partition([{"k": 1}, {"k": 1}], "k", 3) puts both rows in</span>
+<span class="sd">    the same one of the 3 lists.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 2 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">wordcount_shuffle</span><span class="p">(</span><span class="n">lines</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Simulate map -&gt; shuffle -&gt; reduce for word count with `n` reducers.</span>
+<span class="sd">    Map: lowercase, split on whitespace, emit (word, 1).</span>
+<span class="sd">    Shuffle: route each pair to reducer stable_hash(word) % n.</span>
+<span class="sd">    Reduce: each reducer sums counts of its own words only.</span>
+<span class="sd">    Return the merged {word: count} dict (result must not depend on n).</span>
+<span class="sd">    Example: ["a b", "A"] -&gt; {"a": 2, "b": 1}</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 3 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">skew_ratio</span><span class="p">(</span><span class="n">sizes</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Given a list of partition sizes return max(sizes) / mean(sizes).</span>
+<span class="sd">    Empty list or all-zero sizes -&gt; 0.0. A balanced dataset gives ~1.0.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">skewed_partitions</span><span class="p">(</span><span class="n">sizes</span><span class="p">,</span> <span class="n">threshold</span><span class="o">=</span><span class="mf">2.0</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the indexes of partitions whose size is strictly greater than</span>
+<span class="sd">    `threshold` * mean(sizes), in ascending order. Empty -&gt; [].</span>
+<span class="sd">    Example: skewed_partitions([1, 1, 1, 97]) -&gt; [3]</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 4 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">broadcast_join</span><span class="p">(</span><span class="n">big</span><span class="p">,</span> <span class="n">small</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Inner join two lists of dicts on `key`, broadcast style: build a dict</span>
+<span class="sd">    index of `small` (every executor would hold it), then stream `big`</span>
+<span class="sd">    through it with no shuffle. Merge matching rows as {**big_row, **small_row}.</span>
+<span class="sd">    Output order: follows `big`. Duplicate keys in `small` produce multiple</span>
+<span class="sd">    output rows.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">shuffle_join</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Inner join by shuffling both sides: hash_partition each side into `n`</span>
+<span class="sd">    partitions on `key`, join partition i of left with partition i of right</span>
+<span class="sd">    locally, concatenate. Result must equal broadcast_join as a multiset of</span>
+<span class="sd">    rows (order may differ).</span>
+<span class="sd">    Hint: reuse hash_partition and broadcast_join for the local join.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 5 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">salted_join</span><span class="p">(</span><span class="n">big</span><span class="p">,</span> <span class="n">small</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">n_salts</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Skew fix by salting. Give each row of `big` a "_salt" = index % n_salts;</span>
+<span class="sd">    replicate every row of `small` n_salts times, once per salt value;</span>
+<span class="sd">    join on (key, "_salt"); drop "_salt" from the output rows.</span>
+<span class="sd">    Result must equal an ordinary inner join on `key` (as a multiset).</span>
+<span class="sd">    Do not mutate the input rows.</span>
+<span class="sd">    Why it works: one hot key is spread over n_salts partitions.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 6 -------------------------------------------------------------</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">LazyDataset</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Tiny lazy pipeline, like an RDD/DataFrame.</span>
+
+<span class="sd">    Transformations (map, filter, flat_map) only RECORD the step and return a</span>
+<span class="sd">    NEW LazyDataset (the original must be unchanged). Nothing runs until an</span>
+<span class="sd">    action (collect, count) is called. collect() runs the recorded steps in</span>
+<span class="sd">    order over the source data and returns a list.</span>
+<span class="sd">      - map(fn): one output per input</span>
+<span class="sd">      - filter(fn): keep items where fn(item) is truthy</span>
+<span class="sd">      - flat_map(fn): fn returns an iterable; flatten results</span>
+<span class="sd">    plan() returns the list of recorded step names, e.g. ["map", "filter"].</span>
+<span class="sd">    cache(): mark this dataset so the first action stores its result and later</span>
+<span class="sd">    actions reuse it without re-running the functions. Returns self.</span>
+<span class="sd">    Without cache(), every action recomputes from scratch.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">map</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fn</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">filter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fn</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">flat_map</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fn</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">cache</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">plan</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">collect</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">count</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="c1"># Exercise 7 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">classify_ops</span><span class="p">(</span><span class="n">ops</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Classify Spark operation names as "narrow" or "wide" dependencies.</span>
+<span class="sd">    narrow: map, filter, flatMap, select, withColumn, union, coalesce,</span>
+<span class="sd">            mapPartitions</span>
+<span class="sd">    wide (needs a shuffle): groupBy, groupByKey, reduceByKey, join, distinct,</span>
+<span class="sd">            repartition, orderBy, sort</span>
+<span class="sd">    Return a list of the same length. Unknown name -&gt; raise ValueError.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">count_stages</span><span class="p">(</span><span class="n">ops</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""A job is cut into stages at shuffle boundaries: stages = 1 + number of</span>
+<span class="sd">    wide ops. Example: ["map", "reduceByKey", "map", "orderBy"] -&gt; 3.</span>
+<span class="sd">    Unknown ops raise ValueError (via classify_ops).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 8 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">num_partitions_for</span><span class="p">(</span><span class="n">total_bytes</span><span class="p">,</span> <span class="n">target_bytes</span><span class="o">=</span><span class="mi">128</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""How many partitions for `total_bytes` of data at ~`target_bytes` each?</span>
+<span class="sd">    Round UP, minimum 1. (Spark's default max partition bytes is 128 MB;</span>
+<span class="sd">    check current docs.)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 9 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">coalesce</span><span class="p">(</span><span class="n">partitions</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Reduce partitions WITHOUT a shuffle: merge neighbouring partitions so</span>
+<span class="sd">    the original row order is preserved. If n &gt;= len(partitions) return a</span>
+<span class="sd">    copy unchanged (coalesce cannot increase). Return exactly n non-empty</span>
+<span class="sd">    groups when the inputs are non-empty.</span>
+<span class="sd">    Hint: output index for input i can be i * n // len(partitions).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">repartition</span><span class="p">(</span><span class="n">partitions</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Full shuffle into exactly `n` balanced partitions: deal all rows</span>
+<span class="sd">    round-robin (row j overall goes to partition j % n), in input order.</span>
+<span class="sd">    Works for increasing or decreasing n.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 10 ------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">row_number_over</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="n">partition_key</span><span class="p">,</span> <span class="n">order_key</span><span class="p">,</span> <span class="n">descending</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Emulate row_number() OVER (PARTITION BY partition_key ORDER BY</span>
+<span class="sd">    order_key [DESC]). Return NEW dicts with an extra "rn" column starting at</span>
+<span class="sd">    1 within each partition. Do not mutate inputs. Output order is not</span>
+<span class="sd">    important. Use case: keep rn == 1 to get the latest row per key.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../14-data-engineering/week-02-spark/cheatsheet.html">← Week 2 · Spark: Cheatsheet</a><a class="next" href="../../14-data-engineering/week-02-spark/test_exercises.py.html">Week 2 · Spark: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

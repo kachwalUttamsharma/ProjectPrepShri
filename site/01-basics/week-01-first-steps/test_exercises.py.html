@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>test_exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="01-basics/week-01-first-steps/test_exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../01-basics/week-01-first-steps/lesson.html">Python Basics</a> / <a href="../../01-basics/week-01-first-steps/lesson.html">Week 1 · First steps</a> / <span>Tests (code)</span></nav><button id="mark-done" data-id="01-basics/week-01-first-steps/test_exercises.py">Mark as done</button></div><article class="doc">
+<h1>test_exercises.py</h1><p class="code-path"><code>01-basics/week-01-first-steps/test_exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_add</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">add</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> <span class="o">==</span> <span class="mi">5</span>
+    <span class="k">assert</span> <span class="n">add</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_average</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">average</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">average</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span> <span class="o">==</span> <span class="mi">7</span> <span class="o">/</span> <span class="mi">3</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_is_even</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">is_even</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span>
+    <span class="k">assert</span> <span class="n">is_even</span><span class="p">(</span><span class="mi">7</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="n">is_even</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_minutes_to_hours_minutes</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">minutes_to_hours_minutes</span><span class="p">(</span><span class="mi">135</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">15</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">minutes_to_hours_minutes</span><span class="p">(</span><span class="mi">59</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">59</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_greet</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">greet</span><span class="p">(</span><span class="s2">"Sam"</span><span class="p">,</span> <span class="mi">30</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"Hello, Sam! You are 30 years old."</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_first_and_last</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">first_and_last</span><span class="p">(</span><span class="s2">"python"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"pn"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_reverse</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">reverse</span><span class="p">(</span><span class="s2">"abc"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"cba"</span>
+    <span class="k">assert</span> <span class="n">reverse</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span> <span class="o">==</span> <span class="s2">""</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_shout</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">shout</span><span class="p">(</span><span class="s2">"hi"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"HI!"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_middle</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">middle</span><span class="p">(</span><span class="s2">"abcde"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"c"</span>
+    <span class="k">assert</span> <span class="n">middle</span><span class="p">(</span><span class="s2">"x"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"x"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_celsius_to_fahrenheit</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">celsius_to_fahrenheit</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">==</span> <span class="mi">32</span>
+    <span class="k">assert</span> <span class="n">celsius_to_fahrenheit</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span> <span class="o">==</span> <span class="mi">212</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../01-basics/week-01-first-steps/exercises.py.html">← Week 1 · First steps: Exercises (code)</a><a class="next" href="../../01-basics/week-02-conditions-loops/lesson.html">Week 2 · Conditions and loops: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

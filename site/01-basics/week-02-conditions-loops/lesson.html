@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 2: Conditions and loops | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="01-basics/week-02-conditions-loops/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../01-basics/week-01-first-steps/lesson.html">Python Basics</a> / <a href="../../01-basics/week-02-conditions-loops/lesson.html">Week 2 · Conditions and loops</a> / <span>Lesson</span></nav><button id="mark-done" data-id="01-basics/week-02-conditions-loops/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-2-conditions-and-loops">Week 2: Conditions and loops</h1>
+<h2 id="1-booleans-and-comparisons">1. Booleans and comparisons</h2>
+<div class="highlight"><pre><span></span><code><span class="mi">5</span> <span class="o">&gt;</span> <span class="mi">3</span>        <span class="c1"># True</span>
+<span class="mi">5</span> <span class="o">==</span> <span class="mi">5</span>       <span class="c1"># True   (== compares, = assigns)</span>
+<span class="mi">5</span> <span class="o">!=</span> <span class="mi">4</span>       <span class="c1"># True</span>
+<span class="mi">3</span> <span class="o">&lt;=</span> <span class="mi">3</span>       <span class="c1"># True</span>
+<span class="s2">"a"</span> <span class="o">&lt;</span> <span class="s2">"b"</span>    <span class="c1"># True   (alphabetical order)</span>
+<span class="mi">1</span> <span class="o">&lt;</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="mi">10</span>   <span class="c1"># chained comparison: x between 1 and 10</span>
+</code></pre></div>
+
+<p>Combine with <code>and</code>, <code>or</code>, <code>not</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="n">age</span> <span class="o">=</span> <span class="mi">20</span>
+<span class="n">age</span> <span class="o">&gt;=</span> <span class="mi">18</span> <span class="ow">and</span> <span class="n">age</span> <span class="o">&lt;</span> <span class="mi">65</span>   <span class="c1"># True</span>
+<span class="ow">not</span> <span class="p">(</span><span class="n">age</span> <span class="o">&gt;</span> <span class="mi">30</span><span class="p">)</span>           <span class="c1"># True</span>
+</code></pre></div>
+
+<p>"Falsy" values (treated as False in an <code>if</code>): <code>0</code>, <code>0.0</code>, <code>""</code>, <code>[]</code>, <code>None</code>, <code>False</code>. Everything else is "truthy".</p>
+<h2 id="2-if-elif-else">2. if / elif / else</h2>
+<div class="highlight"><pre><span></span><code><span class="n">score</span> <span class="o">=</span> <span class="mi">72</span>
+<span class="k">if</span> <span class="n">score</span> <span class="o">&gt;=</span> <span class="mi">90</span><span class="p">:</span>
+    <span class="n">grade</span> <span class="o">=</span> <span class="s2">"A"</span>
+<span class="k">elif</span> <span class="n">score</span> <span class="o">&gt;=</span> <span class="mi">70</span><span class="p">:</span>
+    <span class="n">grade</span> <span class="o">=</span> <span class="s2">"B"</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">grade</span> <span class="o">=</span> <span class="s2">"C"</span>
+</code></pre></div>
+
+<ul>
+<li>The colon <code>:</code> and the <strong>indentation</strong> (4 spaces) are required.</li>
+<li>Python checks top to bottom and runs only the FIRST branch that is True.</li>
+</ul>
+<h2 id="3-for-loops-and-range">3. for loops and range</h2>
+<p><code>for</code> repeats code once per item.</p>
+<div class="highlight"><pre><span></span><code><span class="k">for</span> <span class="n">ch</span> <span class="ow">in</span> <span class="s2">"abc"</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">ch</span><span class="p">)</span>            <span class="c1"># a, b, c</span>
+
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">):</span>       <span class="c1"># 0,1,2,3,4</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+<span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span>              <span class="c1"># 2,3,4,5      (end excluded)</span>
+<span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">3</span><span class="p">)</span>         <span class="c1"># 10,7,4,1     (step -3)</span>
+</code></pre></div>
+
+<h2 id="4-while-loops">4. while loops</h2>
+<p>Repeat while a condition is True. You must make it eventually False.</p>
+<div class="highlight"><pre><span></span><code><span class="n">n</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="k">while</span> <span class="n">n</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+    <span class="n">n</span> <span class="o">-=</span> <span class="mi">2</span>               <span class="c1"># same as n = n - 2</span>
+</code></pre></div>
+
+<h2 id="5-break-and-continue">5. break and continue</h2>
+<div class="highlight"><pre><span></span><code><span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="k">continue</span>         <span class="c1"># skip the rest of this round, go to next</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">6</span><span class="p">:</span>
+        <span class="k">break</span>            <span class="c1"># leave the loop entirely</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>             <span class="c1"># 0 1 2 4 5</span>
+</code></pre></div>
+
+<h2 id="6-the-accumulator-pattern">6. The accumulator pattern</h2>
+<p>Start with a value, update it inside the loop. You will use this forever.</p>
+<div class="highlight"><pre><span></span><code><span class="n">total</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">):</span>
+    <span class="n">total</span> <span class="o">+=</span> <span class="n">n</span>           <span class="c1"># total is 10 at the end</span>
+</code></pre></div>
+
+<h2 id="7-fizzbuzz-idea">7. FizzBuzz idea</h2>
+<p>Check the most specific condition first (divisible by 15 before 3 or 5), because only the first matching branch runs.</p>
+<h2 id="8-nested-loops">8. Nested loops</h2>
+<p>A loop inside a loop. The inner one fully runs for each step of the outer one.</p>
+<div class="highlight"><pre><span></span><code><span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">col</span><span class="p">)</span>  <span class="c1"># 6 lines</span>
+</code></pre></div>
+
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li>Infinite <code>while</code> loop: forgetting to change the variable. Stop with Ctrl+C.</li>
+<li><code>if x = 5</code> (should be <code>==</code>).</li>
+<li>Wrong order in <code>elif</code> chains (general condition first hides the specific one).</li>
+<li><code>range(5)</code> stops at 4, not 5.</li>
+<li>Forgetting to initialize the accumulator before the loop.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run:
+<code>.venv/bin/pytest 01-basics/week-02-conditions-loops -v</code></p>
+</article><div class="pager"><a class="prev" href="../../01-basics/week-01-first-steps/test_exercises.py.html">← Week 1 · First steps: Tests (code)</a><a class="next" href="../../01-basics/week-02-conditions-loops/exercises.py.html">Week 2 · Conditions and loops: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

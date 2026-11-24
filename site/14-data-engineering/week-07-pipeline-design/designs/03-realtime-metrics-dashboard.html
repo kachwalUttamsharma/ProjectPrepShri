@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Design 3: Real-Time Dashboard / Metrics (Ride-Hailing Surge and ETA Stats) | Study Hub</title><link rel="stylesheet" href="../../../assets/style.css"><link rel="stylesheet" href="../../../assets/pygments.css"></head>
+<body data-root="../../../" data-page-id="14-data-engineering/week-07-pipeline-design/designs/03-realtime-metrics-dashboard" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../../index.html">Home</a> / <a href="../../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../../14-data-engineering/week-07-pipeline-design/designs/01-clickstream-analytics.html">Week 7 · Pipeline design</a> / <a href="../../../14-data-engineering/week-07-pipeline-design/designs/01-clickstream-analytics.html">Designs</a> / <span>Design 3: Real-Time Dashboard / Metrics (Ride-Hailing Surge and ETA Stats)</span></nav><button id="mark-done" data-id="14-data-engineering/week-07-pipeline-design/designs/03-realtime-metrics-dashboard">Mark as done</button></div><article class="doc">
+<h1 id="design-3-real-time-dashboard-metrics-ride-hailing-surge-and-eta-stats">Design 3: Real-Time Dashboard / Metrics (Ride-Hailing Surge and ETA Stats)</h1>
+<p>Prompt: "For a ride-hailing app, build the pipeline behind a live ops dashboard and the surge pricing signal: demand, supply, and ETA statistics per city zone, updated every few seconds."</p>
+<h2 id="requirements">Requirements</h2>
+<p>Functional</p>
+<ul>
+<li>Per zone (hexagon, for example H3 resolution 8) and per minute: ride requests, available drivers, completed trips, p50/p90 ETA, cancellation rate.</li>
+<li>Surge multiplier input: demand/supply ratio over a sliding window (for example last 2 min, updated every 10 s).</li>
+<li>Ops dashboard: city maps, drill-down by zone, compare to last week same time.</li>
+<li>Historical analysis in the warehouse (same metrics, authoritative).</li>
+</ul>
+<p>Non-functional</p>
+<ul>
+<li>End-to-end latency: under 10 s for surge input, under 30 s for dashboard.</li>
+<li>Availability higher than correctness: a slightly stale or approximate number beats no number; the batch layer corrects later.</li>
+<li>Dashboard concurrency: 500 ops users, plus an internal pricing service calling an API at 2,000 QPS.</li>
+<li>Out of scope: pricing algorithm itself, driver dispatch.</li>
+</ul>
+<h2 id="capacity-estimates">Capacity estimates</h2>
+<ul>
+<li>5M trips/day, 1M concurrent peak active drivers x location ping every 4 s = 250K pings/s peak (this is the dominant stream).</li>
+<li>Ping 100 bytes -&gt; 25 MB/s peak. Trip/request events are about 100 per second average, small.</li>
+<li>Zones: 100 cities x 2,000 hexes = 200K zones. Per-minute metric rows = 200K x 1,440 = 288M rows/day if all zones active (most are sparse; assume 30M/day).</li>
+<li>Stored aggregates at 30M rows/day x 100 bytes = 3 GB/day, 1 TB/yr, small for OLAP.</li>
+</ul>
+<h2 id="architecture">Architecture</h2>
+<pre class="mermaid">flowchart LR
+  D[Driver app pings] --&gt; K1[(Kafka: driver_locations)]
+  R[Rider requests / trip events] --&gt; K2[(Kafka: trip_events)]
+  K1 --&gt; F[Flink: map to H3 zone, sliding windows, last-known-state per driver]
+  K2 --&gt; F
+  F --&gt;|every 10 s| RS[(Redis: zone surge state, TTL)]
+  F --&gt; K3[(Kafka: zone_metrics_1m)]
+  K3 --&gt; PN[Pinot / Druid / ClickHouse real-time table]
+  K1 --&gt; L[(Lakehouse bronze)]
+  K2 --&gt; L
+  L --&gt; B[Batch recompute: authoritative metrics]
+  B --&gt; OL2[OLAP offline segments / warehouse]
+  PN --&gt; API[Metrics API + cache]
+  OL2 --&gt; PN
+  API --&gt; DASH[Ops dashboard]
+  RS --&gt; PR[Pricing service]</pre>
+<h2 id="data-model">Data model</h2>
+<p>Stream topics (keyed by <code>driver_id</code> / <code>zone_id</code> as appropriate; Avro):</p>
+<ul>
+<li><code>driver_locations(driver_id, lat, lon, status, event_ts)</code></li>
+<li><code>trip_events(trip_id, rider_id, driver_id, type[requested|accepted|cancelled|completed], zone_id, event_ts, eta_predicted, eta_actual)</code></li>
+</ul>
+<p>OLAP table <code>zone_metrics_1m</code>: dimensions <code>minute_ts, city, zone_id</code>; metrics <code>requests, supply_avg, completions, cancels, eta_p50, eta_p90 (t-digest/quantile sketch)</code>. Time column plus city as primary filter/partition; star-tree/rollup indexes as provided by the engine (check current docs).</p>
+<p>Redis: <code>surge:{zone_id}</code> -&gt; <code>{demand, supply, ratio, window_end, version}</code> with short TTL so stale zones expire to default 1.0.</p>
+<h2 id="step-by-step-flow">Step-by-step flow</h2>
+<ol>
+<li>Flink consumes pings and trip events, assigns zone via H3 index of lat/lon, uses event time with 5-10 s watermark (late pings beyond this are dropped from the real-time path only).</li>
+<li>Supply: keyed state per driver holds latest status/zone; a zone-level count is computed by diffing zone transitions (count of available drivers) rather than scanning pings.</li>
+<li>Demand: tumbling or sliding windows of requests per zone.</li>
+<li>Emit zone metrics every 10 s to Redis (for pricing) and 1-minute rollups to Kafka -&gt; OLAP.</li>
+<li>Dashboard queries the OLAP engine (sub-second group-by on time + zone) through a thin API with short-TTL cache (5-10 s) to absorb dashboard refresh storms.</li>
+<li>Batch layer recomputes day D from lakehouse with exact deduped, late-corrected data; OLAP offline segments replace the real-time ones for completed days (hybrid table pattern).</li>
+<li>A daily job compares real-time vs batch metrics to measure the real-time error and alert if it drifts.</li>
+</ol>
+<h2 id="failure-modes">Failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Failure</th>
+<th>Handling</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Flink job crash</td>
+<td>Restart from checkpoint (seconds-minutes); pricing falls back to last Redis value with TTL, then default multiplier</td>
+</tr>
+<tr>
+<td>Hot zone (stadium event)</td>
+<td>Zone key skew: two-stage aggregation (partial per subtask then merge), or salt zone key</td>
+</tr>
+<tr>
+<td>GPS noise / duplicate pings</td>
+<td>Dedupe by (driver_id, ts bucket), drop impossible speeds</td>
+</tr>
+<tr>
+<td>Late/out-of-order data</td>
+<td>Watermark + allowed lateness for updates; beyond that only batch corrects</td>
+</tr>
+<tr>
+<td>Redis outage</td>
+<td>Pricing service uses cached local value, then safe default; Redis replicas</td>
+</tr>
+<tr>
+<td>OLAP node loss</td>
+<td>Replicated segments, query retries; dashboard shows "data delayed" banner using freshness metric</td>
+</tr>
+<tr>
+<td>Metric definition drift between stream and batch</td>
+<td>Single shared definition library and daily diff check</td>
+</tr>
+<tr>
+<td>Feedback loop (surge changes demand, which changes surge)</td>
+<td>Smoothing, caps on multiplier change rate (product decision)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="trade-offs">Trade-offs</h2>
+<ul>
+<li>Flink vs Spark Structured Streaming: Flink has lower latency and richer state/time semantics; Spark is easier if the team already runs it and seconds-to-minutes is acceptable.</li>
+<li>OLAP engine vs warehouse for the dashboard: OLAP gives sub-second concurrent queries on fresh data; a warehouse is simpler but slower and costlier per query at this concurrency.</li>
+<li>Pre-aggregate in stream vs raw ingest to OLAP: raw gives flexibility but 250K rows/s is heavy; pre-aggregation reduces load 100x but locks dimensions.</li>
+<li>Approximate quantiles (t-digest) are mergeable across time and zones; exact percentiles are not.</li>
+<li>Accept approximate real-time numbers plus a corrected batch view (and say so on the dashboard) rather than chasing exactly-once at the metric level.</li>
+</ul>
+<h2 id="follow-up-questions">Follow-up questions</h2>
+<ol>
+<li>How do you do "compare to same time last week" efficiently? (store minute rollups, query two time ranges, align by minute-of-week)</li>
+<li>A zone has zero events: how do you distinguish no demand from a broken pipeline? (heartbeat events, per-partition watermark and freshness checks)</li>
+<li>How do you backfill after a Flink bug produced wrong supply counts for 3 hours? (replay from Kafka/lakehouse into offline segments, replace affected time range)</li>
+<li>How do you size Kafka partitions for 250K msgs/s? (about 25 MB/s; 12-48 partitions with headroom; key by driver for ordering)</li>
+<li>How would you test the pipeline? (replay recorded traffic, golden-file windows, chaos kill of Flink task managers)</li>
+<li>How do you keep the pricing service decoupled from the dashboard path? (separate sink, own SLO, simpler fallback)</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../../14-data-engineering/week-07-pipeline-design/designs/02-cdc-to-lakehouse.html">← Design 2: CDC from an OLTP Database to a Warehouse / Lakehouse</a><a class="next" href="../../../14-data-engineering/week-07-pipeline-design/designs/04-finance-batch-etl.html">Design 4: Batch ETL for Daily Finance Reporting with Strong Reconciliation →</a></div></main><aside id="toc"></aside></div>
+<script src="../../../assets/data.js"></script><script src="../../../assets/app.js"></script></body></html>

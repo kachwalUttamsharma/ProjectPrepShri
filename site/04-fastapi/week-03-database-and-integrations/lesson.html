@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 3: Databases, dependency injection, and integration skills | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="04-fastapi/week-03-database-and-integrations/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../04-fastapi/week-01-first-endpoints/lesson.html">FastAPI</a> / <a href="../../04-fastapi/week-03-database-and-integrations/lesson.html">Week 3 · Database and integrations</a> / <span>Lesson</span></nav><button id="mark-done" data-id="04-fastapi/week-03-database-and-integrations/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-3-databases-dependency-injection-and-integration-skills">Week 3: Databases, dependency injection, and integration skills</h1>
+<p>Goal: persist data, structure an app with dependency injection, and learn the day-to-day FDE toolkit: calling other people's APIs reliably, receiving their webhooks safely, and taming messy customer data. This is the heaviest week; budget ~8 hours (A: 2.5h, B: 2h, C: 1.5h, D: 1.5h, review: 0.5h).</p>
+<h2 id="a-sqlmodel-sqlite">A. SQLModel + SQLite</h2>
+<p>SQLModel = Pydantic + SQLAlchemy. One class can be a table.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">sqlmodel</span><span class="w"> </span><span class="kn">import</span> <span class="n">SQLModel</span><span class="p">,</span> <span class="n">Field</span><span class="p">,</span> <span class="n">Session</span><span class="p">,</span> <span class="n">create_engine</span><span class="p">,</span> <span class="n">select</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Contact</span><span class="p">(</span><span class="n">SQLModel</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>                  <span class="c1"># table=True -&gt; a real DB table "contact"</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">email</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">company</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+<span class="n">engine</span> <span class="o">=</span> <span class="n">create_engine</span><span class="p">(</span><span class="s2">"sqlite:///app.db"</span><span class="p">)</span>
+<span class="n">SQLModel</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">create_all</span><span class="p">(</span><span class="n">engine</span><span class="p">)</span>                  <span class="c1"># creates missing tables (no migrations!)</span>
+
+<span class="k">with</span> <span class="n">Session</span><span class="p">(</span><span class="n">engine</span><span class="p">)</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">Contact</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"Ada"</span><span class="p">,</span> <span class="n">email</span><span class="o">=</span><span class="s2">"ada@x.co"</span><span class="p">)</span>
+    <span class="n">session</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">c</span><span class="p">);</span> <span class="n">session</span><span class="o">.</span><span class="n">commit</span><span class="p">();</span> <span class="n">session</span><span class="o">.</span><span class="n">refresh</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>      <span class="c1"># refresh loads the generated id</span>
+    <span class="n">session</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">Contact</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>                                    <span class="c1"># by primary key, or None</span>
+    <span class="n">session</span><span class="o">.</span><span class="n">exec</span><span class="p">(</span><span class="n">select</span><span class="p">(</span><span class="n">Contact</span><span class="p">)</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">Contact</span><span class="o">.</span><span class="n">company</span> <span class="o">==</span> <span class="s2">"Acme"</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="n">Contact</span><span class="o">.</span><span class="n">id</span><span class="p">)</span><span class="o">.</span><span class="n">limit</span><span class="p">(</span><span class="mi">10</span><span class="p">))</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">company</span> <span class="o">=</span> <span class="s2">"New"</span><span class="p">;</span> <span class="n">session</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">c</span><span class="p">);</span> <span class="n">session</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>        <span class="c1"># update</span>
+    <span class="n">session</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">c</span><span class="p">);</span> <span class="n">session</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>                        <span class="c1"># delete</span>
+</code></pre></div>
+
+<ul>
+<li><strong>Table model vs API schemas</strong>: a <code>table=True</code> class is not validated on construction. Keep separate non-table classes (<code>ContactCreate</code>, <code>ContactUpdate</code>, <code>ContactRead</code>) for request/response, exactly as in week 2.</li>
+<li>A failed <code>commit()</code> leaves the session unusable until <code>session.rollback()</code>.</li>
+<li><code>IntegrityError</code> (from <code>sqlalchemy.exc</code>) is how unique-constraint violations arrive -&gt; translate to 409.</li>
+<li><strong>In-memory SQLite in tests</strong>: each new connection to <code>sqlite://</code> is a fresh empty DB. Use <code>poolclass=StaticPool</code> and <code>check_same_thread=False</code> so every session shares one connection. A file URL (<code>sqlite:///app.db</code>, <code>tmp_path</code> in tests) needs only <code>check_same_thread=False</code>.</li>
+<li><code>create_all</code> only creates <em>missing tables</em>; it never alters existing ones. Real projects use Alembic for migrations (read about it; not needed yet).</li>
+</ul>
+<h2 id="dependency-injection">Dependency injection</h2>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_session</span><span class="p">():</span>
+    <span class="k">with</span> <span class="n">Session</span><span class="p">(</span><span class="n">engine</span><span class="p">)</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+        <span class="k">yield</span> <span class="n">session</span>                      <span class="c1"># code after yield runs after the response (cleanup)</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/contacts/</span><span class="si">{id}</span><span class="s2">"</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get</span><span class="p">(</span><span class="nb">id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">session</span><span class="p">:</span> <span class="n">Session</span> <span class="o">=</span> <span class="n">Depends</span><span class="p">(</span><span class="n">get_session</span><span class="p">)):</span> <span class="o">...</span>
+</code></pre></div>
+
+<p>FastAPI calls <code>get_session</code> per request and hands the result to your route. Why bother? <strong>Tests replace it</strong>:</p>
+<div class="highlight"><pre><span></span><code><span class="n">app</span><span class="o">.</span><span class="n">dependency_overrides</span><span class="p">[</span><span class="n">get_session</span><span class="p">]</span> <span class="o">=</span> <span class="n">lambda_or_function_returning_test_session</span>
+</code></pre></div>
+
+<p>Same trick swaps a real <code>httpx.Client</code> for one wired to <code>httpx.MockTransport</code>. Dependencies can depend on other dependencies. Clean overrides after each test (<code>app.dependency_overrides.clear()</code>).</p>
+<h2 id="b-calling-other-apis-with-httpx">B. Calling other APIs with httpx</h2>
+<div class="highlight"><pre><span></span><code><span class="n">client</span> <span class="o">=</span> <span class="n">httpx</span><span class="o">.</span><span class="n">Client</span><span class="p">(</span><span class="n">base_url</span><span class="o">=</span><span class="s2">"https://api.partner.com"</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="n">httpx</span><span class="o">.</span><span class="n">Timeout</span><span class="p">(</span><span class="mf">5.0</span><span class="p">),</span>
+                      <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s2">"Authorization"</span><span class="p">:</span> <span class="s2">"Bearer ..."</span><span class="p">})</span>
+<span class="n">r</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/companies/acme.com"</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">"x"</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
+<span class="n">r</span><span class="o">.</span><span class="n">status_code</span><span class="p">;</span> <span class="n">r</span><span class="o">.</span><span class="n">json</span><span class="p">();</span> <span class="n">r</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>      <span class="c1"># raises httpx.HTTPStatusError on 4xx/5xx</span>
+</code></pre></div>
+
+<p>Rules of thumb for integrations:</p>
+<ol>
+<li><strong>Always set timeouts.</strong> A hung partner must not hang you.</li>
+<li><strong>Retry only what is safe to retry</strong>: network errors, timeouts, 429, 5xx on idempotent calls (GET, or POST with an idempotency key). Never retry 400/401/403/404; they won't fix themselves.</li>
+<li><strong>Exponential backoff</strong> (0.5s, 1s, 2s...) with a cap; add jitter in production. Honour <code>Retry-After</code> on 429s when present.</li>
+<li><strong>Translate failures</strong> into your own exception (<code>UpstreamError</code>) and a clear API answer: 502 Bad Gateway / 504 Gateway Timeout for "our dependency is broken", not a 500 stack trace.</li>
+<li><strong>Reuse clients</strong> (connection pooling); create them in a dependency or at startup.</li>
+</ol>
+<p><strong>Testing without network</strong>: <code>httpx.MockTransport(handler)</code> where <code>handler(request) -&gt; httpx.Response</code>. Raise <code>httpx.ConnectError("...")</code> / <code>httpx.ReadTimeout("...")</code> inside the handler to simulate failures. Inject <code>sleep</code> as a parameter so tests don't actually wait.</p>
+<p>Async note: <code>httpx.AsyncClient</code> + <code>async def</code> routes is the same API with <code>await</code>. Use it when one request fans out to many calls (e.g. 20 LLM or API calls in parallel with <code>asyncio.gather</code>). The sync client is simpler; start there.</p>
+<h2 id="c-receiving-webhooks">C. Receiving webhooks</h2>
+<p>A webhook = the other system POSTs to <em>your</em> URL when something happens. Properties you must design for:</p>
+<ul>
+<li><strong>Verify authenticity</strong>: the sender signs the <em>raw bytes</em> of the body with a shared secret (HMAC-SHA256) and sends the signature in a header. Recompute it over <code>await request.body()</code> (not over re-serialised JSON, which changes bytes!) and compare with <code>hmac.compare_digest</code>.</li>
+<li><strong>Idempotency</strong>: senders retry, so the same event id arrives twice. Track processed ids (a DB table with a unique constraint in real life) and do nothing the second time.</li>
+<li><strong>Respond fast</strong> (2xx within a few seconds) and do heavy work afterwards (background task/queue), otherwise the sender retries and floods you.</li>
+<li><strong>Be strict about 4xx vs 2xx</strong>: bad signature 401; malformed 400; accepted 2xx. A 5xx makes the sender retry later, which is what you want for transient failures only.</li>
+<li>Out-of-order delivery happens; use event timestamps/versions if order matters.</li>
+</ul>
+<h2 id="d-cleaning-messy-csvjson">D. Cleaning messy CSV/JSON</h2>
+<p>Customer data is never clean. Pattern: <strong>parse -&gt; normalise -&gt; validate -&gt; split into good rows and rejected rows with reasons</strong>. Never silently drop data; return the rejects so a human can fix them.</p>
+<div class="highlight"><pre><span></span><code><span class="n">reader</span> <span class="o">=</span> <span class="n">csv</span><span class="o">.</span><span class="n">DictReader</span><span class="p">(</span><span class="n">io</span><span class="o">.</span><span class="n">StringIO</span><span class="p">(</span><span class="n">text</span><span class="p">))</span>     <span class="c1"># first row = headers; each row = dict</span>
+</code></pre></div>
+
+<p>Normalise headers (<code>\ufeff</code> at file start from Excel), blank rows, missing cells (<code>None</code> from short rows), duplicates (decide: first wins), phone formats (E.164). For nested JSON from vendors, write a safe accessor (<code>get_path(doc, "a.b.0.c", default)</code>) instead of chains of <code>[...]</code> that raise <code>KeyError</code>.</p>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li>In-memory SQLite without <code>StaticPool</code>: "no such table" in tests.</li>
+<li>Forgetting <code>session.refresh()</code> then returning an object with <code>id=None</code>.</li>
+<li>Not rolling back after <code>IntegrityError</code> -&gt; every later query fails.</li>
+<li>Building the dependency's resource at import time so tests can't swap it; resolve <code>engine</code> when the function runs.</li>
+<li>Retrying non-idempotent or permanently failing calls; retrying without a limit; sleeping in tests.</li>
+<li>No timeout on <code>httpx</code> calls (or <code>timeout=None</code>).</li>
+<li>Verifying webhook signatures with <code>==</code> (timing attack) or over parsed-then-dumped JSON.</li>
+<li>Returning 500 when a partner is down; clients can't tell your bug from theirs.</li>
+<li>Dropping bad CSV rows silently; or crashing the whole import on the first bad row.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<ol>
+<li>Work through the code snippets in a scratch file (use a tmp SQLite file, delete it after).</li>
+<li>Complete <code>exercises.py</code> in order (A, B, C, D). Run <code>../../.venv/bin/pytest -q</code> after each section; the file is organised so each section's tests pass independently.</li>
+<li>Stretch: add <code>created_at</code> to <code>Contact</code> and a <code>?q=</code> search on name; write a test that proves a retry wrapper never sleeps after the final attempt.</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../04-fastapi/week-02-pydantic-validation/test_exercises.py.html">← Week 2 · Pydantic and validation: Tests (code)</a><a class="next" href="../../04-fastapi/week-03-database-and-integrations/exercises.py.html">Week 3 · Database and integrations: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

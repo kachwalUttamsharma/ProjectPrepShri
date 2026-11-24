@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LLD Problem 06: Board-game engine (tic-tac-toe NxN, chess-lite) | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="11-lld/problem-06-game-engine/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../11-lld/README.html">Low-Level Design</a> / <a href="../../11-lld/problem-06-game-engine/lesson.html">Problem 6 · Game engine</a> / <span>Lesson</span></nav><button id="mark-done" data-id="11-lld/problem-06-game-engine/lesson">Mark as done</button></div><article class="doc">
+<h1 id="lld-problem-06-board-game-engine-tic-tac-toe-nxn-chess-lite">LLD Problem 06: Board-game engine (tic-tac-toe NxN, chess-lite)</h1>
+<p>"Design tic-tac-toe" sounds trivial. The interview is really: <strong>can you keep the engine independent of the rules</strong>, so that "make it NxN", "connect-4 style win", or "now add chess" is a new class, not an edit. Budget: 3-4 hours. Suggested split: sketch (30m), board + value types (45m), Game + tic-tac-toe (1h), pieces/strategies (1h), undo + review (45m).</p>
+<h2 id="1-clarify-requirements-ask-these-first">1. Clarify requirements (ask these first)</h2>
+<ul>
+<li>Board size fixed 3x3 or NxN? Win length equal to N or configurable (connect-k)?</li>
+<li>Two players only, or N players? Human vs AI? (Players are just identities; AI is a move generator outside the engine.)</li>
+<li>Do we need undo/replay? Move history? Timers?</li>
+<li>Should the engine also support chess later? (Drives the design: placement vs movement, captures.)</li>
+<li>What does an illegal move do: exception or ignored? (We raise; state must be unchanged.)</li>
+<li>Who decides winner/draw: the game or the rules? (Rules; game orchestrates.)</li>
+<li>UI/persistence out of scope; engine is pure logic, so it is trivially testable.</li>
+</ul>
+<h2 id="2-entities">2. Entities</h2>
+<table>
+<thead>
+<tr>
+<th>Entity</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Position</code>, <code>Player</code>, <code>Move</code></td>
+<td>immutable value objects</td>
+</tr>
+<tr>
+<td><code>Board</code></td>
+<td>grid of cells; bounds, get/set/remove; knows nothing about rules</td>
+</tr>
+<tr>
+<td><code>GameRules</code> (Strategy)</td>
+<td>validate / apply / revert / evaluate for ONE game</td>
+</tr>
+<tr>
+<td><code>Game</code></td>
+<td>turn order, history, result, undo; orchestrates rules</td>
+</tr>
+<tr>
+<td><code>WinCondition</code> (Strategy)</td>
+<td>pluggable "did this move win?" (<code>LineWinCondition(k)</code>)</td>
+</tr>
+<tr>
+<td><code>Piece</code> + <code>MovementStrategy</code></td>
+<td>chess-lite: what a piece may do, delegated to a strategy</td>
+</tr>
+<tr>
+<td>Errors</td>
+<td><code>GameError</code> base: invalid move, out of turn, game over, nothing to undo</td>
+</tr>
+</tbody>
+</table>
+<h2 id="3-class-diagram">3. Class diagram</h2>
+<pre class="mermaid">classDiagram
+  class Game { board players rules +play(move) +undo() }
+  class Board { rows cols +get +set +remove +in_bounds }
+  class GameRules { &lt;&lt;abstract&gt;&gt; validate apply revert evaluate }
+  class TicTacToeRules
+  class ChessLiteRules
+  class WinCondition { &lt;&lt;abstract&gt;&gt; is_win }
+  class LineWinCondition
+  class Piece { &lt;&lt;abstract&gt;&gt; owner kind legal_moves can_move }
+  class MovementStrategy { &lt;&lt;abstract&gt;&gt; targets }
+  class SlidingMovement
+  class StepMovement
+  Game o-- Board
+  Game o-- GameRules
+  GameRules &lt;|-- TicTacToeRules
+  GameRules &lt;|-- ChessLiteRules
+  TicTacToeRules o-- WinCondition
+  WinCondition &lt;|-- LineWinCondition
+  ChessLiteRules ..&gt; Piece
+  Piece &lt;|-- Rook
+  Piece &lt;|-- Knight
+  Piece &lt;|-- King
+  Piece o-- MovementStrategy
+  MovementStrategy &lt;|-- SlidingMovement
+  MovementStrategy &lt;|-- StepMovement</pre>
+<h2 id="4-patterns-and-why">4. Patterns and why</h2>
+<ul>
+<li><strong>Strategy (GameRules, WinCondition, MovementStrategy)</strong>: the varying parts are behaviours. <code>Game</code> never mentions "X", "king" or "row". New game = new <code>GameRules</code>, zero edits to <code>Game</code> (OCP).</li>
+<li><strong>Command (light)</strong>: a <code>Move</code> is a value object; history stores <code>(move, captured)</code> so <code>undo</code> replays the inverse through <code>rules.revert</code>. Full Command objects with <code>execute/undo</code> are the next step if moves get complex.</li>
+<li><strong>Composition over inheritance for pieces</strong>: <code>Rook</code> is just <code>Piece</code> + <code>SlidingMovement(ORTHOGONAL)</code>. A queen is sliding over ORTHOGONAL + DIAGONAL, a bishop is DIAGONAL: data, not new logic. (Do not subclass <code>Piece</code> per movement variant beyond a thin named wrapper.)</li>
+<li><strong>Template-ish orchestration</strong> in <code>Game.play</code>: fixed order (over? turn? valid? apply? evaluate? advance) with game-specific hooks.</li>
+<li><strong>Immutable value types</strong> make history and equality safe.</li>
+<li><strong>Simplicity guard</strong>: do not build a Factory/Builder/Observer you cannot justify; say "I'd add X if Y".</li>
+</ul>
+<h2 id="5-spec-summary-exact-rules-are-in-exercisespy-docstrings">5. Spec summary (exact rules are in <code>exercises.py</code> docstrings)</h2>
+<ul>
+<li><code>play</code> check order: game over, out of turn, rules.validate, apply, evaluate. A rejected move changes nothing.</li>
+<li>WIN on the board-filling move beats DRAW.</li>
+<li>Win check only scans the 4 lines through the last move: O(k) per move, not O(N^2).</li>
+<li><code>undo</code> restores board, turn, result and winner; capture is remembered in history.</li>
+<li>Chess-lite: Rook/Knight/King movement, capture by landing on an enemy, win by capturing the king. No check detection, pawns, castling.</li>
+</ul>
+<h2 id="6-extensibility-follow-ups-interviewers-ask">6. Extensibility follow-ups interviewers ask</h2>
+<ul>
+<li>Connect-4 (gravity): new <code>GameRules</code> where <code>to.row</code> is derived from the column; same <code>LineWinCondition(4)</code>.</li>
+<li>Add Bishop/Queen: new <code>SlidingMovement</code> data, no engine change.</li>
+<li>Pawns: direction depends on owner and first-move flag; movement strategy needs piece state or <code>board</code>-aware capture rule (movement != capture) - split <code>MovementStrategy</code> into <code>move_targets</code> and <code>capture_targets</code>.</li>
+<li>Check/checkmate: <code>evaluate</code> simulates each opponent reply via apply/revert (that is why <code>revert</code> exists).</li>
+<li>AI player: <code>Player</code> gets a <code>choose_move(game)</code> strategy; engine unchanged. Minimax uses apply/revert for search.</li>
+<li>Replay/save: history is a list of immutable moves; replay = apply in order.</li>
+<li>Redo: keep an undone-stack, cleared on a new play.</li>
+<li>Timer per player: wrap <code>play</code> or inject a clock like earlier problems.</li>
+<li>Networked play: <code>Game</code> is pure; wrap in a service with a per-game lock (see problem 05).</li>
+</ul>
+<h2 id="7-what-to-say-out-loud">7. What to say out loud</h2>
+<ol>
+<li>"The engine owns turn order and history; the rules own legality and outcome. That seam is the design."</li>
+<li>"A move is validated before any mutation so a rejected move leaves no trace."</li>
+<li>"Win detection only checks lines through the last move, O(k)."</li>
+<li>"Undo needs the captured piece, so apply returns it and history stores it."</li>
+<li>"Adding connect-4 or a queen is new code, not edits to Game. If I need to edit Game, my abstraction leaked."</li>
+</ol>
+<h2 id="8-common-mistakes">8. Common mistakes</h2>
+<ul>
+<li>Hard-coding 3x3 and the 8 win triples; or scanning the whole board after every move.</li>
+<li>Win check counting only one direction from the new cell (misses a move placed in the middle of a line). Count both ways.</li>
+<li>Checking <code>DRAW</code> before <code>WIN</code> on the last cell.</li>
+<li>Advancing the turn before validating, or mutating the board then raising.</li>
+<li>Putting <code>if game_type == "chess"</code> inside <code>Game</code>.</li>
+<li>Pieces that know about the whole game (<code>Piece.move()</code> mutating the board) instead of returning candidate squares.</li>
+<li>Sliding pieces that jump over blockers or can capture their own side.</li>
+<li>Comparing players by <code>is</code>/name instead of a value-equal frozen dataclass; letting two players share a symbol.</li>
+<li>Undo that forgets to restore the turn or leaves <code>winner</code> set.</li>
+</ul>
+<h2 id="9-follow-up-qa">9. Follow-up Q&amp;A</h2>
+<p><strong>Q: Why does the Board not know the rules?</strong> A: SRP. It is a data structure; rules change per game. It also lets the same Board back both games.</p>
+<p><strong>Q: Where do you put "is it this player's turn"?</strong> A: In <code>Game</code>; it is game-agnostic. Legality of the move itself is the rules' job.</p>
+<p><strong>Q: How would you detect a draw early (no winning line possible)?</strong> A: Extra <code>DrawDetector</code> strategy, or <code>evaluate</code> checks whether any line still has no both-player marks. Mention it is optional; full-board draw is the baseline.</p>
+<p><strong>Q: How do you make the win check O(k)?</strong> A: For each of 4 directions count contiguous equal cells both ways from the last move, add 1, compare to k.</p>
+<p><strong>Q: Why store <code>(move, captured)</code> instead of board snapshots?</strong> A: O(1) memory per move vs O(N^2). Snapshots are fine for tiny boards; mention the tradeoff.</p>
+<p><strong>Q: How would you add check detection in chess?</strong> A: After a candidate move, apply it, test whether own king is attacked by any enemy <code>legal_moves</code>, revert. Reject if attacked.</p>
+<p><strong>Q: Is <code>Game.play</code> thread-safe?</strong> A: No. Wrap with a lock per game when exposed over a network; the engine stays pure.</p>
+<p><strong>Q: Singleton for the game/board?</strong> A: No: hidden global state, tests cannot create fresh games, and a server runs many games.</p>
+<h2 id="10-your-task">10. Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run
+<code>.venv/bin/pytest 11-lld/problem-06-game-engine -v</code></p>
+<p>Then, out loud and without notes: draw the diagram above from memory, and explain exactly what you would write to add Connect-4.</p>
+</article><div class="pager"><a class="prev" href="../../11-lld/problem-05-seat-booking/test_exercises.py.html">← Problem 5 · Seat booking: Tests (code)</a><a class="next" href="../../11-lld/problem-06-game-engine/exercises.py.html">Problem 6 · Game engine: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

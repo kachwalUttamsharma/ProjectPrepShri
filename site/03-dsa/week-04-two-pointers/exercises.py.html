@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-04-two-pointers/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-04-two-pointers/lesson.html">Week 4 · Two pointers</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="03-dsa/week-04-two-pointers/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>03-dsa/week-04-two-pointers/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 4 exercises: two pointers. Replace each `...` with your code.</span>
+
+<span class="sd">Run the tests from this folder:  ../../../.venv/bin/pytest -q</span>
+<span class="sd">Aim for the stated time/space complexity; every problem has an O(n) answer except three_sum (O(n^2)).</span>
+<span class="sd">"""</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">is_palindrome</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 125. Return True if s reads the same forwards and backwards</span>
+<span class="sd">    after keeping only alphanumeric characters and ignoring case.</span>
+
+<span class="sd">    is_palindrome("A man, a plan, a canal: Panama") -&gt; True</span>
+<span class="sd">    is_palindrome("race a car") -&gt; False</span>
+<span class="sd">    is_palindrome("") -&gt; True</span>
+
+<span class="sd">    Hint: left/right pointers moving inward, skipping non-alphanumerics (str.isalnum).</span>
+<span class="sd">    Time O(n), space O(1) (do not build a cleaned copy).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">two_sum_sorted</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 167 (0-indexed). nums is sorted ascending. Return [i, j] with</span>
+<span class="sd">    i &lt; j and nums[i] + nums[j] == target. If no pair exists return [].</span>
+<span class="sd">    (If several pairs exist, any valid pair is accepted.)</span>
+
+<span class="sd">    two_sum_sorted([2, 7, 11, 15], 9) -&gt; [0, 1]</span>
+<span class="sd">    two_sum_sorted([1, 2], 10) -&gt; []</span>
+
+<span class="sd">    Hint: sum too small -&gt; move left up; too big -&gt; move right down.</span>
+<span class="sd">    Time O(n), space O(1).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">remove_duplicates_sorted</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 26. nums is sorted. Modify it IN PLACE so the first k entries are</span>
+<span class="sd">    the unique values in original order; return k. Contents after index k are ignored.</span>
+
+<span class="sd">    nums = [0, 0, 1, 1, 2] -&gt; returns 3, nums[:3] == [0, 1, 2]</span>
+<span class="sd">    [] -&gt; 0</span>
+
+<span class="sd">    Hint: slow pointer = next write position, fast pointer = scanner.</span>
+<span class="sd">    Time O(n), space O(1).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">move_zeroes</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 283. Move all 0s to the end IN PLACE keeping the relative order of</span>
+<span class="sd">    the non-zero elements. Return None.</span>
+
+<span class="sd">    [0, 1, 0, 3, 12] -&gt; nums becomes [1, 3, 12, 0, 0]</span>
+
+<span class="sd">    Hint: write pointer for the next non-zero; swap instead of overwriting.</span>
+<span class="sd">    Time O(n), space O(1), minimise writes.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">is_subsequence</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">t</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 392. Return True if s is a subsequence of t (characters of s appear</span>
+<span class="sd">    in t in order, not necessarily adjacent).</span>
+
+<span class="sd">    is_subsequence("abc", "ahbgdc") -&gt; True</span>
+<span class="sd">    is_subsequence("axc", "ahbgdc") -&gt; False</span>
+<span class="sd">    is_subsequence("", "anything") -&gt; True</span>
+
+<span class="sd">    Time O(len(t)), space O(1).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">merge_sorted_in_place</span><span class="p">(</span><span class="n">nums1</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">nums2</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 88. nums1 has length m + n; its first m entries are sorted and the</span>
+<span class="sd">    last n are 0 placeholders. nums2 has n sorted entries. Merge nums2 into nums1</span>
+<span class="sd">    IN PLACE so nums1 is sorted. Return None.</span>
+
+<span class="sd">    nums1 = [1, 2, 3, 0, 0, 0], m = 3, nums2 = [2, 5, 6], n = 3</span>
+<span class="sd">    -&gt; nums1 becomes [1, 2, 2, 3, 5, 6]</span>
+
+<span class="sd">    Hint: fill from the BACK so you never overwrite unread values.</span>
+<span class="sd">    Time O(m + n), space O(1).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">max_area</span><span class="p">(</span><span class="n">height</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 11. height[i] is the height of a vertical line at x = i. Choose two</span>
+<span class="sd">    lines that, with the x-axis, form a container holding the most water. Return that</span>
+<span class="sd">    area (width * min(height of the two lines)). Fewer than 2 lines -&gt; 0.</span>
+
+<span class="sd">    max_area([1, 8, 6, 2, 5, 4, 8, 3, 7]) -&gt; 49</span>
+<span class="sd">    max_area([1, 1]) -&gt; 1</span>
+
+<span class="sd">    Hint: start at both ends; always move the pointer at the SHORTER line. Why is that safe?</span>
+<span class="sd">    Time O(n), space O(1).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">sort_colors</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 75 (Dutch national flag). nums contains only 0, 1, 2. Sort IN PLACE</span>
+<span class="sd">    in a single pass without using sort(). Return None.</span>
+
+<span class="sd">    [2, 0, 2, 1, 1, 0] -&gt; nums becomes [0, 0, 1, 1, 2, 2]</span>
+
+<span class="sd">    Hint: three pointers low / mid / high. When you swap with high, do NOT advance mid.</span>
+<span class="sd">    Time O(n), space O(1).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">three_sum</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 15. Return all UNIQUE triplets [a, b, c] with a + b + c == 0.</span>
+<span class="sd">    Triplets may be in any order, and elements inside a triplet in any order, but no</span>
+<span class="sd">    triplet value may appear twice.</span>
+
+<span class="sd">    three_sum([-1, 0, 1, 2, -1, -4]) -&gt; [[-1, -1, 2], [-1, 0, 1]]</span>
+<span class="sd">    three_sum([0, 0, 0, 0]) -&gt; [[0, 0, 0]]</span>
+
+<span class="sd">    Hint: sort, fix the first number, then two-pointer the rest; skip duplicates</span>
+<span class="sd">    for all three positions.</span>
+<span class="sd">    Time O(n^2), space O(1) extra (ignoring output / sort).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">trap</span><span class="p">(</span><span class="n">height</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 42 (hard). height[i] is the elevation at x = i (width 1 each). Return</span>
+<span class="sd">    how many units of rain water are trapped between the bars.</span>
+
+<span class="sd">    trap([0, 1, 0, 2, 1, 0, 1, 3, 2, 1, 2, 1]) -&gt; 6</span>
+<span class="sd">    trap([4, 2, 0, 3, 2, 5]) -&gt; 9</span>
+
+<span class="sd">    Hint: water above bar i = min(max_left, max_right) - height[i]. Two pointers let</span>
+<span class="sd">    you track running maxima from both sides; always process the side with the smaller max.</span>
+<span class="sd">    Time O(n), space O(1).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-04-two-pointers/lesson.html">← Week 4 · Two pointers: Lesson</a><a class="next" href="../../03-dsa/week-04-two-pointers/test_exercises.py.html">Week 4 · Two pointers: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

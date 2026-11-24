@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>02 - FDE Customer Scenarios | Study Hub</title><link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/pygments.css"></head>
+<body data-root="../" data-page-id="09-behavioral-career/02-fde-customer-scenarios" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../index.html">Home</a> / <a href="../09-behavioral-career/README.html">Behavioral and Career</a> / <span>02 - FDE Customer Scenarios</span></nav><button id="mark-done" data-id="09-behavioral-career/02-fde-customer-scenarios">Mark as done</button></div><article class="doc">
+<h1 id="02-fde-customer-scenarios">02 - FDE Customer Scenarios</h1>
+<h2 id="1-what-a-forward-deployed-engineer-does">1. What a forward-deployed engineer does</h2>
+<p>An FDE is an engineer embedded with customers (or working closely with them) to turn a product or platform, often LLM-based, into a working solution in the customer's real environment. Typical work (varies by company; check the job description):</p>
+<ul>
+<li>Discovery: understand the customer's workflow, data, constraints, and success metrics.</li>
+<li>Prototype fast: integrate APIs, build RAG/agent/automation prototypes, connect to customer systems (CRMs, ticketing, data warehouses).</li>
+<li>Production-harden: auth, observability, evals, error handling, security review.</li>
+<li>Feed back to product: turn repeated field problems into product requirements.</li>
+<li>Communicate with technical and non-technical stakeholders, set expectations, handle escalations.</li>
+</ul>
+<p>Interviewers look for: technical breadth plus practical judgment, structured thinking under ambiguity, honesty about limits, customer empathy without being a pushover, and bias toward shipping small and measuring.</p>
+<h2 id="2-answer-framework-for-scenarios-use-every-time">2. Answer framework for scenarios (use every time)</h2>
+<ol>
+<li><strong>Clarify</strong> (2-4 questions: goal, users, data, constraints, deadline).</li>
+<li><strong>Restate</strong> the problem and the success metric.</li>
+<li><strong>Plan</strong> in phases: what you do first, what you'd defer.</li>
+<li><strong>Risks and mitigations</strong> (technical, people, security).</li>
+<li><strong>Communication</strong>: who you tell what, when.</li>
+<li><strong>Close the loop</strong>: how you will know it worked.</li>
+</ol>
+<h2 id="3-scenarios-with-model-answers">3. Scenarios with model answers</h2>
+<h3 id="1-vague-customer-request-we-want-ai-for-our-support-team">1. Vague customer request: "We want AI for our support team."</h3>
+<p>Model: Ask what a good week looks like. Which tickets, volume, categories, current handling time, cost, who reviews. Pick one narrow, measurable use case (e.g., draft replies for the top 3 ticket categories, human approves). Define success (first-response time -X%, agent acceptance rate &gt; Y%). Ask for 100-200 real historical tickets as a test set. Propose a 1-week prototype, then review. Write the agreed scope back in an email.</p>
+<h3 id="2-angry-customer-your-product-has-wasted-two-weeks">2. Angry customer: "Your product has wasted two weeks."</h3>
+<p>Model: Listen without defending; acknowledge impact in specific words ("a two-week delay on your launch is serious"). Get facts: what broke, what they've tried, deadline. Give an immediate action and a next-update time. Reproduce, find root cause, separate what is on you, the product, and their environment honestly. Follow up with a written summary, workaround, and prevention. Escalate internally early. Never blame them or promise unverified fixes.</p>
+<h3 id="3-scope-a-prototype-in-one-week">3. Scope a prototype in one week</h3>
+<p>Model: Day 0 define one user, one workflow, one metric. Day 1 data access and a thin end-to-end slice (ugly but working). Days 2-3 improve quality using a small eval set. Day 4 harden obvious failure modes, logging. Day 5 demo plus honest "what's not done." Explicitly list out-of-scope (auth, scale, edge cases). Ask for an owner on their side and sample data on day 1; without data the plan slips.</p>
+<h3 id="4-saying-no">4. Saying no</h3>
+<p>Model: Never a bare "no". Explain the reason (risk, feasibility, timeline), offer alternatives (smaller version, phased, different approach), and the cost of the original ask. Example: "A fully autonomous refund agent in two weeks is not safe. We can ship suggestion mode with human approval, measure accuracy, and graduate to autonomy for low-value cases." Confirm in writing; involve your manager if it is contractual.</p>
+<h3 id="5-explaining-llm-limits-and-hallucination-to-non-engineers">5. Explaining LLM limits and hallucination to non-engineers</h3>
+<p>Model: Use an analogy: "It's an extremely well-read assistant that predicts plausible text; it can sound confident when wrong." Explain what we do about it: ground answers in your documents (retrieval), require citations, say "I don't know" when unsupported, add human review where cost of error is high, measure accuracy on your real examples. Set expectation: reduces, never reaches zero. Show a failing example proactively and what the safeguard did.</p>
+<h3 id="6-data-quality-surprise">6. Data-quality surprise</h3>
+<p>Model: Stop and quantify: how many records, which fields, what pattern (duplicates, missing, stale, inconsistent formats, PDFs that are scans). Tell the customer early with examples, not blame. Offer options: clean a subset, add validation, restrict to good data for v1, schedule cleanup with owner. Adjust timeline/scope. Add data checks to the pipeline to detect regressions.</p>
+<h3 id="7-securitycompliance-pushback">7. Security/compliance pushback</h3>
+<p>Model: Treat security as a requirement, not an obstacle. Ask for their policy (data residency, PII, retention, vendor review, SSO). Map where data flows; propose minimization (redact PII, no training on their data per contract terms, regional endpoints, private networking, least-privilege keys). Involve your security team; do not promise certifications you cannot verify. Offer a lower-risk path in the meantime (synthetic or anonymized data).</p>
+<h3 id="8-demo-fails-live">8. Demo fails live</h3>
+<p>Model: Stay calm, say what happened plainly, do not improvise unsafe fixes. Switch to the backup (recorded run, pre-cached example, screenshots). Prevention: rehearse on the same network, pin versions, test with live credentials an hour before, have fallback recordings. Afterwards send a follow-up with a working demo and the cause. Calm recovery builds more trust than a perfect demo.</p>
+<h3 id="9-handing-off-to-the-customer-team">9. Handing off to the customer team</h3>
+<p>Model: Plan the handoff from week one. Deliverables: README and architecture diagram, runbook (deploy, rollback, common errors), config/secrets inventory, eval set and how to rerun it, monitoring dashboards, known limitations. Run a walkthrough and a shadow period where they operate and you watch. Name owners, support path and SLAs. Confirm acceptance criteria.</p>
+<h3 id="10-prioritizing-multiple-customers">10. Prioritizing multiple customers</h3>
+<p>Model: Make criteria explicit: revenue/strategic importance, severity (outage vs wish), deadline, effort, reuse across customers, risk of churn. Triage in a table, communicate transparently with each customer (realistic dates), seek help or delegate, and bundle reusable work into the product. Push back on "everything is urgent" by asking "what happens if this slips a week?"</p>
+<h3 id="11-customer-asks-for-a-feature-the-product-lacks">11. Customer asks for a feature the product lacks</h3>
+<p>Model: Understand the underlying need; check for workaround in existing capabilities; if a custom build is needed, build it in a way that can be generalized; file a clear product request with customer impact and frequency; give honest timeline expectations.</p>
+<h3 id="12-model-quality-is-poor-on-the-customers-domain">12. Model quality is poor on the customer's domain</h3>
+<p>Model: Build a small labeled eval set from their data first. Diagnose: retrieval failure vs prompt vs model vs data. Try cheapest fixes first (better chunking, prompt with examples, metadata filters, reranking), then bigger ones (fine-tuning, a different model). Report metrics before/after, not feelings.</p>
+<h3 id="13-prototype-works-customer-wants-production-next-week">13. Prototype works; customer wants production next week</h3>
+<p>Model: Separate "demo-ready" from "production-ready". List gaps (auth, rate limits, retries, logging, PII, evals, cost caps, on-call). Propose a staged rollout: internal pilot, limited users, monitoring, then expand. Risk-communicate clearly and get sign-off on the scope.</p>
+<h3 id="14-stakeholders-disagree-internally-champion-vs-blocker">14. Stakeholders disagree internally (champion vs blocker)</h3>
+<p>Model: Identify each person's goals and fears. Meet the blocker one-on-one, listen, address their concern (often risk or job impact). Give them a role (reviewer, approver). Use data from a small pilot. Keep your champion informed but don't weaponize them.</p>
+<h3 id="15-cost-or-latency-exceeds-expectations">15. Cost or latency exceeds expectations</h3>
+<p>Model: Measure first (tokens per request, calls per task, cache hit rate). Levers: smaller model for easy steps, caching, shorter prompts, batching, streaming for perceived latency, fewer agent loops, limits and budgets. Present trade-offs with numbers.</p>
+<h3 id="16-you-made-a-mistake-in-front-of-the-customer">16. You made a mistake in front of the customer</h3>
+<p>Model: Disclose quickly, state impact, fix, explain prevention. Do not hide. Customers value honesty and speed.</p>
+<h3 id="17-customer-wants-an-agent-to-take-actions-autonomously">17. Customer wants an agent to take actions autonomously</h3>
+<p>Model: Classify actions by risk (read, reversible write, irreversible/financial). Start read-only or human-in-the-loop, add guardrails (allowlists, limits, audit logs, dry-run mode), evaluate on real cases, expand autonomy gradually.</p>
+<h3 id="18-success-metric-is-unclear-or-unmeasurable">18. Success metric is unclear or unmeasurable</h3>
+<p>Model: Propose a baseline: sample current work, measure time/accuracy manually, define target. Agree on an evaluation method before building; otherwise success becomes opinion.</p>
+<h2 id="4-discovery-call-question-checklist">4. Discovery-call question checklist</h2>
+<ul>
+<li>Business: What problem, who suffers, what does it cost today, what does success look like in 3 months, who decides, what's the deadline and why?</li>
+<li>Users: Who will use it, how often, what do they do now, what tools do they live in?</li>
+<li>Process: Walk me through the last time this happened, step by step. Where are errors/delays?</li>
+<li>Data: Where does it live, format, volume, quality, sensitivity (PII/regulated), freshness, access method, who owns it?</li>
+<li>Systems: APIs available, auth method, rate limits, test environments, change freeze periods?</li>
+<li>Constraints: Security reviews, compliance, data residency, approved vendors, network restrictions, budget.</li>
+<li>Risk: What is the cost of a wrong answer? Who reviews outputs?</li>
+<li>Team: Who is the technical owner on your side? Who maintains it later?</li>
+<li>Past attempts: What have you tried, what failed, why?</li>
+<li>Next steps: Can we get sample data and a 30-minute follow-up this week?</li>
+</ul>
+<h2 id="5-scoping-template">5. Scoping template</h2>
+<div class="highlight"><pre><span></span><code>Customer / Project: ______   Date: ____   Owner (them / us): ____
+Problem statement (one sentence):
+Primary user and workflow:
+Success metric(s) and baseline -&gt; target:
+In scope (v1):
+Out of scope (explicit):
+Data sources and access status:
+Integrations (system, auth, environment):
+Assumptions (to validate):
+Risks and mitigations (technical, security, people):
+Evaluation plan (test set size, who labels, pass bar):
+Timeline: Day/Week milestones, demo date, decision date
+Dependencies from customer (with due dates):
+Handoff plan and support model:
+Sign-off: ____
+</code></pre></div>
+
+<h2 id="6-demo-script-template-15-minutes">6. Demo script template (15 minutes)</h2>
+<ol>
+<li>(1 min) Recap: the problem in their words, the metric.</li>
+<li>(1 min) What you'll see and what you won't.</li>
+<li>(6 min) Happy path using THEIR data/examples, narrate the "why".</li>
+<li>(3 min) One failure case and how the system handles it (shows honesty and guardrails).</li>
+<li>(2 min) Results: eval numbers, time saved.</li>
+<li>(2 min) Next steps, asks (data, owner, decision date), questions.
+Prep: rehearse on the real network, backup recording, pinned versions, reset state, test credentials, clean browser tabs, know the 3 questions they'll ask.</li>
+</ol>
+<h2 id="7-post-mortem-template-blameless">7. Post-mortem template (blameless)</h2>
+<div class="highlight"><pre><span></span><code>Title / Date / Severity / Author
+Summary (2-3 sentences, plain language)
+Customer impact (who, how long, how much)
+Timeline (UTC): detection, escalation, mitigation, resolution
+Root cause (technical + process: "why" x5)
+What went well / what went poorly / where we got lucky
+Action items (owner, due date, priority): prevent, detect, mitigate
+Customer communication: what we told them, when; follow-up needed
+Lessons for product/field team
+</code></pre></div>
+
+<h2 id="8-practice">8. Practice</h2>
+<p>Pick 3 scenarios a week; answer out loud in 2-3 minutes with the framework; then draft the email you'd send the customer. Pair with 13-llm-ai-concepts (RAG, evals, agents) and 07-aws for technical backing.</p>
+</article><div class="pager"><a class="prev" href="../09-behavioral-career/01-behavioral-fundamentals.html">← 01 · Behavioral fundamentals</a><a class="next" href="../09-behavioral-career/03-interview-process-and-strategy.html">03 · Interview process and strategy →</a></div></main><aside id="toc"></aside></div>
+<script src="../assets/data.js"></script><script src="../assets/app.js"></script></body></html>

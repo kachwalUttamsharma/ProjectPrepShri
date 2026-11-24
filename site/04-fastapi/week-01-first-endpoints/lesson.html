@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 1: First endpoints | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="04-fastapi/week-01-first-endpoints/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../04-fastapi/week-01-first-endpoints/lesson.html">FastAPI</a> / <a href="../../04-fastapi/week-01-first-endpoints/lesson.html">Week 1 · First endpoints</a> / <span>Lesson</span></nav><button id="mark-done" data-id="04-fastapi/week-01-first-endpoints/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-1-first-endpoints">Week 1: First endpoints</h1>
+<p>Goal: by the end you can stand up a small HTTP API, call it with a browser/curl/tests, and read the auto-generated docs. Budget ~7-8 hours: lesson + experiments (2h), exercises (4h), poking at <code>/docs</code> and curl (1-2h).</p>
+<h2 id="1-http-in-five-minutes">1. HTTP in five minutes</h2>
+<p>A request = <strong>method + URL + headers + optional body</strong>. A response = <strong>status code + headers + body</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Meaning</th>
+<th>Typical status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td>read, no side effects</td>
+<td>200</td>
+</tr>
+<tr>
+<td>POST</td>
+<td>create / trigger an action</td>
+<td>201 (created), 200</td>
+</tr>
+<tr>
+<td>PUT / PATCH</td>
+<td>replace / partially update</td>
+<td>200</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td>remove</td>
+<td>204 (no body)</td>
+</tr>
+</tbody>
+</table>
+<p>Status classes: <code>2xx</code> success, <code>3xx</code> redirect, <code>4xx</code> <strong>you</strong> (the client) did something wrong, <code>5xx</code> <strong>we</strong> (the server) broke. Remember: 400 bad input, 401 not authenticated, 403 not allowed, 404 not found, 409 conflict, 422 validation failed, 429 slow down, 502/503/504 upstream trouble.</p>
+<p>JSON is the body format: <code>{"name": "Sam", "tags": ["a", "b"]}</code>. Python dict/list/str/int/float/bool/None map to JSON object/array/string/number/true/null.</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-i<span class="w"> </span>http://127.0.0.1:8000/health<span class="w">                       </span><span class="c1"># -i shows status + headers</span>
+curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8000/notes<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Content-Type: application/json"</span><span class="w"> </span>-d<span class="w"> </span><span class="s1">'{"text":"hi"}'</span>
+</code></pre></div>
+
+<h2 id="2-hello-fastapi">2. Hello FastAPI</h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">FastAPI</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">"My API"</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s2">"0.1.0"</span><span class="p">)</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/health"</span><span class="p">)</span>            <span class="c1"># decorator: "GET /health runs this function"</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">health</span><span class="p">():</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"status"</span><span class="p">:</span> <span class="s2">"ok"</span><span class="p">}</span>    <span class="c1"># dict -&gt; JSON, status 200</span>
+</code></pre></div>
+
+<p>Run it (from the folder containing the file; <code>exercises:app</code> = module <code>exercises</code>, variable <code>app</code>):</p>
+<div class="highlight"><pre><span></span><code>../../.venv/bin/uvicorn<span class="w"> </span>exercises:app<span class="w"> </span>--reload<span class="w">     </span><span class="c1"># --reload restarts on save</span>
+</code></pre></div>
+
+<p>Open <code>http://127.0.0.1:8000/docs</code> (Swagger UI: try requests in the browser) and <code>/redoc</code>. The raw machine-readable spec is <code>/openapi.json</code>, built from your type hints. In a real job this is how you hand an integration partner a contract.</p>
+<h2 id="3-path-and-query-parameters">3. Path and query parameters</h2>
+<div class="highlight"><pre><span></span><code><span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/users/</span><span class="si">{user_id}</span><span class="s2">"</span><span class="p">)</span>                 <span class="c1"># path parameter: part of the URL</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_user</span><span class="p">(</span><span class="n">user_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span> <span class="o">...</span>              <span class="c1"># type hint -&gt; converted + validated</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/search"</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span><span class="n">q</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span> <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">):</span> <span class="o">...</span>   <span class="c1"># not in path = query parameter (?q=x&amp;limit=5)</span>
+</code></pre></div>
+
+<ul>
+<li>Has a default -&gt; optional. No default -&gt; required.</li>
+<li>Wrong type (<code>/users/abc</code>) -&gt; FastAPI returns <strong>422</strong> automatically with details.</li>
+<li>Extra validation: <code>limit: int = Query(10, ge=1, le=50)</code>.</li>
+<li>Headers: <code>ua: str | None = Header(default=None)</code> (underscores become hyphens).</li>
+<li>Request body (JSON): a parameter typed <code>dict</code> (week 2 replaces this with Pydantic models).</li>
+</ul>
+<h2 id="4-status-codes-and-errors">4. Status codes and errors</h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">HTTPException</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">fastapi.responses</span><span class="w"> </span><span class="kn">import</span> <span class="n">JSONResponse</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/things"</span><span class="p">,</span> <span class="n">status_code</span><span class="o">=</span><span class="mi">201</span><span class="p">)</span>         <span class="c1"># success code for this route</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">():</span> <span class="o">...</span>
+
+<span class="k">raise</span> <span class="n">HTTPException</span><span class="p">(</span><span class="n">status_code</span><span class="o">=</span><span class="mi">404</span><span class="p">,</span> <span class="n">detail</span><span class="o">=</span><span class="s2">"Thing not found"</span><span class="p">)</span>   <span class="c1"># -&gt; {"detail": "Thing not found"}</span>
+<span class="k">return</span> <span class="n">JSONResponse</span><span class="p">(</span><span class="n">status_code</span><span class="o">=</span><span class="mi">418</span><span class="p">,</span> <span class="n">content</span><span class="o">=</span><span class="p">{</span><span class="s2">"detail"</span><span class="p">:</span> <span class="s2">"teapot"</span><span class="p">})</span>  <span class="c1"># full control</span>
+</code></pre></div>
+
+<p>A 204 must have an empty body: <code>return None</code> is fine with <code>status_code=204</code>.</p>
+<h2 id="5-testing-without-a-server">5. Testing without a server</h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">fastapi.testclient</span><span class="w"> </span><span class="kn">import</span> <span class="n">TestClient</span>
+<span class="n">client</span> <span class="o">=</span> <span class="n">TestClient</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+<span class="n">r</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/hello/Sam"</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">"shout"</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
+<span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span> <span class="ow">and</span> <span class="n">r</span><span class="o">.</span><span class="n">json</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"message"</span><span class="p">:</span> <span class="s2">"HELLO, SAM!"</span><span class="p">}</span>
+</code></pre></div>
+
+<p>No port, no network. You will test every route this way for the whole module.</p>
+<h2 id="6-sync-vs-async-just-so-you-recognise-it">6. Sync vs async (just so you recognise it)</h2>
+<p><code>def</code> routes run in a threadpool; <code>async def</code> routes run on the event loop and must never block. You'll use plain <code>def</code> for now; <code>async def</code> appears when we use async clients later. Rule of thumb: if unsure, use <code>def</code>.</p>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li>Running <code>uvicorn</code> from the wrong folder: <code>Error loading ASGI app</code>. <code>cd</code> into the folder with <code>exercises.py</code> first.</li>
+<li>Forgetting the decorator or typo in the path: 404 for a route you "wrote".</li>
+<li>Route order: <code>/items/me</code> must be declared <strong>before</strong> <code>/items/{id}</code> or <code>{id}</code> swallows it.</li>
+<li>Returning a Python object FastAPI can't serialise (sets, custom classes).</li>
+<li>Setting the wrong status code: creating = 201, deleting = 204; 200 with <code>{"error": ...}</code> hides failures from clients.</li>
+<li>Using <code>return HTTPException(...)</code> instead of <code>raise</code>.</li>
+<li>Mutable global state (our <code>NOTES</code> dict) is fine for learning, but it vanishes on restart and is not shared across worker processes. Week 3 fixes this with a database.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<ol>
+<li>Read sections 1-5 and replay each snippet in a scratch file with <code>uvicorn</code>, curl and <code>/docs</code>.</li>
+<li>Fill in <code>exercises.py</code> top to bottom. Run <code>../../.venv/bin/pytest -q</code> in this folder (see PROGRESS.md for the usual workflow).</li>
+<li>Stretch: start the server, then create/read/delete a note with curl only. Read <code>/openapi.json</code> and find where your <code>limit</code> bounds appear.</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../14-data-engineering/mock-interview.html">← Data Engineering: Mock interview</a><a class="next" href="../../04-fastapi/week-01-first-endpoints/exercises.py.html">Week 1 · First endpoints: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

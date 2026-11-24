@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 3: Concurrency | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="10-python-depth/week-03-concurrency/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../10-python-depth/week-01-functions-deep-dive/lesson.html">Python Depth</a> / <a href="../../10-python-depth/week-03-concurrency/lesson.html">Week 3 · Concurrency</a> / <span>Lesson</span></nav><button id="mark-done" data-id="10-python-depth/week-03-concurrency/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-3-concurrency">Week 3: Concurrency</h1>
+<h2 id="1-three-tools-three-problems">1. Three tools, three problems</h2>
+<ul>
+<li><strong>Concurrency</strong> = many tasks in progress (interleaved). <strong>Parallelism</strong> = tasks literally running at the same instant on several cores.</li>
+<li><strong>I/O-bound</strong> work (HTTP, DB, disk) spends time waiting. <strong>CPU-bound</strong> work (parsing, math, image processing) spends time computing.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Parallel CPU?</th>
+<th>Overhead</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>asyncio</code></td>
+<td>no (1 thread)</td>
+<td>tiny</td>
+<td>thousands of I/O waits (sockets, HTTP, DB with async driver)</td>
+</tr>
+<tr>
+<td><code>threading</code></td>
+<td>no for Python bytecode (GIL), yes while blocked in I/O or C code that releases the GIL</td>
+<td>medium</td>
+<td>blocking libraries, a few dozen I/O jobs</td>
+</tr>
+<tr>
+<td><code>multiprocessing</code> / <code>ProcessPoolExecutor</code></td>
+<td>yes</td>
+<td>high (spawn, pickling)</td>
+<td>CPU-bound work</td>
+</tr>
+</tbody>
+</table>
+<p>Rule of thumb: waiting on I/O with an async library -&gt; asyncio; waiting on I/O with a blocking library -&gt; threads; burning CPU -&gt; processes.</p>
+<h2 id="2-the-gil">2. The GIL</h2>
+<p>CPython has a Global Interpreter Lock: only one thread executes Python bytecode at a time (reference counting is not thread-safe without it). Consequences:</p>
+<ul>
+<li>Threads do NOT speed up CPU-bound pure-Python code.</li>
+<li>Threads DO help I/O: the GIL is released while waiting on sockets/files/<code>time.sleep</code>.</li>
+<li>The GIL does not make your code thread-safe: <code>x += 1</code> is several bytecodes and a thread switch can happen between them.</li>
+<li>Python 3.13+ has an experimental free-threaded build (no GIL); the default build still has it. Know this exists; don't rely on it.</li>
+</ul>
+<h2 id="3-race-conditions-and-locks">3. Race conditions and locks</h2>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
+<span class="n">lock</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Lock</span><span class="p">()</span>
+<span class="n">counter</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">inc</span><span class="p">():</span>
+    <span class="k">global</span> <span class="n">counter</span>
+    <span class="k">with</span> <span class="n">lock</span><span class="p">:</span>            <span class="c1"># read-modify-write is now atomic w.r.t. other lock users</span>
+        <span class="n">counter</span> <span class="o">+=</span> <span class="mi">1</span>
+</code></pre></div>
+
+<ul>
+<li>Always <code>with lock:</code> (releases on exceptions).</li>
+<li><code>RLock</code> can be re-acquired by the same thread. <code>Lock</code> cannot (deadlock).</li>
+<li><strong>Deadlock</strong>: A holds L1 wants L2, B holds L2 wants L1. Fix: always acquire in a fixed global order, or use timeouts.</li>
+<li>Prefer sharing nothing: pass data through a <code>queue.Queue</code> instead of shared variables.</li>
+</ul>
+<h2 id="4-queue-module-producerconsumer">4. queue module (producer/consumer)</h2>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">queue</span><span class="o">,</span><span class="w"> </span><span class="nn">threading</span>
+<span class="n">q</span> <span class="o">=</span> <span class="n">queue</span><span class="o">.</span><span class="n">Queue</span><span class="p">()</span>                  <span class="c1"># thread-safe, blocking get/put</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">worker</span><span class="p">():</span>
+    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="n">job</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">get</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">job</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>            <span class="c1"># sentinel = "no more work"</span>
+            <span class="k">return</span>
+        <span class="o">...</span>
+</code></pre></div>
+
+<p><code>Queue(maxsize=n)</code> gives backpressure (<code>put</code> blocks when full). <code>q.task_done()</code> + <code>q.join()</code> waits until all jobs are processed. <code>asyncio.Queue</code> is the same idea for coroutines (not thread-safe).</p>
+<h2 id="5-concurrentfutures">5. concurrent.futures</h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">concurrent.futures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ThreadPoolExecutor</span><span class="p">,</span> <span class="n">ProcessPoolExecutor</span><span class="p">,</span> <span class="n">as_completed</span>
+<span class="k">with</span> <span class="n">ThreadPoolExecutor</span><span class="p">(</span><span class="n">max_workers</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span> <span class="k">as</span> <span class="n">pool</span><span class="p">:</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">pool</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">fetch</span><span class="p">,</span> <span class="n">urls</span><span class="p">))</span>            <span class="c1"># ordered results</span>
+    <span class="n">futs</span> <span class="o">=</span> <span class="p">[</span><span class="n">pool</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">fetch</span><span class="p">,</span> <span class="n">u</span><span class="p">)</span> <span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="n">urls</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">as_completed</span><span class="p">(</span><span class="n">futs</span><span class="p">):</span>                     <span class="c1"># completion order</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">result</span><span class="p">())</span>                            <span class="c1"># re-raises worker exception</span>
+</code></pre></div>
+
+<p>A <code>Future</code> is a promise of a result: <code>.result()</code>, <code>.exception()</code>, <code>.cancel()</code>, <code>.done()</code>. Same API for processes. With processes, functions and arguments must be picklable (top-level functions, not lambdas) and on macOS/Windows use <code>if __name__ == "__main__":</code>.</p>
+<h2 id="6-asyncio-basics">6. asyncio basics</h2>
+<ul>
+<li><code>async def f()</code> returns a <strong>coroutine object</strong>; nothing runs until it is awaited or scheduled.</li>
+<li><code>await x</code> suspends the current coroutine and hands control to the <strong>event loop</strong>, which runs something else until <code>x</code> is ready. Switching happens ONLY at <code>await</code> points (cooperative).</li>
+<li><code>asyncio.run(main())</code> creates a loop, runs <code>main</code>, closes the loop. Call it once at the top level.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">fetch</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+    <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.1</span><span class="p">)</span>      <span class="c1"># stands in for network I/O</span>
+    <span class="k">return</span> <span class="n">i</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+    <span class="k">return</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="n">fetch</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="n">fetch</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> <span class="n">fetch</span><span class="p">(</span><span class="mi">3</span><span class="p">))</span>   <span class="c1"># ~0.1s, not 0.3s</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">()))</span>        <span class="c1"># [1, 2, 3]</span>
+</code></pre></div>
+
+<ul>
+<li><strong>Task</strong> = a coroutine scheduled to run in the background: <code>t = asyncio.create_task(coro())</code>. Keep a reference (the loop only keeps a weak one) and await it later.</li>
+<li><code>gather(*aws)</code> returns results in argument order. By default the first exception propagates (others keep running); <code>return_exceptions=True</code> returns exceptions as values.</li>
+<li><strong>TaskGroup</strong> (3.11+) is structured concurrency: <code>async with asyncio.TaskGroup() as tg: tg.create_task(...)</code>. If one task fails, the siblings are cancelled and errors surface as an <code>ExceptionGroup</code> (<code>except*</code>). Prefer it over bare <code>create_task</code>.</li>
+</ul>
+<h2 id="7-timeouts-and-cancellation">7. Timeouts and cancellation</h2>
+<div class="highlight"><pre><span></span><code><span class="k">try</span><span class="p">:</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">wait_for</span><span class="p">(</span><span class="n">slow</span><span class="p">(),</span> <span class="n">timeout</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+<span class="k">except</span> <span class="ne">TimeoutError</span><span class="p">:</span>         <span class="c1"># asyncio.TimeoutError is TimeoutError since 3.11</span>
+    <span class="o">...</span>
+<span class="k">async</span> <span class="k">with</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">timeout</span><span class="p">(</span><span class="mf">1.0</span><span class="p">):</span>      <span class="c1"># 3.11+, scope-based</span>
+    <span class="k">await</span> <span class="n">slow</span><span class="p">()</span>
+</code></pre></div>
+
+<ul>
+<li><code>task.cancel()</code> schedules a <code>CancelledError</code> thrown into the coroutine at its next <code>await</code>. The coroutine can run <code>finally</code> blocks for cleanup. Then <code>await task</code> (suppress <code>CancelledError</code>) to wait for cleanup to finish.</li>
+<li><strong>Never swallow <code>CancelledError</code></strong> without re-raising; it breaks timeouts and shutdown. Catch <code>Exception</code>, not <code>BaseException</code> (<code>CancelledError</code> is a <code>BaseException</code>).</li>
+<li><code>asyncio.shield(aw)</code> protects an inner awaitable from outer cancellation (rarely needed).</li>
+</ul>
+<h2 id="8-limiting-concurrency">8. Limiting concurrency</h2>
+<div class="highlight"><pre><span></span><code><span class="n">sem</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">Semaphore</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">limited</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+    <span class="k">async</span> <span class="k">with</span> <span class="n">sem</span><span class="p">:</span>
+        <span class="k">return</span> <span class="k">await</span> <span class="n">call_api</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+<span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">limited</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">xs</span><span class="p">))</span>
+</code></pre></div>
+
+<p>Launching 10 000 requests at once exhausts sockets and rate limits; a semaphore caps in-flight work. <code>asyncio.Lock</code>, <code>Event</code>, <code>Condition</code>, <code>Queue</code> mirror the threading primitives but are for coroutines in ONE loop.</p>
+<h2 id="9-async-context-managers-and-generators">9. Async context managers and generators</h2>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Conn</span><span class="p">:</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="fm">__aenter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">open</span><span class="p">();</span> <span class="k">return</span> <span class="bp">self</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="fm">__aexit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">et</span><span class="p">,</span> <span class="n">ev</span><span class="p">,</span> <span class="n">tb</span><span class="p">):</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>    <span class="c1"># falsy return = don't swallow</span>
+
+<span class="k">async</span> <span class="k">with</span> <span class="n">Conn</span><span class="p">()</span> <span class="k">as</span> <span class="n">c</span><span class="p">:</span> <span class="o">...</span>
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">ticker</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>             <span class="c1"># async generator</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+        <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">yield</span> <span class="n">i</span>
+<span class="k">async</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ticker</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span> <span class="o">...</span>
+</code></pre></div>
+
+<p><code>@contextlib.asynccontextmanager</code> builds an async CM from an async generator with one <code>yield</code>. Async comprehensions: <code>[x async for x in agen()]</code>.</p>
+<h2 id="10-blocking-code-inside-async-the-1-bug">10. Blocking code inside async: the #1 bug</h2>
+<p>Any blocking call (<code>time.sleep</code>, <code>requests.get</code>, heavy CPU loop, sync DB driver) inside a coroutine freezes the WHOLE loop: every other request waits. Fix:</p>
+<div class="highlight"><pre><span></span><code><span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">to_thread</span><span class="p">(</span><span class="n">blocking_fn</span><span class="p">,</span> <span class="n">arg</span><span class="p">)</span>            <span class="c1"># thread pool (3.9+)</span>
+<span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">loop</span><span class="o">.</span><span class="n">run_in_executor</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">blocking_fn</span><span class="p">,</span> <span class="n">arg</span><span class="p">)</span>   <span class="c1"># same, older API</span>
+<span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">loop</span><span class="o">.</span><span class="n">run_in_executor</span><span class="p">(</span><span class="n">process_pool</span><span class="p">,</span> <span class="n">cpu_fn</span><span class="p">,</span> <span class="n">arg</span><span class="p">)</span>  <span class="c1"># CPU-bound -&gt; processes</span>
+</code></pre></div>
+
+<p>Also: <code>await asyncio.sleep(x)</code>, never <code>time.sleep(x)</code>, in async code. Debug mode (<code>asyncio.run(main(), debug=True)</code>) warns about slow callbacks.</p>
+<h2 id="11-how-fastapi-uses-this">11. How FastAPI uses this</h2>
+<ul>
+<li><code>async def</code> endpoint: runs ON the event loop. Great if you only <code>await</code> async libraries; a blocking call inside stalls every request.</li>
+<li>plain <code>def</code> endpoint: FastAPI runs it in a <strong>threadpool</strong> (AnyIO, 40 threads default) so blocking code is OK there.</li>
+<li>So: use <code>async def</code> + async drivers (httpx, asyncpg), or <code>def</code> for blocking libraries (requests, sync SQLAlchemy). Never mix blocking code into <code>async def</code>.</li>
+<li><code>BackgroundTasks</code> run after the response; for heavy or must-not-lose work use a real queue (Celery, RQ, SQS).</li>
+<li>Under uvicorn, scale CPU with multiple worker processes (<code>--workers N</code>), each with its own loop. Shared in-memory state is per process.</li>
+<li>Dependencies declared <code>def</code> also go to the threadpool; <code>async def</code> ones run on the loop.</li>
+</ul>
+<h2 id="12-choosing-interview-cheat-sheet">12. Choosing (interview cheat sheet)</h2>
+<ol>
+<li>Is it CPU-bound? -&gt; <code>ProcessPoolExecutor</code> / multiprocessing (or numpy/C extension that releases the GIL).</li>
+<li>I/O-bound, async library available, many connections? -&gt; asyncio.</li>
+<li>I/O-bound with blocking library, modest concurrency? -&gt; <code>ThreadPoolExecutor</code>.</li>
+<li>Shared mutable state across threads? -&gt; lock it or, better, use a queue.</li>
+</ol>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li>Forgetting <code>await</code>: you get a coroutine object and a "never awaited" warning, and the code didn't run.</li>
+<li><code>await</code>-ing coroutines one after another in a loop (sequential!) instead of <code>gather</code>/<code>TaskGroup</code>.</li>
+<li><code>asyncio.run()</code> inside an already running loop (Jupyter, FastAPI) -&gt; use <code>await</code>.</li>
+<li><code>time.sleep</code> / <code>requests</code> in <code>async def</code>.</li>
+<li>Fire-and-forget <code>create_task</code> without storing the reference: task may be garbage-collected, and exceptions go unnoticed.</li>
+<li>Swallowing <code>CancelledError</code> or using bare <code>except:</code>.</li>
+<li>Assuming the GIL makes <code>+=</code> / check-then-act thread-safe.</li>
+<li>Sharing a lambda/closure with <code>ProcessPoolExecutor</code> (not picklable).</li>
+<li>Using <code>threading.Lock</code> in coroutines (blocks the loop) instead of <code>asyncio.Lock</code>.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run the tests:
+<code>../../.venv/bin/pytest -q</code> from this folder. Then drill <code>interview-qa.md</code> aloud.</p>
+</article><div class="pager"><a class="prev" href="../../10-python-depth/week-02-data-model-and-memory/test_exercises.py.html">← Week 2 · Data model and memory: Tests (code)</a><a class="next" href="../../10-python-depth/week-03-concurrency/interview-qa.html">Week 3 · Concurrency: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

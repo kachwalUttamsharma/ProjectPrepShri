@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="11-lld/problem-01-lru-cache/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../11-lld/README.html">Low-Level Design</a> / <a href="../../11-lld/problem-01-lru-cache/lesson.html">Problem 1 · LRU cache</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="11-lld/problem-01-lru-cache/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>11-lld/problem-01-lru-cache/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""LLD 01: LRU cache. Read lesson.md for the full spec.</span>
+
+<span class="sd">Implement everything marked `...`. Do NOT use OrderedDict or functools.lru_cache:</span>
+<span class="sd">the point is to build the hash map + doubly linked list yourself.</span>
+<span class="sd">"""</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Node</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""A list node. Attributes: key, value, expires_at (None = never), prev, next.</span>
+
+<span class="sd">    Node(key=None, value=None). Sentinel nodes use the defaults.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">DoublyLinkedList</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Doubly linked list with sentinel `head` and `tail` Node attributes.</span>
+
+<span class="sd">    Front = most recently used. Every operation below is O(1) except nodes().</span>
+<span class="sd">    - __len__: number of real nodes (sentinels excluded).</span>
+<span class="sd">    - add_front(node): insert right after head.</span>
+<span class="sd">    - remove(node): unlink node (it must be in the list); set its prev/next to None.</span>
+<span class="sd">    - move_to_front(node): remove then add_front.</span>
+<span class="sd">    - pop_back() -&gt; Node | None: unlink and return the node before tail; None if empty.</span>
+<span class="sd">    - nodes() -&gt; list[Node]: real nodes from front to back (O(n), for tests/debug).</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_front</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">remove</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">move_to_front</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">pop_back</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">nodes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">LRUCache</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""LRUCache(capacity, ttl=None, clock=None, on_evict=None).</span>
+
+<span class="sd">    - capacity: int &gt; 0 (bool and non-int also rejected) else ValueError.</span>
+<span class="sd">    - ttl: seconds an entry lives after its last put(); None = no expiry; ttl &lt;= 0 -&gt; ValueError.</span>
+<span class="sd">      An entry is expired when clock() &gt;= expires_at. get() does NOT extend the ttl.</span>
+<span class="sd">    - clock: zero-arg callable returning seconds (default time.monotonic).</span>
+<span class="sd">    - on_evict(key, value): called ONLY when an entry is dropped to make room</span>
+<span class="sd">      (capacity eviction). Not called for delete(), clear() or expiry.</span>
+
+<span class="sd">    Attribute: capacity.</span>
+
+<span class="sd">    Methods:</span>
+<span class="sd">    - get(key, default=None): value and mark most-recently-used. Missing or expired</span>
+<span class="sd">      -&gt; default (an expired entry is removed).</span>
+<span class="sd">    - peek(key, default=None): like get but does NOT change recency.</span>
+<span class="sd">    - put(key, value): insert or update (update refreshes recency and ttl). Before</span>
+<span class="sd">      inserting a NEW key into a full cache, purge expired entries first; if still</span>
+<span class="sd">      full evict the least recently used one (call on_evict).</span>
+<span class="sd">    - delete(key) -&gt; bool: True if a live entry was removed; False if missing/expired.</span>
+<span class="sd">    - clear(): remove everything (no callbacks).</span>
+<span class="sd">    - keys() -&gt; list: live keys ordered most- to least-recently used.</span>
+<span class="sd">    - __len__: number of live entries. __contains__(key): live and present; does NOT</span>
+<span class="sd">      change recency.</span>
+<span class="sd">    get/put/delete/peek/__contains__ must be O(1) (len/keys may purge expired in O(n)).</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">capacity</span><span class="p">,</span> <span class="n">ttl</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">clock</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">on_evict</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">peek</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">put</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">delete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">clear</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">keys</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__contains__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../11-lld/problem-01-lru-cache/lesson.html">← Problem 1 · LRU cache: Lesson</a><a class="next" href="../../11-lld/problem-01-lru-cache/test_exercises.py.html">Problem 1 · LRU cache: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

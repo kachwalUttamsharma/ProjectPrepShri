@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 3 Labs (OPTIONAL) | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="07-aws/week-03-storage-databases/labs" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../07-aws/README.html">AWS</a> / <a href="../../07-aws/week-03-storage-databases/lesson.html">Week 3 · Storage and databases</a> / <span>Labs</span></nav><button id="mark-done" data-id="07-aws/week-03-storage-databases/labs">Mark as done</button></div><article class="doc">
+<h1 id="week-3-labs-optional">Week 3 Labs (OPTIONAL)</h1>
+<p>COST WARNING: S3 and DynamoDB have free tiers (small). RDS/Aurora/ElastiCache/Redshift can cost real money if left running; Aurora and ElastiCache are not free-tier friendly. Prefer RDS free-tier-eligible small instance only if your account qualifies (check current terms), single-AZ.</p>
+<ol>
+<li>S3: create a bucket (Block Public Access on), upload files, enable versioning, overwrite a file, delete it, restore by removing the delete marker. Add a lifecycle rule (transition to IA at 30 d, expire noncurrent at 90 d).</li>
+<li>Presigned URL: generate with boto3 or <code>aws s3 presign</code>, open in a browser, let it expire.</li>
+<li>DynamoDB: create a table (on-demand) with pk/sk, add items, run Query vs Scan, add a GSI, enable TTL.</li>
+<li>Athena (optional): upload a CSV to S3, create a table, query (a few cents).</li>
+<li>RDS (optional, brief): single-AZ db.t4g.micro Postgres, connect, then delete with "skip final snapshot" (or delete snapshot).</li>
+</ol>
+<p>Cleanup: empty AND delete buckets (including all versions), delete DynamoDB tables, delete RDS instances and snapshots, remove Elastic IPs, check Billing the next day.</p>
+</article><div class="pager"><a class="prev" href="../../07-aws/week-03-storage-databases/cheatsheet.html">← Week 3 · Storage and databases: Cheatsheet</a><a class="next" href="../../07-aws/week-04-networking/lesson.html">Week 4 · Networking: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

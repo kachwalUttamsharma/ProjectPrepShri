@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FDE-flavored Mock Interview (6 scenarios) | Study Hub</title><link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/pygments.css"></head>
+<body data-root="../" data-page-id="13-llm-ai-concepts/mock-interview" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../index.html">Home</a> / <a href="../13-llm-ai-concepts/README.html">LLM and AI Concepts</a> / <span>FDE-flavored Mock Interview (6 scenarios)</span></nav><button id="mark-done" data-id="13-llm-ai-concepts/mock-interview">Mark as done</button></div><article class="doc">
+<h1 id="fde-flavored-mock-interview-6-scenarios">FDE-flavored Mock Interview (6 scenarios)</h1>
+<p>How to use: 15 to 20 minutes per scenario, out loud, with a timer. Start by asking clarifying questions (the interviewer rewards it), state assumptions, structure the answer, bring up security and cost unprompted, and end with how you would measure success. Then score yourself against the rubric. Pass bar: at least 3 of 4 on every dimension for each scenario, or know exactly which dimension to retry.</p>
+<p>Scoring dimensions (0 to 4 each): Discovery (clarifying questions, requirements), Technical design (correct, justified, tradeoffs), Risk and quality (evals, security, failure modes), Communication and ownership (customer-ready, concrete next steps).</p>
+<hr />
+<h2 id="scenario-1-support-copilot-for-a-mid-size-saas-customer">Scenario 1: Support copilot for a mid-size SaaS customer</h2>
+<p>Prompt: "A customer with 40,000 help-center articles and 2,000 tickets per day wants an AI assistant that drafts replies for agents. Design it and tell me what you would ship in four weeks."</p>
+<p>Rubric - strong answers:</p>
+<ul>
+<li>Discovery: who are users (agents), what is "good" (acceptance rate, handle time), languages, tone, systems (helpdesk, KB), data sensitivity, volume, latency expectations.</li>
+<li>Design: RAG over KB plus similar past tickets; hybrid search, reranking, citations; draft-for-agent (human in loop) rather than auto-send; ticket classification/routing as separate cheap-model step; prompt template with tone and policy; structured output.</li>
+<li>Quality: golden set from real tickets with agent-approved replies; metrics for retrieval recall and faithfulness; abstain when not found; shadow mode first; feedback capture (accept/edit/reject).</li>
+<li>Risk: PII redaction, tenant isolation, injection via ticket text, no auto commitments (refunds), logging policy.</li>
+<li>Phasing: week 1 ingestion and baseline, week 2 evals and iteration, week 3 pilot with a few agents, week 4 metrics review and rollout plan. Cost estimate with token math and a note to check current prices.</li>
+<li>Red flags: jumping to fine-tuning, no eval plan, auto-sending replies on day one.</li>
+</ul>
+<h2 id="scenario-2-the-demo-was-great-production-answers-are-wrong">Scenario 2: "The demo was great, production answers are wrong"</h2>
+<p>Prompt: "Two weeks after launch the customer's VP says the RAG bot gives wrong answers about pricing and policies. You join a call in 30 minutes. What do you do?"</p>
+<p>Rubric:</p>
+<ul>
+<li>Immediate: gather examples with traces; do not defend; acknowledge impact; ask for 5 concrete failures.</li>
+<li>Diagnosis: use the RAG debug tree (corpus, retrieval, ranking, generation, citation); check for stale/multiple document versions, parsing of pricing tables, exact-term queries needing BM25, missing abstention; check whether the model or index changed.</li>
+<li>Mitigation: short-term guardrails (route pricing questions to a verified source or human, show document dates), rollback if recent change, fix top root cause.</li>
+<li>Prevent: add failures to regression set, monitoring, owner for content freshness, weekly quality review.</li>
+<li>Communication: simple root-cause statement, timeline, what changes, how you will measure; avoid promising zero errors.</li>
+<li>Red flags: blaming the user/model, "just switch to a bigger model" without evidence.</li>
+</ul>
+<h2 id="scenario-3-agent-with-write-access-to-a-crm">Scenario 3: Agent with write access to a CRM</h2>
+<p>Prompt: "A sales-ops team wants an agent that updates CRM records, drafts emails, and creates tasks from call notes. They want it fully autonomous. How do you proceed?"</p>
+<p>Rubric:</p>
+<ul>
+<li>Discovery: what actions, which objects, error tolerance, who is accountable, current manual process and volume.</li>
+<li>Design: tool inventory classified by risk (read, reversible write, irreversible); per-user permissions; schema-validated arguments; idempotency keys; approval UI for risky actions; plan visible to the user; step and cost budgets; audit log.</li>
+<li>Rollout: shadow mode (agent proposes, humans act), measure agreement, graduate low-risk actions to auto with thresholds, keep a kill switch.</li>
+<li>Security: prompt injection from call notes/emails, least privilege, no secrets in prompt, data residency.</li>
+<li>Testing: scenario evals including adversarial notes, repeated runs, trajectory checks, cost per task.</li>
+<li>Red flags: giving the agent admin credentials, relying on the prompt for authorization, no rollback path.</li>
+</ul>
+<h2 id="scenario-4-cost-and-latency-blow-up">Scenario 4: Cost and latency blow-up</h2>
+<p>Prompt: "Your feature costs about 5x the estimate and p95 latency is 14 seconds. The customer is threatening to cancel. Walk me through the next two weeks."</p>
+<p>Rubric:</p>
+<ul>
+<li>Measure first: traces by span, tokens per request distribution, cache hit rate, retries, which queries are expensive, volume vs forecast.</li>
+<li>Hypotheses: prompt bloat or too many chunks, history resend, large model for easy tasks, no prompt caching, sequential calls, retries on timeouts, runaway outputs.</li>
+<li>Actions in priority order: cap output and context, route easy cases to a smaller model with an eval gate, prompt caching with static-prefix layout, parallelize, stream, response caching for FAQ, batch API for offline parts, per-tenant quotas.</li>
+<li>Show math: cost per request before/after with placeholder prices, then verify with real prices; cost per successful outcome.</li>
+<li>Quality guard: re-run eval suite on each change; report quality, cost and latency together.</li>
+<li>Customer handling: weekly numbers, a target SLO, and an honest tradeoff table.</li>
+<li>Red flags: optimizing blind, cutting quality without measurement.</li>
+</ul>
+<h2 id="scenario-5-regulated-customer-and-data-privacy">Scenario 5: Regulated customer and data privacy</h2>
+<p>Prompt: "A healthcare/finance customer wants an assistant over internal documents containing sensitive data. Their security team says no data can leave their cloud account. Propose an approach."</p>
+<p>Rubric:</p>
+<ul>
+<li>Discovery: data classes, regulations (HIPAA/GDPR-style; involve their legal/compliance), regions, retention, who can see what, audit needs, existing identity provider.</li>
+<li>Options: provider endpoint inside their cloud account/VPC with private networking and customer-managed keys vs self-hosted open-weights model; compare capability, cost, ops, latency; propose pilot.</li>
+<li>Architecture: ingestion within their boundary, per-user ACL filtering at retrieval, redaction where needed, encrypted stores, no raw logging or tightly controlled logs, deletion across vector store/caches/backups, tenant isolation, audit trails.</li>
+<li>Risks: injection, leakage via caches or embeddings, model memorization, over-broad access, shadow IT.</li>
+<li>Deliverables: data-flow diagram, threat model, DPIA-style checklist inputs, runbook.</li>
+<li>Red flags: giving legal advice as fact, ignoring ACLs, sending PII to a third party without agreement.</li>
+</ul>
+<h2 id="scenario-6-is-the-new-modelprompt-actually-better">Scenario 6: "Is the new model/prompt actually better?"</h2>
+<p>Prompt: "Your teammate says the new prompt plus a newer model improves quality. The customer wants to switch tomorrow. How do you decide?"</p>
+<p>Rubric:</p>
+<ul>
+<li>Define quality: task metrics, rubric, cost, latency, safety.</li>
+<li>Eval design: golden set (stratified, real, includes failures and unanswerables), paired comparison on same items, deterministic checks plus calibrated LLM judge plus human spot checks, confidence intervals, per-category slices, check regressions on must-pass cases.</li>
+<li>Pitfalls: judge biases, test-set leakage or overfit to the eval, noisy small sample, cherry-picked examples, changing two things at once (separate prompt vs model effects).</li>
+<li>Rollout: shadow or canary with online metrics, monitoring, rollback plan, pinned versions.</li>
+<li>Decision: written summary with numbers, risks, and recommendation; do not switch "tomorrow" without at least a quick eval and canary, but offer the fastest safe path.</li>
+<li>Red flags: "looks better to me", no baseline, ignoring cost/latency.</li>
+</ul>
+<hr />
+<h2 id="debrief-checklist-after-each-scenario">Debrief checklist after each scenario</h2>
+<ul>
+<li>Did I ask about users, success metric, data, constraints before designing?</li>
+<li>Did I mention evals, security/privacy and cost without being asked?</li>
+<li>Did I give a phased plan with a first deliverable?</li>
+<li>Did I name failure modes and how I would detect them?</li>
+<li>Could the customer repeat my summary to their boss?</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../13-llm-ai-concepts/rapid-fire.html">← LLM and AI Concepts: Rapid-fire Q&amp;A</a><a class="next" href="../11-lld/README.html">Low-Level Design: Overview →</a></div></main><aside id="toc"></aside></div>
+<script src="../assets/data.js"></script><script src="../assets/app.js"></script></body></html>

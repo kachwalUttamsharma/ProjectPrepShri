@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 4 interview Q&amp;A: quality and tooling | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="10-python-depth/week-04-quality-and-tooling/interview-qa" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../10-python-depth/week-01-functions-deep-dive/lesson.html">Python Depth</a> / <a href="../../10-python-depth/week-04-quality-and-tooling/lesson.html">Week 4 · Quality and tooling</a> / <span>Interview Q&amp;A</span></nav><button id="mark-done" data-id="10-python-depth/week-04-quality-and-tooling/interview-qa">Mark as done</button></div><article class="doc">
+<h1 id="week-4-interview-qa-quality-and-tooling">Week 4 interview Q&amp;A: quality and tooling</h1>
+<p><strong>1. What is a pytest fixture and how does it differ from setUp/tearDown?</strong>
+A function marked <code>@pytest.fixture</code> whose return/yield value is injected into tests by parameter name. Code after <code>yield</code> is teardown. Unlike xUnit setUp, fixtures are explicit per test, composable (fixtures can request fixtures), scoped (function/class/module/session) and shareable via <code>conftest.py</code>.</p>
+<p><strong>2. How does <code>parametrize</code> work and why use it?</strong>
+<code>@pytest.mark.parametrize("a,b", [...])</code> generates one independent test per tuple, each with its own id and failure report. It removes copy-paste tests and loops inside tests (where the first failure hides the rest).</p>
+<p><strong>3. <code>Mock</code> vs <code>MagicMock</code> vs <code>patch</code> vs <code>monkeypatch</code>?</strong>
+<code>Mock</code> is a configurable stand-in recording calls. <code>MagicMock</code> adds magic-method support. <code>patch</code> temporarily replaces a named object (context manager/decorator). <code>monkeypatch</code> is pytest's fixture for setting attributes/env/dict items, auto-undone. Behaviourally similar; use monkeypatch for simple swaps, Mock for verifying interactions.</p>
+<p><strong>4. Where do you patch?</strong>
+Where the name is looked up at call time, not where defined. If <code>app.py</code> does <code>from requests import get</code>, patch <code>app.get</code>. Patching <code>requests.get</code> leaves <code>app.get</code> pointing at the original.</p>
+<p><strong>5. What is <code>autospec</code> and why use it?</strong>
+<code>patch(..., autospec=True)</code> or <code>create_autospec(obj)</code> builds a mock matching the real object's signature, so wrong argument counts or misspelled methods raise errors. Plain mocks accept anything and let broken code pass.</p>
+<p><strong>6. How do you make tests deterministic around time, randomness and I/O?</strong>
+Inject the dependency (clock, RNG with seed, client, path) or patch the boundary. Use <code>tmp_path</code> for files, fake timers instead of sleeping, seeded <code>random.Random(0)</code>, and never hit real network. Flaky tests are worse than no tests.</p>
+<p><strong>7. When should you NOT mock?</strong>
+When you would be mocking your own logic (test asserts nothing real), or when a cheap real object exists (in-memory SQLite, <code>io.StringIO</code>, a fake). Mock at architectural boundaries; prefer fakes for stateful collaborators.</p>
+<p><strong>8. Explain <code>try / except / else / finally</code>.</strong>
+<code>except</code> handles listed errors; <code>else</code> runs only if the <code>try</code> raised nothing (keeps the <code>try</code> body minimal); <code>finally</code> always runs, even on return/raise, for cleanup. A <code>return</code> in <code>finally</code> swallows exceptions, avoid it.</p>
+<p><strong>9. <code>raise X from Y</code> vs plain <code>raise X</code> inside <code>except</code>?</strong>
+<code>from Y</code> sets <code>__cause__</code> explicitly ("the direct cause"). Plain raise inside except sets <code>__context__</code> ("during handling of...") implicitly. <code>from None</code> suppresses the chain. Bare <code>raise</code> re-raises the current exception with its traceback intact.</p>
+<p><strong>10. How would you design exceptions for a library?</strong>
+One base class (<code>MyLibError</code>) so callers can catch everything from you; specific subclasses per failure mode carrying useful attributes (code, resource id); keep them in one module; wrap low-level errors (<code>from exc</code>) so internals don't leak. Don't subclass <code>BaseException</code>; don't use exceptions for ordinary control flow.</p>
+<p><strong>11. Why not <code>except:</code> or <code>except Exception: pass</code>?</strong>
+Bare except also catches <code>KeyboardInterrupt</code>/<code>SystemExit</code> and hides bugs. Swallowing hides failures. Catch specific errors; at boundaries catch <code>Exception</code>, log with <code>logger.exception</code>, and respond or re-raise.</p>
+<p><strong>12. Why <code>logging</code> instead of <code>print</code>?</strong>
+Levels, timestamps, structured formatting, multiple destinations, per-module configuration, and the app (not the library) controls output. Use <code>logger = logging.getLogger(__name__)</code>, <code>logger.info("x %s", val)</code> (lazy), <code>logger.exception</code> in handlers.</p>
+<p><strong>13. How does logger hierarchy and propagation work?</strong>
+Names are dotted (<code>a.b.c</code>); a record handled at <code>a.b.c</code> also propagates up to handlers on <code>a.b</code>, <code>a</code>, and root unless <code>propagate=False</code>. Duplicate output usually comes from a handler on both a child and the root, or from adding a handler on every call.</p>
+<p><strong>14. How do you manage Python dependencies and environments?</strong>
+One venv per project (<code>python -m venv .venv</code>), dependencies declared in <code>pyproject.toml</code> (or requirements), apps pinned for reproducibility (lockfile / <code>pip freeze</code> / uv), libraries with compatible ranges, dev dependencies separated. Always <code>python -m pip</code> to target the right interpreter.</p>
+<p><strong>15. What goes in <code>pyproject.toml</code>?</strong>
+<code>[build-system]</code> (backend), <code>[project]</code> metadata (name, version, requires-python, dependencies, optional-dependencies, scripts/entry points), and tool configuration (<code>[tool.pytest.ini_options]</code>, <code>[tool.ruff]</code>, <code>[tool.mypy]</code>). It replaced setup.py/setup.cfg/most dotfiles.</p>
+<p><strong>16. How do you find why code is slow?</strong>
+Reproduce with a benchmark, profile (<code>python -m cProfile -s cumtime</code>, py-spy for live processes, line_profiler for hot functions), fix the biggest contributor (usually algorithm/data structure or I/O), re-measure. Use <code>timeit</code> with <code>repeat</code> and take the minimum for micro-benchmarks.</p>
+<p><strong>17. Name five Python performance idioms.</strong>
+Use sets/dicts for membership; <code>"".join</code> over <code>+=</code>; generators for large streams; <code>deque</code> for FIFO; <code>lru_cache</code> for pure functions; comprehensions and builtins (C speed); <code>sorted(key=...)</code> over comparator funcs; avoid repeated attribute lookups only after profiling shows need.</p>
+<p><strong>18. <code>timeit</code> pitfalls?</strong>
+Single runs are noisy; use <code>repeat</code> and take the min. Setup code must not be inside the timed statement. GC is disabled during timing by default. Measure realistic input sizes; micro-benchmarks can mislead about real workloads.</p>
+<p><strong>19. What do ruff and mypy each do?</strong>
+ruff: linter/import sorter/formatter (replaces flake8, isort, black, pyupgrade) catching style issues and bugs such as unused imports, mutable defaults, bare except. mypy: static type checker reading annotations; finds <code>None</code> misuse, wrong argument types, missing returns. Neither runs your code. Run both in CI.</p>
+<p><strong>20. What does test coverage tell you, and what doesn't it?</strong>
+Which lines/branches executed during tests. It does not prove assertions are meaningful; 100% coverage with weak asserts is false comfort. Use it to find untested paths, add branch coverage, and focus on critical behaviour.</p>
+</article><div class="pager"><a class="prev" href="../../10-python-depth/week-04-quality-and-tooling/lesson.html">← Week 4 · Quality and tooling: Lesson</a><a class="next" href="../../10-python-depth/week-04-quality-and-tooling/exercises.py.html">Week 4 · Quality and tooling: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

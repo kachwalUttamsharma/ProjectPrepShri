@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Senior Data Engineer Mock Interview | Study Hub</title><link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/pygments.css"></head>
+<body data-root="../" data-page-id="14-data-engineering/mock-interview" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../index.html">Home</a> / <a href="../14-data-engineering/README.html">Data Engineering</a> / <span>Senior Data Engineer Mock Interview</span></nav><button id="mark-done" data-id="14-data-engineering/mock-interview">Mark as done</button></div><article class="doc">
+<h1 id="senior-data-engineer-mock-interview">Senior Data Engineer Mock Interview</h1>
+<p>A full loop in four rounds. Practice out loud with a timer, ideally with a partner reading the interviewer lines. Method for round 1: <a href="week-07-pipeline-design/lesson.html">week-07-pipeline-design/lesson.md</a>; worked designs in <a href="week-07-pipeline-design/designs/01-clickstream-analytics.html">week-07-pipeline-design/designs/</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Round</th>
+<th>Time</th>
+<th>Focus</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. Pipeline design</td>
+<td>45 min</td>
+<td>Requirements -&gt; architecture -&gt; deep dives -&gt; ops</td>
+</tr>
+<tr>
+<td>2. SQL and modeling</td>
+<td>30 min</td>
+<td>Window functions, dedupe, sessionization, gaps and islands, SCD2</td>
+</tr>
+<tr>
+<td>3. Spark performance troubleshooting</td>
+<td>30 min</td>
+<td>"Job takes 6 hours since last week"</td>
+</tr>
+<tr>
+<td>4. Behavioral for data engineers</td>
+<td>30 min</td>
+<td>On-call, data-quality escalation, stakeholder pushback</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="round-1-pipeline-design-45-min">Round 1: Pipeline design (45 min)</h2>
+<p>Prompt (interviewer reads): "We run a marketplace with 8M orders per day in Postgres and about 2B clickstream events per day. Product wants a near-real-time conversion dashboard, analysts want self-serve SQL on everything, finance wants a daily revenue report that ties out exactly, and the company has to honor deletion requests. Design the data platform."</p>
+<h3 id="stage-1-clarify-0-7-min">Stage 1: Clarify (0-7 min)</h3>
+<p>Interviewer prompts: (silence, then) "What would you like to know?"</p>
+<p>Ideal answer (questions asked):</p>
+<ul>
+<li>Freshness per consumer: dashboard maybe 1-5 min; analysts hourly; finance daily by 07:00.</li>
+<li>Correctness: finance must tie to the order system to the cent; dashboard may be approximate.</li>
+<li>Sources: Postgres OLTP (can we read the WAL? any hard deletes?), clickstream via SDK, payments processor files.</li>
+<li>Volume and growth: 8M orders/day is about 100 per second average; 2B events/day is about 23K per second average, 70K peak (3x).</li>
+<li>History and backfill: how far back, how often do we reprocess?</li>
+<li>Compliance: PII fields, GDPR deletions, SOX for finance.</li>
+<li>Team and cloud: existing stack, team size.</li>
+</ul>
+<p>Ideal framing sentence: "Three consumers with different needs, so likely a hybrid: streaming for the dashboard, batch with reconciliation for finance, one shared lakehouse in between. The hardest requirements are penny-exact finance and the deletion obligation."</p>
+<p>Interviewer gives answers: dashboard freshness 5 min, finance by 07:00, Postgres allows logical replication, AWS, team of 6.</p>
+<h3 id="stage-2-estimates-7-12-min">Stage 2: Estimates (7-12 min)</h3>
+<p>Interviewer: "Size it."</p>
+<p>Ideal answer:</p>
+<ul>
+<li>Events: 2B/day / 86,400 = about 23K/s avg, 70K/s peak. At about 300 bytes compressed in Kafka = 7 MB/s avg, 21 MB/s peak. Raw columnar about 0.5 TB/day, about 180 TB/year.</li>
+<li>Orders: 8M/day x 1 KB = 8 GB/day; CDC changes maybe 4x orders (status updates) = 32M change events/day, about 400/s. Tiny.</li>
+<li>Conclusion: clickstream dominates volume; orders dominate correctness. Different treatment for each.</li>
+</ul>
+<h3 id="stage-3-architecture-12-25-min">Stage 3: Architecture (12-25 min)</h3>
+<p>Interviewer: "Draw it."</p>
+<p>Ideal answer (sketch, narrate one record end to end):</p>
+<pre class="mermaid">flowchart LR
+  PG[(Postgres)] --&gt;|WAL| DBZ[Debezium] --&gt; K1[(Kafka orders_cdc)]
+  SDK[SDK events] --&gt; GW[Gateway] --&gt; K2[(Kafka events)]
+  PF[Processor files] --&gt; LZ[Landing]
+  K1 --&gt; BR[(Bronze Iceberg)]
+  K2 --&gt; BR
+  LZ --&gt; BR
+  K2 --&gt; FL[Flink: dedupe, sessionize, join order status]
+  K1 --&gt; FL
+  FL --&gt; OLAP[Pinot/ClickHouse] --&gt; DASH[Conversion dashboard]
+  BR --&gt; SP[Spark/dbt: silver then gold]
+  SP --&gt; WH[Warehouse / SQL engine]
+  SP --&gt; FIN[Finance mart + reconciliation]
+  ORC[Airflow] -.-&gt; SP
+  DQ[Quality gates + lineage] -.-&gt; SP</pre>
+<p>Talking points:</p>
+<ul>
+<li>Raw immutable bronze, replayable; all jobs idempotent.</li>
+<li>Dashboard path: event_id dedupe in Flink, event time with watermark; numbers provisional, corrected by batch.</li>
+<li>Orders: CDC mirrors with latest-LSN merge; finance reads from a cutoff snapshot, not live tables.</li>
+<li>Finance: control totals at landing, three-way reconciliation (orders vs payments vs processor), immutable daily snapshots, decimals not floats.</li>
+<li>PII tokenized at ingest into a small PII vault; everything else uses surrogate keys.</li>
+</ul>
+<p>Interviewer follow-up: "Why not just stream everything?" Ideal: streaming for finance adds cost and complexity for no benefit since the SLA is next morning, and finance needs closed periods with audit trails; streaming is only justified for the 5-minute dashboard.</p>
+<h3 id="stage-4-deep-dive-a-correctness-of-the-dashboard-vs-finance-25-33-min">Stage 4: Deep dive A, correctness of the dashboard vs finance (25-33 min)</h3>
+<p>Interviewer: "Dashboard says 10,200 orders today; finance says 10,150. Which is right and how do you handle this?"</p>
+<p>Ideal answer:</p>
+<ul>
+<li>Finance/batch number is authoritative. Differences come from late events, refunds/cancellations after the dashboard counted, dedupe windows, and definitions.</li>
+<li>Fix by a single metric definition (semantic layer, shared code), and by labeling the dashboard "provisional until T+1".</li>
+<li>Build an automated diff job: hourly stream-vs-batch counts, alert if over a threshold, with a breakdown by cause.</li>
+<li>Backfill: dashboard OLAP offline segments replaced by batch for completed days.</li>
+</ul>
+<h3 id="stage-5-deep-dive-b-deletion-33-40-min">Stage 5: Deep dive B, deletion (33-40 min)</h3>
+<p>Interviewer: "A user requests deletion. Walk me through it."</p>
+<p>Ideal answer: identity resolution -&gt; PII inventory -&gt; delete in OLTP first (else CDC re-propagates) -&gt; batch MERGE/DELETE in lakehouse tables -&gt; compaction and snapshot expiry so physical files are rewritten -&gt; Kafka retention/tombstones -&gt; feature store and caches -&gt; verification scan -&gt; audit log -&gt; suppression list to prevent reload; backups by expiry; legal retention exceptions (invoices) pseudonymized. Mention crypto-shredding as an option if designed up front. Confirm with legal. See <a href="week-07-pipeline-design/designs/08-gdpr-erasure.html">design 8</a>.</p>
+<h3 id="stage-6-ops-failure-evolution-40-45-min">Stage 6: Ops, failure, evolution (40-45 min)</h3>
+<p>Interviewer: "It's 3 a.m. and the dashboard is stale. What happens?"</p>
+<p>Ideal answer: freshness alert fires on the dashboard dataset (symptom-based); runbook: check Kafka consumer lag, Flink job status/checkpoints, OLAP ingestion; auto-restart from checkpoint; fallback banner "data delayed"; escalation path; postmortem and action items. Mention source-side risk (replication slot growth) and schema drift.</p>
+<p>Interviewer: "What changes at 10x?" Ideal: more partitions, tiered Kafka storage, compaction/small files, pre-aggregation at edge, sampling for non-critical events, per-team cost attribution, and moving from one cluster to per-workload compute.</p>
+<hr />
+<h2 id="round-2-sql-and-modeling-30-min-about-7-min-each">Round 2: SQL and modeling (30 min, about 7 min each)</h2>
+<p>All four solutions below were run against SQLite 3.53 (window functions need SQLite 3.25+) with the sample data shown, and the outputs listed are what the queries returned. Syntax such as <code>julianday</code> and <code>date(x, '-N day')</code> is SQLite specific; in Postgres/Snowflake/BigQuery use <code>timestamp</code> arithmetic or <code>DATEADD</code>/<code>DATE_SUB</code>.</p>
+<h3 id="problem-1-latest-state-from-cdc-events-dedupe-ignore-deletes">Problem 1: Latest state from CDC events (dedupe, ignore deletes)</h3>
+<p>Interviewer: "Table <code>cdc_orders</code> has change events. Return the current state of each order, excluding deleted orders. Events can arrive out of order; <code>lsn</code> is the source log position."</p>
+<p>Sample data:</p>
+<div class="highlight"><pre><span></span><code><span class="k">create</span><span class="w"> </span><span class="k">table</span><span class="w"> </span><span class="n">cdc_orders</span><span class="p">(</span><span class="n">order_id</span><span class="w"> </span><span class="nb">int</span><span class="p">,</span><span class="w"> </span><span class="n">status</span><span class="w"> </span><span class="nb">text</span><span class="p">,</span><span class="w"> </span><span class="n">amount</span><span class="w"> </span><span class="nb">real</span><span class="p">,</span><span class="w"> </span><span class="n">op</span><span class="w"> </span><span class="nb">text</span><span class="p">,</span><span class="w"> </span><span class="n">lsn</span><span class="w"> </span><span class="nb">int</span><span class="p">);</span>
+<span class="k">insert</span><span class="w"> </span><span class="k">into</span><span class="w"> </span><span class="n">cdc_orders</span><span class="w"> </span><span class="k">values</span>
+<span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="s1">'new'</span><span class="p">,</span><span class="mi">10</span><span class="p">,</span><span class="s1">'I'</span><span class="p">,</span><span class="mi">100</span><span class="p">),(</span><span class="mi">1</span><span class="p">,</span><span class="s1">'paid'</span><span class="p">,</span><span class="mi">10</span><span class="p">,</span><span class="s1">'U'</span><span class="p">,</span><span class="mi">105</span><span class="p">),(</span><span class="mi">2</span><span class="p">,</span><span class="s1">'new'</span><span class="p">,</span><span class="mi">20</span><span class="p">,</span><span class="s1">'I'</span><span class="p">,</span><span class="mi">101</span><span class="p">),</span>
+<span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="s1">'new'</span><span class="p">,</span><span class="mi">20</span><span class="p">,</span><span class="s1">'D'</span><span class="p">,</span><span class="mi">110</span><span class="p">),(</span><span class="mi">3</span><span class="p">,</span><span class="s1">'new'</span><span class="p">,</span><span class="mi">30</span><span class="p">,</span><span class="s1">'I'</span><span class="p">,</span><span class="mi">102</span><span class="p">),(</span><span class="mi">3</span><span class="p">,</span><span class="s1">'shipped'</span><span class="p">,</span><span class="mi">30</span><span class="p">,</span><span class="s1">'U'</span><span class="p">,</span><span class="mi">108</span><span class="p">),(</span><span class="mi">3</span><span class="p">,</span><span class="s1">'shipped'</span><span class="p">,</span><span class="mi">35</span><span class="p">,</span><span class="s1">'U'</span><span class="p">,</span><span class="mi">107</span><span class="p">);</span>
+</code></pre></div>
+
+<p>Solution:</p>
+<div class="highlight"><pre><span></span><code><span class="k">with</span><span class="w"> </span><span class="n">ranked</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="p">(</span>
+<span class="w">  </span><span class="k">select</span><span class="w"> </span><span class="o">*</span><span class="p">,</span><span class="w"> </span><span class="n">row_number</span><span class="p">()</span><span class="w"> </span><span class="n">over</span><span class="w"> </span><span class="p">(</span><span class="n">partition</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="n">order_id</span><span class="w"> </span><span class="k">order</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="n">lsn</span><span class="w"> </span><span class="k">desc</span><span class="p">)</span><span class="w"> </span><span class="n">rn</span>
+<span class="w">  </span><span class="k">from</span><span class="w"> </span><span class="n">cdc_orders</span><span class="p">)</span>
+<span class="k">select</span><span class="w"> </span><span class="n">order_id</span><span class="p">,</span><span class="w"> </span><span class="n">status</span><span class="p">,</span><span class="w"> </span><span class="n">amount</span><span class="p">,</span><span class="w"> </span><span class="n">lsn</span>
+<span class="k">from</span><span class="w"> </span><span class="n">ranked</span>
+<span class="k">where</span><span class="w"> </span><span class="n">rn</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">and</span><span class="w"> </span><span class="n">op</span><span class="w"> </span><span class="o">&lt;&gt;</span><span class="w"> </span><span class="s1">'D'</span>
+<span class="k">order</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="n">order_id</span><span class="p">;</span>
+</code></pre></div>
+
+<p>Output: <code>(1, 'paid', 10.0, 105)</code> and <code>(3, 'shipped', 30.0, 108)</code>. Order 3 shows the out-of-order case: lsn 108 wins over 107 even if 107 arrived later. Order 2 is excluded because its latest event is a delete.</p>
+<p>What interviewer listens for: order by LSN not arrival time; filter the delete after ranking (not before, or the older insert would resurrect the row); tie-breaking if LSN can tie.</p>
+<h3 id="problem-2-sessionization-with-a-30-minute-gap">Problem 2: Sessionization with a 30-minute gap</h3>
+<p>Interviewer: "Given <code>events(user_id, ts, page)</code>, assign sessions where a gap over 30 minutes starts a new session, then report start, end, event count, and duration per session."</p>
+<p>Sample data:</p>
+<div class="highlight"><pre><span></span><code><span class="k">create</span><span class="w"> </span><span class="k">table</span><span class="w"> </span><span class="n">events</span><span class="p">(</span><span class="n">user_id</span><span class="w"> </span><span class="nb">int</span><span class="p">,</span><span class="w"> </span><span class="n">ts</span><span class="w"> </span><span class="nb">text</span><span class="p">,</span><span class="w"> </span><span class="n">page</span><span class="w"> </span><span class="nb">text</span><span class="p">);</span>
+<span class="k">insert</span><span class="w"> </span><span class="k">into</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="k">values</span>
+<span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="s1">'2026-01-01 10:00:00'</span><span class="p">,</span><span class="s1">'home'</span><span class="p">),(</span><span class="mi">1</span><span class="p">,</span><span class="s1">'2026-01-01 10:10:00'</span><span class="p">,</span><span class="s1">'search'</span><span class="p">),(</span><span class="mi">1</span><span class="p">,</span><span class="s1">'2026-01-01 10:50:00'</span><span class="p">,</span><span class="s1">'home'</span><span class="p">),</span>
+<span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="s1">'2026-01-01 10:55:00'</span><span class="p">,</span><span class="s1">'buy'</span><span class="p">),(</span><span class="mi">2</span><span class="p">,</span><span class="s1">'2026-01-01 09:00:00'</span><span class="p">,</span><span class="s1">'home'</span><span class="p">),(</span><span class="mi">2</span><span class="p">,</span><span class="s1">'2026-01-02 09:00:00'</span><span class="p">,</span><span class="s1">'home'</span><span class="p">);</span>
+</code></pre></div>
+
+<p>Solution:</p>
+<div class="highlight"><pre><span></span><code><span class="k">with</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="p">(</span>
+<span class="w">  </span><span class="k">select</span><span class="w"> </span><span class="n">user_id</span><span class="p">,</span><span class="w"> </span><span class="n">ts</span><span class="p">,</span>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="k">when</span><span class="w"> </span><span class="n">lag</span><span class="p">(</span><span class="n">ts</span><span class="p">)</span><span class="w"> </span><span class="n">over</span><span class="w"> </span><span class="p">(</span><span class="n">partition</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="n">user_id</span><span class="w"> </span><span class="k">order</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="n">ts</span><span class="p">)</span><span class="w"> </span><span class="k">is</span><span class="w"> </span><span class="k">null</span>
+<span class="w">           </span><span class="k">or</span><span class="w"> </span><span class="p">(</span><span class="n">julianday</span><span class="p">(</span><span class="n">ts</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">julianday</span><span class="p">(</span><span class="n">lag</span><span class="p">(</span><span class="n">ts</span><span class="p">)</span><span class="w"> </span><span class="n">over</span><span class="w"> </span><span class="p">(</span><span class="n">partition</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="n">user_id</span><span class="w"> </span><span class="k">order</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="n">ts</span><span class="p">)))</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">1440</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">30</span>
+<span class="w">         </span><span class="k">then</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">end</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">new_sess</span>
+<span class="w">  </span><span class="k">from</span><span class="w"> </span><span class="n">events</span><span class="p">),</span>
+<span class="n">s</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="p">(</span>
+<span class="w">  </span><span class="k">select</span><span class="w"> </span><span class="o">*</span><span class="p">,</span><span class="w"> </span><span class="k">sum</span><span class="p">(</span><span class="n">new_sess</span><span class="p">)</span><span class="w"> </span><span class="n">over</span><span class="w"> </span><span class="p">(</span><span class="n">partition</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="n">user_id</span><span class="w"> </span><span class="k">order</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="n">ts</span>
+<span class="w">         </span><span class="k">rows</span><span class="w"> </span><span class="k">between</span><span class="w"> </span><span class="n">unbounded</span><span class="w"> </span><span class="n">preceding</span><span class="w"> </span><span class="k">and</span><span class="w"> </span><span class="k">current</span><span class="w"> </span><span class="k">row</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">sess_no</span>
+<span class="w">  </span><span class="k">from</span><span class="w"> </span><span class="n">f</span><span class="p">)</span>
+<span class="k">select</span><span class="w"> </span><span class="n">user_id</span><span class="p">,</span><span class="w"> </span><span class="n">sess_no</span><span class="p">,</span><span class="w"> </span><span class="k">min</span><span class="p">(</span><span class="n">ts</span><span class="p">)</span><span class="w"> </span><span class="n">start_ts</span><span class="p">,</span><span class="w"> </span><span class="k">max</span><span class="p">(</span><span class="n">ts</span><span class="p">)</span><span class="w"> </span><span class="n">end_ts</span><span class="p">,</span><span class="w"> </span><span class="k">count</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="n">n_events</span><span class="p">,</span>
+<span class="w">       </span><span class="n">round</span><span class="p">((</span><span class="n">julianday</span><span class="p">(</span><span class="k">max</span><span class="p">(</span><span class="n">ts</span><span class="p">))</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">julianday</span><span class="p">(</span><span class="k">min</span><span class="p">(</span><span class="n">ts</span><span class="p">)))</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">1440</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="n">minutes</span>
+<span class="k">from</span><span class="w"> </span><span class="n">s</span>
+<span class="k">group</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="n">user_id</span><span class="p">,</span><span class="w"> </span><span class="n">sess_no</span>
+<span class="k">order</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="n">user_id</span><span class="p">,</span><span class="w"> </span><span class="n">sess_no</span><span class="p">;</span>
+</code></pre></div>
+
+<p>Output:</p>
+<ul>
+<li>user 1, session 1: 10:00 to 10:10, 2 events, 10.0 min</li>
+<li>user 1, session 2: 10:50 to 10:55, 2 events, 5.0 min (the 40-minute gap splits it)</li>
+<li>user 2, session 1 and 2: one event each on different days, 0.0 min</li>
+</ul>
+<p>Technique: flag session starts with LAG, then a running SUM of flags gives the session number. Follow-up: at scale this is a sort per user; in streaming use session windows; ties on identical timestamps need a secondary order key.</p>
+<h3 id="problem-3-longest-consecutive-day-login-streak-gaps-and-islands">Problem 3: Longest consecutive-day login streak (gaps and islands)</h3>
+<p>Interviewer: "From <code>logins(user_id, login_date)</code>, find each user's longest streak of consecutive days. Duplicates exist."</p>
+<p>Sample data:</p>
+<div class="highlight"><pre><span></span><code><span class="k">create</span><span class="w"> </span><span class="k">table</span><span class="w"> </span><span class="n">logins</span><span class="p">(</span><span class="n">user_id</span><span class="w"> </span><span class="nb">int</span><span class="p">,</span><span class="w"> </span><span class="n">login_date</span><span class="w"> </span><span class="nb">text</span><span class="p">);</span>
+<span class="k">insert</span><span class="w"> </span><span class="k">into</span><span class="w"> </span><span class="n">logins</span><span class="w"> </span><span class="k">values</span>
+<span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="s1">'2026-03-01'</span><span class="p">),(</span><span class="mi">1</span><span class="p">,</span><span class="s1">'2026-03-02'</span><span class="p">),(</span><span class="mi">1</span><span class="p">,</span><span class="s1">'2026-03-03'</span><span class="p">),(</span><span class="mi">1</span><span class="p">,</span><span class="s1">'2026-03-05'</span><span class="p">),(</span><span class="mi">1</span><span class="p">,</span><span class="s1">'2026-03-06'</span><span class="p">),(</span><span class="mi">1</span><span class="p">,</span><span class="s1">'2026-03-06'</span><span class="p">),</span>
+<span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="s1">'2026-03-01'</span><span class="p">),(</span><span class="mi">2</span><span class="p">,</span><span class="s1">'2026-03-03'</span><span class="p">),(</span><span class="mi">2</span><span class="p">,</span><span class="s1">'2026-03-04'</span><span class="p">);</span>
+</code></pre></div>
+
+<p>Solution:</p>
+<div class="highlight"><pre><span></span><code><span class="k">with</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="p">(</span><span class="k">select</span><span class="w"> </span><span class="k">distinct</span><span class="w"> </span><span class="n">user_id</span><span class="p">,</span><span class="w"> </span><span class="n">login_date</span><span class="w"> </span><span class="k">from</span><span class="w"> </span><span class="n">logins</span><span class="p">),</span>
+<span class="k">g</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="p">(</span>
+<span class="w">  </span><span class="k">select</span><span class="w"> </span><span class="n">user_id</span><span class="p">,</span><span class="w"> </span><span class="n">login_date</span><span class="p">,</span>
+<span class="w">         </span><span class="nb">date</span><span class="p">(</span><span class="n">login_date</span><span class="p">,</span><span class="w"> </span><span class="s1">'-'</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">(</span><span class="n">row_number</span><span class="p">()</span><span class="w"> </span><span class="n">over</span><span class="w"> </span><span class="p">(</span><span class="n">partition</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="n">user_id</span><span class="w"> </span><span class="k">order</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="n">login_date</span><span class="p">))</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s1">' day'</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">grp</span>
+<span class="w">  </span><span class="k">from</span><span class="w"> </span><span class="n">d</span><span class="p">),</span>
+<span class="n">streaks</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="p">(</span>
+<span class="w">  </span><span class="k">select</span><span class="w"> </span><span class="n">user_id</span><span class="p">,</span><span class="w"> </span><span class="n">grp</span><span class="p">,</span><span class="w"> </span><span class="k">min</span><span class="p">(</span><span class="n">login_date</span><span class="p">)</span><span class="w"> </span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="k">max</span><span class="p">(</span><span class="n">login_date</span><span class="p">)</span><span class="w"> </span><span class="n">e</span><span class="p">,</span><span class="w"> </span><span class="k">count</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="n">len</span>
+<span class="w">  </span><span class="k">from</span><span class="w"> </span><span class="k">g</span><span class="w"> </span><span class="k">group</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="n">user_id</span><span class="p">,</span><span class="w"> </span><span class="n">grp</span><span class="p">)</span>
+<span class="k">select</span><span class="w"> </span><span class="n">user_id</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="n">e</span><span class="p">,</span><span class="w"> </span><span class="n">len</span>
+<span class="k">from</span><span class="w"> </span><span class="p">(</span><span class="k">select</span><span class="w"> </span><span class="o">*</span><span class="p">,</span><span class="w"> </span><span class="n">row_number</span><span class="p">()</span><span class="w"> </span><span class="n">over</span><span class="w"> </span><span class="p">(</span><span class="n">partition</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="n">user_id</span><span class="w"> </span><span class="k">order</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="n">len</span><span class="w"> </span><span class="k">desc</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">)</span><span class="w"> </span><span class="n">rk</span><span class="w"> </span><span class="k">from</span><span class="w"> </span><span class="n">streaks</span><span class="p">)</span>
+<span class="k">where</span><span class="w"> </span><span class="n">rk</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span>
+<span class="k">order</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="n">user_id</span><span class="p">;</span>
+</code></pre></div>
+
+<p>Output: user 1: 2026-03-01 to 2026-03-03, length 3; user 2: 2026-03-03 to 2026-03-04, length 2.</p>
+<p>Key idea: date minus row number is constant within a run of consecutive dates (the "island" key). Must dedupe first, or the duplicate on 03-06 would break the trick. Postgres version: <code>login_date - (row_number() over (...))::int</code>.</p>
+<h3 id="problem-4-revenue-by-customer-tier-as-of-order-date-scd2-as-of-join">Problem 4: Revenue by customer tier as of order date (SCD2 as-of join)</h3>
+<p>Interviewer: "<code>dim_customer</code> is SCD2 (<code>valid_from</code> inclusive, <code>valid_to</code> exclusive; open rows have 9999-12-31). Report orders, revenue, and revenue share by the tier the customer had when the order was placed."</p>
+<p>Sample data:</p>
+<div class="highlight"><pre><span></span><code><span class="k">create</span><span class="w"> </span><span class="k">table</span><span class="w"> </span><span class="n">dim_customer</span><span class="p">(</span><span class="n">customer_id</span><span class="w"> </span><span class="nb">int</span><span class="p">,</span><span class="w"> </span><span class="n">tier</span><span class="w"> </span><span class="nb">text</span><span class="p">,</span><span class="w"> </span><span class="n">valid_from</span><span class="w"> </span><span class="nb">text</span><span class="p">,</span><span class="w"> </span><span class="n">valid_to</span><span class="w"> </span><span class="nb">text</span><span class="p">);</span>
+<span class="k">insert</span><span class="w"> </span><span class="k">into</span><span class="w"> </span><span class="n">dim_customer</span><span class="w"> </span><span class="k">values</span>
+<span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="s1">'silver'</span><span class="p">,</span><span class="s1">'2026-01-01'</span><span class="p">,</span><span class="s1">'2026-02-01'</span><span class="p">),(</span><span class="mi">1</span><span class="p">,</span><span class="s1">'gold'</span><span class="p">,</span><span class="s1">'2026-02-01'</span><span class="p">,</span><span class="s1">'9999-12-31'</span><span class="p">),(</span><span class="mi">2</span><span class="p">,</span><span class="s1">'silver'</span><span class="p">,</span><span class="s1">'2026-01-01'</span><span class="p">,</span><span class="s1">'9999-12-31'</span><span class="p">);</span>
+<span class="k">create</span><span class="w"> </span><span class="k">table</span><span class="w"> </span><span class="n">orders</span><span class="p">(</span><span class="n">order_id</span><span class="w"> </span><span class="nb">int</span><span class="p">,</span><span class="w"> </span><span class="n">customer_id</span><span class="w"> </span><span class="nb">int</span><span class="p">,</span><span class="w"> </span><span class="n">order_date</span><span class="w"> </span><span class="nb">text</span><span class="p">,</span><span class="w"> </span><span class="n">amount</span><span class="w"> </span><span class="nb">real</span><span class="p">);</span>
+<span class="k">insert</span><span class="w"> </span><span class="k">into</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="k">values</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="s1">'2026-01-15'</span><span class="p">,</span><span class="mi">100</span><span class="p">),(</span><span class="mi">2</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="s1">'2026-02-01'</span><span class="p">,</span><span class="mi">200</span><span class="p">),(</span><span class="mi">3</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="s1">'2026-03-10'</span><span class="p">,</span><span class="mi">50</span><span class="p">),(</span><span class="mi">4</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="s1">'2026-02-20'</span><span class="p">,</span><span class="mi">70</span><span class="p">);</span>
+</code></pre></div>
+
+<p>Solution:</p>
+<div class="highlight"><pre><span></span><code><span class="k">select</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">tier</span><span class="p">,</span><span class="w"> </span><span class="k">count</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">orders</span><span class="p">,</span><span class="w"> </span><span class="k">sum</span><span class="p">(</span><span class="n">o</span><span class="p">.</span><span class="n">amount</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">revenue</span><span class="p">,</span>
+<span class="w">       </span><span class="n">round</span><span class="p">(</span><span class="mi">100</span><span class="p">.</span><span class="mi">0</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">sum</span><span class="p">(</span><span class="n">o</span><span class="p">.</span><span class="n">amount</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="k">sum</span><span class="p">(</span><span class="k">sum</span><span class="p">(</span><span class="n">o</span><span class="p">.</span><span class="n">amount</span><span class="p">))</span><span class="w"> </span><span class="n">over</span><span class="w"> </span><span class="p">(),</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">pct</span>
+<span class="k">from</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="n">o</span>
+<span class="k">join</span><span class="w"> </span><span class="n">dim_customer</span><span class="w"> </span><span class="n">d</span>
+<span class="w">  </span><span class="k">on</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">customer_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="n">customer_id</span>
+<span class="w"> </span><span class="k">and</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="n">order_date</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">valid_from</span>
+<span class="w"> </span><span class="k">and</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="n">order_date</span><span class="w"> </span><span class="o">&lt;</span><span class="w">  </span><span class="n">d</span><span class="p">.</span><span class="n">valid_to</span>
+<span class="k">group</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">tier</span>
+<span class="k">order</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="n">revenue</span><span class="w"> </span><span class="k">desc</span><span class="p">;</span>
+</code></pre></div>
+
+<p>Output: gold 2 orders, 250.0, 59.5%; silver 2 orders, 170.0, 40.5%. Order 2 on exactly 2026-02-01 belongs to gold because intervals are half-open (valid_to exclusive); a closed-closed interval would double count it. A window over an aggregate (<code>sum(sum(...)) over ()</code>) gives share of total.</p>
+<p>Modeling follow-ups (verbal, 3 min): grain of the order fact; why surrogate keys; type 1 vs type 2 vs type 3; handling late-arriving dimension rows; star vs one big table (OBT) tradeoffs; factless fact tables for events with no measure.</p>
+<hr />
+<h2 id="round-3-spark-performance-troubleshooting-30-min">Round 3: Spark performance troubleshooting (30 min)</h2>
+<p>Prompt (interviewer): "A nightly Spark job aggregates orders with customers and writes to a gold table. It used to finish in 50 minutes. Since last week it takes 6 hours. Nobody changed the code. How do you approach it?"</p>
+<h3 id="ideal-approach-measure-before-guessing">Ideal approach: measure before guessing</h3>
+<ol>
+<li>Clarify what changed (the code did not, but data, cluster, config, library versions, upstream layout may have). Ask: input size trend, row counts, number of files, cluster/instance type or autoscaling policy, Spark version, shared cluster contention, any upstream job change.</li>
+<li>Look at the Spark UI / history server for a good run and a bad run, side by side:
+   - Which stage(s) got slower? Compare stage time, input size, shuffle read/write, number of tasks.
+   - Within a slow stage: task duration distribution (min/median/max). One task running 100x longer than the median means skew. Uniformly slower means volume or resources.
+   - Spill (memory/disk) and GC time per task.
+   - Failed/retried tasks, executor loss, speculative tasks.
+   - Scheduler delay or waiting for executors (resource starvation).</li>
+</ol>
+<h3 id="likely-root-causes-and-how-each-presents">Likely root causes and how each presents</h3>
+<table>
+<thead>
+<tr>
+<th>Symptom in Spark UI</th>
+<th>Likely cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Few tasks take hours, others seconds; max much greater than median</td>
+<td>Data skew on a join/group key (one customer or NULL key exploded)</td>
+<td>Check key distribution; salt hot keys, filter NULLs, enable AQE skew-join handling (Spark 3.x, check current docs), broadcast the small side</td>
+</tr>
+<tr>
+<td>Input stage has tens of thousands of tiny tasks</td>
+<td>Small-files problem from an upstream change (more frequent writes)</td>
+<td>Compact upstream, increase batch size, use table-format compaction, tune <code>maxPartitionBytes</code></td>
+</tr>
+<tr>
+<td>Join switched from broadcast to sort-merge</td>
+<td>Table grew above <code>autoBroadcastJoinThreshold</code>, or statistics became stale</td>
+<td>Explicit broadcast hint if safe, refresh stats, raise threshold cautiously</td>
+</tr>
+<tr>
+<td>Large shuffle spill to disk, high GC</td>
+<td>Data volume growth, too few/too large partitions, insufficient executor memory</td>
+<td>Increase shuffle partitions or rely on AQE coalescing, tune memory, avoid collecting large objects, use columnar and prune columns</td>
+</tr>
+<tr>
+<td>Full scan instead of partition pruning</td>
+<td>Filter changed to non-partition column, partition column type mismatch, or partitions layout changed</td>
+<td>Fix predicates, check partition columns; verify pushdown in the plan</td>
+</tr>
+<tr>
+<td>Cluster slower overall</td>
+<td>Autoscaling capped, spot instance loss, noisy neighbor, different instance type</td>
+<td>Check executor count over time; dedicated pool</td>
+</tr>
+<tr>
+<td>Python UDF in the plan</td>
+<td>Row-by-row serialization cost; data growth made it visible</td>
+<td>Replace with native functions or pandas UDF/Arrow</td>
+</tr>
+<tr>
+<td>Output stage slow</td>
+<td>Writing too many small files or too few huge ones; dynamic partition overwrite with too many partitions; slow object storage commit</td>
+<td>Repartition before write, use table format committer, coalesce thoughtfully</td>
+</tr>
+<tr>
+<td>Retries and executor loss</td>
+<td>OOM on skewed partition, shuffle fetch failures</td>
+<td>Fix skew, memory overhead, external shuffle service</td>
+</tr>
+<tr>
+<td>Data duplicated upstream (row count doubled)</td>
+<td>Upstream bug or a backfill landed twice</td>
+<td>Row-count and distinct-key checks, fix upstream; this is a correctness incident too</td>
+</tr>
+</tbody>
+</table>
+<h3 id="worked-scenario-interviewer-reveals-clues-progressively">Worked scenario (interviewer reveals clues progressively)</h3>
+<p>Clue 1: "Stage 7 (the join of orders to customers) accounts for 5 hours. 200 tasks; 199 finish in 40 seconds, one runs 5 hours."
+Ideal: classic skew. Check the top join keys by count. Reveal: a new enterprise customer, or a default/NULL <code>customer_id = -1</code> for guest checkout, now represents 30% of rows.</p>
+<p>Clue 2: "customer_id = -1 is 30% of orders since the guest checkout launch last week."
+Ideal fix (short term): filter or split the guest rows (they have no customer attributes to join), process them separately without the join; or enable AQE skew join; or salt the key. Long-term: the model should not join a placeholder key; make guests a separate path or use a null-safe approach; add a data quality check on key distribution (max key share) to alert on future skew.</p>
+<p>Clue 3: "After the fix it runs in 70 minutes, but the old run took 50."
+Ideal: investigate the remainder: input volume grew 40%, small files from the new event frequency; check file counts, run compaction, tune partitions; consider incremental processing (only changed partitions) rather than full recompute; capacity plan.</p>
+<p>Closing the loop: prevent recurrence with a runtime SLO alert (job duration p95), stage-level metrics exported, a skew detector on join keys, and a runbook. Do a blameless note on how a business launch changed data without notifying data engineering (data contracts / change communication).</p>
+<h3 id="rapid-fire-questions-in-this-round">Rapid-fire questions in this round</h3>
+<ol>
+<li>Narrow vs wide transformations? Wide transformations require shuffle (groupBy, join, repartition).</li>
+<li>When is broadcast join wrong? Small side not actually small, memory pressure on driver/executors, or frequent growth.</li>
+<li><code>repartition</code> vs <code>coalesce</code>? Repartition full shuffle, can increase or balance; coalesce narrow, only decreases, may leave skew.</li>
+<li>How does AQE help? Coalesces shuffle partitions, switches join strategies at runtime, splits skewed partitions (check current docs for defaults per version).</li>
+<li>Cache or persist: when? When a computed dataset is reused several times and fits; otherwise it wastes memory and may slow things.</li>
+<li>What causes executor OOM? Skewed partitions, large collect, too many cores per executor for memory, big broadcast, Python memory overhead.</li>
+</ol>
+<hr />
+<h2 id="round-4-behavioral-for-data-engineers-30-min">Round 4: Behavioral for data engineers (30 min)</h2>
+<p>Use the STAR structure (Situation, Task, Action, Result) plus a closing "what I changed afterwards". Senior signals: ownership, blast radius thinking, communication, systemic fixes (not hero fixes), and quantified outcomes.</p>
+<h3 id="q1-tell-me-about-an-on-call-incident-you-handled">Q1: Tell me about an on-call incident you handled.</h3>
+<p>Strong answer structure:</p>
+<ul>
+<li>Situation: pipeline failure/late data affecting a named consumer (for example the 07:00 finance report was going to miss SLA), paged at 3 a.m.</li>
+<li>Action: triage by consumer impact first (who is affected, what's the deadline), mitigated before root-causing (publish previous snapshot flagged stale, rerun with a smaller scope), communicated early and regularly in the incident channel, then root-caused (for example upstream schema change), fixed.</li>
+<li>Result: time to detect, time to mitigate, number of consumers affected; follow-ups: schema contract check, alert on freshness, runbook, blameless postmortem.</li>
+<li>Probe: "What would you do differently?" Look for specific detection and prevention changes, not "be more careful".</li>
+</ul>
+<p>Red flags: only heroics, no communication, no prevention, blaming upstream team.</p>
+<h3 id="q2-a-dashboard-number-is-wrong-and-an-executive-has-already-used-it-in-a-decision-what-do-you-do">Q2: A dashboard number is wrong and an executive has already used it in a decision. What do you do?</h3>
+<p>Strong answer: confirm and quantify the error; stop the bleeding (flag/pull the dashboard or add a banner); notify stakeholders promptly with what is known, impact, and ETA rather than waiting for the full root cause; fix and backfill; restate numbers with a clear changelog; root-cause (missing test, definition drift, join fan-out); add automated checks (reconciliation, grain tests); share a short postmortem. Show you treat trust as the product.</p>
+<h3 id="q3-describe-a-data-quality-escalation-you-drove-across-teams">Q3: Describe a data quality escalation you drove across teams.</h3>
+<p>Strong answer: found a recurring issue (for example null <code>country</code> from a service), measured the cost (analyst hours, wrong KPIs), engaged the producing team with evidence and a proposal (contract plus validation at the source), agreed on owners and SLAs, implemented monitoring on both sides, and tracked the metric (null rate from 8% to 0.2%). Highlights influence without authority.</p>
+<h3 id="q4-a-stakeholder-insists-on-real-time-data-for-a-report-that-is-viewed-once-a-day-how-do-you-respond">Q4: A stakeholder insists on real-time data for a report that is viewed once a day. How do you respond?</h3>
+<p>Strong answer: understand the underlying need; show cost and complexity tradeoffs with numbers; offer options (hourly micro-batch, a fast provisional view plus accurate daily); propose a pilot or revisit criteria; accept when the business value justifies it; document the decision. Respectful, data-driven, not dogmatic.</p>
+<h3 id="q5-product-asks-for-a-metric-by-friday-but-the-data-is-unreliable-what-do-you-do">Q5: Product asks for a metric by Friday but the data is unreliable. What do you do?</h3>
+<p>Strong answer: define what can be delivered reliably, communicate risk clearly, ship an explicitly labeled provisional version with caveats and known gaps, plan the proper fix with a date, and avoid silent compromises. Escalate trade-offs to the decision owner.</p>
+<h3 id="q6-tell-me-about-a-time-you-disagreed-with-a-technical-decision-for-example-lambda-vs-a-unified-pipeline-or-buying-vs-building">Q6: Tell me about a time you disagreed with a technical decision (for example Lambda vs a unified pipeline, or buying vs building).</h3>
+<p>Strong answer: state the options and criteria, gather evidence (a small prototype or cost model), disagree and commit if overruled, and track the outcome. Show humility and curiosity.</p>
+<h3 id="q7-how-do-you-mentor-and-raise-the-teams-data-engineering-bar">Q7: How do you mentor and raise the team's data engineering bar?</h3>
+<p>Strong answer: templates and golden-path pipelines, code review checklists (idempotency, tests, backfill, observability), design reviews, runbooks, pairing, blameless postmortems, and measuring improvement (incident count, onboarding time).</p>
+<h3 id="q8-tell-me-about-a-project-you-would-run-differently-now">Q8: Tell me about a project you would run differently now.</h3>
+<p>Strong answer: honest assessment (for example over-engineered streaming where batch sufficed), what you learned, and how you apply it. Avoid disguised strengths.</p>
+<hr />
+<h2 id="scoring-rubric">Scoring rubric</h2>
+<p>Score each dimension 0-4 (0 absent, 1 weak, 2 adequate, 3 strong, 4 exceptional/senior-plus).</p>
+<h3 id="round-1-pipeline-design-max-32">Round 1: Pipeline design (max 32)</h3>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th>4 looks like</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Requirements</td>
+<td>Asks about freshness, correctness, consumers, compliance; names the hardest requirement</td>
+</tr>
+<tr>
+<td>Estimation</td>
+<td>Correct arithmetic; draws a design conclusion from the numbers</td>
+</tr>
+<tr>
+<td>Architecture</td>
+<td>Coherent layers, right batch/stream split, no unnecessary components, one record traced end to end</td>
+</tr>
+<tr>
+<td>Correctness semantics</td>
+<td>Idempotency, dedupe, late data, ordering, exactly-once effect explained with mechanisms</td>
+</tr>
+<tr>
+<td>Storage and modeling</td>
+<td>Layering, table formats, partitioning, schema evolution, SCD handling</td>
+</tr>
+<tr>
+<td>Quality and observability</td>
+<td>Gates with block/warn policy, freshness alerts, lineage, runbooks</td>
+</tr>
+<tr>
+<td>Failure and recovery</td>
+<td>Specific failure modes, backfill plan, rollback, DLQ</td>
+</tr>
+<tr>
+<td>Cost, security, evolution</td>
+<td>Cost levers, PII/deletion, 10x plan, tradeoffs stated</td>
+</tr>
+</tbody>
+</table>
+<h3 id="round-2-sql-and-modeling-max-20">Round 2: SQL and modeling (max 20)</h3>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th>4 looks like</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Correctness (x4 problems, 0-4 each, average counted below)</td>
+<td>Runs on sample data, handles edge cases (ties, duplicates, deletes, boundaries)</td>
+</tr>
+<tr>
+<td>Technique</td>
+<td>Picks window functions naturally; explains why (running sum of flags, row_number trick)</td>
+</tr>
+<tr>
+<td>Communication</td>
+<td>States grain, assumptions, tests with a tiny example before finishing</td>
+</tr>
+<tr>
+<td>Modeling</td>
+<td>Defends grain, keys, SCD choice, star vs wide tradeoffs</td>
+</tr>
+<tr>
+<td>Performance awareness</td>
+<td>Mentions sort/shuffle cost, indexes/partitions, alternatives at scale</td>
+</tr>
+</tbody>
+</table>
+<p>Score the correctness row as the average of the four problems (0-4), then add the other four rows for a total of 20.</p>
+<h3 id="round-3-spark-troubleshooting-max-20">Round 3: Spark troubleshooting (max 20)</h3>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th>4 looks like</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Method</td>
+<td>Measures first (Spark UI, compare good vs bad run), narrows by stage/task, forms hypotheses</td>
+</tr>
+<tr>
+<td>Technical depth</td>
+<td>Skew, small files, shuffle, spill, join strategy, AQE explained correctly</td>
+</tr>
+<tr>
+<td>Fixes</td>
+<td>Short-term and long-term fixes; knows tradeoffs</td>
+</tr>
+<tr>
+<td>Prevention</td>
+<td>Alerts on duration and skew, data-contract on change, runbook</td>
+</tr>
+<tr>
+<td>Communication</td>
+<td>Thinks aloud, asks for data, does not guess a single cause</td>
+</tr>
+</tbody>
+</table>
+<h3 id="round-4-behavioral-max-20">Round 4: Behavioral (max 20)</h3>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th>4 looks like</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ownership</td>
+<td>Took responsibility beyond the ticket</td>
+</tr>
+<tr>
+<td>Incident handling</td>
+<td>Mitigate first, communicate, root cause, systemic prevention</td>
+</tr>
+<tr>
+<td>Stakeholder management</td>
+<td>Aligns on needs, offers options with tradeoffs, holds boundaries respectfully</td>
+</tr>
+<tr>
+<td>Influence and mentoring</td>
+<td>Drives cross-team change, uplifts others</td>
+</tr>
+<tr>
+<td>Reflection</td>
+<td>Honest learning, measurable results</td>
+</tr>
+</tbody>
+</table>
+<h3 id="totals-and-interpretation">Totals and interpretation</h3>
+<p>Total possible: 32 + 20 + 20 + 20 = 92.</p>
+<table>
+<thead>
+<tr>
+<th>Total</th>
+<th>Signal</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>74-92</td>
+<td>Strong hire at senior level</td>
+</tr>
+<tr>
+<td>60-73</td>
+<td>Hire/borderline; depends on role gaps (note weakest round)</td>
+</tr>
+<tr>
+<td>45-59</td>
+<td>Not yet; repeat the weakest round after targeted study</td>
+</tr>
+<tr>
+<td>Under 45</td>
+<td>Revisit fundamentals (lessons in weeks 1-7)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="self-scoring-sheet-copy-per-attempt">Self-scoring sheet (copy per attempt)</h3>
+<div class="highlight"><pre><span></span><code>Date: ____   Round: ____   Prompt: ____
+Scores: Req _ Est _ Arch _ Semantics _ Storage _ Quality _ Failure _ Cost/Sec _
+Time overruns: ____
+Hint count: ____
+Top 3 gaps: 1) ____ 2) ____ 3) ____
+Next drill: ____
+</code></pre></div>
+</article><div class="pager"><a class="prev" href="../14-data-engineering/rapid-fire.html">← Data Engineering: Rapid-fire Q&amp;A</a><a class="next" href="../04-fastapi/week-01-first-endpoints/lesson.html">Week 1 · First endpoints: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../assets/data.js"></script><script src="../assets/app.js"></script></body></html>

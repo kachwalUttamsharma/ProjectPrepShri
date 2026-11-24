@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dialect differences cheatsheet | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="06-sql/general-sql/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../06-sql/general-sql/README.html">General SQL</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="06-sql/general-sql/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="dialect-differences-cheatsheet">Dialect differences cheatsheet</h1>
+<p>Rows marked * not run here, verify. Version-dependent: check current docs. Short names: PG = PostgreSQL, MY = MySQL, SL = SQLite, MS = SQL Server, BQ = BigQuery, SF = Snowflake.</p>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>PG</th>
+<th>MY</th>
+<th>SL</th>
+<th>MS</th>
+<th>BQ</th>
+<th>SF</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Limit rows</td>
+<td><code>LIMIT n OFFSET m</code></td>
+<td>same</td>
+<td>same</td>
+<td><code>TOP n</code>; <code>OFFSET m ROWS FETCH NEXT n ROWS ONLY</code></td>
+<td><code>LIMIT n OFFSET m</code></td>
+<td><code>LIMIT n OFFSET m</code> (also <code>TOP</code>, <code>FETCH</code>)</td>
+</tr>
+<tr>
+<td>Standard FETCH</td>
+<td><code>FETCH FIRST n ROWS ONLY</code></td>
+<td>no (8.x; check)</td>
+<td>no</td>
+<td>yes (needs ORDER BY)</td>
+<td>no</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>String concat</td>
+<td><code>a \|\| b</code>, <code>concat()</code></td>
+<td><code>CONCAT(a,b)</code> (<code>\|\|</code> is OR by default)</td>
+<td><code>a \|\| b</code></td>
+<td><code>a + b</code>, <code>CONCAT()</code></td>
+<td><code>a \|\| b</code>, <code>CONCAT()</code></td>
+<td><code>a \|\| b</code>, <code>CONCAT()</code></td>
+</tr>
+<tr>
+<td>Quote identifier</td>
+<td><code>"x"</code></td>
+<td><code>`x`</code> (or <code>"</code> with ANSI_QUOTES)</td>
+<td><code>"x"</code> (also <code>[x]</code>, <code>`x`</code>)</td>
+<td><code>[x]</code> or <code>"x"</code></td>
+<td><code>`x`</code></td>
+<td><code>"x"</code></td>
+</tr>
+<tr>
+<td>String literal</td>
+<td><code>'x'</code></td>
+<td><code>'x'</code> (also <code>"x"</code>)</td>
+<td><code>'x'</code></td>
+<td><code>'x'</code></td>
+<td><code>'x'</code> or <code>"x"</code></td>
+<td><code>'x'</code></td>
+</tr>
+<tr>
+<td>Unquoted case</td>
+<td>folds to lower</td>
+<td>table names OS-dependent</td>
+<td>case-insensitive</td>
+<td>collation-dependent</td>
+<td>case-sensitive for tables</td>
+<td>folds to UPPER</td>
+</tr>
+<tr>
+<td>Auto-increment</td>
+<td><code>GENERATED ... AS IDENTITY</code>, <code>SERIAL</code></td>
+<td><code>AUTO_INCREMENT</code></td>
+<td><code>INTEGER PRIMARY KEY</code> (rowid), <code>AUTOINCREMENT</code></td>
+<td><code>IDENTITY(1,1)</code></td>
+<td>none enforced; <code>GENERATE_UUID()</code></td>
+<td><code>AUTOINCREMENT</code>/<code>IDENTITY</code></td>
+</tr>
+<tr>
+<td>Upsert</td>
+<td><code>ON CONFLICT DO UPDATE</code></td>
+<td><code>ON DUPLICATE KEY UPDATE</code></td>
+<td><code>ON CONFLICT DO UPDATE</code></td>
+<td><code>MERGE</code></td>
+<td><code>MERGE</code></td>
+<td><code>MERGE</code></td>
+</tr>
+<tr>
+<td>RETURNING rows</td>
+<td><code>RETURNING</code></td>
+<td>not supported</td>
+<td><code>RETURNING</code> (3.35+)</td>
+<td><code>OUTPUT</code></td>
+<td>no</td>
+<td>no</td>
+</tr>
+<tr>
+<td>Boolean</td>
+<td>real <code>boolean</code></td>
+<td><code>TINYINT(1)</code>/<code>BOOL</code></td>
+<td>integers 0/1 (<code>TRUE</code> alias)</td>
+<td><code>BIT</code></td>
+<td><code>BOOL</code></td>
+<td><code>BOOLEAN</code></td>
+</tr>
+<tr>
+<td>Case-insens. LIKE</td>
+<td><code>ILIKE</code></td>
+<td>default collation is often ci</td>
+<td><code>LIKE</code> is ci for ASCII</td>
+<td>collation-dependent</td>
+<td><code>LOWER()</code> + <code>LIKE</code></td>
+<td><code>ILIKE</code></td>
+</tr>
+<tr>
+<td>Current time</td>
+<td><code>now()</code>, <code>CURRENT_TIMESTAMP</code></td>
+<td><code>NOW()</code></td>
+<td><code>CURRENT_TIMESTAMP</code></td>
+<td><code>GETDATE()</code>, <code>SYSDATETIME()</code></td>
+<td><code>CURRENT_TIMESTAMP()</code></td>
+<td><code>CURRENT_TIMESTAMP()</code></td>
+</tr>
+<tr>
+<td>Add days</td>
+<td><code>d + INTERVAL '7 days'</code></td>
+<td><code>DATE_ADD(d, INTERVAL 7 DAY)</code></td>
+<td><code>date(d,'+7 days')</code></td>
+<td><code>DATEADD(day,7,d)</code></td>
+<td><code>DATE_ADD(d, INTERVAL 7 DAY)</code></td>
+<td><code>DATEADD(day,7,d)</code></td>
+</tr>
+<tr>
+<td>Date diff (days)</td>
+<td><code>d2 - d1</code> (dates)</td>
+<td><code>DATEDIFF(d2,d1)</code></td>
+<td><code>julianday(d2)-julianday(d1)</code></td>
+<td><code>DATEDIFF(day,d1,d2)</code></td>
+<td><code>DATE_DIFF(d2,d1,DAY)</code></td>
+<td><code>DATEDIFF(day,d1,d2)</code></td>
+</tr>
+<tr>
+<td>Truncate to month</td>
+<td><code>date_trunc('month',d)</code></td>
+<td><code>DATE_FORMAT(d,'%Y-%m-01')</code></td>
+<td><code>date(d,'start of month')</code></td>
+<td><code>DATETRUNC</code> (2022+) / <code>EOMONTH</code> tricks</td>
+<td><code>DATE_TRUNC(d, MONTH)</code></td>
+<td><code>DATE_TRUNC('month',d)</code></td>
+</tr>
+<tr>
+<td>Integer division</td>
+<td><code>7/2 = 3</code></td>
+<td><code>7/2 = 3.5000</code>; <code>DIV</code> for int</td>
+<td><code>7/2 = 3</code></td>
+<td><code>7/2 = 3</code></td>
+<td><code>7/2 = 3.5</code>; <code>DIV()</code></td>
+<td><code>7/2 = 3.5</code> (check)</td>
+</tr>
+<tr>
+<td>NULL-safe equal</td>
+<td><code>IS NOT DISTINCT FROM</code></td>
+<td><code>&lt;=&gt;</code></td>
+<td><code>IS</code></td>
+<td><code>IS NOT DISTINCT FROM</code> (2022+)</td>
+<td><code>IS NOT DISTINCT FROM</code></td>
+<td><code>IS NOT DISTINCT FROM</code>, <code>EQUAL_NULL</code></td>
+</tr>
+<tr>
+<td>Cast</td>
+<td><code>x::int</code>, <code>CAST</code></td>
+<td><code>CAST</code>, <code>CONVERT</code></td>
+<td><code>CAST</code></td>
+<td><code>CAST</code>, <code>CONVERT</code>, <code>TRY_CAST</code></td>
+<td><code>CAST</code>, <code>SAFE_CAST</code></td>
+<td><code>::</code>, <code>CAST</code>, <code>TRY_CAST</code></td>
+</tr>
+<tr>
+<td>JSON</td>
+<td><code>jsonb</code>, <code>-&gt;</code>, <code>-&gt;&gt;</code></td>
+<td><code>JSON</code>, <code>-&gt;</code>, <code>-&gt;&gt;</code></td>
+<td><code>json_extract</code>, <code>-&gt;</code>/<code>-&gt;&gt;</code> (3.38+)</td>
+<td><code>JSON_VALUE</code>, <code>OPENJSON</code></td>
+<td><code>JSON_VALUE</code>, native <code>JSON</code></td>
+<td><code>VARIANT</code>, <code>col:key</code></td>
+</tr>
+<tr>
+<td>Procedural</td>
+<td>PL/pgSQL</td>
+<td>stored proc/func</td>
+<td>none</td>
+<td>T-SQL</td>
+<td>scripting</td>
+<td>Snowflake Scripting</td>
+</tr>
+<tr>
+<td>Transactional DDL</td>
+<td>yes</td>
+<td>no (implicit commit)</td>
+<td>yes</td>
+<td>yes</td>
+<td>limited</td>
+<td>limited</td>
+</tr>
+<tr>
+<td>Group concat</td>
+<td><code>string_agg(x, ',')</code></td>
+<td><code>GROUP_CONCAT(x)</code></td>
+<td><code>group_concat(x)</code></td>
+<td><code>STRING_AGG</code> (2017+)</td>
+<td><code>STRING_AGG</code></td>
+<td><code>LISTAGG</code></td>
+</tr>
+</tbody>
+</table>
+<p>Verified in SQLite 3.54 here: <code>SELECT 7/2, 7/2.0, 'a'||'b', date('2024-01-31','+7 days')</code> gives <code>3 | 3.5 | ab | 2024-02-07</code>. Every other column: not run here, verify against current docs.</p>
+<p>Habits that travel: use <code>CAST</code> and <code>COALESCE</code>, <code>CASE</code>, <code>CURRENT_TIMESTAMP</code>, <code>FETCH FIRST</code> or <code>LIMIT</code> consciously, quote nothing unless forced, name columns explicitly, and keep dialect-specific SQL in one layer.</p>
+</article><div class="pager"><a class="prev" href="../../06-sql/general-sql/06-engines-warehouses-modeling/practice.sql.html">← Part 6 · Engines, warehouses, modeling: practice.sql (code)</a><a class="next" href="../../06-sql/general-sql/rapid-fire.html">General SQL: Rapid-fire Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

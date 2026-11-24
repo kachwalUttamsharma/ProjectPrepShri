@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 4 Interview Q&amp;A: Evaluation and Production | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="13-llm-ai-concepts/week-04-evaluation-production/interview-qa" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../13-llm-ai-concepts/README.html">LLM and AI Concepts</a> / <a href="../../13-llm-ai-concepts/week-04-evaluation-production/lesson.html">Week 4 · Evaluation and production</a> / <span>Interview Q&amp;A</span></nav><button id="mark-done" data-id="13-llm-ai-concepts/week-04-evaluation-production/interview-qa">Mark as done</button></div><article class="doc">
+<h1 id="week-4-interview-qa-evaluation-and-production">Week 4 Interview Q&amp;A: Evaluation and Production</h1>
+<p>Prices in worked answers are hypothetical placeholders; say "check current docs" for real numbers.</p>
+<hr />
+<p><strong>1. How do you design an eval set?</strong>
+Start from real traffic or tickets, stratify by category/difficulty/language, include edge cases, adversarial and unanswerable items and every past failure. 50 to 100 to begin, hundreds later, with a held-out slice. Define labels or rubrics, version the dataset, check annotator agreement, and keep eval items out of prompts and fine-tuning data.</p>
+<p><strong>2. What metrics for a classification feature? For RAG? For an agent?</strong>
+Classification: per-class precision/recall/F1, confusion matrix, schema-valid rate. RAG: retrieval recall@k/MRR plus generation faithfulness, correctness, citation accuracy, abstention. Agent: task success rate, tool-call correctness, steps, cost per success, forbidden-action rate. All: latency percentiles and cost.</p>
+<p><strong>3. Pitfalls of LLM-as-judge?</strong>
+Position bias, verbosity bias, self-preference, vague rubrics, ignorance of facts, nondeterminism, judge version drift, optimizing against the judge. Mitigate with randomized order, specific rubrics, reference answers, different-family or multiple judges, pinned judge versions, and calibration against human labels with reported agreement.</p>
+<p><strong>4. Offline vs online evaluation?</strong>
+Offline: fixed dataset, repeatable, run pre-release; limited by representativeness. Online: shadow, canary, A/B on real traffic with business metrics and implicit feedback; captures reality but is slower and riskier. Use both: online failures feed the offline set; offline gates deploys.</p>
+<p><strong>5. How do you regression-test prompts?</strong>
+Prompts in version control, eval suite in CI on every change to prompt, model, retrieval or tools. Gate on key metrics and must-pass cases, compare per category and inspect output diffs. Pin model versions and run the suite on provider deprecation notices.</p>
+<p><strong>6. Is a 2-point accuracy gain on 100 examples real?</strong>
+Probably not. Standard error is around 4 to 5 points at that size and accuracy near 80 percent. Use more samples, paired comparisons on the same items, bootstrap confidence intervals, and look at which items flipped.</p>
+<p><strong>7. What do you log and trace for an LLM feature?</strong>
+Trace spans for retrieval (query, IDs, scores), each model call (prompt version, model id, params, tokens, latency, finish reason), each tool call, validation outcomes, guardrail triggers, final answer, user feedback, with a correlation ID. Redact PII, restrict access, set retention.</p>
+<p><strong>8. How do you monitor quality in production?</strong>
+Operational metrics (latency, errors, cost), proxies (thumbs, retries, escalation, empty-retrieval or "not found" rate), sampled human or judge scoring of live traffic, input-drift detection, alerts and dashboards, a weekly review of failures that become eval cases.</p>
+<p><strong>9. Explain prompt caching and how to benefit from it.</strong>
+The provider reuses computed state for an identical prompt prefix, lowering cost and latency for repeated prefixes. Put static content (system prompt, tool defs, documents) first and dynamic content last; avoid early timestamps/IDs; check current docs for TTL, minimum prefix length and discount.</p>
+<p><strong>10. Semantic caching: when is it safe?</strong>
+For repeated, non-personalized, low-stakes FAQ-style questions, with a tuned similarity threshold, TTL and invalidation, and tenant-scoped keys. Unsafe when near-identical text means different things (order 12 vs 21), when answers are personalized, or when data changes. Evaluate false-hit rate before enabling.</p>
+<p><strong>11. You are getting 429s. What do you do?</strong>
+Short-term: exponential backoff with jitter, honor Retry-After, client-side token bucket/concurrency limit, queue with priorities and per-tenant fairness, fallback model. Medium: request higher limits or provisioned throughput, reduce tokens per request, caching, move offline work to batch APIs. Capacity-plan peak tokens per minute before launch.</p>
+<p><strong>12. When to use batch APIs versus streaming?</strong>
+Batch for offline, non-urgent bulk work (evals, backfills, archive classification, embeddings), usually discounted and asynchronous. Streaming for interactive UX to cut perceived latency; remember to cancel on disconnect and validate the final output.</p>
+<p><strong>13. Estimate cost: 50,000 requests/day, 1,500 input and 200 output tokens, hypothetical $1/$4 per million.</strong>
+Per call: 1,500<em>1/1e6 + 200</em>4/1e6 = 0.0015 + 0.0008 = $0.0023. Per day $115; per month about $3,450. Then discuss levers: caching a static prefix, routing easy requests to a smaller model, trimming output, plus non-LLM costs (embeddings, vector DB, infra, logging, engineering).</p>
+<p><strong>14. p95 latency is 12 s. How do you reduce it?</strong>
+Break down by span from traces. Typical wins: stream output; shrink prompt/retrieved context; cap output length; parallelize retrieval and tool calls; smaller model for easy steps; cache prefix/results; fix slow tools; hedge tail requests. Set an SLO by percentile and re-measure.</p>
+<p><strong>15. How do you version prompts and models?</strong>
+Prompt templates in git with semantic versions, model ids pinned (no floating alias in prod), params, tool schemas, retrieval/index versions and eval dataset versions all recorded per request. Rollout via flags/canaries with rollback, and an eval report attached to each change.</p>
+<p><strong>16. How do you handle PII and compliance?</strong>
+Classify data, minimize what is sent, detect and redact/pseudonymize before calling external models, avoid raw logging, encrypt, isolate tenants, enforce access via user identity, honor retention and deletion across vector store/caches/logs, get appropriate agreements (DPA/BAA), and involve the customer's security and legal teams. Check provider terms for retention, training use and region.</p>
+<p><strong>17. What is LoRA and when is fine-tuning worth it?</strong>
+LoRA freezes base weights and trains small low-rank adapter matrices, cutting memory and storage and allowing swappable adapters. Worth it when prompting plateaus, volume makes a smaller tuned model cheaper, you need strict style/format, and you have hundreds to thousands of clean labeled examples and an eval to prove the gain. Not for fresh facts (use RAG). Compare against a strong prompt baseline first.</p>
+<p><strong>18. Scenario: "Customer says answers got worse after your last release."</strong>
+Pull traces and the release diff (prompt, model, retrieval, tools). Re-run the regression suite on both versions; slice by category to find where it dropped. If the suite missed it, add those cases. Roll back if impact is severe, then fix forward behind a canary. Share a short root-cause note and the new safeguard.</p>
+<p><strong>19. Scenario: "Security team won't let any customer data go to a third-party model."</strong>
+Ask what exactly is forbidden (PII only, or all content; region). Options: redaction/pseudonymization with a third-party model, a provider endpoint inside their cloud account/VPC with private networking and customer-managed keys, or self-hosted open-weights models. Explain capability, cost and ops tradeoffs, propose a pilot on non-sensitive data to prove value, and document the data-flow diagram for their review.</p>
+<p><strong>20. Scenario: "Leadership asks: is the AI feature worth it? Cost is $X per month."</strong>
+Define the business metric (tickets deflected, handle time saved, conversion), measure a baseline, compute cost per successful outcome including infra and human review, compare against the human/process baseline, show quality and risk metrics from evals and online tests, and present sensitivity (volume, accuracy, price changes). Recommend scale/iterate/stop with evidence.</p>
+<hr />
+<h2 id="bonus-probes">Bonus probes</h2>
+<ul>
+<li>"How big should the eval set be?" Big enough that differences you care about exceed noise; compute intervals.</li>
+<li>"How do you evaluate without ground truth?" Rubrics, pairwise preference, judge with calibration, user outcomes, expert review samples.</li>
+<li>"How do you test safety?" Red-team set of injections, PII bait, jailbreaks; track attack success rate across versions.</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../../13-llm-ai-concepts/week-04-evaluation-production/lesson.html">← Week 4 · Evaluation and production: Lesson</a><a class="next" href="../../13-llm-ai-concepts/week-04-evaluation-production/cheatsheet.html">Week 4 · Evaluation and production: Cheatsheet →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

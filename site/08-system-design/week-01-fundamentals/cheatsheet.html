@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 1 Cheatsheet - Fundamentals | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="08-system-design/week-01-fundamentals/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../08-system-design/README.html">System Design</a> / <a href="../../08-system-design/week-01-fundamentals/lesson.html">Week 1 · Fundamentals</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="08-system-design/week-01-fundamentals/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="week-1-cheatsheet-fundamentals">Week 1 Cheatsheet - Fundamentals</h1>
+<h2 id="estimation-constants">Estimation constants</h2>
+<ul>
+<li>1 day ~ 10^5 s; 1 month ~ 2.5M s; 1 year ~ 3*10^7 s</li>
+<li>1M req/day ~ 12 QPS; 1B/day ~ 12k QPS; peak = 2-5x avg</li>
+<li>2^10 KB, 2^20 MB, 2^30 GB, 2^40 TB, 2^50 PB</li>
+<li>Gbps / 8 = GB/s; 1 Gbps ~ 125 MB/s</li>
+<li>Storage = records * size * retention * replication (x3)</li>
+<li>Cache sizing: hot set ~ 20% of daily unique items (80/20)</li>
+<li>Target 50-70% utilization at peak; N+1 across AZs</li>
+</ul>
+<h2 id="latency-order-of-magnitude">Latency (order of magnitude)</h2>
+<div class="highlight"><pre><span></span><code>RAM 100 ns | NVMe read 10-100 us | same-DC RTT 0.5 ms | HDD seek 5-10 ms
+Cross-US RTT 60-80 ms | US-EU 80-150 ms | US-Asia 150-250 ms
+</code></pre></div>
+
+<p>Memory 100x SSD; SSD 100x HDD seek. Avoid round trips; sequential &gt; random.</p>
+<h2 id="formulas">Formulas</h2>
+<ul>
+<li>Little: L = lambda * W</li>
+<li>Effective latency = h<em>t_cache + (1-h)</em>t_origin</li>
+<li>Serial availability = product; parallel = 1 - prod(1-Ai) (assumes independence)</li>
+<li>Fan-out tail: P(slow) = 1 - (1-p)^N</li>
+<li>Error budget = 1 - SLO; 99.9%/30d = 43.2 min</li>
+<li>Amdahl: max speedup = 1 / serial fraction</li>
+</ul>
+<h2 id="nines-per-year">Nines (per year)</h2>
+<p>99% 3.65 d | 99.9% 8.76 h | 99.99% 52.6 min | 99.999% 5.26 min</p>
+<h2 id="sli-slo-sla">SLI / SLO / SLA</h2>
+<p>SLI = metric; SLO = internal target; SLA = contract (looser). Golden signals: latency, traffic, errors, saturation. RED for services, USE for resources. Burn-rate alerts.</p>
+<h2 id="scaling">Scaling</h2>
+<p>Vertical: simple, capped, SPOF. Horizontal: stateless + partition. Scale cube: X clone, Y functional, Z data. Stateless = state in DB/Redis/S3/JWT. Prefer leading autoscale metrics (RPS/target, queue depth).</p>
+<h2 id="availability-toolbox">Availability toolbox</h2>
+<p>Redundancy (multi-AZ), failover (active-passive/active-active), health checks, timeouts, retries+backoff, circuit breaker, bulkhead, load shedding, graceful degradation, canary/rollback, cells. Failure modes: cascading, retry storm, split brain, gray failure, correlated (config/cert/disk), metastable.</p>
+<h2 id="load-balancing">Load balancing</h2>
+<ul>
+<li>L4: IP/port, fast, NLB/HAProxy/LVS. L7: HTTP-aware, TLS, routing, ALB/Envoy/Nginx.</li>
+<li>Algos: RR, weighted RR, least conn, P2C, IP hash, consistent hash, EWMA</li>
+<li>Health: active+passive; liveness vs readiness; slow start; connection draining</li>
+<li>Global: GeoDNS/latency routing/anycast; low DNS TTL for failover</li>
+</ul>
+<h2 id="caching">Caching</h2>
+<table>
+<thead>
+<tr>
+<th>Pattern</th>
+<th>Read</th>
+<th>Write</th>
+<th>Risk</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cache-aside</td>
+<td>app loads on miss</td>
+<td>DB then delete key</td>
+<td>stale window, races</td>
+</tr>
+<tr>
+<td>Read-through</td>
+<td>cache loads</td>
+<td>-</td>
+<td>loader coupling</td>
+</tr>
+<tr>
+<td>Write-through</td>
+<td>-</td>
+<td>cache+DB sync</td>
+<td>write latency</td>
+</tr>
+<tr>
+<td>Write-back</td>
+<td>-</td>
+<td>cache, async DB</td>
+<td>data loss</td>
+</tr>
+<tr>
+<td>Write-around</td>
+<td>-</td>
+<td>DB only</td>
+<td>first read miss</td>
+</tr>
+<tr>
+<td>Refresh-ahead</td>
+<td>proactive reload</td>
+<td>-</td>
+<td>wasted work</td>
+</tr>
+</tbody>
+</table>
+<p>Eviction: LRU (default), LFU/TinyLFU (stable popularity), FIFO, TTL, random.
+Problems -&gt; fixes: stampede -&gt; single-flight, SWR, jitter; penetration -&gt; negative cache, Bloom; avalanche -&gt; jitter, replicas, shed; hot key -&gt; local cache, key splitting; cold start -&gt; pre-warm.
+CDN: versioned URLs &gt; purge; Cache-Control/ETag/Vary; origin shield; signed URLs.
+Redis: types, persistence, async replication, 16384 slots; Memcached: simple, multithreaded.</p>
+<h2 id="say-out-loud">Say out loud</h2>
+<p>Assumptions -&gt; numbers (QPS, storage, bandwidth) -&gt; bottleneck -&gt; design choice -&gt; failure modes -&gt; tradeoff.</p>
+<h2 id="cross-links">Cross-links</h2>
+<p>AWS: ../../07-aws/week-02-compute (ELB, ASG), week-03-storage-databases (ElastiCache, DynamoDB), week-04-networking (CloudFront, Route 53).</p>
+</article><div class="pager"><a class="prev" href="../../08-system-design/week-01-fundamentals/interview-qa.html">← Week 1 · Fundamentals: Interview Q&amp;A</a><a class="next" href="../../08-system-design/week-02-data-storage/lesson.html">Week 2 · Data and storage: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

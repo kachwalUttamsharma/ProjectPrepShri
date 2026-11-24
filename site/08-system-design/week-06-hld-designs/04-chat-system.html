@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Design 4: Chat System (WhatsApp / Messenger) | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="08-system-design/week-06-hld-designs/04-chat-system" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../08-system-design/README.html">System Design</a> / <a href="../../08-system-design/week-06-hld-designs/framework.html">Week 6 · HLD designs</a> / <span>Design 4: Chat System (WhatsApp / Messenger)</span></nav><button id="mark-done" data-id="08-system-design/week-06-hld-designs/04-chat-system">Mark as done</button></div><article class="doc">
+<h1 id="design-4-chat-system-whatsapp-messenger">Design 4: Chat System (WhatsApp / Messenger)</h1>
+<p>Framework: <a href="framework.html">framework.md</a>. Background: <a href="../week-02-data-storage/lesson.html">replication and consistency</a>, <a href="../week-03-coordination-messaging/lesson.html">messaging, delivery semantics, idempotency</a>, <a href="../week-04-distributed-algorithms/lesson.html">clocks and ordering</a>, <a href="../week-05-architecture-operations/lesson.html">service discovery and gateways</a>.</p>
+<h2 id="1-clarify-requirements">1. Clarify requirements</h2>
+<p>Functional</p>
+<ul>
+<li>1:1 chat and group chat (up to ~500 members; say so).</li>
+<li>Send/receive text in real time; media via attachments.</li>
+<li>Delivery states: sent, delivered, read (receipts).</li>
+<li>Online/offline presence, last seen.</li>
+<li>Offline delivery: messages queued and delivered when the recipient reconnects; push notifications.</li>
+<li>Multi-device sync (mention; keep simple at first).</li>
+<li>Out of scope: voice/video calls, end-to-end encryption internals (mention Signal protocol), search.</li>
+</ul>
+<p>Non-functional</p>
+<ul>
+<li>Low latency delivery (&lt; 200 ms same region when both online).</li>
+<li>Messages must never be lost (durability) and must not be duplicated visibly; per-conversation ordering.</li>
+<li>High availability; consistency: per-chat ordering, eventual elsewhere.</li>
+<li>Scale: hundreds of millions of concurrent connections.</li>
+</ul>
+<h2 id="2-estimate">2. Estimate</h2>
+<ul>
+<li>500M DAU, 40 messages sent per user per day = 20B messages/day = ~230K msgs/s avg, peak ~500K-700K/s.</li>
+<li>Message size ~100 B text + metadata ~ 200 B stored. 20B x 200 B = 4 TB/day = ~1.5 PB/year before replication (3x = ~4.5 PB). Hence a write-optimized, horizontally scalable store and retention/tiering policy.</li>
+<li>Concurrent connections: assume 200M online at once. One tuned chat server holds ~100K-1M idle WebSocket connections depending on memory and CPU (check current benchmarks; WhatsApp famously reported ~1M+ per server on Erlang). At ~100K per server =&gt; 2,000 gateway servers; at 500K =&gt; 400.</li>
+<li>Connection memory: ~10-50 KB per connection =&gt; 200M x 20 KB = ~4 TB across the fleet.</li>
+<li>Media: say 10% of messages carry 200 KB media: 2B x 200 KB = 400 TB/day to blob store + CDN (dominant cost).</li>
+</ul>
+<h2 id="3-api">3. API</h2>
+<p>Real-time over a persistent WebSocket (or MQTT / custom protocol over TCP for mobile), plus REST for non-realtime.</p>
+<div class="highlight"><pre><span></span><code>WS connect  wss://chat.example.com/ws   (auth token)
+client -&gt; server:
+  { "type":"send", "client_msg_id":"uuid", "chat_id":"c1", "body":"hi", "ts_client":... }
+server -&gt; client:
+  { "type":"ack", "client_msg_id":"uuid", "msg_id":"snowflake", "status":"sent" }
+  { "type":"message", "msg_id":..., "chat_id":..., "sender":..., "body":..., "seq": 1042 }
+  { "type":"receipt", "msg_id":..., "status":"delivered|read" }
+  { "type":"presence", "user":..., "state":"online" }
+
+REST
+GET  /v1/chats/{chat_id}/messages?before=&lt;msg_id&gt;&amp;limit=50    (history sync)
+POST /v1/media (get presigned upload URL)  -&gt; client uploads to blob store directly
+POST /v1/chats (create group), PUT /v1/chats/{id}/members
+</code></pre></div>
+
+<p><code>client_msg_id</code> provides idempotency: retries after a flaky network must not create duplicates.</p>
+<h2 id="4-data-model">4. Data model</h2>
+<p>Access pattern: append messages to a chat, read recent messages of a chat in order, paginate backwards. This is a time-series per partition: ideal for wide-column stores (Cassandra, ScyllaDB, HBase as WhatsApp/Messenger used variants) or DynamoDB.</p>
+<div class="highlight"><pre><span></span><code>messages(chat_id PARTITION, msg_id CLUSTERING DESC, sender_id, body, type, created_at, seq)
+   -- partition key may include a time bucket (chat_id, month) to bound partition size
+chats(chat_id PK, type, name, created_at)
+chat_members(chat_id, user_id)  +  user_chats(user_id, chat_id, last_read_seq)  -- both directions
+inbox/offline_queue(user_id, msg_id) -- undelivered messages (or derive from last_delivered_seq)
+receipts(msg_id, user_id, delivered_at, read_at)   -- or per chat "last_read_seq" cursor (much cheaper)
+users, devices(user_id, device_id, push_token)
+session_registry (Redis): user_id/device_id -&gt; gateway_server_id   (TTL, heartbeat refreshed)
+</code></pre></div>
+
+<p>Ordering: use a per-chat monotonically increasing <code>seq</code> assigned by the chat's owning shard/partition leader (single writer per chat), or a time-sortable ID. Global ordering is unnecessary and costly; per-conversation ordering is what users perceive. See <a href="../week-04-distributed-algorithms/lesson.html">Lamport/logical clocks</a>.</p>
+<h2 id="5-high-level-diagram">5. High-level diagram</h2>
+<div class="highlight"><pre><span></span><code> Sender app                                                   Receiver app
+   |  WebSocket                                                   ^ WebSocket
+   v                                                              |
+ [L4 LB] -&gt; [Gateway server A] --(1) send--&gt; [Chat service]  [Gateway server B]
+               holds connections              |   ^                  ^
+                                              |   |                  | (4) push to connection
+                (2) persist                   v   |                  |
+                              [Message store (Cassandra/DynamoDB)]   |
+                                              |                      |
+                (3) lookup recipient's gateway|                      |
+                              [Session registry (Redis)] ------------+
+                                              |
+                      recipient offline? -----+--&gt; [Offline queue] + [Push notif service -&gt; APNs/FCM]
+                                              |
+                              [Kafka: message events] -&gt; receipts, analytics, search indexing, group fan-out
+
+ Presence: gateways heartbeat -&gt; [Presence service (Redis w/ TTL)] -&gt; pub/sub to interested contacts
+ Media: client -&gt; presigned URL -&gt; [S3] -&gt; CDN; message carries only the media URL + key
+</code></pre></div>
+
+<p>1:1 flow:</p>
+<ol>
+<li>Sender sends over WebSocket to gateway A; chat service validates and assigns msg_id/seq.</li>
+<li>Persist to the message store (and ack "sent" to the sender only after a durable write).</li>
+<li>Look up the recipient's gateway(s) in the session registry.</li>
+<li>If online: forward to gateway B, which pushes over the socket; the client acks, producing a "delivered" receipt. If offline: write to the offline queue and send a push notification; deliver on reconnect by syncing from last seq.</li>
+</ol>
+<h2 id="6-deep-dives">6. Deep dives</h2>
+<h3 id="a-connections-and-routing">a) Connections and routing</h3>
+<ul>
+<li>WebSocket gateways are stateful (they hold the connections) but contain no business state. Use an L4 load balancer (long-lived TCP; sticky not required). Clients reconnect with exponential backoff and jitter after a gateway dies; avoid reconnect storms (a rolling deploy with 100K connections per server must drain slowly).</li>
+<li>Session registry maps user -&gt; gateway. Alternative: chat service publishes to a pub/sub channel per user/gateway (Redis pub/sub, Kafka partitioned by gateway ID) so any service can reach any user without the registry.</li>
+<li>Heartbeats (ping every ~30 s) detect dead connections; the registry entry has a TTL.</li>
+</ul>
+<h3 id="b-delivery-guarantees">b) Delivery guarantees</h3>
+<ul>
+<li>At-least-once delivery with client-side dedupe by <code>msg_id</code>. The sender retries until it gets the ack; the server dedupes on <code>client_msg_id</code>. Together this gives effectively-once visibility. See <a href="../week-03-coordination-messaging/lesson.html">delivery semantics and idempotency</a>.</li>
+<li>Receiver acks each message (or batched by seq). Unacked messages are redelivered on reconnect. Client requests "messages after seq N" to sync; this also covers multi-device.</li>
+<li>Order within a chat: the client sorts by seq; gaps trigger a fetch.</li>
+</ul>
+<h3 id="c-group-chat">c) Group chat</h3>
+<ul>
+<li>Small groups (&lt;= ~500): fan-out on write to each member's inbox/delivery stream (like the feed push model). Store the message once in <code>messages(chat_id)</code>; per-member state is only a cursor (last_delivered/read seq), not a copy. Large groups/channels: pull model (clients fetch from the chat partition), with push only notifications.</li>
+<li>Membership changes need consistency: a removed member must stop receiving. Version the membership list; the fan-out reads the current version.</li>
+<li>Read receipts in groups: aggregate counts, or only track per-user last_read_seq.</li>
+</ul>
+<h3 id="d-presence">d) Presence</h3>
+<ul>
+<li>Heartbeat sets <code>online:{user}</code> in Redis with a ~60 s TTL. Do not broadcast every change to everyone: fan out presence only to a user's active contacts that currently have the chat open, or let clients poll on demand. Last seen is eventually consistent. Presence is the classic place to relax consistency to save cost.</li>
+</ul>
+<h3 id="e-storage-scaling">e) Storage scaling</h3>
+<ul>
+<li>Cassandra/Scylla partitioned by chat_id (with time bucket for hot, long chats). Writes are append-only: LSM trees fit. Replication factor 3, LOCAL_QUORUM writes.</li>
+<li>Hot/cold tiering: recent messages in the primary store, old ones archived to cheaper storage. Some systems (WhatsApp) delete from servers after delivery, treating the device as the source of truth; Slack/Messenger keep history server-side. State which model you assume.</li>
+</ul>
+<h3 id="f-push-notifications">f) Push notifications</h3>
+<ul>
+<li>If the user is offline, send via APNs/FCM with minimal content (privacy). Throttle and collapse multiple messages. This integrates with a notification service (<a href="05-notification-service.html">see design 5</a>).</li>
+</ul>
+<h3 id="g-security">g) Security</h3>
+<ul>
+<li>TLS everywhere; end-to-end encryption (Signal protocol) means the server stores ciphertext only and cannot index or moderate content; key distribution via a prekey server. Authenticate the WebSocket upgrade with a short-lived token; rate limit senders (<a href="02-rate-limiter.html">rate limiter</a>).</li>
+</ul>
+<h3 id="h-multi-device-and-multi-region">h) Multi-device and multi-region</h3>
+<ul>
+<li>Each device has its own connection and cursor; the server tracks <code>last_seq</code> per device. Messages fan out to all of a user's devices.</li>
+<li>Multi-region: route users to the nearest region; cross-region messages go via the inter-region message bus. Home-region per chat simplifies ordering (single writer); accept cross-region latency for cross-region chats.</li>
+</ul>
+<h2 id="7-bottlenecks-and-failure-modes">7. Bottlenecks and failure modes</h2>
+<ul>
+<li>Gateway crash: connections drop; clients reconnect to other gateways and sync from last seq. No message loss since messages are persisted before ack.</li>
+<li>Reconnect storms after a regional blip: jittered backoff, connection admission control, and capacity headroom.</li>
+<li>Hot chat partition (a giant group): bucket partitions by time, cap group size, push-pull hybrid.</li>
+<li>Session registry staleness: message sent to the wrong gateway; fall back to offline queue + sync. Design delivery to tolerate this (idempotent, sync-on-reconnect).</li>
+<li>Kafka/consumer lag delays receipts and push notifications; correctness is unaffected since persistence is the source of truth.</li>
+<li>Message ordering across devices/clock skew: use server-assigned seq, not client clocks.</li>
+<li>Poison/oversized messages: validate size, rate limit.</li>
+</ul>
+<h2 id="8-tradeoffs">8. Tradeoffs</h2>
+<ul>
+<li>WebSocket vs long polling vs MQTT: lower latency and battery (MQTT) vs infra simplicity (HTTP).</li>
+<li>Server-side history vs device-only storage: features (multi-device, search) vs privacy and storage cost.</li>
+<li>Per-chat total ordering (single writer, simple, hot spot risk) vs distributed ordering (complex).</li>
+<li>Strong delivery guarantees (ack per message) vs bandwidth/battery (batched acks).</li>
+<li>Fan-out on write for groups (low read latency) vs pull for huge groups (bounded write cost).</li>
+<li>E2EE vs server features.</li>
+</ul>
+<h2 id="9-what-to-say-out-loud">9. What to say out loud</h2>
+<ul>
+<li>"The core problem is moving a message from a stateful connection on one server to a stateful connection on another, durably and in order within a chat."</li>
+<li>"I persist before acking the sender, so a gateway crash cannot lose an acknowledged message. Delivery is at-least-once with dedupe by message ID."</li>
+<li>"I only guarantee order within a conversation, using a per-chat sequence number, because global order is unnecessary and expensive."</li>
+<li>"Presence is where I would deliberately accept eventual consistency, with TTL heartbeats and targeted fan-out."</li>
+</ul>
+<h2 id="10-follow-up-questions-to-practice">10. Follow-up questions to practice</h2>
+<ol>
+<li>How do you guarantee no duplicate messages when the client retries? (client_msg_id idempotency)</li>
+<li>How does a user on a new phone get history? (sync by seq from the server, or E2EE backup)</li>
+<li>How do you scale to 1M connections per server? (async IO, tuned kernel/file descriptors, small per-connection state)</li>
+<li>How do you deploy gateways without dropping everyone? (connection draining, jittered reconnect)</li>
+<li>How do you implement read receipts in a 500-person group cheaply?</li>
+<li>How would you support message search with E2EE? (client-side index)</li>
+<li>What is your sharding key and what breaks with a giant group chat?</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../08-system-design/week-06-hld-designs/03-news-feed.html">← Week 6 · HLD designs: News feed</a><a class="next" href="../../08-system-design/week-06-hld-designs/05-notification-service.html">Week 6 · HLD designs: Notification service →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>test_exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="05-fde-projects/project-01-llm-basics/test_exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../05-fde-projects/project-01-llm-basics/lesson.html">FDE Projects</a> / <a href="../../05-fde-projects/project-01-llm-basics/lesson.html">Project 1 · LLM basics</a> / <span>Tests (code)</span></nav><button id="mark-done" data-id="05-fde-projects/project-01-llm-basics/test_exercises.py">Mark as done</button></div><article class="doc">
+<h1>test_exercises.py</h1><p class="code-path"><code>05-fde-projects/project-01-llm-basics/test_exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">FakeLLM</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Returns scripted replies in order (repeats the last) and records prompts."""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">replies</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">replies</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">replies</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prompts</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prompt</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prompts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">prompt</span><span class="p">)</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">prompts</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">replies</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">replies</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+
+
+<span class="n">SCHEMA</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="s2">"qty"</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="s2">"urgent"</span><span class="p">:</span> <span class="nb">bool</span><span class="p">}</span>
+<span class="n">GOOD</span> <span class="o">=</span> <span class="s1">'{"name": "pallet", "qty": 3, "urgent": false}'</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_build_prompt_basic</span><span class="p">():</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">build_prompt</span><span class="p">(</span><span class="s2">" You are terse. "</span><span class="p">,</span> <span class="s2">"Extract fields."</span><span class="p">,</span> <span class="p">[],</span> <span class="s2">" ship 3 pallets "</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">p</span> <span class="o">==</span> <span class="s2">"You are terse.</span><span class="se">\n\n</span><span class="s2">Instructions:</span><span class="se">\n</span><span class="s2">Extract fields.</span><span class="se">\n\n</span><span class="s2">Input: ship 3 pallets</span><span class="se">\n</span><span class="s2">Output:"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_build_prompt_examples</span><span class="p">():</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">build_prompt</span><span class="p">(</span><span class="s2">"S"</span><span class="p">,</span> <span class="s2">"I"</span><span class="p">,</span> <span class="p">[(</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"1"</span><span class="p">),</span> <span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="s2">"2"</span><span class="p">)],</span> <span class="s2">"c"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">p</span> <span class="o">==</span> <span class="s2">"S</span><span class="se">\n\n</span><span class="s2">Instructions:</span><span class="se">\n</span><span class="s2">I</span><span class="se">\n\n</span><span class="s2">Examples:</span><span class="se">\n</span><span class="s2">Input: a</span><span class="se">\n</span><span class="s2">Output: 1</span><span class="se">\n\n</span><span class="s2">Input: b</span><span class="se">\n</span><span class="s2">Output: 2</span><span class="se">\n\n</span><span class="s2">Input: c</span><span class="se">\n</span><span class="s2">Output:"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_extract_json_plain_and_array</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">extract_json</span><span class="p">(</span><span class="s1">' {"a": 1} '</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">extract_json</span><span class="p">(</span><span class="s2">"[1, 2]"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_extract_json_fenced</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">extract_json</span><span class="p">(</span><span class="s1">'Here:</span><span class="se">\n</span><span class="s1">```json</span><span class="se">\n</span><span class="s1">{"a": {"b": 2}}</span><span class="se">\n</span><span class="s1">```</span><span class="se">\n</span><span class="s1">bye'</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"b"</span><span class="p">:</span> <span class="mi">2</span><span class="p">}}</span>
+    <span class="k">assert</span> <span class="n">extract_json</span><span class="p">(</span><span class="s1">'```</span><span class="se">\n</span><span class="s1">{"a": 1}</span><span class="se">\n</span><span class="s1">```'</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_extract_json_with_chatter</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">extract_json</span><span class="p">(</span><span class="s1">'Sure! Here you go: {"a": {"b": [1, 2]}} Hope that helps.'</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"b"</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]}}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_extract_json_failure</span><span class="p">():</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">LLMOutputError</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">"JSON"</span><span class="p">):</span>
+        <span class="n">extract_json</span><span class="p">(</span><span class="s2">"I cannot help with that."</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">LLMOutputError</span><span class="p">):</span>
+        <span class="n">extract_json</span><span class="p">(</span><span class="s2">"{not json}"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">LLMOutputError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_validate_fields_ok</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">validate_fields</span><span class="p">({</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"x"</span><span class="p">,</span> <span class="s2">"qty"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"urgent"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s2">"extra"</span><span class="p">:</span> <span class="mi">1</span><span class="p">},</span> <span class="n">SCHEMA</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_validate_fields_errors</span><span class="p">():</span>
+    <span class="n">errs</span> <span class="o">=</span> <span class="n">validate_fields</span><span class="p">({</span><span class="s2">"name"</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span> <span class="s2">"urgent"</span><span class="p">:</span> <span class="s2">"yes"</span><span class="p">},</span> <span class="n">SCHEMA</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">errs</span> <span class="o">==</span> <span class="p">[</span>
+        <span class="s2">"field name should be str, got int"</span><span class="p">,</span>
+        <span class="s2">"missing field: qty"</span><span class="p">,</span>
+        <span class="s2">"field urgent should be bool, got str"</span><span class="p">,</span>
+    <span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_validate_fields_bool_int_float</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">validate_fields</span><span class="p">({</span><span class="s2">"n"</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span> <span class="p">{</span><span class="s2">"n"</span><span class="p">:</span> <span class="nb">int</span><span class="p">})</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"field n should be int, got bool"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">validate_fields</span><span class="p">({</span><span class="s2">"n"</span><span class="p">:</span> <span class="mi">3</span><span class="p">},</span> <span class="p">{</span><span class="s2">"n"</span><span class="p">:</span> <span class="nb">float</span><span class="p">})</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="n">validate_fields</span><span class="p">({</span><span class="s2">"n"</span><span class="p">:</span> <span class="s2">"a"</span><span class="p">},</span> <span class="p">{</span><span class="s2">"n"</span><span class="p">:</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">)})</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"field n should be int|float, got str"</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_validate_fields_not_dict</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">validate_fields</span><span class="p">([</span><span class="mi">1</span><span class="p">],</span> <span class="n">SCHEMA</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"expected a JSON object"</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_get_structured_first_try</span><span class="p">():</span>
+    <span class="n">llm</span> <span class="o">=</span> <span class="n">FakeLLM</span><span class="p">([</span><span class="n">GOOD</span><span class="p">])</span>
+    <span class="k">assert</span> <span class="n">get_structured</span><span class="p">(</span><span class="n">llm</span><span class="p">,</span> <span class="s2">"P"</span><span class="p">,</span> <span class="n">SCHEMA</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"pallet"</span><span class="p">,</span> <span class="s2">"qty"</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">"urgent"</span><span class="p">:</span> <span class="kc">False</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">llm</span><span class="o">.</span><span class="n">prompts</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"P"</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_get_structured_retries_on_bad_json</span><span class="p">():</span>
+    <span class="n">llm</span> <span class="o">=</span> <span class="n">FakeLLM</span><span class="p">([</span><span class="s2">"nope"</span><span class="p">,</span> <span class="s2">"```json</span><span class="se">\n</span><span class="s2">"</span> <span class="o">+</span> <span class="n">GOOD</span> <span class="o">+</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">```"</span><span class="p">])</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">get_structured</span><span class="p">(</span><span class="n">llm</span><span class="p">,</span> <span class="s2">"P"</span><span class="p">,</span> <span class="n">SCHEMA</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">out</span><span class="p">[</span><span class="s2">"qty"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">llm</span><span class="o">.</span><span class="n">prompts</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">llm</span><span class="o">.</span><span class="n">prompts</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"P</span><span class="se">\n\n</span><span class="s2">Your previous reply was invalid: "</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">llm</span><span class="o">.</span><span class="n">prompts</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">Return only valid JSON."</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_get_structured_retries_on_validation_error</span><span class="p">():</span>
+    <span class="n">llm</span> <span class="o">=</span> <span class="n">FakeLLM</span><span class="p">([</span><span class="s1">'{"name": "x"}'</span><span class="p">,</span> <span class="n">GOOD</span><span class="p">])</span>
+    <span class="n">get_structured</span><span class="p">(</span><span class="n">llm</span><span class="p">,</span> <span class="s2">"P"</span><span class="p">,</span> <span class="n">SCHEMA</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="s2">"missing field: qty; missing field: urgent"</span> <span class="ow">in</span> <span class="n">llm</span><span class="o">.</span><span class="n">prompts</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_get_structured_does_not_stack_repairs</span><span class="p">():</span>
+    <span class="n">llm</span> <span class="o">=</span> <span class="n">FakeLLM</span><span class="p">([</span><span class="s2">"bad"</span><span class="p">,</span> <span class="s2">"bad"</span><span class="p">,</span> <span class="n">GOOD</span><span class="p">])</span>
+    <span class="n">get_structured</span><span class="p">(</span><span class="n">llm</span><span class="p">,</span> <span class="s2">"P"</span><span class="p">,</span> <span class="n">SCHEMA</span><span class="p">,</span> <span class="n">max_retries</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">llm</span><span class="o">.</span><span class="n">prompts</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="n">llm</span><span class="o">.</span><span class="n">prompts</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="s2">"Your previous reply was invalid"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_get_structured_gives_up</span><span class="p">():</span>
+    <span class="n">llm</span> <span class="o">=</span> <span class="n">FakeLLM</span><span class="p">([</span><span class="s2">"bad"</span><span class="p">])</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">LLMOutputError</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">"after 3 attempts"</span><span class="p">):</span>
+        <span class="n">get_structured</span><span class="p">(</span><span class="n">llm</span><span class="p">,</span> <span class="s2">"P"</span><span class="p">,</span> <span class="n">SCHEMA</span><span class="p">,</span> <span class="n">max_retries</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">llm</span><span class="o">.</span><span class="n">prompts</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="n">llm0</span> <span class="o">=</span> <span class="n">FakeLLM</span><span class="p">([</span><span class="s2">"bad"</span><span class="p">])</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">LLMOutputError</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">"after 1 attempts"</span><span class="p">):</span>
+        <span class="n">get_structured</span><span class="p">(</span><span class="n">llm0</span><span class="p">,</span> <span class="s2">"P"</span><span class="p">,</span> <span class="n">SCHEMA</span><span class="p">,</span> <span class="n">max_retries</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_collect_stream</span><span class="p">():</span>
+    <span class="n">seen</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">gen</span> <span class="o">=</span> <span class="p">(</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">"Hel"</span><span class="p">,</span> <span class="s2">""</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">"lo"</span><span class="p">,</span> <span class="s2">" there"</span><span class="p">])</span>
+    <span class="k">assert</span> <span class="n">collect_stream</span><span class="p">(</span><span class="n">gen</span><span class="p">,</span> <span class="n">on_chunk</span><span class="o">=</span><span class="n">seen</span><span class="o">.</span><span class="n">append</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"Hello there"</span>
+    <span class="k">assert</span> <span class="n">seen</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"Hel"</span><span class="p">,</span> <span class="s2">"lo"</span><span class="p">,</span> <span class="s2">" there"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">collect_stream</span><span class="p">([])</span> <span class="o">==</span> <span class="s2">""</span>
+    <span class="k">assert</span> <span class="n">collect_stream</span><span class="p">([</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">])</span> <span class="o">==</span> <span class="s2">"ab"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_parse_sse_lines</span><span class="p">():</span>
+    <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="s2">": keepalive"</span><span class="p">,</span>
+        <span class="s2">""</span><span class="p">,</span>
+        <span class="s1">'data: {"text": "Hel"}'</span><span class="p">,</span>
+        <span class="s2">"event: ping"</span><span class="p">,</span>
+        <span class="s2">"data: not json"</span><span class="p">,</span>
+        <span class="s1">'data: {"other": 1}'</span><span class="p">,</span>
+        <span class="s1">'data: {"text": "lo"}'</span><span class="p">,</span>
+        <span class="s2">"data: [DONE]"</span><span class="p">,</span>
+        <span class="s1">'data: {"text": "ignored"}'</span><span class="p">,</span>
+    <span class="p">]</span>
+    <span class="k">assert</span> <span class="n">parse_sse_lines</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"Hel"</span><span class="p">,</span> <span class="s2">"lo"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">parse_sse_lines</span><span class="p">(</span><span class="nb">iter</span><span class="p">([]))</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_estimate_tokens</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">estimate_tokens</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">estimate_tokens</span><span class="p">(</span><span class="s2">"abcd"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">estimate_tokens</span><span class="p">(</span><span class="s2">"abcde"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">estimate_tokens</span><span class="p">(</span><span class="s2">"a"</span> <span class="o">*</span> <span class="mi">400</span><span class="p">)</span> <span class="o">==</span> <span class="mi">100</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_estimate_cost</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">estimate_cost</span><span class="p">(</span><span class="mi">1_000_000</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">,</span> <span class="mf">15.0</span><span class="p">)</span> <span class="o">==</span> <span class="mf">3.0</span>
+    <span class="k">assert</span> <span class="n">estimate_cost</span><span class="p">(</span><span class="mi">1000</span><span class="p">,</span> <span class="mi">500</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">,</span> <span class="mf">15.0</span><span class="p">)</span> <span class="o">==</span> <span class="n">pytest</span><span class="o">.</span><span class="n">approx</span><span class="p">(</span><span class="mf">0.0105</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">estimate_cost</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">,</span> <span class="mf">15.0</span><span class="p">)</span> <span class="o">==</span> <span class="mf">0.000018</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">estimate_cost</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">estimate_cost</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_usage_tracker</span><span class="p">():</span>
+    <span class="n">t</span> <span class="o">=</span> <span class="n">UsageTracker</span><span class="p">(</span><span class="mf">3.0</span><span class="p">,</span> <span class="mf">15.0</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">calls</span><span class="p">,</span> <span class="n">t</span><span class="o">.</span><span class="n">total_tokens</span><span class="p">,</span> <span class="n">t</span><span class="o">.</span><span class="n">total_cost</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">t</span><span class="o">.</span><span class="n">record</span><span class="p">(</span><span class="s2">"a"</span> <span class="o">*</span> <span class="mi">400</span><span class="p">,</span> <span class="s2">"b"</span> <span class="o">*</span> <span class="mi">40</span><span class="p">)</span>
+    <span class="n">t</span><span class="o">.</span><span class="n">record</span><span class="p">(</span><span class="s2">"c"</span> <span class="o">*</span> <span class="mi">4</span><span class="p">,</span> <span class="s2">"d"</span> <span class="o">*</span> <span class="mi">4</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">t</span><span class="o">.</span><span class="n">calls</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">t</span><span class="o">.</span><span class="n">input_tokens</span> <span class="o">==</span> <span class="mi">101</span>
+    <span class="k">assert</span> <span class="n">t</span><span class="o">.</span><span class="n">output_tokens</span> <span class="o">==</span> <span class="mi">11</span>
+    <span class="k">assert</span> <span class="n">t</span><span class="o">.</span><span class="n">total_tokens</span> <span class="o">==</span> <span class="mi">112</span>
+    <span class="k">assert</span> <span class="n">t</span><span class="o">.</span><span class="n">total_cost</span> <span class="o">==</span> <span class="n">estimate_cost</span><span class="p">(</span><span class="mi">101</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">,</span> <span class="mf">15.0</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_usage_tracker_wrap</span><span class="p">():</span>
+    <span class="n">t</span> <span class="o">=</span> <span class="n">UsageTracker</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+    <span class="n">llm</span> <span class="o">=</span> <span class="n">FakeLLM</span><span class="p">([</span><span class="s2">"abcdefgh"</span><span class="p">])</span>
+    <span class="n">wrapped</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">wrap</span><span class="p">(</span><span class="n">llm</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">wrapped</span><span class="p">(</span><span class="s2">"abcd"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"abcdefgh"</span>
+    <span class="k">assert</span> <span class="n">t</span><span class="o">.</span><span class="n">calls</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">t</span><span class="o">.</span><span class="n">input_tokens</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">t</span><span class="o">.</span><span class="n">output_tokens</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="n">get_structured</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">wrap</span><span class="p">(</span><span class="n">FakeLLM</span><span class="p">([</span><span class="s2">"bad"</span><span class="p">,</span> <span class="n">GOOD</span><span class="p">])),</span> <span class="s2">"P"</span><span class="p">,</span> <span class="n">SCHEMA</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">t</span><span class="o">.</span><span class="n">calls</span> <span class="o">==</span> <span class="mi">3</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_end_to_end_with_tracker</span><span class="p">():</span>
+    <span class="n">t</span> <span class="o">=</span> <span class="n">UsageTracker</span><span class="p">(</span><span class="mf">3.0</span><span class="p">,</span> <span class="mf">15.0</span><span class="p">)</span>
+    <span class="n">llm</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">wrap</span><span class="p">(</span><span class="n">FakeLLM</span><span class="p">([</span><span class="s2">"oops"</span><span class="p">,</span> <span class="n">GOOD</span><span class="p">]))</span>
+    <span class="n">prompt</span> <span class="o">=</span> <span class="n">build_prompt</span><span class="p">(</span><span class="s2">"S"</span><span class="p">,</span> <span class="s2">"Extract"</span><span class="p">,</span> <span class="p">[],</span> <span class="s2">"3 pallets, rush"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">get_structured</span><span class="p">(</span><span class="n">llm</span><span class="p">,</span> <span class="n">prompt</span><span class="p">,</span> <span class="n">SCHEMA</span><span class="p">)[</span><span class="s2">"name"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"pallet"</span>
+    <span class="k">assert</span> <span class="n">t</span><span class="o">.</span><span class="n">calls</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">t</span><span class="o">.</span><span class="n">total_cost</span> <span class="o">&gt;</span> <span class="mi">0</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../05-fde-projects/project-01-llm-basics/exercises.py.html">← Project 1 · LLM basics: Exercises (code)</a><a class="next" href="../../05-fde-projects/project-02-ticket-triage/lesson.html">Project 2 · Ticket triage: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="06-sql/week-04-schema-indexes-transactions/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../06-sql/week-04-schema-indexes-transactions/lesson.html">Week 4 · Schema, indexes, transactions</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="06-sql/week-04-schema-indexes-transactions/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>06-sql/week-04-schema-indexes-transactions/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 4 SQL exercises: schema design, constraints, indexes, transactions.</span>
+
+<span class="sd">Each function RETURNS SQL text. Most return a script of one or more statements</span>
+<span class="sd">(the test runs it with `conn.executescript(...)`); the ones that say "named</span>
+<span class="sd">parameters" return a single statement using :name placeholders.</span>
+
+<span class="sd">The test builds a starting database (see schema.py), runs your SQL, then checks</span>
+<span class="sd">behaviour: constraints must raise sqlite3.IntegrityError, EXPLAIN QUERY PLAN must</span>
+<span class="sd">show your index in use, transactions must leave the right data behind.</span>
+<span class="sd">Foreign keys are ON and the connection is in autocommit mode (you write BEGIN/COMMIT).</span>
+<span class="sd">"""</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">create_users_table</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""CREATE TABLE users with exactly these columns, in this order:</span>
+<span class="sd">        id     integer primary key</span>
+<span class="sd">        email  text, required, unique</span>
+<span class="sd">        name   text, required</span>
+<span class="sd">        age    integer, optional, but if present must be &gt;= 0</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">create_orders_table</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""CREATE TABLE orders (a `users(id, email)` table already exists). Columns in this order:</span>
+<span class="sd">        id          integer primary key</span>
+<span class="sd">        user_id     integer, required, foreign key -&gt; users(id), deleting a user deletes their orders</span>
+<span class="sd">        total       real, required, must be &gt;= 0</span>
+<span class="sd">        status      text, required, default 'new', only 'new' / 'paid' / 'shipped' allowed</span>
+<span class="sd">        created_at  text, required, defaults to the current timestamp (CURRENT_TIMESTAMP)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">create_enrollments_table</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Many-to-many junction table between existing students(id) and courses(id):</span>
+<span class="sd">    CREATE TABLE enrollments with columns</span>
+<span class="sd">        student_id  integer, FK -&gt; students(id)</span>
+<span class="sd">        course_id   integer, FK -&gt; courses(id)</span>
+<span class="sd">        enrolled_on text, default CURRENT_DATE</span>
+<span class="sd">    A student may enroll in a course only once (composite PRIMARY KEY (student_id, course_id)).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">extract_customers</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Normalize the denormalized flat_orders table: create table</span>
+<span class="sd">        customers(id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE)</span>
+<span class="sd">    and fill it with one row per distinct (customer_name, customer_email) found in flat_orders</span>
+<span class="sd">    (INSERT ... SELECT DISTINCT).  Return the whole script.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">index_for_user_lookup</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Return CREATE INDEX for the query</span>
+<span class="sd">        SELECT * FROM events WHERE user_id = 5</span>
+<span class="sd">    so EXPLAIN QUERY PLAN shows a SEARCH using your index instead of a full SCAN.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">index_for_user_time_range</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""One composite index that serves</span>
+<span class="sd">        SELECT id FROM events WHERE user_id = 5 AND created_at &gt;= '2024-01-05' ORDER BY created_at</span>
+<span class="sd">    both for filtering and for the ordering (no temp b-tree sort). Mind the column order:</span>
+<span class="sd">    equality column first, range/sort column second.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">covering_index_for_user_report</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""A COVERING index for</span>
+<span class="sd">        SELECT kind, created_at FROM events WHERE user_id = 7</span>
+<span class="sd">    i.e. the query is answered from the index alone, without touching the table.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">one_active_subscription_per_user</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""A user may have many inactive subscriptions but at most ONE with active = 1.</span>
+<span class="sd">    Return a partial UNIQUE index on subscriptions(user_id) restricted to active rows.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">transfer_funds</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Atomically move 100 from account 1 to account 2 (both UPDATEs inside BEGIN ... COMMIT).</span>
+<span class="sd">    Table: accounts(id, owner, balance).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">rollback_demo</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""A script that starts a transaction, deletes ALL rows from accounts, and then</span>
+<span class="sd">    ROLLBACKs, so the table is unchanged afterwards.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">savepoint_demo</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Using table audit(id, note): in ONE transaction</span>
+<span class="sd">      insert note 'a'; SAVEPOINT s1; insert note 'b'; ROLLBACK TO s1; insert note 'c'; COMMIT.</span>
+<span class="sd">    Final audit notes must be 'a' and 'c' (in that id order).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">optimistic_decrement</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Optimistic locking. ONE UPDATE statement with named parameters :id and :version that</span>
+<span class="sd">    decrements products.stock by 1 and bumps version by 1, but only if the row still has the</span>
+<span class="sd">    version the client read (WHERE id = :id AND version = :version).</span>
+<span class="sd">    A stale version must update 0 rows.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">upsert_stock</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Upsert with named parameters :sku and :qty on stock(sku PRIMARY KEY, qty):</span>
+<span class="sd">    insert the sku with qty, or if it exists add :qty to the existing qty</span>
+<span class="sd">    (INSERT ... ON CONFLICT(sku) DO UPDATE SET ... excluded.qty).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">subscribe_once</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Idempotent insert with named parameter :email into newsletter(email PRIMARY KEY):</span>
+<span class="sd">    inserting an existing email must silently do nothing (ON CONFLICT ... DO NOTHING), not raise.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">create_customer_totals_view</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""CREATE VIEW customer_totals AS the sum of orders.total per customer.</span>
+<span class="sd">    Columns: customer, total</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">add_is_active_column</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Migration: add column is_active INTEGER NOT NULL DEFAULT 1 to the existing users table</span>
+<span class="sd">    (ALTER TABLE ... ADD COLUMN). Existing rows must read 1.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../06-sql/week-04-schema-indexes-transactions/interview-qa.html">← Week 4 · Schema, indexes, transactions: Interview Q&amp;A</a><a class="next" href="../../06-sql/week-04-schema-indexes-transactions/test_exercises.py.html">Week 4 · Schema, indexes, transactions: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

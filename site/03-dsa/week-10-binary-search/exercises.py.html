@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-10-binary-search/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-10-binary-search/lesson.html">Week 10 · Binary search</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="03-dsa/week-10-binary-search/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>03-dsa/week-10-binary-search/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 10: Binary search (including binary search on the answer).</span>
+<span class="sd">Replace each `...` with your code. Run: .venv/bin/pytest 03-dsa/week-10-binary-search -q</span>
+<span class="sd">Aim for the stated complexity: every problem here is O(log n) or O(n log(range))."""</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">binary_search</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the index of target in sorted list nums, or -1 if absent.</span>
+<span class="sd">    Example: ([-1,0,3,5,9,12], 9) -&gt; 4 ; ([-1,0,3,5,9,12], 2) -&gt; -1</span>
+<span class="sd">    Time O(log n), Space O(1).</span>
+<span class="sd">    Hint: lo, hi = 0, len(nums)-1 ; loop while lo &lt;= hi ; mid = (lo+hi)//2."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">search_insert</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Sorted list of distinct ints. Return index of target, or the index where it</span>
+<span class="sd">    would be inserted to keep order.</span>
+<span class="sd">    Example: ([1,3,5,6], 5) -&gt; 2 ; ([1,3,5,6], 2) -&gt; 1 ; ([1,3,5,6], 7) -&gt; 4</span>
+<span class="sd">    Time O(log n), Space O(1).</span>
+<span class="sd">    Hint: this is 'first index with nums[i] &gt;= target' (lower bound)."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">search_range</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Sorted list (duplicates allowed). Return [first, last] index of target,</span>
+<span class="sd">    or [-1, -1] if absent.</span>
+<span class="sd">    Example: ([5,7,7,8,8,10], 8) -&gt; [3, 4] ; ([5,7,7,8,8,10], 6) -&gt; [-1, -1]</span>
+<span class="sd">    Time O(log n), Space O(1).</span>
+<span class="sd">    Hint: write one helper `lower_bound` and use lower_bound(t) and lower_bound(t+1)-1."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">my_sqrt</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return floor(sqrt(x)) for int x &gt;= 0 without using ** 0.5 / math.sqrt.</span>
+<span class="sd">    Example: 8 -&gt; 2 ; 16 -&gt; 4 ; 0 -&gt; 0</span>
+<span class="sd">    Time O(log x), Space O(1).</span>
+<span class="sd">    Hint: binary search on the answer in [0, x]; find the largest m with m*m &lt;= x."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">search_rotated</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Sorted list of DISTINCT ints rotated at an unknown pivot. Return index of</span>
+<span class="sd">    target or -1.</span>
+<span class="sd">    Example: ([4,5,6,7,0,1,2], 0) -&gt; 4 ; ([4,5,6,7,0,1,2], 3) -&gt; -1</span>
+<span class="sd">    Time O(log n), Space O(1).</span>
+<span class="sd">    Hint: at each mid, one half [lo..mid] or [mid..hi] is always sorted.</span>
+<span class="sd">    Check whether target lies in the sorted half."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">find_min_rotated</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Sorted list of distinct ints rotated at an unknown pivot (maybe 0 times).</span>
+<span class="sd">    Return the minimum element.</span>
+<span class="sd">    Example: [3,4,5,1,2] -&gt; 1 ; [11,13,15,17] -&gt; 11 ; [2,1] -&gt; 1</span>
+<span class="sd">    Time O(log n), Space O(1).</span>
+<span class="sd">    Hint: compare nums[mid] with nums[hi]; if nums[mid] &gt; nums[hi] min is right of mid."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">find_peak</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the index of ANY peak: nums[i] &gt; both neighbours (out-of-bounds</span>
+<span class="sd">    counts as -infinity). Adjacent elements are never equal.</span>
+<span class="sd">    Example: [1,2,3,1] -&gt; 2 ; [1,2,1,3,5,6,4] -&gt; 1 or 5</span>
+<span class="sd">    Time O(log n), Space O(1).</span>
+<span class="sd">    Hint: if nums[mid] &lt; nums[mid+1] a peak exists on the right, else on the left (incl. mid)."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">min_eating_speed</span><span class="p">(</span><span class="n">piles</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Koko has piles of bananas and h hours. Each hour she picks one pile and eats</span>
+<span class="sd">    up to k bananas from it (leftovers of that pile are wasted for the hour).</span>
+<span class="sd">    Return the minimum integer k so she finishes all piles within h hours.</span>
+<span class="sd">    Guaranteed len(piles) &lt;= h.</span>
+<span class="sd">    Example: ([3,6,7,11], 8) -&gt; 4 ; ([30,11,23,4,20], 5) -&gt; 30 ; ([30,11,23,4,20], 6) -&gt; 23</span>
+<span class="sd">    Time O(n log(max)), Space O(1).</span>
+<span class="sd">    Hint: binary search on k in [1, max(piles)]; feasibility = sum(ceil(p/k)) &lt;= h."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">ship_within_days</span><span class="p">(</span><span class="n">weights</span><span class="p">,</span> <span class="n">days</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Packages must be shipped in the given order; each day the ship carries a</span>
+<span class="sd">    contiguous run of packages whose total weight &lt;= capacity. Return the least</span>
+<span class="sd">    capacity that ships everything within `days` days.</span>
+<span class="sd">    Example: ([1,2,3,4,5,6,7,8,9,10], 5) -&gt; 15 ; ([3,2,2,4,1,4], 3) -&gt; 6 ; ([1,2,3,1,1], 4) -&gt; 3</span>
+<span class="sd">    Time O(n log(sum)), Space O(1).</span>
+<span class="sd">    Hint: capacity in [max(weights), sum(weights)]; greedy simulate to test feasibility."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">split_array</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Split nums (non-negative ints) into k non-empty contiguous subarrays so the</span>
+<span class="sd">    largest subarray sum is minimised. Return that minimised largest sum.</span>
+<span class="sd">    Example: ([7,2,5,10,8], 2) -&gt; 18 ; ([1,2,3,4,5], 2) -&gt; 9 ; ([1,4,4], 3) -&gt; 4</span>
+<span class="sd">    Time O(n log(sum)), Space O(1).</span>
+<span class="sd">    Hint: same shape as ship_within_days - binary search on the answer."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">find_median_sorted_arrays</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Two sorted lists (not both empty). Return the median of their union as a float.</span>
+<span class="sd">    Example: ([1,3], [2]) -&gt; 2.0 ; ([1,2], [3,4]) -&gt; 2.5</span>
+<span class="sd">    Time O(log(min(m, n))), Space O(1).  (HARD)</span>
+<span class="sd">    Hint: binary search the partition of the SMALLER array; the partition is valid when</span>
+<span class="sd">    left_a_max &lt;= right_b_min and left_b_max &lt;= right_a_min. Use +-inf at the borders."""</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-10-binary-search/lesson.html">← Week 10 · Binary search: Lesson</a><a class="next" href="../../03-dsa/week-10-binary-search/test_exercises.py.html">Week 10 · Binary search: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

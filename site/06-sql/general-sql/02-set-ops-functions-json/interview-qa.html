@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Part 02 interview Q&amp;A: set operations, functions, pagination, JSON | Study Hub</title><link rel="stylesheet" href="../../../assets/style.css"><link rel="stylesheet" href="../../../assets/pygments.css"></head>
+<body data-root="../../../" data-page-id="06-sql/general-sql/02-set-ops-functions-json/interview-qa" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../../index.html">Home</a> / <a href="../../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../../06-sql/general-sql/README.html">General SQL</a> / <a href="../../../06-sql/general-sql/02-set-ops-functions-json/lesson.html">Part 2 · Set ops, functions, JSON</a> / <span>Interview Q&amp;A</span></nav><button id="mark-done" data-id="06-sql/general-sql/02-set-ops-functions-json/interview-qa">Mark as done</button></div><article class="doc">
+<h1 id="part-02-interview-qa-set-operations-functions-pagination-json">Part 02 interview Q&amp;A: set operations, functions, pagination, JSON</h1>
+<p>Version-dependent claims: check current docs. Related: <a href="lesson.html">lesson.md</a>, week-01/03 Q&amp;A for NULL and windows.</p>
+<p><strong>1. UNION vs UNION ALL?</strong>
+UNION removes duplicate rows (needs a sort or hash over the combined result); UNION ALL just concatenates. Default to UNION ALL; use UNION only when dedup is required or the branches may overlap.</p>
+<p><strong>2. What are the rules for combining queries with set operators?</strong>
+Same number of columns, positionally matched compatible types, column names taken from the first query, a single ORDER BY at the end that refers to output columns.</p>
+<p><strong>3. INTERSECT and EXCEPT: how do they treat NULLs and duplicates?</strong>
+They compare whole rows and treat two NULLs as equal (not distinct), and return distinct rows. That differs from <code>=</code> and from <code>NOT IN</code>. Oracle calls EXCEPT MINUS; MySQL added both only in 8.0.31; INTERSECT/EXCEPT ALL exist in Postgres only (among the common ones).</p>
+<p><strong>4. How would you find rows in A not in B in three ways?</strong>
+<code>EXCEPT</code>, <code>NOT EXISTS (correlated)</code>, and <code>LEFT JOIN ... WHERE b.key IS NULL</code>. Avoid <code>NOT IN (subquery)</code> if the subquery can return NULL: it yields no rows.</p>
+<p><strong>5. How do you compare two columns when either can be NULL?</strong>
+<code>a IS NOT DISTINCT FROM b</code> (standard; Postgres, SQLite 3.39+, SQL Server 2022+), MySQL <code>a &lt;=&gt; b</code>, SQLite also <code>a IS b</code>. Fallback: <code>a = b OR (a IS NULL AND b IS NULL)</code>.</p>
+<p><strong>6. COALESCE vs NULLIF vs IFNULL/ISNULL/NVL?</strong>
+COALESCE is standard, n-ary, returns the first non-NULL. IFNULL (MySQL/SQLite), ISNULL (SQL Server), NVL (Oracle) are two-argument vendor versions (ISNULL also takes the first argument's type, a trap). NULLIF(a,b) returns NULL when a=b; used for <code>x / NULLIF(y,0)</code> and turning sentinels like '' into NULL.</p>
+<p><strong>7. Does AVG(COALESCE(x,0)) equal AVG(x)?</strong>
+No. AVG ignores NULLs; COALESCE turns them into zeros that are counted, lowering the average. Choose deliberately.</p>
+<p><strong>8. Why is OFFSET pagination slow on deep pages?</strong>
+The engine must generate and discard the first N rows, so cost is O(offset + limit). It is also unstable under concurrent inserts/deletes (skips or duplicates) and needs a deterministic ORDER BY.</p>
+<p><strong>9. Explain keyset pagination and its trade-offs.</strong>
+Return the last row's sort key(s) as a cursor and query <code>WHERE (k, id) &gt; (:k, :id) ORDER BY k, id LIMIT n</code>. With a matching index it is an index seek: constant cost, stable under writes. Drawbacks: no random page jump, needs a unique total ordering (add id as tiebreaker), more complex with NULLs and mixed ASC/DESC, row-value comparison unsupported in SQL Server (expand into OR).</p>
+<p><strong>10. What is LATERAL / CROSS APPLY and when use it?</strong>
+A subquery in FROM allowed to reference earlier FROM items, evaluated per outer row. Use for top-N per group (with LIMIT/TOP inside, can use an index), set-returning functions per row, and reusing computed values. LEFT JOIN LATERAL ... ON TRUE / OUTER APPLY keep outer rows with no match. Postgres, MySQL 8.0.14+, Oracle 12c+ have LATERAL; SQL Server has APPLY; SQLite has neither (use ROW_NUMBER).</p>
+<p><strong>11. Top-N per group: options?</strong>
+ROW_NUMBER() over partition filtered to rn &lt;= N (portable); LATERAL/APPLY with LIMIT (index friendly, small N); Postgres <code>DISTINCT ON</code> for N=1 (not run here, verify). Use RANK/DENSE_RANK if ties should be kept.</p>
+<p><strong>12. How do you pivot rows to columns in SQL?</strong>
+Conditional aggregation: <code>SUM(CASE WHEN region='N' THEN qty END)</code> grouped by the row key; works everywhere. Native: SQL Server/Oracle/Snowflake <code>PIVOT</code>, Postgres <code>crosstab</code> or <code>FILTER</code>. Columns must be known at write time; truly dynamic pivots need dynamic SQL or should happen in the application/BI tool.</p>
+<p><strong>13. How do you unpivot?</strong>
+<code>UNION ALL</code> of one SELECT per column, or <code>CROSS JOIN LATERAL (VALUES ...)</code> / <code>CROSS APPLY (VALUES ...)</code>, or native <code>UNPIVOT</code>. Needing it often hints at a denormalised design.</p>
+<p><strong>14. json vs jsonb in Postgres?</strong>
+<code>json</code> stores the text verbatim (preserves whitespace, key order, duplicates), reparsed on each access; <code>jsonb</code> is a parsed binary format: slightly slower to write, much faster to query, supports GIN indexes, <code>@&gt;</code>, <code>?</code>. Prefer <code>jsonb</code> unless you need exact text.</p>
+<p><strong>15. How do you index JSON fields?</strong>
+Postgres: GIN on the jsonb column (containment/key-exists queries) or a btree on an expression like <code>((payload-&gt;&gt;'user'))</code> for one hot key. MySQL: index a generated column or a functional index; multi-valued indexes for arrays (check docs). SQLite: index on an expression <code>json_extract(payload,'$.user')</code>, and queries must use the same expression.</p>
+<p><strong>16. <code>-&gt;</code> vs <code>-&gt;&gt;</code>?</strong>
+<code>-&gt;</code> returns JSON (strings quoted); <code>-&gt;&gt;</code> returns text/SQL value. In MySQL <code>-&gt;</code> is <code>JSON_EXTRACT</code> and <code>-&gt;&gt;</code> is <code>JSON_UNQUOTE(JSON_EXTRACT())</code>. Comparing <code>-&gt;</code> output to a plain string is a common bug.</p>
+<p><strong>17. How do you turn a JSON array into rows?</strong>
+Postgres <code>jsonb_array_elements(_text)</code>, MySQL 8 <code>JSON_TABLE</code>, SQLite <code>json_each</code>, SQL Server <code>OPENJSON</code>, Snowflake <code>FLATTEN</code>. Empty arrays and NULLs yield no rows in an inner/cross join; use a LEFT JOIN to keep them.</p>
+<p><strong>18. When should you NOT store data as JSON?</strong>
+When you need foreign keys, constraints, type safety, frequent filtering/joining/aggregating on the keys, or the shape is the same for every row. Use columns for the stable core and JSON for sparse extras.</p>
+<p><strong>19. Why does <code>7/2</code> return 3 in some databases and 3.5 in others?</strong>
+Integer division in SQLite, Postgres, SQL Server (both operands integer); MySQL <code>/</code> returns a decimal and uses <code>DIV</code> for integer division. Cast one operand to numeric to be portable.</p>
+<p><strong>20. LENGTH differences across dialects?</strong>
+MySQL <code>LENGTH</code> counts bytes (use <code>CHAR_LENGTH</code> for characters); SQL Server <code>LEN</code> ignores trailing spaces and <code>DATALENGTH</code> counts bytes; Postgres/SQLite <code>length</code> count characters (SQLite counts blobs in bytes).</p>
+</article><div class="pager"><a class="prev" href="../../../06-sql/general-sql/02-set-ops-functions-json/lesson.html">← Part 2 · Set ops, functions, JSON: Lesson</a><a class="next" href="../../../06-sql/general-sql/02-set-ops-functions-json/setup.sql.html">Part 2 · Set ops, functions, JSON: setup.sql (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../../assets/data.js"></script><script src="../../../assets/app.js"></script></body></html>

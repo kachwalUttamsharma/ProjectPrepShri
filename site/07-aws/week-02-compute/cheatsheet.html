@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 2 Cheatsheet - Compute | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="07-aws/week-02-compute/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../07-aws/README.html">AWS</a> / <a href="../../07-aws/week-02-compute/lesson.html">Week 2 · Compute</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="07-aws/week-02-compute/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="week-2-cheatsheet-compute">Week 2 Cheatsheet - Compute</h1>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>One-liner</th>
+<th>Typical use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>EC2</td>
+<td>Virtual machines</td>
+<td>Legacy apps, GPUs, full control</td>
+</tr>
+<tr>
+<td>AMI</td>
+<td>VM image template</td>
+<td>Golden images, ASG launches</td>
+</tr>
+<tr>
+<td>EBS</td>
+<td>Persistent block disk, AZ-scoped</td>
+<td>Boot/DB volumes</td>
+</tr>
+<tr>
+<td>Instance store</td>
+<td>Ephemeral local NVMe</td>
+<td>Cache/scratch</td>
+</tr>
+<tr>
+<td>Spot</td>
+<td>Cheap interruptible EC2 (2-min warning)</td>
+<td>Batch, stateless workers</td>
+</tr>
+<tr>
+<td>Savings Plans / RI</td>
+<td>1-3 yr commitment discounts</td>
+<td>Steady baseline</td>
+</tr>
+<tr>
+<td>Lambda</td>
+<td>Event-driven functions (15 min max)</td>
+<td>Glue, APIs, S3/SQS processing</td>
+</tr>
+<tr>
+<td>Provisioned concurrency / SnapStart</td>
+<td>Kill cold starts</td>
+<td>Latency-sensitive Lambda</td>
+</tr>
+<tr>
+<td>ECS</td>
+<td>AWS-native container orchestrator</td>
+<td>Containerized services</td>
+</tr>
+<tr>
+<td>EKS</td>
+<td>Managed Kubernetes</td>
+<td>K8s shops, portability</td>
+</tr>
+<tr>
+<td>Fargate</td>
+<td>Serverless container compute</td>
+<td>No node management</td>
+</tr>
+<tr>
+<td>ECR</td>
+<td>Container registry</td>
+<td>Image storage/scan</td>
+</tr>
+<tr>
+<td>App Runner</td>
+<td>Simplest container/web service hosting</td>
+<td>Small APIs</td>
+</tr>
+<tr>
+<td>Elastic Beanstalk</td>
+<td>PaaS on EC2</td>
+<td>Quick web app deploy</td>
+</tr>
+<tr>
+<td>ALB</td>
+<td>L7 load balancer</td>
+<td>HTTP routing, microservices</td>
+</tr>
+<tr>
+<td>NLB</td>
+<td>L4, static IP, extreme perf</td>
+<td>TCP/UDP, PrivateLink</td>
+</tr>
+<tr>
+<td>GWLB</td>
+<td>Appliance insertion</td>
+<td>Firewalls/IDS</td>
+</tr>
+<tr>
+<td>Auto Scaling</td>
+<td>Add/remove capacity by policy</td>
+<td>Elastic web/worker tiers</td>
+</tr>
+<tr>
+<td>AWS Batch</td>
+<td>Managed batch jobs on EC2/Spot/Fargate</td>
+<td>Large job queues</td>
+</tr>
+<tr>
+<td>Lightsail</td>
+<td>Simple VPS bundle</td>
+<td>Small sites</td>
+</tr>
+</tbody>
+</table>
+<p>Numbers: Lambda 15 min / 10 GB mem / 6 MB sync payload / 1,000 default concurrency; ALB idle timeout 60 s; Spot 2-min notice; gp3 3,000 IOPS baseline; EKS $0.10/hr/cluster.
+Rule: event-driven short -&gt; Lambda; container service -&gt; Fargate; K8s -&gt; EKS; special hardware -&gt; EC2.</p>
+</article><div class="pager"><a class="prev" href="../../07-aws/week-02-compute/interview-qa.html">← Week 2 · Compute: Interview Q&amp;A</a><a class="next" href="../../07-aws/week-02-compute/labs.html">Week 2 · Compute: Labs →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Design 2: CDC from an OLTP Database to a Warehouse / Lakehouse | Study Hub</title><link rel="stylesheet" href="../../../assets/style.css"><link rel="stylesheet" href="../../../assets/pygments.css"></head>
+<body data-root="../../../" data-page-id="14-data-engineering/week-07-pipeline-design/designs/02-cdc-to-lakehouse" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../../index.html">Home</a> / <a href="../../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../../14-data-engineering/week-07-pipeline-design/designs/01-clickstream-analytics.html">Week 7 · Pipeline design</a> / <a href="../../../14-data-engineering/week-07-pipeline-design/designs/01-clickstream-analytics.html">Designs</a> / <span>Design 2: CDC from an OLTP Database to a Warehouse / Lakehouse</span></nav><button id="mark-done" data-id="14-data-engineering/week-07-pipeline-design/designs/02-cdc-to-lakehouse">Mark as done</button></div><article class="doc">
+<h1 id="design-2-cdc-from-an-oltp-database-to-a-warehouse-lakehouse">Design 2: CDC from an OLTP Database to a Warehouse / Lakehouse</h1>
+<p>Prompt: "Replicate our 400 operational Postgres/MySQL tables into the lakehouse so analysts see data within 5 to 10 minutes, including updates and deletes, without hurting production."</p>
+<h2 id="requirements">Requirements</h2>
+<p>Functional</p>
+<ul>
+<li>Initial full load, then continuous change capture of inserts, updates, deletes.</li>
+<li>Current-state tables ("mirror") and optionally full change history (SCD2 / audit).</li>
+<li>Handle schema changes (add column, type widen) with minimal manual work.</li>
+</ul>
+<p>Non-functional</p>
+<ul>
+<li>Freshness 5-10 min; correctness: the mirror must equal the source at a point in time (verified).</li>
+<li>Load on the source: near zero (read the log, not the tables).</li>
+<li>Ordering per primary key must be preserved; deletes must propagate.</li>
+<li>Security: PII columns masked or tokenized on the way in.</li>
+<li>Out of scope: bidirectional sync, writing back to OLTP.</li>
+</ul>
+<h2 id="capacity-estimates">Capacity estimates</h2>
+<ul>
+<li>Total source size 2 TB; write rate 3,000 row changes/s average, 15K peak (batch jobs).</li>
+<li>Change event about 1 KB with before/after images: peak 15 MB/s; daily = 3,000 x 86,400 = 260M changes, about 260 GB/day raw, about 50 GB/day compressed Parquet.</li>
+<li>Mirror table merge: with a 5-min micro-batch, 900K changes per batch, trivial for Spark; the cost is rewriting touched files, so partitioning and clustering matter more than volume.</li>
+<li>Kafka: 400 tables -&gt; 400 topics (or grouped); partitions per topic by table volume (1-12).</li>
+</ul>
+<h2 id="architecture">Architecture</h2>
+<pre class="mermaid">flowchart LR
+  DB[(Postgres / MySQL primary or replica)] --&gt;|WAL / binlog| DBZ[Debezium on Kafka Connect]
+  DBZ --&gt; K[(Kafka: one topic per table, key = PK)]
+  SR[Schema registry - Avro] -.-&gt; DBZ
+  K --&gt; RAW[Sink -&gt; Bronze change log Iceberg/Delta]
+  RAW --&gt; M[Spark micro-batch: dedupe by PK, latest LSN, MERGE]
+  M --&gt; SIL[(Silver mirror tables)]
+  RAW --&gt; H[(History / SCD2 tables)]
+  SIL --&gt; GOLD[(Gold marts)]
+  SNAP[Snapshot job - chunked read] --&gt; RAW
+  REC[Reconciliation: counts + checksums per table] -.-&gt; SIL
+  REC -.-&gt; DB</pre>
+<h2 id="data-model">Data model</h2>
+<p>Bronze change log per table: <code>pk columns, op (c/u/d/r), before (optional), after, source_ts, ingest_ts, log_position (LSN or binlog file+pos), txn_id, schema_version</code>.</p>
+<p>Silver mirror: the source columns plus <code>_deleted boolean</code> (soft delete), <code>_source_lsn</code>, <code>_updated_at</code>. Merge key = PK.</p>
+<p>History (SCD2): <code>pk, attrs..., valid_from, valid_to, is_current</code> built from ordered change events.</p>
+<h2 id="step-by-step-flow">Step-by-step flow</h2>
+<ol>
+<li>Create a replication slot (Postgres) or note the binlog position, then take a consistent snapshot. Debezium does snapshot + streaming handoff itself; for very large tables use incremental/chunked snapshots (Debezium incremental snapshots, check current docs) so streaming and backfill run together.</li>
+<li>Debezium emits an event per row change to Kafka, keyed by PK, preserving per-key order. Snapshot rows are marked <code>op = r</code>.</li>
+<li>Bronze sink appends events unchanged. This is the replayable record.</li>
+<li>Every 5 min Spark micro-batch reads new Bronze events, keeps the latest event per PK using <code>row_number() over (partition by pk order by log_position desc)</code>, then <code>MERGE INTO silver</code>:
+   - matched and <code>op = d</code> -&gt; delete (or set <code>_deleted</code>)
+   - matched and newer LSN -&gt; update (guard with <code>source_lsn &gt; target.source_lsn</code>)
+   - not matched and not delete -&gt; insert</li>
+<li>Schema change: Debezium picks up DDL; schema registry validates compatibility; additive columns are auto-added to Bronze and Silver; breaking changes route to an approval queue and the table is paused rather than corrupted.</li>
+<li>Reconciliation job (hourly/daily): per table compare <code>count(*)</code> and a rolling checksum (sum of hashes by PK range) between source replica and Silver at a fixed LSN/time; alert on mismatch.</li>
+</ol>
+<h2 id="failure-modes">Failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Failure</th>
+<th>Handling</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Replication slot not consumed -&gt; WAL fills source disk</td>
+<td>Alert on slot lag/bytes, heartbeat events, max slot size limits, runbook to drop and re-snapshot</td>
+</tr>
+<tr>
+<td>Connector restart replays events</td>
+<td>Merge is idempotent via LSN guard</td>
+</tr>
+<tr>
+<td>Out-of-order across tables</td>
+<td>Do not assume cross-table order; join on eventual consistency or use txn_id for atomic groups</td>
+</tr>
+<tr>
+<td>Hard deletes missed (query-based CDC)</td>
+<td>Use log-based CDC or periodic full-key diff</td>
+</tr>
+<tr>
+<td>Large transaction or bulk update (10M rows)</td>
+<td>Backpressure, bigger batches, isolate heavy tables to own connector</td>
+</tr>
+<tr>
+<td>DDL incompatible change</td>
+<td>Pause table, alert owner, replay from Bronze after migration</td>
+</tr>
+<tr>
+<td>TOAST/unchanged columns not in event (Postgres)</td>
+<td>Set replica identity full on affected tables or merge with previous values (check current docs)</td>
+</tr>
+<tr>
+<td>Snapshot and stream gap</td>
+<td>Use connector-provided consistent snapshot offset, validate with reconciliation</td>
+</tr>
+<tr>
+<td>Source failover changes log positions</td>
+<td>Use logical slots on primary with failover support (version specific, check current docs) or re-snapshot</td>
+</tr>
+</tbody>
+</table>
+<h2 id="trade-offs">Trade-offs</h2>
+<ul>
+<li>Log-based CDC vs timestamp-based incremental: log-based captures deletes and intermediate states with low load, but needs DB config privileges and ops. Timestamp polling is simpler but misses deletes and has race windows.</li>
+<li>Merge-on-read vs copy-on-write tables: merge-on-read favors write-heavy CDC with periodic compaction; copy-on-write favors read performance. Choose per table churn.</li>
+<li>Mirror latency vs cost: 5-min micro-batches rewrite files often; 15 min cuts cost. Ask whether true 5 min is needed.</li>
+<li>Managed service (DMS, Datastream, Fivetran, Airbyte) vs self-run Debezium: managed is faster to launch; self-run offers control and lower per-row cost at scale (check current docs for connector support).</li>
+<li>Soft vs hard delete in Silver: soft keeps audit but must be filtered in views; hard simplifies queries but conflicts with history needs.</li>
+</ul>
+<h2 id="follow-up-questions">Follow-up questions</h2>
+<ol>
+<li>How do you backfill one table that was corrupted? (re-snapshot into a side table, replay change log from snapshot LSN, swap)</li>
+<li>How do you guarantee the snapshot and stream do not lose or duplicate rows at handoff?</li>
+<li>Two tables updated in one transaction: how do analysts see a consistent view? (txn markers, publish only up to a safe watermark LSN common to all tables)</li>
+<li>How do you handle PII columns? (hash/tokenize in a Kafka SMT or first processing step; separate restricted table)</li>
+<li>How would you produce SCD2 from out-of-order events? (order by LSN, window functions with lead for valid_to)</li>
+<li>What do you monitor? (slot lag, connector status, end-to-end commit-to-visible latency, reconciliation diff, DLQ size)</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../../14-data-engineering/week-07-pipeline-design/designs/01-clickstream-analytics.html">← Design 1: Clickstream / Event Analytics Pipeline</a><a class="next" href="../../../14-data-engineering/week-07-pipeline-design/designs/03-realtime-metrics-dashboard.html">Design 3: Real-Time Dashboard / Metrics (Ride-Hailing Surge and ETA Stats) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../../assets/data.js"></script><script src="../../../assets/app.js"></script></body></html>

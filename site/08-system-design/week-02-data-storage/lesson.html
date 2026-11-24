@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 2 - Data and Storage: Replication, Sharding, SQL vs NoSQL, Consistency | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="08-system-design/week-02-data-storage/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../08-system-design/README.html">System Design</a> / <a href="../../08-system-design/week-02-data-storage/lesson.html">Week 2 · Data and storage</a> / <span>Lesson</span></nav><button id="mark-done" data-id="08-system-design/week-02-data-storage/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-2-data-and-storage-replication-sharding-sql-vs-nosql-consistency">Week 2 - Data and Storage: Replication, Sharding, SQL vs NoSQL, Consistency</h1>
+<p>Time budget: ~3 hrs. Read lesson (1.5h), Q&amp;A aloud (1h), cheatsheet (0.5h).
+Numbers marked "(check current docs)" change over time; verify before quoting in an interview.
+AWS tie-in: see ../../07-aws/week-03-storage-databases (RDS/Aurora, DynamoDB, ElastiCache) for the managed versions of everything here.</p>
+<p>Why this week matters: in almost every system design interview the hard part is the data layer. Compute is easy to scale because it is stateless (week 1). State is not. Everything in this lesson is a answer to two forces:</p>
+<ol>
+<li>One machine cannot hold or serve all the data (so: partition it).</li>
+<li>One machine can die (so: copy it).
+Copying creates the consistency problem. Partitioning creates the routing, hot-spot, and cross-partition-query problems. The rest is detail.</li>
+</ol>
+<hr />
+<h2 id="1-replication-keeping-copies-of-data">1. Replication: keeping copies of data</h2>
+<p>Reasons to replicate: (a) availability - survive node/AZ loss, (b) read scalability - spread reads, (c) latency - put copies near users. Replication does NOT help write throughput in single-leader designs (every replica applies every write).</p>
+<h3 id="11-single-leader-leader-follower-primary-replica">1.1 Single-leader (leader-follower, primary-replica)</h3>
+<div class="highlight"><pre><span></span><code>            writes
+   client ---------&gt; +--------+   replication log (WAL / binlog / oplog)
+                     | LEADER |------------------+-----------------+
+                     +--------+                  |                 |
+                         ^                       v                 v
+   client ---reads-------+---------------&gt;  +----------+      +----------+
+        (or from followers)                 | FOLLOWER |      | FOLLOWER |
+                                            +----------+      +----------+
+</code></pre></div>
+
+<ul>
+<li>All writes go to the leader; it appends to a log; followers apply the log in order.</li>
+<li>Examples: PostgreSQL streaming replication, MySQL, MongoDB replica sets, Redis replication, Kafka partition leaders, Aurora (shared storage variant; check current docs).</li>
+<li>Sync vs async:</li>
+<li>Synchronous: leader waits for follower ack. No data loss if leader dies, but a slow/dead follower blocks writes. Writes are as slow as the slowest sync follower.</li>
+<li>Asynchronous: leader acks immediately. Fast, but if leader dies before the log ships, acknowledged writes are LOST on failover. Replication lag appears.</li>
+<li>Semi-sync: 1 sync follower, rest async (so there are always &gt;= 2 copies). Common compromise (MySQL semi-sync, Postgres synchronous_commit with one named standby).</li>
+<li>Replication log formats: statement-based (non-deterministic functions break it), WAL shipping (physical, tied to storage engine version), logical/row-based (portable, used by CDC like Debezium).</li>
+</ul>
+<p>Failover (the dangerous part):</p>
+<ol>
+<li>Detect leader dead (timeouts - too short = false positives and flapping, too long = long outage).</li>
+<li>Elect new leader (usually the most up-to-date follower).</li>
+<li>Reconfigure clients/followers to the new leader.
+Failure modes:</li>
+</ol>
+<ul>
+<li>Lost writes: new leader missing the last async writes. When the old leader comes back it has conflicting writes; typically discarded (GitHub famously had an incident where a lagging MySQL follower was promoted and reused auto-increment IDs that were already in Redis - lesson: discarding writes is dangerous when other systems saw them).</li>
+<li>Split brain: two nodes both believe they are leader and both accept writes. Mitigation: consensus-based election (Raft/etcd, ZooKeeper), fencing tokens / STONITH (week 4).</li>
+<li>Replication lag anomalies (next section).</li>
+</ul>
+<p>Replication lag anomalies (what users actually see with async followers):</p>
+<div class="highlight"><pre><span></span><code> Read-your-writes violation:
+   user posts comment -&gt; leader        user refreshes -&gt; follower (lagging)  -&gt; comment "gone"
+
+ Monotonic reads violation (time goes backwards):
+   read 1 -&gt; fresh follower A sees comment
+   read 2 -&gt; stale follower B        -&gt; comment disappears
+
+ Consistent prefix violation:
+   Q: "How far in the future can you see?"  A: "About 10 seconds"
+   observer sees the answer before the question (different partitions replicate at different speeds)
+</code></pre></div>
+
+<p>Fixes:</p>
+<ul>
+<li>Read-your-writes: read your own recent writes from the leader (e.g., "for 1 minute after a write, read user's profile from leader"), or track a last-write timestamp/LSN and only use followers that have caught up, or sticky routing to one replica.</li>
+<li>Monotonic reads: pin each user to one replica (hash user id).</li>
+<li>Consistent prefix: write causally related data to the same partition.</li>
+</ul>
+<h3 id="12-multi-leader-multi-master">1.2 Multi-leader (multi-master)</h3>
+<div class="highlight"><pre><span></span><code>   Region US                         Region EU
+  +----------+   async replication  +----------+
+  | LEADER A |&lt;--------------------&gt;| LEADER B |
+  +----------+                      +----------+
+     |  |                              |  |
+   followers                         followers
+</code></pre></div>
+
+<p>When: multi-datacenter (local writes in each region, tolerate inter-DC link failure), offline-capable clients (each device is a "leader": calendar apps, Notes), collaborative editing.
+Cost: WRITE CONFLICTS. Two leaders accept concurrent writes to the same key; neither knew about the other.
+Conflict handling:</p>
+<ul>
+<li>Avoid: route all writes for a given record to the same leader (home region per user). Easiest and most common.</li>
+<li>Last-write-wins (LWW) by timestamp: simple, silently loses data, depends on clocks (week 4).</li>
+<li>Merge: keep both ("siblings") and let app/user resolve (Dynamo shopping cart, Riak), or use CRDTs / operational transform (Google Docs, Figma-like) - week 4.</li>
+<li>Custom resolution logic on write or on read.
+Other hazards: auto-increment keys collide, triggers/constraints/unique indexes are hard across leaders. Topology matters (circular/star/all-to-all; all-to-all can have causality issues where an update arrives before the insert it depends on).
+Examples: MySQL Group Replication multi-primary, Postgres BDR, CouchDB, Cassandra-across-DCs behaves leaderless but with multi-DC settings, DynamoDB global tables (multi-region, last-writer-wins; check current docs), Spanner avoids this by using Paxos groups plus TrueTime for one globally consistent order.</li>
+</ul>
+<h3 id="13-leaderless-dynamo-style">1.3 Leaderless (Dynamo style)</h3>
+<div class="highlight"><pre><span></span><code>   client writes to N replicas directly (or via a coordinator)
+         +--&gt; replica 1  (ack)
+ client -+--&gt; replica 2  (ack)     W=2 acks =&gt; success
+         +--&gt; replica 3  (down / slow)
+
+   client reads from R replicas, takes the newest version
+</code></pre></div>
+
+<ul>
+<li>Any replica accepts writes. No failover event at all: a dead node simply does not ack.</li>
+<li>Used by Amazon Dynamo paper, Cassandra, Riak, ScyllaDB (DynamoDB the service is NOT leaderless under the hood; it borrows the ideas but uses leader-based partitions - check current docs).</li>
+<li>Staleness repair mechanisms:</li>
+<li>Read repair: reader sees a stale replica in the R responses and writes the new value back.</li>
+<li>Anti-entropy: background process compares replicas (Merkle trees) and syncs differences.</li>
+<li>Hinted handoff: if the target replica is down, another node stores a "hint" and forwards it when the target returns (part of "sloppy quorum").</li>
+<li>Versioning: LWW timestamps (Cassandra default), or version vectors (Riak) to detect concurrency.</li>
+</ul>
+<h3 id="14-quorums-applies-to-leaderless-also-used-inside-raftpaxos-groups">1.4 Quorums (applies to leaderless; also used inside Raft/Paxos groups)</h3>
+<p>N replicas, write acked by W, read consults R. If <strong>W + R &gt; N</strong>, the read set and write set must overlap in at least one node, so a read sees the latest write (in the absence of other problems).</p>
+<div class="highlight"><pre><span></span><code> N=3, W=2, R=2:       write set {1,2}      read set {2,3}    overlap = node 2  -&gt; sees latest
+ N=3, W=1, R=1:       write {1}            read {3}          no overlap -&gt; may be stale (fast, eventually consistent)
+ N=3, W=3, R=1:       reads fast, writes block if ANY node down
+ N=3, W=1, R=3:       writes fast, reads fail if ANY node down
+</code></pre></div>
+
+<ul>
+<li>Tolerates N-W node failures for writes and N-R for reads. N=3,W=2,R=2 tolerates 1 failure either way. Typical production default: N=3, QUORUM = floor(N/2)+1.</li>
+<li>Cassandra consistency levels: ONE, QUORUM, LOCAL_QUORUM (quorum inside local DC, avoids cross-region latency), ALL. DynamoDB offers eventually consistent reads (default, half the read cost) vs strongly consistent reads (check current docs for cost).</li>
+<li>Quorum is NOT linearizability. Edge cases that still give stale reads even with W+R&gt;N:</li>
+<li>Sloppy quorums / hinted handoff (write went to nodes outside the "home" N, so R may not overlap).</li>
+<li>Concurrent writes resolved by LWW with clock skew (a "later" write gets an earlier timestamp and is dropped).</li>
+<li>A write that succeeded on fewer than W nodes returns an error but is NOT rolled back; readers may or may not see it.</li>
+<li>A node restored from a stale replica, breaking the W count.</li>
+<li>Read concurrent with a write in flight (some replicas new, some old).
+  For true linearizability you need consensus (Raft/Paxos) or read-modify-write via compare-and-set / lightweight transactions (Cassandra LWT = Paxos).</li>
+</ul>
+<h3 id="15-comparison">1.5 Comparison</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Single-leader</th>
+<th>Multi-leader</th>
+<th>Leaderless</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Write path</td>
+<td>One node</td>
+<td>One per region</td>
+<td>Any node</td>
+</tr>
+<tr>
+<td>Conflicts</td>
+<td>None (single order)</td>
+<td>Yes, must resolve</td>
+<td>Yes, must resolve</td>
+</tr>
+<tr>
+<td>Failover</td>
+<td>Needed, risky</td>
+<td>Per-leader</td>
+<td>Not needed</td>
+</tr>
+<tr>
+<td>Consistency</td>
+<td>Easy to reason about; strong possible</td>
+<td>Eventual</td>
+<td>Tunable via quorum</td>
+</tr>
+<tr>
+<td>Best for</td>
+<td>OLTP, most apps</td>
+<td>Multi-region writes, offline</td>
+<td>High availability, write-heavy, multi-DC</td>
+</tr>
+<tr>
+<td>Examples</td>
+<td>Postgres, MySQL, Mongo, Kafka</td>
+<td>Group repl., CouchDB</td>
+<td>Cassandra, Dynamo, Riak</td>
+</tr>
+</tbody>
+</table>
+<p>How interviewers probe: "What happens when the leader dies and a follower was 2 seconds behind?" "How do you give a user read-your-writes?" "Multi-region active-active: how do you handle the same row edited in two regions?" "Does W+R&gt;N guarantee linearizability?" (No.)</p>
+<hr />
+<h2 id="2-partitioning-sharding">2. Partitioning (sharding)</h2>
+<p>Replication copies the same data; partitioning splits DIFFERENT data across nodes so each holds a subset. Used when data or write throughput exceeds one machine. Almost always combined: each partition is itself replicated.</p>
+<div class="highlight"><pre><span></span><code>   keys A..Z  --partition--&gt;  P1: A-H [leader n1, followers n2,n3]
+                              P2: I-Q [leader n2, followers n3,n1]
+                              P3: R-Z [leader n3, followers n1,n2]
+</code></pre></div>
+
+<p>Goals: spread data AND load evenly; avoid hot spots; make rebalancing cheap; make routing simple.
+Terminology differs: shard (MongoDB, MySQL/Vitess), partition (Kafka, Cassandra, DynamoDB), region (HBase), tablet (Bigtable/Spanner), vnode (Cassandra/Riak).</p>
+<h3 id="21-range-partitioning">2.1 Range partitioning</h3>
+<ul>
+<li>Each partition owns a contiguous key range (A-H, I-Q, ...). Keys stay sorted within a partition.</li>
+<li>Pro: efficient range scans (<code>WHERE ts BETWEEN</code>), ordered iteration, easy to split a range.</li>
+<li>Con: hot spots when access follows the key order. Classic: time-series key (timestamp prefix) sends ALL current writes to the newest partition.
+  Fix: prefix with another dimension, e.g., <code>(sensor_id, timestamp)</code> so writes spread across sensors but each sensor's range scan is still local.</li>
+<li>Used by: HBase, Bigtable, Spanner, CockroachDB, TiKV, MongoDB range sharding, DynamoDB sort key within a partition key.</li>
+<li>Splitting: partition grows past threshold -&gt; split in two, move one half. Often automatic.</li>
+</ul>
+<h3 id="22-hash-partitioning">2.2 Hash partitioning</h3>
+<ul>
+<li>partition = hash(key) mod N or hash falls into a range of the hash space. Spreads keys uniformly.</li>
+<li>Pro: even distribution, removes ordering hot spots.</li>
+<li>Con: range queries are destroyed (adjacent keys land everywhere) -&gt; scatter-gather over all partitions. Cassandra compromise: compound key (partition key hashed, clustering columns sorted within the partition). DynamoDB: partition key hashed, sort key ordered within it.</li>
+<li>NAIVE <code>hash(key) mod N</code> is a trap: when N changes (add a node), almost every key remaps (about (N-1)/N of keys), causing a mass data migration. Hence consistent hashing or fixed partition counts.</li>
+</ul>
+<h3 id="23-consistent-hashing">2.3 Consistent hashing</h3>
+<div class="highlight"><pre><span></span><code>            hash ring (0 ... 2^32-1, wraps)
+                 nodeA
+            .--*--------.
+          /               \
+       *                   * nodeB
+   key k1 .                |
+         \   key k2 .      |
+          *                * nodeC
+            '-----*-----'
+   Rule: a key belongs to the first node clockwise from its hash.
+</code></pre></div>
+
+<ul>
+<li>Add a node: it takes over only the arc between it and its predecessor -&gt; only about K/N keys move (K keys, N nodes). Remove a node: its keys go to the next node clockwise.</li>
+<li>Problem with plain version: uneven arcs, and when a node dies ALL its load goes to one neighbor (cascading overload).</li>
+<li>Virtual nodes (vnodes): each physical node owns many (e.g., 100-256) small points on the ring. Load spreads evenly; a dead node's load is shared by many; powerful machines get more vnodes. Cassandra (num_tokens, check current docs for default), Riak, Dynamo.</li>
+<li>Replication on the ring: store a key on the next N distinct physical nodes clockwise (the "preference list").</li>
+<li>Alternatives: rendezvous (highest random weight) hashing, jump consistent hash (Google; needs sequential bucket numbering), fixed number of partitions (Kafka, Elasticsearch, Couchbase's 1024 vBuckets, Redis Cluster's 16384 hash slots) where partitions are assigned to nodes and only whole partitions move.</li>
+<li>Redis Cluster: slot = CRC16(key) mod 16384; each master owns a slot set; resharding moves slots; clients follow MOVED/ASK redirects. Hash tags <code>{user1}</code> force related keys into one slot.</li>
+</ul>
+<h3 id="24-rebalancing-strategies">2.4 Rebalancing strategies</h3>
+<table>
+<thead>
+<tr>
+<th>Strategy</th>
+<th>How</th>
+<th>Pros/cons</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fixed partitions</td>
+<td>Create many more partitions than nodes (e.g., 1000 for 10 nodes); move whole partitions</td>
+<td>Simple, cheap; partition count must be chosen up front, too big = overhead, too small = unsplittable</td>
+</tr>
+<tr>
+<td>Dynamic splitting</td>
+<td>Split a partition when it exceeds size; merge when small</td>
+<td>Adapts to data; starts with one partition (pre-split to avoid initial hot spot)</td>
+</tr>
+<tr>
+<td>Proportional to nodes</td>
+<td>Fixed number of partitions per node (Cassandra)</td>
+<td>Partition size stays steady as cluster grows</td>
+</tr>
+<tr>
+<td>Automatic rebalancing is convenient but dangerous: moving huge data while the cluster is already overloaded (which may be why a node looked "dead") can cause cascading failure. Many systems keep a human in the loop for approval.</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="25-routing-how-does-a-client-find-the-partition">2.5 Routing (how does a client find the partition?)</h3>
+<ol>
+<li>Any node: client contacts any node, it forwards (Cassandra gossip, Redis MOVED).</li>
+<li>Routing tier / proxy: a partition-aware load balancer (mongos, Vitess vtgate, Twemproxy).</li>
+<li>Partition-aware client: client has the map.
+The map is kept in a coordination service (ZooKeeper, etcd) or spread by gossip (week 4).</li>
+</ol>
+<h3 id="26-secondary-indexes-on-partitioned-data">2.6 Secondary indexes on partitioned data</h3>
+<ul>
+<li>Local (document-partitioned) index: each partition indexes only its own documents. Write touches one partition; read by secondary attribute must scatter-gather to ALL partitions (tail latency amplification). Used by MongoDB, Cassandra, Elasticsearch.</li>
+<li>Global (term-partitioned) index: index itself is partitioned by the indexed term. Reads hit one partition; a write touches several partitions and is usually async (so indexes can lag). DynamoDB GSI (eventually consistent, check current docs), Spanner global indexes (transactional but costlier).</li>
+<li>Interview line: "Local = fast writes, slow reads; global = fast reads, slow/complex writes."</li>
+</ul>
+<h3 id="27-hot-keys-and-skew">2.7 Hot keys and skew</h3>
+<p>Hashing spreads keys, not LOAD. A celebrity user, viral post, or a single tenant creates a hot partition.
+Mitigations:</p>
+<ul>
+<li>Key salting / splitting: append a random suffix (key#0..key#9) for writes, read all 10 and merge. Costs read amplification; track which keys are hot (app-level knowledge).</li>
+<li>Cache in front: hot reads absorbed by Redis/CDN; local in-process cache with short TTL for the hottest keys.</li>
+<li>Replicate the hot key's data to more nodes (read hot partitions from several replicas).</li>
+<li>Request coalescing, write batching/aggregation (counters: buffer increments in memory and flush).</li>
+<li>Isolation: dedicate partitions to big tenants.</li>
+<li>DynamoDB: adaptive capacity and split-for-heat reduce but do not remove per-partition limits (check current docs: per-partition throughput limits of roughly 3000 RCU / 1000 WCU historically).
+Failure mode: one hot shard causes timeouts, retries pile up (retry storm), the shard is overloaded further; cluster-wide capacity looks fine but one node is pinned at 100%.</li>
+</ul>
+<h3 id="28-cross-partition-operations">2.8 Cross-partition operations</h3>
+<ul>
+<li>Joins and transactions spanning shards are expensive: scatter-gather, 2PC, or sagas (week 4).</li>
+<li>Design rule: choose the partition key so the MOST COMMON access pattern is single-partition. E.g., chat: partition by conversation_id; e-commerce: by user_id (orders per user) or tenant_id (multi-tenant SaaS).</li>
+<li>Choosing the key is the single most-probed topic: state access patterns, cardinality (many distinct values), uniformity, and write/read skew.</li>
+</ul>
+<hr />
+<h2 id="3-sql-vs-nosql-how-to-choose">3. SQL vs NoSQL: how to choose</h2>
+<p>Do not answer "NoSQL scales better". Answer from access patterns, consistency needs, and operational scale.</p>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th>Relational (Postgres, MySQL, Aurora)</th>
+<th>Key-value / wide-column (DynamoDB, Cassandra, Bigtable)</th>
+<th>Document (MongoDB, Firestore)</th>
+<th>Distributed SQL (Spanner, CockroachDB, TiDB, Aurora DSQL?)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Data model</td>
+<td>Normalized tables, joins</td>
+<td>Key -&gt; value / rows by partition+sort key</td>
+<td>Nested JSON docs</td>
+<td>Relational</td>
+</tr>
+<tr>
+<td>Queries</td>
+<td>Ad hoc, joins, aggregates</td>
+<td>Known access patterns only</td>
+<td>Rich per-document queries</td>
+<td>Ad hoc SQL</td>
+</tr>
+<tr>
+<td>Transactions</td>
+<td>Full ACID (single node)</td>
+<td>Limited (item-level; DynamoDB has multi-item transactions with limits)</td>
+<td>Multi-doc transactions exist, costlier</td>
+<td>ACID across shards</td>
+</tr>
+<tr>
+<td>Scale writes</td>
+<td>Vertical; manual sharding</td>
+<td>Horizontal, near-linear</td>
+<td>Horizontal via sharding</td>
+<td>Horizontal, automatic</td>
+</tr>
+<tr>
+<td>Consistency</td>
+<td>Strong</td>
+<td>Tunable (eventual default in many)</td>
+<td>Tunable</td>
+<td>Strong (external consistency in Spanner)</td>
+</tr>
+<tr>
+<td>Schema</td>
+<td>Rigid, migrations</td>
+<td>Flexible</td>
+<td>Flexible</td>
+<td>Rigid</td>
+</tr>
+<tr>
+<td>Price of scale</td>
+<td>Complexity of sharding</td>
+<td>Design queries up front; denormalize</td>
+<td>Moderate</td>
+<td>Higher latency on writes (consensus + cross-region), cost</td>
+</tr>
+</tbody>
+</table>
+<p>Use relational when: relationships and ad hoc queries matter, strong consistency/transactions (payments, inventory, bookings), data fits a primary + replicas (a well-tuned Postgres handles surprising volume: single instance often tens of thousands of simple QPS; terabytes of data - check current docs/benchmarks).
+Use wide-column / KV when: huge write throughput, simple access by key, predictable single-digit-ms latency at any scale, known queries (user activity feeds, IoT, session stores, messaging history).
+Use document when: aggregates read/written as a unit, schema varies, rapid iteration.
+Use distributed SQL when: you need SQL + transactions AND horizontal scale/geo-distribution, and can pay latency/cost.
+Other stores to name: search (Elasticsearch/OpenSearch) for full-text; graph (Neo4j) for deep relationship traversal; time-series (Timescale, InfluxDB, Prometheus); columnar/OLAP (Redshift, BigQuery, ClickHouse); object store (S3) for blobs; in-memory (Redis) for cache/leaderboards/locks.</p>
+<p>Pragmatic framing (works well in interviews): "Start with Postgres. Add read replicas and caching. Shard or move a specific hot table to a NoSQL store when a measured bottleneck demands it. I would pick DynamoDB/Cassandra up front only when write volume or availability requirements clearly exceed what a single-leader RDBMS gives."</p>
+<p>Polyglot persistence: system of record (RDBMS) + derived stores (search index, cache, analytics) kept in sync via CDC / events (week 3: outbox). The derived stores are rebuildable; the source of truth is single.</p>
+<p>Denormalization: in NoSQL you model tables per query ("single-table design" in DynamoDB). Trade: fast reads, but updates must touch many copies; consistency between copies is YOUR problem.</p>
+<p>Case: DynamoDB data modelling example</p>
+<div class="highlight"><pre><span></span><code> PK = USER#123          SK = PROFILE
+ PK = USER#123          SK = ORDER#2026-11-01#9001
+ PK = USER#123          SK = ORDER#2026-11-14#9042
+ Query(PK=USER#123, SK begins_with ORDER#) -&gt; a user's orders sorted by date in ONE partition, single request.
+ GSI on (status, created_at) for "all PENDING orders" (watch for hot GSI partition if status has low cardinality).
+</code></pre></div>
+
+<hr />
+<h2 id="4-indexes-at-scale">4. Indexes at scale</h2>
+<p>Recap: an index trades write cost + storage for faster reads.</p>
+<p>Storage engine families:</p>
+<div class="highlight"><pre><span></span><code> B-tree (Postgres, MySQL InnoDB, most RDBMS)         LSM-tree (Cassandra, RocksDB, LevelDB, HBase, Bigtable)
+  - update-in-place pages (typically 4-16 KB)         - writes go to memtable + WAL, flushed as immutable sorted SSTables
+  - good read latency, range scans                    - background compaction merges SSTables
+  - write amplification from page splits/WAL          - very high write throughput (sequential IO)
+  - predictable reads                                 - reads may check several SSTables -&gt; Bloom filters avoid useless disk reads
+                                                      - compaction can spike IO/latency; space amplification
+</code></pre></div>
+
+<p>Rule of thumb: B-tree for read-heavy/OLTP general purpose; LSM for write-heavy, append-heavy, huge ingest.</p>
+<p>Index types you should name:</p>
+<ul>
+<li>Primary vs secondary; clustered (data stored in index order, InnoDB) vs non-clustered/heap (Postgres).</li>
+<li>Composite index: order matters; leftmost-prefix rule. <code>(user_id, created_at)</code> serves <code>WHERE user_id=?</code> and <code>WHERE user_id=? ORDER BY created_at</code>, not <code>WHERE created_at=?</code> alone.</li>
+<li>Covering index: contains all columns the query needs -&gt; index-only scan, no table lookup.</li>
+<li>Partial index (index only rows matching a predicate, e.g., <code>WHERE status='PENDING'</code>), unique, hash, GIN (full-text/JSON/array), GiST (geo), BRIN (huge ordered tables, tiny index).</li>
+<li>Geospatial: geohash, quadtree, S2 (Google), H3 (Uber) - relevant to ride-hailing (week 6).</li>
+<li>Inverted index (search engines): term -&gt; posting list of doc ids.</li>
+<li>Bloom filters (week 4): per-SSTable "definitely not here" check.</li>
+</ul>
+<p>Scale problems:</p>
+<ul>
+<li>Index size must fit in RAM for good performance; if the hot index exceeds memory, latency cliff.</li>
+<li>Write amplification: every extra index slows every INSERT/UPDATE. Over-indexing is a real production issue. Drop unused indexes (check pg_stat_user_indexes).</li>
+<li>Low-cardinality columns (boolean, status) make poor B-tree indexes alone; combine in composite/partial.</li>
+<li>Random keys (UUIDv4) as clustered primary key cause page splits and cache-unfriendly inserts; time-ordered IDs (UUIDv7, ULID, Snowflake) keep inserts append-like but beware hot-range on distributed range-partitioned stores.</li>
+<li>Online index creation (<code>CREATE INDEX CONCURRENTLY</code>) on huge tables; avoid long locks.</li>
+<li>Pagination: OFFSET N scans and discards N rows (slow deep pages); use keyset/cursor pagination (<code>WHERE (created_at, id) &lt; (?, ?) ORDER BY ... LIMIT 20</code>) - ties into week 5 API design.</li>
+<li>Distributed secondary indexes: see 2.6.</li>
+<li>Search/analytics workloads: do not run on the OLTP primary; ship to Elasticsearch/ClickHouse/warehouse via CDC.</li>
+<li>Use EXPLAIN (ANALYZE) to verify; stale statistics lead to bad plans.</li>
+</ul>
+<p>Interviewer probe: "Query is slow on a 500M-row table. Walk me through." Answer: EXPLAIN -&gt; missing/wrong index -&gt; composite order -&gt; covering -&gt; partition the table (by time) -&gt; archive old data -&gt; read replica -&gt; cache -&gt; denormalize/precompute -&gt; shard.</p>
+<hr />
+<h2 id="5-cap-and-pacelc">5. CAP and PACELC</h2>
+<h3 id="51-cap-brewer-formalized-by-gilbert-lynch">5.1 CAP (Brewer; formalized by Gilbert &amp; Lynch)</h3>
+<p>In the presence of a network <strong>P</strong>artition, a distributed data store must choose between <strong>C</strong>onsistency (linearizability: every read sees the latest write, as if one copy) and <strong>A</strong>vailability (every non-failing node answers every request).</p>
+<div class="highlight"><pre><span></span><code>   Partition: link between node A and node B is cut
+     Client1 --&gt; A  write x=2 ...     Client2 --&gt; B  read x
+   CP choice: B refuses (error/timeout) or A refuses write  -&gt; consistent, not available
+   AP choice: B answers with old x=1, A accepts x=2         -&gt; available, inconsistent (must reconcile later)
+</code></pre></div>
+
+<p>Correct understanding (commonly botched):</p>
+<ul>
+<li>It is NOT "pick any two of three". Partitions are not optional in a distributed system; the real choice is C vs A DURING a partition. When there is no partition you can have both.</li>
+<li>"C" in CAP means linearizability, not the "C" of ACID (which is about invariants/integrity).</li>
+<li>"A" in CAP means every request to a non-failed node gets a non-error response - a strong definition; most real systems are "mostly available".</li>
+<li>It is a per-operation property, not a per-database label. Cassandra can act CP-ish with QUORUM, DynamoDB offers both read modes, Spanner is CP but with very high availability engineering (Google's argument: partitions are rare because of private network, so "effectively CA" in practice).</li>
+<li>Typical classification (approximate, depends on configuration): CP - etcd, ZooKeeper, Consul, HBase, Spanner, MongoDB (default majority concerns), Redis Cluster (loses writes on partition; not strongly consistent anyway). AP - Cassandra, DynamoDB (default), Riak, CouchDB.</li>
+<li>Single-node RDBMS: CAP not applicable (no network between replicas). Single-leader with async replicas: effectively sacrifices C on replica reads, and may lose data on failover.</li>
+</ul>
+<h3 id="52-pacelc-abadi">5.2 PACELC (Abadi)</h3>
+<p>"If there is a Partition, choose Availability or Consistency; Else (normal operation), choose Latency or Consistency."
+Why: even without partitions, replicating synchronously (for consistency) costs latency (round trips to other replicas/regions).</p>
+<table>
+<thead>
+<tr>
+<th>System</th>
+<th>P: A or C</th>
+<th>E: L or C</th>
+<th>Notation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cassandra, Dynamo, Riak</td>
+<td>A</td>
+<td>L</td>
+<td>PA/EL</td>
+</tr>
+<tr>
+<td>MongoDB (default settings; check current docs)</td>
+<td>A or C depending on write concern</td>
+<td>L</td>
+<td>commonly PA/EC listed in papers, depends on config</td>
+</tr>
+<tr>
+<td>Spanner, CockroachDB, FaunaDB</td>
+<td>C</td>
+<td>C</td>
+<td>PC/EC</td>
+</tr>
+<tr>
+<td>PNUTS (Yahoo)</td>
+<td>C</td>
+<td>L</td>
+<td>PC/EL</td>
+</tr>
+<tr>
+<td>DynamoDB</td>
+<td>A (eventual reads) / tunable</td>
+<td>L (default) / C (strong read)</td>
+<td>PA/EL default</td>
+</tr>
+<tr>
+<td>Interview line: "CAP is only about the failure case. PACELC reminds me that the more common trade-off is latency vs consistency, which is why I'd read from a local replica for a feed but go to the leader for a balance check."</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="6-consistency-models-from-strongest-to-weakest">6. Consistency models (from strongest to weakest)</h2>
+<div class="highlight"><pre><span></span><code> Strict / linearizable  (strong)       one global real-time order; reads return latest committed write
+        |
+ Sequential                            one global order consistent with each client's program order; not real-time
+        |
+ Causal                                causally related ops seen in order; concurrent ops may differ per observer
+        |
+ Session guarantees (read-your-writes, monotonic reads, monotonic writes, writes-follow-reads)
+        |
+ Eventual                              if writes stop, replicas converge eventually; no ordering guarantee meanwhile
+</code></pre></div>
+
+<p>Definitions to give crisply:</p>
+<ul>
+<li><strong>Strong / linearizable</strong>: system behaves as if there is a single copy and operations occur atomically at some point between invocation and response. Needed for: locks/leader election, unique constraints (username), bank balance, inventory with no oversell. Cost: coordination (consensus, leader reads) -&gt; latency, reduced availability under partition.</li>
+<li><strong>Sequential</strong>: same order seen by everyone, but may lag real time.</li>
+<li><strong>Causal</strong>: if B depends on A (reply to a message), everyone sees A before B. Concurrent writes may be seen in different orders. Achievable without sacrificing availability (a "strongest AP" model). Implemented via version vectors / dependency tracking (COPS, MongoDB causal sessions, check docs).</li>
+<li><strong>Read-your-writes (read-after-write)</strong>: you see your own updates. Session guarantee.</li>
+<li><strong>Monotonic reads</strong>: once you see a value, you never see an older one.</li>
+<li><strong>Eventual</strong>: replicas converge; the weakest useful guarantee. Often paired with conflict resolution (LWW, CRDTs). "Eventual" says nothing about HOW long; in practice ms to seconds, but under failure much longer.</li>
+<li><strong>Bounded staleness</strong> (Cosmos DB): reads lag by at most K versions or T seconds. Good product-friendly model.</li>
+</ul>
+<p>ACID "C" and isolation levels (separate axis - single-node transaction isolation):</p>
+<ul>
+<li>Read committed (no dirty reads), snapshot isolation / repeatable read (consistent snapshot; write skew possible), serializable (as if one at a time; SSI, 2PL, or actual serial execution). Anomalies: dirty read, non-repeatable read, phantom, lost update, write skew.</li>
+<li>Do not confuse isolation (concurrent transactions on one DB) with distributed consistency (replicas agree).</li>
+<li>Spanner "external consistency": strict serializability using TrueTime commit-wait (week 4).</li>
+</ul>
+<p>Choosing consistency per use case:
+| Use case | Needs | Why |
+|---|---|---|
+| Account balance, payment ledger, inventory decrement, unique username | Strong (linearizable / serializable) | invariant violations cost money |
+| Social feed, like counts, view counters, recommendations | Eventual | stale is harmless |
+| User's own profile edit, own post | Read-your-writes | UX: "my change vanished" |
+| Chat message order within a conversation | Causal / per-conversation ordering | replies before questions look broken |
+| Shopping cart | Eventual with merge (Dynamo) | availability beats perfect accuracy; reconcile at checkout |
+| Config / leader / lock | Linearizable (etcd) | correctness of coordination |</p>
+<p>Practical patterns for getting "enough" consistency cheaply:</p>
+<ul>
+<li>Route reads that must be fresh to the leader; everything else to replicas.</li>
+<li>Version numbers / ETags / compare-and-set (optimistic concurrency) to avoid lost updates.</li>
+<li>Idempotency keys (week 3) so retries do not double apply.</li>
+<li>Single-writer per entity (partition by entity id; actor-like) turns a distributed problem into a local one.</li>
+</ul>
+<hr />
+<h2 id="7-real-world-systems-cheat-tour">7. Real-world systems cheat tour</h2>
+<ul>
+<li><strong>Amazon Dynamo (2007 paper)</strong> / <strong>Cassandra</strong>: consistent hashing + vnodes, leaderless, quorum (N,R,W), sloppy quorum + hinted handoff, read repair, Merkle-tree anti-entropy, gossip membership, vector clocks (Dynamo) vs LWW timestamps (Cassandra). LSM storage. Strengths: write availability, multi-DC. Weakness: no joins, tombstone/compaction ops pain, LWT slow, hot partitions, wide partitions &gt;100MB (guidance; check docs) hurt.</li>
+<li><strong>DynamoDB (managed service)</strong>: partition key hash + sort key; automatic splitting; on-demand vs provisioned capacity; GSI/LSI; Streams (CDC); transactions (limited); global tables (multi-region, LWW). Great fit when access patterns are known. See ../../07-aws/week-03-storage-databases.</li>
+<li><strong>Spanner</strong>: range-partitioned "splits", each a Paxos group (leader + replicas across zones/regions); TrueTime (GPS + atomic clocks, bounded uncertainty epsilon of a few ms) to assign commit timestamps and "commit-wait" for external consistency; SQL; 2PC across Paxos groups for multi-split txns. Cost: write latency includes cross-zone/region consensus.</li>
+<li><strong>Kafka</strong>: topic partitions with single-leader replication; ISR (in-sync replica set); <code>acks=all</code> + <code>min.insync.replicas=2</code> for durability; consumer reads from the log by offset (details in week 3). Illustrates leader-based replication + partition by key for ordering.</li>
+<li><strong>Redis</strong>: single-leader async replication; Sentinel for failover or Cluster for 16384-slot sharding; async means acknowledged writes can be lost on failover; WAIT command can force replica acks but is not a full guarantee. Use as cache or ephemeral store, not primary of record, unless you accept the risk.</li>
+<li><strong>Postgres/MySQL</strong>: single-leader, async or sync replicas; sharding via Vitess (YouTube/Slack), Citus, or app-level; Aurora separates compute/storage with 6 copies across 3 AZs and a 4/6 write quorum, 3/6 read quorum (check current docs).</li>
+<li><strong>etcd/ZooKeeper/Consul</strong>: Raft/ZAB consensus clusters (3 or 5 nodes) for small, critical, strongly consistent metadata. Not for bulk data.</li>
+<li><strong>MongoDB</strong>: replica set per shard (single-leader, Raft-like election), config servers hold chunk map, mongos routes; hashed or ranged shard keys; shard key choice is effectively permanent (resharding exists in recent versions; check current docs).</li>
+</ul>
+<hr />
+<h2 id="8-common-failure-modes-memorize-a-few">8. Common failure modes (memorize a few)</h2>
+<ol>
+<li><strong>Replication lag spike</strong>: stale reads, features broken (read-your-writes). Cause: long transaction on follower, heavy write burst, network. Mitigation: monitor lag, route to leader, backpressure.</li>
+<li><strong>Split brain</strong> after failover: two leaders; mitigated by quorum-based election and fencing.</li>
+<li><strong>Lost acknowledged writes</strong>: async replication + leader crash. Mitigate: sync/semi-sync, acks=all, accept RPO.</li>
+<li><strong>Hot partition / hot key</strong>: celebrity, time-series key, low-cardinality GSI. Mitigate: salting, caching, better key.</li>
+<li><strong>Resharding storm</strong>: adding nodes triggers data movement that overloads the cluster. Mitigate: throttle, off-peak, vnodes, pre-split.</li>
+<li><strong>Scatter-gather tail latency</strong>: p99 of N shards combined (if each has 1% slow, with 100 shards ~63% of requests hit a slow one). Mitigate: hedged requests, fewer shards per query, global indexes.</li>
+<li><strong>Thundering herd after node restart</strong>: cold caches, replica catch-up. Mitigate: staged rejoin, warmup.</li>
+<li><strong>Clock skew + LWW</strong>: silently dropped writes. Mitigate: logical/hybrid clocks, version vectors, avoid LWW for important data.</li>
+<li><strong>Cascading failure from retries</strong> (week 3): retry storms on a degraded shard.</li>
+<li><strong>Tombstones</strong> (LSM deletes): mass deletes in Cassandra create tombstones that slow reads; TTL design matters.</li>
+<li><strong>Unbounded partitions</strong>: a partition key with ever-growing data (e.g., <code>PK=tenant</code>) -&gt; giant partition; bucket by time.</li>
+<li><strong>Schema/index migration lock</strong> on a huge table: use online migration tools (gh-ost, pt-osc, CONCURRENTLY).</li>
+</ol>
+<hr />
+<h2 id="9-how-interviewers-probe-this-topic">9. How interviewers probe this topic</h2>
+<ul>
+<li>"Which database and why?" -&gt; They want access patterns, read/write ratio, consistency needs, scale numbers (QPS, GB), NOT brand names. Always quantify (week 1 estimation): 50K writes/s with 1KB rows = 50MB/s, ~4TB/day -&gt; outgrows a single node -&gt; partition.</li>
+<li>"How do you shard? What is the shard key?" -&gt; propose key, justify cardinality + access pattern, name the downside (cross-shard queries), name hot-key mitigation, explain rebalancing (consistent hashing/fixed partitions).</li>
+<li>"What happens when a node fails?" -&gt; replication factor, failover/quorum, data loss window (RPO), recovery time (RTO), who detects.</li>
+<li>"Is that strongly consistent?" -&gt; define the model; do not say "yes" for quorum reads without caveats.</li>
+<li>"Explain CAP" -&gt; include P is a given, C=linearizability, per-operation, then PACELC.</li>
+<li>"What if two users edit the same record in different regions?" -&gt; single home region, LWW pitfalls, CRDTs/merge.</li>
+<li>"How would you scale reads? writes?" -&gt; reads: replicas, cache, CDN; writes: partitioning, batching, async/queue (week 3), LSM store.</li>
+<li>Senior signal: say what you would NOT do (do not shard prematurely, do not use quorum as a lock, do not use LWW for money), and mention operational pain (resharding, backups, schema change).</li>
+<li>FDE angle: customers have messy existing data stores; talk about CDC to migrate without downtime, dual writes risks, validating consistency after migration (shadow reads, checksums).</li>
+</ul>
+<hr />
+<h2 id="10-self-check-answer-without-notes">10. Self-check (answer without notes)</h2>
+<ol>
+<li>Draw single-leader with async followers and name 3 lag anomalies and their fixes.</li>
+<li>Why does hash mod N fail when N changes? How does consistent hashing with vnodes fix it?</li>
+<li>N=5, W=3, R=3: what failures are tolerated; is it linearizable? Why not necessarily?</li>
+<li>Local vs global secondary index trade-offs.</li>
+<li>One sentence each: CAP, PACELC, linearizable, causal, read-your-writes.</li>
+<li>Pick consistency models for: bank transfer, tweet likes, chat, shopping cart, leader lock.</li>
+<li>Design the shard key for: chat history, orders, time-series metrics, multi-tenant SaaS.</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../08-system-design/week-01-fundamentals/cheatsheet.html">← Week 1 · Fundamentals: Cheatsheet</a><a class="next" href="../../08-system-design/week-02-data-storage/interview-qa.html">Week 2 · Data and storage: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

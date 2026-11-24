@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 4: Auth, config, logging, Docker, and the Ticket API project | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="04-fastapi/week-04-auth-deploy-project/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../04-fastapi/week-01-first-endpoints/lesson.html">FastAPI</a> / <a href="../../04-fastapi/week-04-auth-deploy-project/lesson.html">Week 4 · Auth, deploy, project</a> / <span>Lesson</span></nav><button id="mark-done" data-id="04-fastapi/week-04-auth-deploy-project/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-4-auth-config-logging-docker-and-the-ticket-api-project">Week 4: Auth, config, logging, Docker, and the Ticket API project</h1>
+<p>Goal: make an API something you could hand to a customer: authenticated, configurable, observable, testable, containerised. You finish with a small deployable ticket API. Budget ~7-8 hours: lesson + building blocks (exercises 1-8) ~3h, project (9-14) ~3.5h, review checklist + Docker read-through ~1h.</p>
+<h2 id="1-configuration-and-secrets">1. Configuration and secrets</h2>
+<p>Twelve-factor rule: <strong>config lives in environment variables, not in code</strong>. Secrets (API keys, DB passwords, tokens) never go in git.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">"DATABASE_URL"</span><span class="p">]</span>          <span class="c1"># KeyError if missing (good for required values)</span>
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"LOG_LEVEL"</span><span class="p">,</span> <span class="s2">"INFO"</span><span class="p">)</span> <span class="c1"># with a default</span>
+</code></pre></div>
+
+<ul>
+<li>Load and validate <strong>once at startup</strong> into a typed <code>Settings</code> object; fail fast with a clear error (<code>ConfigError("API_KEYS is required")</code>) instead of a mysterious 500 later.</li>
+<li>Take the env as a parameter (<code>load_settings(os.environ)</code>) so tests pass a plain dict.</li>
+<li>Commit a <code>.env.example</code> with fake values; put the real <code>.env</code> in <code>.gitignore</code>. Locally: <code>export API_KEYS=dev-key-1</code> or <code>API_KEYS=dev-key-1 uvicorn ...</code>. In production the platform injects them (Docker <code>-e</code>, <code>--env-file</code>, Kubernetes secrets, a vault).</li>
+<li><strong>Never log secrets.</strong> If you must show one, mask it (<code>*********1234</code>). Never put them in URLs or error messages.</li>
+<li>Leaked a key? Rotate it first, clean git history second.</li>
+<li>(Libraries like <code>pydantic-settings</code> do this declaratively; learn the manual version first.)</li>
+</ul>
+<h2 id="2-authentication">2. Authentication</h2>
+<ul>
+<li><strong>Authentication (authn)</strong> = who are you? -&gt; failure <strong>401</strong> (+ <code>WWW-Authenticate</code> header).</li>
+<li><strong>Authorization (authz)</strong> = what may you do? -&gt; failure <strong>403</strong>.</li>
+</ul>
+<p><strong>API key</strong> (simplest; machine-to-machine, internal tools, partner integrations): client sends <code>X-API-Key: &lt;key&gt;</code>.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">Security</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">fastapi.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">APIKeyHeader</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">require_api_key</span><span class="p">(</span><span class="n">key</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">Security</span><span class="p">(</span><span class="n">APIKeyHeader</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"X-API-Key"</span><span class="p">,</span> <span class="n">auto_error</span><span class="o">=</span><span class="kc">False</span><span class="p">))):</span>
+    <span class="o">...</span>  <span class="c1"># compare with hmac.compare_digest; raise HTTPException(401) if bad</span>
+</code></pre></div>
+
+<p>Use <code>Security(...)</code> rather than <code>Header(...)</code> and <code>/docs</code> gets an <strong>Authorize</strong> button for free. Protect a whole group of routes with a router: <code>APIRouter(dependencies=[Depends(require_api_key)])</code>.</p>
+<p><strong>Bearer token</strong> (users/sessions): <code>Authorization: Bearer &lt;token&gt;</code>. The token carries <em>who</em> (subject) and <em>until when</em> (expiry), signed so it can't be forged. Real systems: JWTs issued by an identity provider (Auth0, Okta, Cognito, Salesforce) and verified with a library (PyJWT/authlib). Our exercise builds a tiny HMAC-signed token so you understand the mechanics: sign the payload, verify the signature <strong>before</strong> trusting it, check expiry, compare with <code>hmac.compare_digest</code>.</p>
+<p>Rules: always HTTPS in real deployments; keys are long and random (<code>secrets.token_urlsafe(32)</code>); store only hashes of user passwords (argon2/bcrypt); support more than one valid key so you can rotate without downtime; don't reveal <em>why</em> auth failed.</p>
+<h2 id="3-logging">3. Logging</h2>
+<p><code>print</code> is not logging. Use the <code>logging</code> module:</p>
+<div class="highlight"><pre><span></span><code><span class="n">log</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">"ticketapi"</span><span class="p">)</span>
+<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"created ticket </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">ticket_id</span><span class="p">)</span>       <span class="c1"># lazy %-formatting, not f-strings</span>
+<span class="n">log</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"notify failed: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">err</span><span class="p">)</span>
+<span class="n">log</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="s2">"boom"</span><span class="p">)</span>                           <span class="c1"># inside except: logs ERROR + traceback</span>
+</code></pre></div>
+
+<p>Levels: DEBUG (dev detail) &lt; INFO (normal events) &lt; WARNING (recoverable surprise) &lt; ERROR (request failed) &lt; CRITICAL.</p>
+<ul>
+<li><strong>Structured (JSON) logs</strong>: one JSON object per line; log platforms can filter by field.</li>
+<li><strong>Request IDs</strong>: generate (or accept <code>X-Request-ID</code>), attach to every log line and echo in the response header. When a customer says "request failed at 14:03", you grep one id and see the whole story. Pass it onward to downstream calls.</li>
+<li>A <strong>middleware</strong> wraps every request: <code>@app.middleware("http") async def mw(request, call_next): ...</code>.</li>
+<li>Log decisions and failures, not payloads full of personal data or secrets.</li>
+</ul>
+<h2 id="4-testing-an-app-you-will-deploy">4. Testing an app you will deploy</h2>
+<ul>
+<li><strong>App factory</strong>: <code>create_app(settings)</code> returns a fresh app and fresh database; each test gets isolation, and production passes settings from env. Avoid import-time side effects (reading env, opening DB files).</li>
+<li><code>TestClient(create_app(settings))</code> for HTTP-level tests; plain function tests for services (pass a <code>Session</code> on an in-memory engine).</li>
+<li>Replace outbound calls with <code>httpx.MockTransport</code>; assert failures of <em>their</em> system don't break <em>yours</em>.</li>
+<li>Test the unhappy paths first: no key, bad key, missing id, invalid input, closed ticket.</li>
+<li><code>caplog</code> (pytest fixture) lets you assert on log records; <code>monkeypatch.setenv</code> for env vars.</li>
+<li>Layering that made this testable: <strong>routes are thin</strong>, <strong>service functions hold rules</strong>, <strong>domain exceptions</strong> are translated to HTTP in one place.</li>
+</ul>
+<h2 id="5-dockerfile-basics">5. Dockerfile basics</h2>
+<p>A container packages your app plus Python plus dependencies so it runs the same everywhere. You don't need Docker installed for this course; read this so you recognise it on a customer call.</p>
+<div class="highlight"><pre><span></span><code><span class="k">FROM</span><span class="w"> </span><span class="s">python:3.14-slim</span><span class="w">                      </span><span class="c"># base image: pin the version</span>
+
+<span class="k">ENV</span><span class="w"> </span><span class="nv">PYTHONDONTWRITEBYTECODE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">PYTHONUNBUFFERED</span><span class="o">=</span><span class="m">1</span><span class="w">   </span><span class="c"># no .pyc files; logs flush immediately</span>
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
+
+<span class="k">COPY</span><span class="w"> </span>requirements.txt<span class="w"> </span>.<span class="w">                    </span>#<span class="w"> </span>copy<span class="w"> </span>deps<span class="w"> </span>first:<span class="w"> </span>this<span class="w"> </span>layer<span class="w"> </span>is<span class="w"> </span>cached
+<span class="k">RUN</span><span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--no-cache-dir<span class="w"> </span>-r<span class="w"> </span>requirements.txt
+
+<span class="k">COPY</span><span class="w"> </span>.<span class="w"> </span>.<span class="w">                                   </span>#<span class="w"> </span><span class="k">then</span><span class="w"> </span>your<span class="w"> </span>code<span class="w"> </span><span class="o">(</span>changes<span class="w"> </span>often<span class="o">)</span>
+
+<span class="k">RUN</span><span class="w"> </span>useradd<span class="w"> </span>--create-home<span class="w"> </span>appuser<span class="w">          </span>#<span class="w"> </span>don<span class="err">'</span>t<span class="w"> </span>run<span class="w"> </span>as<span class="w"> </span>root
+<span class="k">USER</span><span class="w"> </span><span class="s">appuser</span>
+
+<span class="k">EXPOSE</span><span class="w"> </span><span class="s">8000                                # documentation only; publishing happens at `docker run`</span>
+<span class="k">CMD</span><span class="w"> </span><span class="p">[</span><span class="s2">"uvicorn"</span><span class="p">,</span><span class="w"> </span><span class="s2">"--factory"</span><span class="p">,</span><span class="w"> </span><span class="s2">"main:build_app_from_env"</span><span class="p">,</span><span class="w"> </span><span class="s2">"--host"</span><span class="p">,</span><span class="w"> </span><span class="s2">"0.0.0.0"</span><span class="p">,</span><span class="w"> </span><span class="s2">"--port"</span><span class="p">,</span><span class="w"> </span><span class="s2">"8000"</span><span class="p">]</span>
+</code></pre></div>
+
+<p>Notes: bind to <code>0.0.0.0</code> inside a container (127.0.0.1 is unreachable from outside). Config comes in at run time, not build time:</p>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>ticket-api<span class="w"> </span>.
+docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-p<span class="w"> </span><span class="m">8000</span>:8000<span class="w"> </span>-e<span class="w"> </span><span class="nv">API_KEYS</span><span class="o">=</span>dev-key-1<span class="w"> </span>-e<span class="w"> </span><span class="nv">LOG_LEVEL</span><span class="o">=</span>INFO<span class="w"> </span>ticket-api
+curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"X-API-Key: dev-key-1"</span><span class="w"> </span>localhost:8000/tickets
+</code></pre></div>
+
+<p>Add a <code>.dockerignore</code> (<code>.venv</code>, <code>__pycache__</code>, <code>.git</code>, <code>.env</code>, <code>*.db</code>) so secrets and junk don't end up in the image. For SQLite in a container, a file path needs a mounted volume (<code>-v data:/data -e DATABASE_URL=sqlite:////data/app.db</code>) or the data vanishes when the container stops: another reason real deployments use Postgres. In this course <code>exercises.py</code> plays the role of <code>main.py</code>; if you split it into modules, update the <code>CMD</code> target.</p>
+<p>Also know: <code>--workers N</code> (several processes; in-memory state is not shared between them!), health checks (<code>GET /health</code>), and that the platform (Fly, Render, ECS, Kubernetes) mostly wants: image + port + env vars + a health endpoint.</p>
+<h2 id="6-project-ticket-api-support-tickets-with-comments">6. Project: Ticket API (support tickets with comments)</h2>
+<p><strong>Story.</strong> A customer's support team wants a small internal API: create tickets, comment on them, work them to closed, and get a Slack-style ping when something is urgent. You own it end to end.</p>
+<h3 id="spec">Spec</h3>
+<table>
+<thead>
+<tr>
+<th>Route</th>
+<th>Auth</th>
+<th>Behaviour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /health</code></td>
+<td>none</td>
+<td><code>{"status": "ok"}</code></td>
+</tr>
+<tr>
+<td><code>POST /tickets</code></td>
+<td>key</td>
+<td>body <code>title</code> (1-120), <code>description</code> (default ""), <code>priority</code> low/medium/high (default medium). 201 with the ticket. High priority also notifies <code>NOTIFY_URL</code></td>
+</tr>
+<tr>
+<td><code>GET /tickets</code></td>
+<td>key</td>
+<td>filters <code>status</code>, <code>priority</code>; <code>limit</code> (default <code>min(20, MAX_PAGE_SIZE)</code>, 422 if outside 1..MAX_PAGE_SIZE), <code>offset</code> &gt;= 0; ordered by id</td>
+</tr>
+<tr>
+<td><code>GET /tickets/{id}</code></td>
+<td>key</td>
+<td>404 <code>{"detail": "Ticket not found"}</code></td>
+</tr>
+<tr>
+<td><code>PATCH /tickets/{id}</code></td>
+<td>key</td>
+<td>partial update of title/description/priority/status (open, in_progress, closed). A <strong>closed</strong> ticket accepts only <code>{"status": "open"}</code> (reopen); anything else -&gt; 409 <code>Ticket is closed</code></td>
+</tr>
+<tr>
+<td><code>DELETE /tickets/{id}</code></td>
+<td>key</td>
+<td>204; deletes its comments too</td>
+</tr>
+<tr>
+<td><code>POST /tickets/{id}/comments</code></td>
+<td>key</td>
+<td>body <code>body</code> (1-1000); 201; 404 if no ticket; 409 if closed</td>
+</tr>
+<tr>
+<td><code>GET /tickets/{id}/comments</code></td>
+<td>key</td>
+<td>ordered by id; 404 if no ticket</td>
+</tr>
+<tr>
+<td><code>GET /stats</code></td>
+<td>key</td>
+<td><code>{"open", "in_progress", "closed", "total"}</code> always all four keys</td>
+</tr>
+</tbody>
+</table>
+<p>Cross-cutting: every request logs one JSON line with a request id (<code>X-Request-ID</code> echoed); config only from env vars (<code>API_KEYS</code>, <code>DATABASE_URL</code>, <code>LOG_LEVEL</code>, <code>MAX_PAGE_SIZE</code>, <code>NOTIFY_URL</code>); a failing notifier must never fail ticket creation; secrets never logged.</p>
+<h3 id="how-exercises-map-to-the-project">How exercises map to the project</h3>
+<p>Exercises 1-8 are the reusable building blocks (settings, masking, API key + bearer auth, JSON logs, request-id middleware). Exercises 9-13 are the service layer and notifier. Exercise 14 (<code>create_app</code>) wires it all. Do them in order; the tests for 1-13 don't need the app at all.</p>
+<h3 id="suggested-schedule">Suggested schedule</h3>
+<ol>
+<li>(1h) Read this lesson; do 1-3.</li>
+<li>(1.5h) 4-8: tokens, bearer dependency, logging, middleware.</li>
+<li>(1.5h) 9-12: services against an in-memory session.</li>
+<li>(1h) 13-14: notifier + wiring; all tests green.</li>
+<li>(1.5h) Stage review below, then run it for real with uvicorn and curl.</li>
+</ol>
+<h3 id="stage-review-checklist">Stage review checklist</h3>
+<p>Work through it honestly, as if reviewing a colleague's PR before handing the service to a customer. Write down one improvement per stage.</p>
+<p><strong>Stage 1: Contract</strong></p>
+<ul>
+<li>[ ] Every route in the spec exists with the right method, path, status code.</li>
+<li>[ ] <code>/docs</code> reads like documentation: titles, response models, Authorize button works.</li>
+<li>[ ] Error bodies are consistent (<code>{"detail": ...}</code>) and the status codes are the right ones (401 vs 403 vs 404 vs 409 vs 422).</li>
+<li>[ ] Response models never expose internal fields.</li>
+</ul>
+<p><strong>Stage 2: Correctness and data</strong></p>
+<ul>
+<li>[ ] Business rules live in service functions, not scattered in routes.</li>
+<li>[ ] Deleting a ticket leaves no orphan comments; failed requests leave no half-written data (rollback).</li>
+<li>[ ] Pagination bounded; no unbounded <code>SELECT *</code> responses.</li>
+<li>[ ] Time handling consistent (timezone-aware UTC).</li>
+</ul>
+<p><strong>Stage 3: Security and config</strong></p>
+<ul>
+<li>[ ] No secret in code, tests, logs, or git; <code>.env</code> ignored; <code>.env.example</code> provided.</li>
+<li>[ ] Auth on every route except health; constant-time key comparison; keys rotatable (multiple allowed).</li>
+<li>[ ] App refuses to start with missing/invalid config, with a readable message.</li>
+<li>[ ] Input validated (lengths, enums); no raw SQL string-building.</li>
+</ul>
+<p><strong>Stage 4: Reliability and operations</strong></p>
+<ul>
+<li>[ ] Outbound calls have timeouts; failures are contained (notifier test proves it).</li>
+<li>[ ] Logs are structured, include request ids, contain no personal data/secrets.</li>
+<li>[ ] <code>/health</code> exists and is cheap.</li>
+<li>[ ] Dockerfile: pinned base, deps layer cached, non-root user, config via env, <code>.dockerignore</code> present.</li>
+<li>[ ] You know what breaks at scale: in-memory SQLite, multiple workers, no migrations, no rate limiting.</li>
+</ul>
+<p><strong>Stage 5: Tests and hand-off</strong></p>
+<ul>
+<li>[ ] Unhappy paths tested (auth, 404, 409, 422, upstream down).</li>
+<li>[ ] Tests are offline, isolated, and fast (&lt; a few seconds).</li>
+<li>[ ] A 10-line README-style note: how to run, env vars, example curl calls, known limitations. (Write it in your own notes; practise explaining it to a non-technical customer in two minutes.)</li>
+</ul>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li>Reading env vars at import time inside library code so tests can't control them (use a factory + settings object).</li>
+<li>Comparing keys with <code>==</code>; returning 403 when you mean 401 (or the reverse).</li>
+<li>Logging the Authorization header or the full request body.</li>
+<li>Catching <code>Exception</code> around the notifier and hiding bugs; instead catch <code>httpx.HTTPError</code>, log, move on.</li>
+<li><code>0.0.0.0</code> vs <code>127.0.0.1</code> confusion in containers; copying <code>.env</code> into the image.</li>
+<li>Running multiple workers with in-memory SQLite and wondering where the data went.</li>
+<li>Forgetting <code>--factory</code> when <code>uvicorn</code> is pointed at a function rather than an app object.</li>
+<li>Trusting token payload before verifying its signature.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<ol>
+<li>Complete <code>exercises.py</code> (all 14 exercises) until <code>../../.venv/bin/pytest -q</code> is green.</li>
+<li>Run it for real: <code>API_KEYS=dev-key-1 ../../.venv/bin/uvicorn --factory exercises:build_app_from_env</code>, open <code>/docs</code>, click Authorize, and create a ticket; then try curl without a key.</li>
+<li>Do the stage review checklist and write down one improvement per stage.</li>
+<li>Stretch: add <code>GET /tickets?q=</code> text search, a <code>/me</code> route protected by your bearer dependency with a <code>POST /token</code> that trades an API key for a token, and a Dockerfile in a scratch folder (build it only if you have Docker).</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../04-fastapi/week-03-database-and-integrations/test_exercises.py.html">← Week 3 · Database and integrations: Tests (code)</a><a class="next" href="../../04-fastapi/week-04-auth-deploy-project/exercises.py.html">Week 4 · Auth, deploy, project: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 1 interview Q&amp;A: filtering, NULL, aggregates | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="06-sql/week-01-select-filter-aggregate/interview-qa" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">Week 1 · SELECT, filter, aggregate</a> / <span>Interview Q&amp;A</span></nav><button id="mark-done" data-id="06-sql/week-01-select-filter-aggregate/interview-qa">Mark as done</button></div><article class="doc">
+<h1 id="week-1-interview-qa-filtering-null-aggregates">Week 1 interview Q&amp;A: filtering, NULL, aggregates</h1>
+<p>Try answering aloud first. Model answers are deliberately concise.</p>
+<p><strong>1. What is the logical order of evaluation of a SELECT statement?</strong>
+FROM (and joins) -&gt; WHERE -&gt; GROUP BY -&gt; HAVING -&gt; SELECT list (window functions, aliases) -&gt; DISTINCT -&gt; ORDER BY -&gt; LIMIT/OFFSET. That is why WHERE cannot reference aggregates, and why ORDER BY can use SELECT aliases.</p>
+<p><strong>2. WHERE vs HAVING?</strong>
+WHERE filters individual rows before grouping and cannot use aggregates. HAVING filters groups after aggregation and can. Put non-aggregate conditions in WHERE: fewer rows to group, and indexes can be used.</p>
+<p><strong>3. What does NULL mean and how does it behave in comparisons?</strong>
+Unknown/missing. Any comparison (<code>=</code>, <code>&lt;&gt;</code>, <code>&lt;</code>) with NULL yields NULL, which WHERE treats as not-true, so the row is dropped. Use <code>IS NULL</code>, <code>IS NOT NULL</code>, or null-safe operators (<code>IS DISTINCT FROM</code> in Postgres, <code>&lt;=&gt;</code> in MySQL, <code>IS</code> in SQLite).</p>
+<p><strong>4. <code>COUNT(*)</code> vs <code>COUNT(col)</code> vs <code>COUNT(DISTINCT col)</code>?</strong>
+<code>COUNT(*)</code> counts rows. <code>COUNT(col)</code> counts rows where col is not NULL. <code>COUNT(DISTINCT col)</code> counts distinct non-NULL values.</p>
+<p><strong>5. What happens with <code>x NOT IN (SELECT y ...)</code> if y contains a NULL?</strong>
+It returns no rows: <code>x &lt;&gt; NULL</code> is unknown for every x, so the whole predicate can never be TRUE. Use <code>NOT EXISTS</code>, or filter <code>WHERE y IS NOT NULL</code> inside the subquery.</p>
+<p><strong>6. Does AVG include NULL rows? How would you treat NULL as zero?</strong>
+No, AVG and SUM skip NULLs, so the denominator is the non-NULL count. For missing=0 use <code>AVG(COALESCE(x, 0))</code>. Which is right is a business decision; state it.</p>
+<p><strong>7. What does SUM return on an empty set?</strong>
+NULL, not 0. Use <code>COALESCE(SUM(x), 0)</code>. <code>COUNT</code> returns 0.</p>
+<p><strong>8. Why does <code>SELECT dept, name, COUNT(*) FROM employees GROUP BY dept</code> behave differently across databases?</strong>
+<code>name</code> is neither grouped nor aggregated. Postgres (and MySQL with ONLY_FULL_GROUP_BY) reject it; SQLite returns an arbitrary row's value. Standard rule: every non-aggregated select column must appear in GROUP BY (or be functionally dependent on a grouped primary key, which Postgres allows).</p>
+<p><strong>9. How do you get a deterministic result from <code>ORDER BY ... LIMIT</code>?</strong>
+Add a unique tie-breaker (e.g. <code>ORDER BY salary DESC, id</code>). Without it, ties may come back in any order and different runs can differ.</p>
+<p><strong>10. How do NULLs sort?</strong>
+It is database specific: SQLite and MySQL treat NULL as smaller than any value (first in ASC). Postgres and Oracle treat it as larger (last in ASC). <code>NULLS FIRST/LAST</code> makes it explicit (Postgres, SQLite 3.30+; MySQL lacks it).</p>
+<p><strong>11. Is <code>BETWEEN</code> inclusive? Any pitfall?</strong>
+Inclusive at both ends. For timestamps, <code>BETWEEN '2024-01-01' AND '2024-01-31'</code> excludes most of Jan 31; use <code>&gt;= '2024-01-01' AND &lt; '2024-02-01'</code> (half-open interval).</p>
+<p><strong>12. What is <code>LIMIT/OFFSET</code> pagination's weakness?</strong>
+The DB must scan and discard OFFSET rows, so deep pages are slow, and concurrent inserts shift pages (duplicates/skips). Keyset pagination (<code>WHERE (created_at, id) &lt; (:last_ts, :last_id) ORDER BY created_at DESC, id DESC LIMIT n</code>) is stable and uses an index.</p>
+<p><strong>13. Does DISTINCT apply to one column or the whole row?</strong>
+The whole selected row. <code>SELECT DISTINCT(a), b</code> is the same as <code>SELECT DISTINCT a, b</code>.</p>
+<p><strong>14. Difference between <code>DISTINCT</code> and <code>GROUP BY</code> without aggregates?</strong>
+Same result; both dedupe. GROUP BY is needed when you also aggregate; DISTINCT states intent more clearly. Optimizers often produce the same plan.</p>
+<p><strong>15. Scenario: "Find the employees with no bonus." The table has bonus = 0 for some people and NULL for others. What do you ask/do?</strong>
+Clarify whether 0 and NULL mean the same. <code>WHERE bonus IS NULL</code> means "not recorded"; <code>bonus IS NULL OR bonus = 0</code> means "gets nothing". Asking this shows you understand NULL semantics.</p>
+<p><strong>16. Scenario: monthly revenue for the last 3 months, but your boss says some orders have NULL amounts. What do you do?</strong>
+Filter or <code>COALESCE</code> depending on meaning, group by month (<code>strftime('%Y-%m', d)</code> in SQLite, <code>date_trunc('month', d)</code> in Postgres), and note that months with no orders are absent unless you join from a calendar table (week 3 recursive CTE).</p>
+<p><strong>17. Scenario: "Top 3 highest paid." What edge cases do you raise?</strong>
+Ties at the boundary (LIMIT 3 cuts arbitrarily; use <code>DENSE_RANK() &lt;= 3</code> if the intent is top 3 salary values), NULL salaries sorting first/last, and determinism.</p>
+<p><strong>18. What does <code>WHERE a = 1 OR b = 2 AND c = 3</code> mean?</strong>
+<code>a = 1 OR (b = 2 AND c = 3)</code>, because AND binds tighter than OR. Always parenthesise mixed conditions.</p>
+<p><strong>19. <code>LIKE '%abc'</code> vs <code>LIKE 'abc%'</code> and indexes?</strong>
+A prefix pattern (<code>'abc%'</code>) can use a B-tree index (with the right collation in some DBs); a leading wildcard cannot, forcing a scan. Full-text search or trigram indexes handle the rest.</p>
+<p><strong>20. How do you avoid division by zero in <code>SUM(a) / SUM(b)</code>?</strong>
+<code>SUM(a) * 1.0 / NULLIF(SUM(b), 0)</code> returns NULL instead of an error (and avoids integer division).</p>
+</article><div class="pager"><a class="prev" href="../../06-sql/week-01-select-filter-aggregate/lesson.html">← Week 1 · SELECT, filter, aggregate: Lesson</a><a class="next" href="../../06-sql/week-01-select-filter-aggregate/exercises.py.html">Week 1 · SELECT, filter, aggregate: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

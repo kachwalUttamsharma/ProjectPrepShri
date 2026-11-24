@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="05-fde-projects/project-06-capstone-messy-data-demo/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../05-fde-projects/project-01-llm-basics/lesson.html">FDE Projects</a> / <a href="../../05-fde-projects/project-06-capstone-messy-data-demo/lesson.html">Project 6 · Capstone</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="05-fde-projects/project-06-capstone-messy-data-demo/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>05-fde-projects/project-06-capstone-messy-data-demo/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Project 6 (capstone): messy data -&gt; deployed demo. Read lesson.md first.</span>
+
+<span class="sd">Everything LLM-related takes an injected `llm` callable: llm(prompt: str) -&gt; str.</span>
+<span class="sd">Tests use a FakeLLM; no network and no API key are needed.</span>
+<span class="sd">"""</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">csv</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">io</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">decimal</span><span class="w"> </span><span class="kn">import</span> <span class="n">Decimal</span><span class="p">,</span> <span class="n">InvalidOperation</span><span class="p">,</span> <span class="n">ROUND_HALF_UP</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">FastAPI</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">Field</span>
+
+<span class="n">DATE_FORMATS</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"%Y-%m-</span><span class="si">%d</span><span class="s2">"</span><span class="p">,</span> <span class="s2">"</span><span class="si">%d</span><span class="s2">/%m/%Y"</span><span class="p">,</span> <span class="s2">"%b </span><span class="si">%d</span><span class="s2">, %Y"</span><span class="p">,</span> <span class="s2">"%B </span><span class="si">%d</span><span class="s2">, %Y"</span><span class="p">,</span> <span class="s2">"</span><span class="si">%d</span><span class="s2"> %b %Y"</span><span class="p">,</span> <span class="s2">"%Y/%m/</span><span class="si">%d</span><span class="s2">"</span><span class="p">]</span>
+
+<span class="n">CURRENCY_MARKERS</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"$"</span><span class="p">:</span> <span class="s2">"USD"</span><span class="p">,</span> <span class="s2">"USD"</span><span class="p">:</span> <span class="s2">"USD"</span><span class="p">,</span> <span class="s2">"€"</span><span class="p">:</span> <span class="s2">"EUR"</span><span class="p">,</span> <span class="s2">"EUR"</span><span class="p">:</span> <span class="s2">"EUR"</span><span class="p">,</span> <span class="s2">"£"</span><span class="p">:</span> <span class="s2">"GBP"</span><span class="p">,</span> <span class="s2">"GBP"</span><span class="p">:</span> <span class="s2">"GBP"</span><span class="p">}</span>
+
+<span class="c1"># (key, message shown when the key is missing/False in the project dict)</span>
+<span class="n">RISK_CHECKS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">(</span><span class="s2">"has_eval_set"</span><span class="p">,</span> <span class="s2">"No evaluation set: you cannot say how accurate the demo is."</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">"fallback_for_bad_llm_output"</span><span class="p">,</span> <span class="s2">"No fallback when the LLM returns invalid output."</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">"human_in_loop"</span><span class="p">,</span> <span class="s2">"No human review step for low-confidence results."</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">"pii_handled"</span><span class="p">,</span> <span class="s2">"PII/sensitive data handling is not decided."</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">"cost_estimated"</span><span class="p">,</span> <span class="s2">"Per-request cost and volume have not been estimated."</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">"timeouts_set"</span><span class="p">,</span> <span class="s2">"No timeouts/retries on LLM or customer-system calls."</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">"secrets_in_env"</span><span class="p">,</span> <span class="s2">"Secrets are not loaded from environment variables."</span><span class="p">),</span>
+<span class="p">]</span>
+
+
+<span class="c1"># ---------------------------------------------------------------- 1. messy CSV</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">parse_messy_csv</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Parse CSV text into a list of dicts with tidy keys and values.</span>
+
+<span class="sd">    - Header names: strip, lowercase, spaces -&gt; underscores ("Invoice ID" -&gt; "invoice_id").</span>
+<span class="sd">    - Values: stripped strings; missing values become "".</span>
+<span class="sd">    - Rows that are completely blank (all values "") are skipped.</span>
+<span class="sd">    Hint: csv.DictReader(io.StringIO(text)). Beware of `None` for short rows.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># ---------------------------------------------------------------- 2. dates</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">normalize_date</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return an ISO date string 'YYYY-MM-DD', or None if unparseable/empty.</span>
+
+<span class="sd">    Try the formats in DATE_FORMATS in order. NOTE: "03/04/2024" is DD/MM/YYYY</span>
+<span class="sd">    (3 April) - state this assumption to the customer! Strip whitespace first.</span>
+<span class="sd">    Hint: datetime.strptime(...).date().isoformat(), catch ValueError.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># ---------------------------------------------------------------- 3. money</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">parse_amount</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Parse messy money text into (cents: int, currency: str | None), or None.</span>
+
+<span class="sd">    "$1,200.50" -&gt; (120050, "USD");  "99 EUR" -&gt; (9900, "EUR");  "12.345" -&gt; (1235, None)</span>
+<span class="sd">    - Currency comes from markers in CURRENCY_MARKERS ($, USD, EUR, ...); none -&gt; None.</span>
+<span class="sd">    - Remove markers, commas and spaces, then parse with Decimal (never float for money).</span>
+<span class="sd">    - Round half up to whole cents. Empty or unparseable text -&gt; None.</span>
+<span class="sd">    Hint: Decimal.quantize / (d * 100).to_integral_value(ROUND_HALF_UP).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># ---------------------------------------------------------------- 4. cleaning</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">clean_records</span><span class="p">(</span><span class="n">rows</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Normalise parsed rows. Return (clean, rejected).</span>
+
+<span class="sd">    Each input row has keys invoice_id, customer, email, date, amount (as strings).</span>
+<span class="sd">    Each clean row is a dict with:</span>
+<span class="sd">      invoice_id   - stripped, uppercased</span>
+<span class="sd">      customer     - whitespace collapsed, Title Case ("  acme   corp " -&gt; "Acme Corp")</span>
+<span class="sd">      email        - lowercased ("" if missing)</span>
+<span class="sd">      date         - normalize_date(...) (may be None)</span>
+<span class="sd">      amount_cents - int or None (from parse_amount)</span>
+<span class="sd">      currency     - str or None (from parse_amount)</span>
+<span class="sd">    Reject (do not drop silently!) rows into `rejected` as</span>
+<span class="sd">    {"row": original_row, "reason": "missing invoice_id"} or</span>
+<span class="sd">    {"row": original_row, "reason": "duplicate invoice_id"} (first occurrence wins).</span>
+<span class="sd">    Preserve input order. Never mutate the input rows.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># ---------------------------------------------------------------- 5. LLM extraction</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">build_extraction_prompt</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a prompt asking the model to extract invoice fields as JSON.</span>
+
+<span class="sd">    It must: contain the document `text` verbatim, mention the keys "vendor",</span>
+<span class="sd">    "total" and "date" (YYYY-MM-DD), and tell the model to reply with JSON only.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">validate_invoice</span><span class="p">(</span><span class="n">data</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a list of error strings (empty list = valid).</span>
+
+<span class="sd">    Rules: data must be a dict; "vendor" non-empty str; "total" an int/float</span>
+<span class="sd">    (not bool) and &gt;= 0; "date" a real date in YYYY-MM-DD form.</span>
+<span class="sd">    Each error must mention the offending key name (e.g. "total must be a number").</span>
+<span class="sd">    Missing keys are errors too.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">extract_with_fallback</span><span class="p">(</span><span class="n">text</span><span class="p">,</span> <span class="n">llm</span><span class="p">,</span> <span class="n">max_retries</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Ask the LLM to extract fields; retry on bad output; never raise.</span>
+
+<span class="sd">    Make up to 1 + max_retries calls to llm(prompt). For each reply: strip</span>
+<span class="sd">    ```json fences, json.loads, then validate_invoice. On the first valid reply</span>
+<span class="sd">    return {"data": parsed, "needs_review": False, "error": None, "attempts": n}.</span>
+<span class="sd">    On a retry, append the previous error text to the prompt so the model can fix it.</span>
+<span class="sd">    If every attempt fails return</span>
+<span class="sd">    {"data": None, "needs_review": True, "error": "&lt;last error&gt;", "attempts": n}.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># ---------------------------------------------------------------- 6. API</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ExtractRequest</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">text</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">create_app</span><span class="p">(</span><span class="n">llm</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Build a FastAPI app around the injected `llm`.</span>
+
+<span class="sd">    GET  /health  -&gt; {"status": "ok"}</span>
+<span class="sd">    POST /extract -&gt; body {"text": "..."} (empty text -&gt; 422 via ExtractRequest);</span>
+<span class="sd">                     returns extract_with_fallback(text, llm) as JSON, status 200</span>
+<span class="sd">                     even when needs_review is True (the caller decides what to do).</span>
+<span class="sd">    Hint: define the app inside this function so each test gets its own FakeLLM.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># ---------------------------------------------------------------- 7. scoping</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">scope_request</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Turn a vague customer request into {"in_scope", "out_of_scope", "questions"} (lists of str).</span>
+
+<span class="sd">    Lowercase the text and split into words (re.findall(r"[a-z0-9%]+|%", ...) or similar).</span>
+<span class="sd">    Apply these rules in order, appending each message at most once:</span>
+<span class="sd">    1. any word in {invoice, invoices, pdf, pdfs, csv, spreadsheet, spreadsheets, email, emails, extract}</span>
+<span class="sd">       -&gt; in_scope: "Extract structured fields from messy input (one document type)"</span>
+<span class="sd">    2. any word starting with summar / classif / triage</span>
+<span class="sd">       -&gt; in_scope: "LLM summarisation or classification for one workflow"</span>
+<span class="sd">    3. any word in {dashboard, portal, frontend}</span>
+<span class="sd">       -&gt; out_of_scope: "Custom dashboard or portal (demo uses API docs or one simple page)"</span>
+<span class="sd">    4. any word in {salesforce, sap, erp, crm, workday, sync} or starting with "integrat"</span>
+<span class="sd">       -&gt; out_of_scope: "Production integration with customer systems (demo uses exported samples)"</span>
+<span class="sd">       -&gt; questions:    "Which system of record, and can we get a sandbox or sample export?"</span>
+<span class="sd">    5. any word in {everything, fully, automate, automatic, automatically} or the phrase "end-to-end"/"all of our"</span>
+<span class="sd">       -&gt; out_of_scope: "Full end-to-end automation (keep a human in the loop)"</span>
+<span class="sd">       -&gt; questions:    "Which single workflow should the demo cover first?"</span>
+<span class="sd">    6. no word in {accuracy, target, metric, metrics} and no "%" in text</span>
+<span class="sd">       -&gt; questions: "How will we measure success (e.g. a field accuracy target)?"</span>
+<span class="sd">    7. no word "sample"/"samples"</span>
+<span class="sd">       -&gt; questions: "Can we get 20+ real, anonymised sample documents?"</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># ---------------------------------------------------------------- 8. Dockerfile</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">generate_dockerfile</span><span class="p">(</span><span class="n">python_version</span><span class="p">,</span> <span class="n">app_module</span><span class="p">,</span> <span class="n">port</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return Dockerfile text (ending with a newline) for a FastAPI app.</span>
+
+<span class="sd">    Lines, in this order:</span>
+<span class="sd">      FROM python:&lt;python_version&gt;-slim</span>
+<span class="sd">      WORKDIR /app</span>
+<span class="sd">      COPY requirements.txt .</span>
+<span class="sd">      RUN pip install --no-cache-dir -r requirements.txt</span>
+<span class="sd">      COPY . .</span>
+<span class="sd">      EXPOSE &lt;port&gt;</span>
+<span class="sd">      CMD ["uvicorn", "&lt;app_module&gt;", "--host", "0.0.0.0", "--port", "&lt;port&gt;"]</span>
+<span class="sd">    Copying requirements.txt BEFORE the code keeps the dependency layer cached.</span>
+<span class="sd">    Raise ValueError if app_module has no ":" (expected "main:app") or port is</span>
+<span class="sd">    not an int in 1..65535.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># ---------------------------------------------------------------- 9. README</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">render_readme</span><span class="p">(</span><span class="n">project</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Render a README.md string from a dict.</span>
+
+<span class="sd">    project keys: name (str), summary (str) - both required (ValueError if missing/empty);</span>
+<span class="sd">    setup (list[str]), endpoints (list[(method, path, description)]), limitations (list[str]) - optional.</span>
+<span class="sd">    Layout (blank line between blocks):</span>
+<span class="sd">      # &lt;name&gt;</span>
+<span class="sd">      &lt;summary&gt;</span>
+<span class="sd">      ## Setup            -&gt; numbered list "1. step"   (or "_None_")</span>
+<span class="sd">      ## Endpoints        -&gt; table: header "| Method | Path | Description |", separator "|---|---|---|", rows "| POST | /extract | ... |"  (or "_None_")</span>
+<span class="sd">      ## Known limitations -&gt; bullet list "- item"       (or "_None_")</span>
+<span class="sd">    Always include all three sections. Result ends with a single newline.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># ---------------------------------------------------------------- 10. demo script</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">demo_script</span><span class="p">(</span><span class="n">steps</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Build a timed demo plan. steps = list of (title, minutes) with minutes &gt; 0.</span>
+
+<span class="sd">    The minutes must add up to exactly 5 (use a tolerance of 1e-9), else ValueError;</span>
+<span class="sd">    a non-positive duration or empty list is also a ValueError.</span>
+<span class="sd">    Return a list of strings "MM:SS-MM:SS title" with cumulative times:</span>
+<span class="sd">      [("Problem", 1), ("Live demo", 2.5), ("Limits", 1.5)] -&gt;</span>
+<span class="sd">      ["00:00-01:00 Problem", "01:00-03:30 Live demo", "03:30-05:00 Limits"]</span>
+<span class="sd">    Hint: work in whole seconds: round(minutes * 60); divmod(seconds, 60).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># ---------------------------------------------------------------- 11. risks</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">risk_checklist</span><span class="p">(</span><span class="n">project</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the messages from RISK_CHECKS whose key is missing or falsy in `project`.</span>
+
+<span class="sd">    Keep the order of RISK_CHECKS. Example: {} -&gt; all messages; a project with every</span>
+<span class="sd">    key True -&gt; []. Hint: a list comprehension over RISK_CHECKS.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../05-fde-projects/project-06-capstone-messy-data-demo/lesson.html">← Project 6 · Capstone: Lesson</a><a class="next" href="../../05-fde-projects/project-06-capstone-messy-data-demo/test_exercises.py.html">Project 6 · Capstone: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

@@ -1,0 +1,1311 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 5 - Containers and Orchestration: Linux Primitives, Docker, Compose, Kubernetes, Debugging, Security | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="12-cs-fundamentals/week-05-containers-orchestration/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../12-cs-fundamentals/README.html">CS Fundamentals</a> / <a href="../../12-cs-fundamentals/week-05-containers-orchestration/lesson.html">Week 5 · Containers and orchestration</a> / <span>Lesson</span></nav><button id="mark-done" data-id="12-cs-fundamentals/week-05-containers-orchestration/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-5-containers-and-orchestration-linux-primitives-docker-compose-kubernetes-debugging-security">Week 5 - Containers and Orchestration: Linux Primitives, Docker, Compose, Kubernetes, Debugging, Security</h1>
+<p>Time budget: ~7-8 hrs. Read lesson (3h), Q&amp;A aloud (2h), cheatsheet + hands-on labs (2-3h).
+Facts marked "(check current docs)" are version-dependent (K8s API versions, base image tags, compose spec details); verify before quoting in an interview.</p>
+<hr />
+<h2 id="1-what-a-container-really-is-linux-primitives">1. What a container really is (Linux primitives)</h2>
+<p>A container is NOT a mini-VM. It is an ordinary Linux process (or process tree) that the kernel
+lies to: it sees a private view of PIDs, network, mounts, hostname, and is limited in resources.</p>
+<div class="highlight"><pre><span></span><code> Host kernel (ONE shared kernel)
+ |
+ |-- process A  (container 1)     namespaces: pid, net, mnt, uts, ipc, user, cgroup
+ |-- process B  (container 2)     cgroups:    cpu, memory, pids, io limits
+ |                                rootfs:     overlay mount of image layers + writable layer
+ `-- process C  (host systemd)
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th>Primitive</th>
+<th>What it gives</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Namespaces</td>
+<td>ISOLATION (what you can see)</td>
+<td>pid: app is PID 1 inside; net: own eth0/IP; mnt: own filesystem tree; uts: own hostname; ipc; user: root inside maps to unprivileged outside; cgroup</td>
+</tr>
+<tr>
+<td>cgroups (v1/v2)</td>
+<td>LIMITS and accounting (what you can use)</td>
+<td>memory.max, cpu.max, pids.max. Exceeding memory -&gt; kernel OOM killer -&gt; exit 137</td>
+</tr>
+<tr>
+<td>Union / overlay FS (overlayfs)</td>
+<td>Layered, copy-on-write root filesystem</td>
+<td>read-only lower layers + one thin writable upper layer</td>
+</tr>
+<tr>
+<td>Capabilities, seccomp, AppArmor/SELinux</td>
+<td>Reduce what root can do</td>
+<td>drop NET_RAW, default seccomp profile blocks ~40+ syscalls</td>
+</tr>
+</tbody>
+</table>
+<p>Overlay filesystem</p>
+<div class="highlight"><pre><span></span><code> merged (what the container sees)  /
+   upperdir  (writable, per container, discarded on rm)
+   lowerdir  layer N  (read-only)
+   lowerdir  layer ...
+   lowerdir  layer 1  (base image)
+ Write to a file from a lower layer -&gt; copy-up into upperdir (copy-on-write).
+</code></pre></div>
+
+<p>Container vs VM</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Container</th>
+<th>VM</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Isolation unit</td>
+<td>process + namespaces</td>
+<td>full guest OS on a hypervisor</td>
+</tr>
+<tr>
+<td>Kernel</td>
+<td>shared with host</td>
+<td>own kernel per VM</td>
+</tr>
+<tr>
+<td>Start time</td>
+<td>milliseconds-seconds</td>
+<td>seconds-minutes</td>
+</tr>
+<tr>
+<td>Size</td>
+<td>MBs</td>
+<td>GBs</td>
+</tr>
+<tr>
+<td>Isolation strength</td>
+<td>weaker (kernel shared; escape = host compromise)</td>
+<td>stronger (hardware virtualization boundary)</td>
+</tr>
+<tr>
+<td>Density</td>
+<td>very high</td>
+<td>lower</td>
+</tr>
+<tr>
+<td>Hardened variants</td>
+<td>gVisor, Kata Containers, Firecracker microVMs</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<p>Quick demo you can say in an interview: <code>unshare --pid --fork --mount-proc bash</code> then <code>ps</code> shows PID 1 - that is a PID namespace.</p>
+<p>Gotcha: Containers share the host kernel, so a Linux container cannot run a different kernel. On macOS/Windows Docker Desktop runs a hidden Linux VM.
+Gotcha: Docker image = filesystem + metadata. Container = running (or stopped) instance of it. Image is immutable; container writes vanish on <code>docker rm</code>.
+Gotcha: Memory limit in a container but runtime unaware of it (old JVMs, some Python/Node tuning) can cause OOMKill; set worker counts/heap explicitly.</p>
+<p>How interviewers probe it:</p>
+<ul>
+<li>"What is a container, without saying Docker?" -&gt; namespaces + cgroups + overlay FS on a shared kernel.</li>
+<li>"Why is exit code 137 common?" -&gt; 128+9, SIGKILL, usually cgroup OOM killer.</li>
+<li>"Is a container a security boundary?" -&gt; weaker than VM; mitigate with non-root, seccomp, dropped caps, gVisor/Kata for untrusted code.</li>
+</ul>
+<hr />
+<h2 id="2-docker-images-layers-registries">2. Docker images, layers, registries</h2>
+<div class="highlight"><pre><span></span><code> Dockerfile instruction      -&gt; layer (FROM/COPY/RUN/ADD create filesystem layers; ENV/CMD/etc. are metadata)
+ Image = ordered list of layers + config JSON (env, entrypoint, user, ports)
+ Image manifest -&gt; content-addressed by sha256 digest
+ Tag (python:3.12-slim)  = mutable pointer to a digest
+ Digest (@sha256:ab12..) = immutable identity
+</code></pre></div>
+
+<p>Naming: <code>registry.example.com/team/app:1.4.2</code> -&gt; registry / repository / tag. Default registry docker.io, default tag <code>latest</code> (which is just a name, not "newest").</p>
+<p>Build cache and layer ordering</p>
+<div class="highlight"><pre><span></span><code> Rule: each instruction is cached by (parent layer + instruction + inputs, e.g. file checksums for COPY).
+ If a layer changes, EVERY layer after it is rebuilt.
+
+ BAD                          GOOD
+ COPY . /app                  COPY pyproject.toml uv.lock /app/     &lt;- changes rarely
+ RUN pip install -r req.txt   RUN uv sync --frozen --no-dev         &lt;- cached until deps change
+                              COPY src/ /app/src/                   &lt;- changes often, last
+</code></pre></div>
+
+<ul>
+<li>Order: least-changing first (OS packages, dependency manifests, dependency install), most-changing last (source).</li>
+<li>Combine <code>apt-get update &amp;&amp; apt-get install -y --no-install-recommends ... &amp;&amp; rm -rf /var/lib/apt/lists/*</code> in ONE RUN, else the cleanup does not shrink the image (deleted files stay in earlier layers).</li>
+<li>BuildKit cache mounts keep package caches out of layers: <code>RUN --mount=type=cache,target=/root/.cache/uv uv sync ...</code>.</li>
+<li><code>.dockerignore</code> shrinks build context and avoids cache busting from irrelevant files (.git, .venv, <strong>pycache</strong>, .env, node_modules).</li>
+</ul>
+<p>Tags vs digests</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Tag</th>
+<th>Digest</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mutable?</td>
+<td>yes (re-pushed)</td>
+<td>no</td>
+</tr>
+<tr>
+<td>Reproducible build</td>
+<td>no</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Use for</td>
+<td>humans, dev</td>
+<td>production pinning, supply-chain integrity</td>
+</tr>
+<tr>
+<td>Example</td>
+<td><code>python:3.12-slim</code></td>
+<td><code>python@sha256:&lt;64 hex&gt;</code></td>
+</tr>
+</tbody>
+</table>
+<p>Gotcha: <code>:latest</code> in production = non-reproducible deploys and surprise rollbacks. Pin a version tag at minimum, a digest for strict reproducibility (pair with Renovate/Dependabot to bump).
+Gotcha: Deleting a secret in a later layer does NOT remove it; it is still in the earlier layer (<code>docker history</code>, <code>docker save</code>).
+Gotcha: Multi-arch: an image built on Apple Silicon (arm64) will fail on amd64 nodes with <code>exec format error</code>. Use <code>docker buildx build --platform linux/amd64,linux/arm64</code>.
+Gotcha: <code>imagePullPolicy</code> defaults: <code>Always</code> if tag is <code>latest</code> or omitted, else <code>IfNotPresent</code>.</p>
+<p>How interviewers probe it:</p>
+<ul>
+<li>"Your rebuilds take 5 minutes after a one-line code change. Why?" -&gt; COPY . before dependency install.</li>
+<li>"Tag vs digest?" and "Why did prod change though we did not deploy?" -&gt; mutable tag re-pushed / base image drift.</li>
+<li>"Why is my image 1.2 GB?" -&gt; full base, build tools in final image, apt cache, no multi-stage.</li>
+</ul>
+<hr />
+<h2 id="3-dockerfile-best-practices">3. Dockerfile best practices</h2>
+<table>
+<thead>
+<tr>
+<th>Practice</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Slim/minimal base (python:3.12-slim, distroless, alpine with care)</td>
+<td>smaller attack surface, faster pulls (check current docs for supported tags)</td>
+</tr>
+<tr>
+<td>Pin versions (base tag, system pkgs, lock file)</td>
+<td>reproducible builds</td>
+</tr>
+<tr>
+<td><code>.dockerignore</code></td>
+<td>small context, no leaked secrets</td>
+</tr>
+<tr>
+<td>Non-root <code>USER</code></td>
+<td>limits blast radius of an exploit</td>
+</tr>
+<tr>
+<td>Exec-form <code>CMD ["uvicorn", ...]</code></td>
+<td>app is PID 1 and receives SIGTERM directly</td>
+</tr>
+<tr>
+<td>No secrets in layers/ENV/ARG</td>
+<td>layers and <code>docker history</code> leak them; use BuildKit <code>--mount=type=secret</code></td>
+</tr>
+<tr>
+<td><code>HEALTHCHECK</code></td>
+<td>Docker/Compose know if app is actually serving (K8s ignores it; uses probes)</td>
+</tr>
+<tr>
+<td>Multi-stage build</td>
+<td>compile/install in builder, ship only runtime artifacts</td>
+</tr>
+<tr>
+<td>One process per container</td>
+<td>simpler scaling, logging, restarts</td>
+</tr>
+<tr>
+<td>Log to stdout/stderr</td>
+<td>runtime collects logs; no log files in the container</td>
+</tr>
+<tr>
+<td><code>PYTHONUNBUFFERED=1</code>, <code>PYTHONDONTWRITEBYTECODE=1</code></td>
+<td>logs appear immediately; no .pyc clutter</td>
+</tr>
+</tbody>
+</table>
+<p>PID 1 and signals</p>
+<div class="highlight"><pre><span></span><code> Shell form:  CMD uvicorn app:app        -&gt; runs /bin/sh -c "uvicorn ..."
+                                             sh is PID 1, does NOT forward SIGTERM -&gt; 10s wait -&gt; SIGKILL
+ Exec form:   CMD ["uvicorn","app:app"]  -&gt; uvicorn is PID 1, gets SIGTERM, can shut down gracefully
+</code></pre></div>
+
+<ul>
+<li>PID 1 in a container has special kernel signal semantics: no default signal handlers, so SIGTERM is ignored unless the process installs a handler (uvicorn/gunicorn do). It also must reap zombie children.</li>
+<li>If your app spawns children or does not handle signals, use <code>docker run --init</code> / Compose <code>init: true</code> / <code>tini</code>.</li>
+<li><code>docker stop</code> sends SIGTERM, waits (default 10s), then SIGKILL. K8s: SIGTERM, <code>terminationGracePeriodSeconds</code> (default 30s), then SIGKILL.</li>
+</ul>
+<p>ENTRYPOINT vs CMD</p>
+<ul>
+<li>ENTRYPOINT = the executable; CMD = default arguments (or default command if no ENTRYPOINT). <code>docker run image args</code> replaces CMD, not ENTRYPOINT.</li>
+<li>In K8s: <code>command</code> overrides ENTRYPOINT, <code>args</code> overrides CMD.</li>
+</ul>
+<p>COPY vs ADD: prefer COPY; ADD also untars and fetches URLs (surprising).</p>
+<p>uv / pip install caching</p>
+<div class="highlight"><pre><span></span><code> # uv (fast, lockfile-driven)
+ COPY --from=ghcr.io/astral-sh/uv:&lt;pin-version&gt; /uv /bin/uv      # pin version (check current docs)
+ COPY pyproject.toml uv.lock ./
+ RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev --no-install-project
+ COPY src ./src
+ RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev
+
+ # pip equivalent
+ COPY requirements.txt .
+ RUN --mount=type=cache,target=/root/.cache/pip pip install --no-cache-dir -r requirements.txt
+ (--no-cache-dir only if you do NOT use a cache mount; the cache mount is not in the final image anyway)
+</code></pre></div>
+
+<p>Gotcha: <code>ARG</code>/<code>ENV</code> values appear in <code>docker history</code> and image config. Never pass tokens that way.
+Gotcha: alpine uses musl libc; many Python wheels (numpy, psycopg binary) are manylinux (glibc) and need compiling on alpine -&gt; slow builds and odd bugs. <code>-slim</code> (Debian) is the safer default for Python.
+Gotcha: running as non-root means can't bind ports &lt;1024 (without capability) and volume mounts may have the wrong ownership; use port 8000 and <code>chown</code>/<code>--chown</code> on COPY.
+Gotcha: <code>HEALTHCHECK</code> using <code>curl</code> requires curl in the image; in slim images use Python stdlib (<code>python -c "import urllib.request..."</code>).</p>
+<p>How interviewers probe it:</p>
+<ul>
+<li>"Review this Dockerfile" (FROM ubuntu:latest, COPY ., pip install, root, shell CMD, secret ARG) - list all problems.</li>
+<li>"Why does my container take 10 seconds to stop?" -&gt; shell-form CMD, SIGTERM never reaches the app.</li>
+<li>"How do you pass a private-index token at build time?" -&gt; <code>--mount=type=secret</code>, not ARG.</li>
+</ul>
+<hr />
+<h2 id="4-storage-volumes-bind-mounts-tmpfs">4. Storage: volumes, bind mounts, tmpfs</h2>
+<div class="highlight"><pre><span></span><code> Container writable layer  -&gt; ephemeral, slower (copy-on-write), gone on rm
+ Volume   (docker-managed, /var/lib/docker/volumes/...)  -&gt; persistent, portable, best for DB data
+ Bind mount (host path -&gt; container path)                -&gt; dev workflow, live code reload, host-specific
+ tmpfs    (RAM only)                                     -&gt; secrets/scratch, never hits disk, gone on stop
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Volume</th>
+<th>Bind mount</th>
+<th>tmpfs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Managed by Docker</td>
+<td>yes</td>
+<td>no (host path)</td>
+<td>yes (memory)</td>
+</tr>
+<tr>
+<td>Survives container rm</td>
+<td>yes</td>
+<td>yes (host files)</td>
+<td>no</td>
+</tr>
+<tr>
+<td>Portable across hosts</td>
+<td>better</td>
+<td>no</td>
+<td>n/a</td>
+</tr>
+<tr>
+<td>Typical use</td>
+<td>Postgres data dir</td>
+<td>mount source for hot reload</td>
+<td>temp files with read-only rootfs</td>
+</tr>
+<tr>
+<td>Flag</td>
+<td><code>-v pgdata:/var/lib/postgresql/data</code></td>
+<td><code>-v $(pwd):/app</code> or <code>--mount type=bind</code></td>
+<td><code>--tmpfs /tmp</code></td>
+</tr>
+</tbody>
+</table>
+<p>Gotcha: <code>docker compose down -v</code> deletes named volumes (your database). Plain <code>down</code> keeps them.
+Gotcha: bind-mounting over a directory hides what the image had there (e.g. mounting <code>.</code> over <code>/app</code> hides installed <code>.venv</code>).
+Gotcha: bind mounts on macOS are slower (VM file sharing), and permission/UID mismatches are common on Linux.
+Gotcha: in K8s, container filesystem is ephemeral; use PVC for state, <code>emptyDir</code> for scratch shared between containers in a pod.</p>
+<p>How interviewers probe it:</p>
+<ul>
+<li>"Where does Postgres data live and what happens on redeploy?" -&gt; named volume / PVC; without it data is lost.</li>
+<li>"Why can't my read-only container write temp files?" -&gt; mount tmpfs/emptyDir at /tmp.</li>
+</ul>
+<hr />
+<h2 id="5-docker-networking">5. Docker networking</h2>
+<div class="highlight"><pre><span></span><code> Host
+ +--------------------------------------------------+
+ | docker0 / user-defined bridge  172.18.0.0/16     |
+ |   [web 172.18.0.2]   [db 172.18.0.3]             |
+ |       |  embedded DNS: "db" -&gt; 172.18.0.3        |
+ +-------+------------------------------------------+
+         | NAT (iptables)   host:8000 -&gt; web:8000   (port publishing -p 8000:8000)
+       eth0 (host)
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Behavior</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>bridge (default)</td>
+<td>private network, NAT out, publish ports in</td>
+<td>most apps</td>
+</tr>
+<tr>
+<td>user-defined bridge</td>
+<td>bridge + automatic DNS by container/service name</td>
+<td>Compose default; always prefer over default bridge</td>
+</tr>
+<tr>
+<td>host</td>
+<td>shares host network stack, no isolation, no port mapping (Linux only)</td>
+<td>max network performance, special tools</td>
+</tr>
+<tr>
+<td>none</td>
+<td>no network</td>
+<td>isolated jobs</td>
+</tr>
+<tr>
+<td>overlay</td>
+<td>multi-host (Swarm)</td>
+<td>legacy Swarm; K8s uses CNI instead</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>Port publishing: <code>-p HOST:CONTAINER</code> (<code>-p 127.0.0.1:5432:5432</code> binds to loopback only). <code>EXPOSE</code> is documentation only; it does not publish.</li>
+<li>Containers on the same user-defined network reach each other by service name and CONTAINER port (not the published host port).</li>
+<li>Compose creates one project network by default; services resolve each other by service name.</li>
+</ul>
+<p>Gotcha: <code>localhost</code> inside a container is the container itself. App connecting to <code>localhost:5432</code> for Postgres fails; use <code>db:5432</code> (service name).
+Gotcha: Binding the app to <code>127.0.0.1</code> inside the container makes it unreachable even with <code>-p</code>; bind <code>0.0.0.0</code> (<code>uvicorn --host 0.0.0.0</code>).
+Gotcha: Published ports bypass host firewalls like ufw because Docker edits iptables directly; bind to 127.0.0.1 for internal-only services.
+Gotcha: From a container to the host: <code>host.docker.internal</code> (Docker Desktop; on Linux add <code>--add-host=host.docker.internal:host-gateway</code>).</p>
+<p>How interviewers probe it:</p>
+<ul>
+<li>"App can't reach DB in Compose, works locally." -&gt; localhost vs service name; startup ordering; wrong network.</li>
+<li>"Difference between EXPOSE and -p?" -&gt; metadata vs actual publishing.</li>
+</ul>
+<hr />
+<h2 id="6-docker-compose">6. Docker Compose</h2>
+<p>Compose describes a multi-container app in <code>compose.yaml</code> / <code>docker-compose.yml</code> (Compose Specification; the top-level <code>version:</code> key is obsolete and ignored by Compose v2 (check current docs)). Command is <code>docker compose</code> (v2 plugin), not <code>docker-compose</code> (v1, end of life).</p>
+<p>Key concepts</p>
+<ul>
+<li>services, networks, volumes, configs, secrets at top level.</li>
+<li><code>depends_on</code> alone = start order only. With <code>condition: service_healthy</code> it waits for the dependency's healthcheck to pass (other conditions: <code>service_started</code>, <code>service_completed_successfully</code>).</li>
+<li><code>env_file:</code> loads variables into the container; <code>${VAR}</code> interpolation in the compose file reads the shell env and a <code>.env</code> file next to the compose file. They are different mechanisms.</li>
+<li><code>profiles:</code> enable optional services; <code>docker compose up --build</code>; <code>restart: unless-stopped</code>.</li>
+</ul>
+<p>Gotcha: <code>.env</code> is for compose-file interpolation (and default env for <code>env_file</code> if you point at it); it is NOT automatically injected into containers unless referenced via <code>environment:</code>/<code>env_file:</code>.
+Gotcha: Without a healthcheck, <code>service_healthy</code> is invalid for that dependency; Postgres is "started" long before it accepts connections.
+Gotcha: <code>docker compose up</code> does not rebuild on Dockerfile change unless <code>--build</code>.
+Gotcha: Commit <code>.env.example</code>, never <code>.env</code>.</p>
+<p>How interviewers probe it:</p>
+<ul>
+<li>"App crashes on first boot with connection refused to the DB" -&gt; depends_on without health condition; also add app-level retry.</li>
+<li>"Compose vs Kubernetes?" -&gt; single-host dev/test vs multi-node production orchestration (self-healing, scaling, rolling updates, service discovery at scale).</li>
+</ul>
+<hr />
+<h2 id="7-complete-example-fastapi-postgres">7. Complete example: FastAPI + Postgres</h2>
+<p>Layout</p>
+<div class="highlight"><pre><span></span><code> myapp/
+   Dockerfile
+   docker-compose.yml
+   .dockerignore
+   .env                 (git-ignored; real values)
+   .env.example
+   pyproject.toml
+   uv.lock
+   alembic.ini
+   alembic/             (migrations)
+   src/app/main.py      (exposes FastAPI `app`, with GET /healthz and GET /readyz)
+</code></pre></div>
+
+<p>.dockerignore</p>
+<div class="highlight"><pre><span></span><code>.git
+.venv
+__pycache__/
+*.pyc
+.env
+.pytest_cache
+.mypy_cache
+tests/
+docs/
+</code></pre></div>
+
+<p>Dockerfile (multi-stage, non-root, exec-form CMD)</p>
+<div class="highlight"><pre><span></span><code><span class="c"># syntax=docker/dockerfile:1</span>
+<span class="c"># Pin base by tag; for strict reproducibility add @sha256:&lt;digest&gt; (check current docs for current tags)</span>
+<span class="k">FROM</span><span class="w"> </span><span class="s">python:3.12-slim-bookworm</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="s">builder</span>
+
+<span class="k">ENV</span><span class="w"> </span><span class="nv">UV_COMPILE_BYTECODE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="nv">UV_LINK_MODE</span><span class="o">=</span>copy<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="nv">PYTHONDONTWRITEBYTECODE</span><span class="o">=</span><span class="m">1</span>
+
+<span class="c"># Pin uv version (check current docs for latest)</span>
+<span class="k">COPY</span><span class="w"> </span>--from<span class="o">=</span>ghcr.io/astral-sh/uv:0.5<span class="w"> </span>/uv<span class="w"> </span>/usr/local/bin/uv
+
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
+
+<span class="c"># 1) dependencies only (cached until pyproject/uv.lock change)</span>
+<span class="k">COPY</span><span class="w"> </span>pyproject.toml<span class="w"> </span>uv.lock<span class="w"> </span>./
+<span class="k">RUN</span><span class="w"> </span>--mount<span class="o">=</span><span class="nv">type</span><span class="o">=</span>cache,target<span class="o">=</span>/root/.cache/uv<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>uv<span class="w"> </span>sync<span class="w"> </span>--frozen<span class="w"> </span>--no-dev<span class="w"> </span>--no-install-project
+
+<span class="c"># 2) project source (changes often, so last)</span>
+<span class="k">COPY</span><span class="w"> </span>src<span class="w"> </span>./src
+<span class="k">COPY</span><span class="w"> </span>alembic.ini<span class="w"> </span>./
+<span class="k">COPY</span><span class="w"> </span>alembic<span class="w"> </span>./alembic
+<span class="k">RUN</span><span class="w"> </span>--mount<span class="o">=</span><span class="nv">type</span><span class="o">=</span>cache,target<span class="o">=</span>/root/.cache/uv<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>uv<span class="w"> </span>sync<span class="w"> </span>--frozen<span class="w"> </span>--no-dev
+
+<span class="c"># ---------- runtime stage ----------</span>
+<span class="k">FROM</span><span class="w"> </span><span class="s">python:3.12-slim-bookworm</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="s">runtime</span>
+
+<span class="k">ENV</span><span class="w"> </span><span class="nv">PYTHONUNBUFFERED</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="nv">PYTHONDONTWRITEBYTECODE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="nv">PATH</span><span class="o">=</span><span class="s2">"/app/.venv/bin:</span><span class="nv">$PATH</span><span class="s2">"</span>
+
+<span class="c"># create unprivileged user with fixed UID (helps K8s runAsNonRoot checks)</span>
+<span class="k">RUN</span><span class="w"> </span>groupadd<span class="w"> </span>--system<span class="w"> </span>--gid<span class="w"> </span><span class="m">10001</span><span class="w"> </span>app<span class="w"> </span><span class="se">\</span>
+<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>useradd<span class="w">  </span>--system<span class="w"> </span>--uid<span class="w"> </span><span class="m">10001</span><span class="w"> </span>--gid<span class="w"> </span>app<span class="w"> </span>--no-create-home<span class="w"> </span>--shell<span class="w"> </span>/usr/sbin/nologin<span class="w"> </span>app
+
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
+<span class="c"># copy only what runtime needs; no compilers, no uv, no build cache</span>
+<span class="k">COPY</span><span class="w"> </span>--from<span class="o">=</span>builder<span class="w"> </span>--chown<span class="o">=</span>app:app<span class="w"> </span>/app<span class="w"> </span>/app
+
+<span class="k">USER</span><span class="w"> </span><span class="s">10001:10001</span>
+<span class="k">EXPOSE</span><span class="w"> </span><span class="s">8000</span>
+
+<span class="k">HEALTHCHECK</span><span class="w"> </span>--interval<span class="o">=</span>10s<span class="w"> </span>--timeout<span class="o">=</span>3s<span class="w"> </span>--start-period<span class="o">=</span>15s<span class="w"> </span>--retries<span class="o">=</span><span class="m">3</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>CMD<span class="w"> </span><span class="o">[</span><span class="s2">"python"</span>,<span class="w"> </span><span class="s2">"-c"</span>,<span class="w"> </span><span class="s2">"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2).status==200 else 1)"</span><span class="o">]</span>
+
+<span class="c"># exec form -&gt; uvicorn is PID 1 and receives SIGTERM</span>
+<span class="k">CMD</span><span class="w"> </span><span class="p">[</span><span class="s2">"uvicorn"</span><span class="p">,</span><span class="w"> </span><span class="s2">"app.main:app"</span><span class="p">,</span><span class="w"> </span><span class="s2">"--host"</span><span class="p">,</span><span class="w"> </span><span class="s2">"0.0.0.0"</span><span class="p">,</span><span class="w"> </span><span class="s2">"--port"</span><span class="p">,</span><span class="w"> </span><span class="s2">"8000"</span><span class="p">,</span><span class="w"> </span><span class="s2">"--workers"</span><span class="p">,</span><span class="w"> </span><span class="s2">"2"</span><span class="p">]</span>
+</code></pre></div>
+
+<p>Notes: if you use psycopg with libpq you may need <code>libpq5</code> in the runtime stage (apt, one RUN, clean lists), or use <code>psycopg[binary]</code>. Paths like <code>/app/.venv</code> rely on uv creating the venv in the project dir (default). <code>--workers</code> in containers: often 1 worker per container and scale replicas instead (K8s HPA), tune to your CPU limit.</p>
+<p>docker-compose.yml</p>
+<div class="highlight"><pre><span></span><code><span class="nt">services</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">db</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres:16-alpine</span><span class="w">           </span><span class="c1"># pin major (check current docs for supported versions)</span>
+<span class="w">    </span><span class="nt">restart</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">unless-stopped</span>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">POSTGRES_USER</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${POSTGRES_USER}</span>
+<span class="w">      </span><span class="nt">POSTGRES_PASSWORD</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${POSTGRES_PASSWORD}</span>
+<span class="w">      </span><span class="nt">POSTGRES_DB</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${POSTGRES_DB}</span>
+<span class="w">    </span><span class="nt">volumes</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pgdata:/var/lib/postgresql/data</span><span class="w">  </span><span class="c1"># named volume: survives `down`, deleted by `down -v`</span>
+<span class="w">    </span><span class="nt">healthcheck</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">test</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"CMD-SHELL"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"pg_isready</span><span class="nv"> </span><span class="s">-U</span><span class="nv"> </span><span class="s">${POSTGRES_USER}</span><span class="nv"> </span><span class="s">-d</span><span class="nv"> </span><span class="s">${POSTGRES_DB}"</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">interval</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5s</span>
+<span class="w">      </span><span class="nt">timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3s</span>
+<span class="w">      </span><span class="nt">retries</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">      </span><span class="nt">start_period</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10s</span>
+<span class="w">    </span><span class="nt">ports</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"127.0.0.1:5432:5432"</span><span class="w">            </span><span class="c1"># optional: host access for psql, loopback only</span>
+
+<span class="w">  </span><span class="nt">migrate</span><span class="p">:</span><span class="w">                               </span><span class="c1"># one-shot job: run alembic then exit</span>
+<span class="w">    </span><span class="nt">build</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.</span>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"alembic"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"upgrade"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"head"</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">env_file</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.env</span>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">DATABASE_URL</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}</span>
+<span class="w">    </span><span class="nt">depends_on</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">db</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">condition</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">service_healthy</span>
+
+<span class="w">  </span><span class="nt">api</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">build</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">context</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.</span>
+<span class="w">      </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">runtime</span>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">myapp-api:dev</span>
+<span class="w">    </span><span class="nt">restart</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">unless-stopped</span>
+<span class="w">    </span><span class="nt">env_file</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.env</span>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">DATABASE_URL</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}</span>
+<span class="w">    </span><span class="nt">ports</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"8000:8000"</span>
+<span class="w">    </span><span class="nt">depends_on</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">db</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">condition</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">service_healthy</span>
+<span class="w">      </span><span class="nt">migrate</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">condition</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">service_completed_successfully</span>
+<span class="w">    </span><span class="nt">init</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                           </span><span class="c1"># tini as PID 1: reaps zombies, forwards signals</span>
+<span class="w">    </span><span class="nt">read_only</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">tmpfs</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/tmp</span>
+<span class="w">    </span><span class="nt">cap_drop</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">ALL</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">security_opt</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">no-new-privileges:true</span>
+
+<span class="nt">volumes</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">pgdata</span><span class="p">:</span>
+</code></pre></div>
+
+<p>.env.example</p>
+<div class="highlight"><pre><span></span><code>POSTGRES_USER=app
+POSTGRES_PASSWORD=change-me-locally
+POSTGRES_DB=appdb
+</code></pre></div>
+
+<p>Run and verify</p>
+<div class="highlight"><pre><span></span><code> cp .env.example .env                       # edit values
+ docker compose config                      # validate + show interpolated config
+ docker compose up --build -d
+ docker compose ps                          # db should be "healthy"; migrate "exited (0)"
+ docker compose logs -f api                 # watch uvicorn start
+ curl -i http://localhost:8000/healthz      # expect 200
+ docker compose exec db psql -U app -d appdb -c '\dt'     # alembic_version + your tables exist
+ docker compose exec api id                 # uid=10001 (non-root confirmed)
+ docker compose down                        # keep data
+ docker compose down -v                     # DESTROY data (named volume)
+</code></pre></div>
+
+<p>Alembic migration note</p>
+<ul>
+<li>Do not run migrations inside every app replica's startup in production: N replicas race. Run them as a one-shot job (Compose <code>migrate</code> service, K8s Job or Helm pre-upgrade hook / init step) before rolling out the new version.</li>
+<li>Make migrations backward compatible (expand/contract: add nullable column -&gt; deploy code -&gt; backfill -&gt; enforce) so old and new pods coexist during a rolling update.</li>
+</ul>
+<p>Gotcha: <code>read_only: true</code> breaks apps that write to unexpected paths; find them with logs, add tmpfs/volumes.
+Gotcha: Special characters in DB password inside a URL must be percent-encoded.</p>
+<p>How interviewers probe it:</p>
+<ul>
+<li>"Walk me through what happens on <code>docker compose up</code>" -&gt; network created, volume created, db starts, healthcheck loops, migrate runs, api starts.</li>
+<li>"How do you do migrations safely with multiple replicas?" -&gt; single job, backward-compatible schema changes.</li>
+</ul>
+<hr />
+<h2 id="8-kubernetes-architecture-and-the-reconciliation-loop">8. Kubernetes architecture and the reconciliation loop</h2>
+<div class="highlight"><pre><span></span><code> CONTROL PLANE                                    WORKER NODE (many)
+ +-------------------------------------+          +---------------------------------+
+ | kube-apiserver  (REST front door,   |&lt;--------&gt;| kubelet   (runs pods, probes,   |
+ |   authn/authz/admission, only one   |  watch   |            reports status)      |
+ |   that talks to etcd)               |          | kube-proxy (Service virtual IPs |
+ | etcd  (consistent KV store: ALL     |          |            via iptables/IPVS)   |
+ |   cluster state)                    |          | container runtime (containerd / |
+ | kube-scheduler (assigns Pods to     |          |            CRI-O) via CRI       |
+ |   nodes: requests, taints, affinity)|          | CNI plugin (pod networking)     |
+ | controller-manager (Deployment,     |          +---------------------------------+
+ |   ReplicaSet, Node, Job controllers)|
+ | cloud-controller-manager (LB, etc.) |
+ +-------------------------------------+
+</code></pre></div>
+
+<p>Declarative model: you declare DESIRED state (YAML) -&gt; apiserver stores in etcd -&gt; controllers continuously compare desired vs actual and act. This is a level-triggered reconciliation loop: <code>observe -&gt; diff -&gt; act -&gt; repeat</code>. This is why a deleted pod comes back and why <code>kubectl apply</code> is idempotent.</p>
+<p>Life of <code>kubectl apply -f deployment.yaml</code></p>
+<ol>
+<li>kubectl -&gt; apiserver (authn, authz/RBAC, admission, validation) -&gt; persisted in etcd.</li>
+<li>Deployment controller creates a ReplicaSet; ReplicaSet controller creates Pod objects (unscheduled).</li>
+<li>Scheduler picks a node (filter then score) and binds the Pod.</li>
+<li>kubelet on that node sees it, pulls the image, starts containers via the runtime, runs probes, reports status.</li>
+<li>Endpoint/EndpointSlice controller adds ready pods behind Services; kube-proxy programs rules.</li>
+</ol>
+<p>Gotcha: Kubernetes removed Docker (dockershim) in v1.24; runtime is containerd/CRI-O. Docker-built images still run (OCI images). (check current docs)
+Gotcha: Losing etcd = losing the cluster state; back up etcd (managed services do this for you). Running pods keep running if the control plane is down briefly, but nothing reconciles.
+Gotcha: The scheduler only places; the kubelet runs. "Pending" means scheduling failed; "ContainerCreating" means kubelet/runtime/image/volume stage.</p>
+<p>How interviewers probe it:</p>
+<ul>
+<li>"What happens when you create a Deployment?" (above chain).</li>
+<li>"What if the scheduler is down?" -&gt; existing pods continue; new pods stay Pending.</li>
+<li>"Why is K8s called declarative?" -&gt; desired state + controllers vs imperative commands.</li>
+</ul>
+<hr />
+<h2 id="9-core-workload-objects">9. Core workload objects</h2>
+<div class="highlight"><pre><span></span><code> Deployment  --owns--&gt;  ReplicaSet (one per template version)  --owns--&gt;  Pods
+ Service  --selects by labels--&gt;  Pods (via EndpointSlices)
+ Ingress  --routes HTTP host/path--&gt;  Services   (needs an Ingress controller: nginx, traefik, cloud LB)
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th>Object</th>
+<th>Purpose</th>
+<th>Key notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pod</td>
+<td>smallest deployable unit: 1+ containers sharing network namespace (one IP) and volumes</td>
+<td>ephemeral, never "repaired", replaced; sidecars/init containers</td>
+</tr>
+<tr>
+<td>ReplicaSet</td>
+<td>keep N identical pods alive</td>
+<td>rarely created directly</td>
+</tr>
+<tr>
+<td>Deployment</td>
+<td>declarative updates for stateless apps; rolling update + rollback</td>
+<td><code>kubectl rollout</code></td>
+</tr>
+<tr>
+<td>Service ClusterIP</td>
+<td>stable virtual IP + DNS inside cluster (<code>svc.ns.svc.cluster.local</code>)</td>
+<td>default</td>
+</tr>
+<tr>
+<td>Service NodePort</td>
+<td>opens a port (30000-32767 default) on every node</td>
+<td>dev/on-prem; builds on ClusterIP</td>
+</tr>
+<tr>
+<td>Service LoadBalancer</td>
+<td>provisions cloud LB with external IP</td>
+<td>builds on NodePort; one LB per Service = cost</td>
+</tr>
+<tr>
+<td>Ingress</td>
+<td>L7 HTTP(S) routing, TLS termination, host/path rules</td>
+<td>requires a controller; Gateway API is the successor (check current docs)</td>
+</tr>
+<tr>
+<td>ConfigMap</td>
+<td>non-secret config (env vars, files)</td>
+<td></td>
+</tr>
+<tr>
+<td>Secret</td>
+<td>sensitive config</td>
+<td>base64-encoded, NOT encrypted</td>
+</tr>
+<tr>
+<td>Namespace</td>
+<td>logical partition, scope for names, quotas, RBAC</td>
+<td>not a security boundary by itself</td>
+</tr>
+<tr>
+<td>StatefulSet</td>
+<td>stable identity (pod-0, pod-1), stable storage per pod, ordered start</td>
+<td>databases, Kafka; headless Service</td>
+</tr>
+<tr>
+<td>DaemonSet</td>
+<td>one pod per node</td>
+<td>log agents, node exporters</td>
+</tr>
+<tr>
+<td>Job / CronJob</td>
+<td>run-to-completion / scheduled</td>
+<td>migrations, batch; <code>restartPolicy: OnFailure/Never</code></td>
+</tr>
+<tr>
+<td>PV / PVC / StorageClass</td>
+<td>PV = storage resource; PVC = request for it; StorageClass = dynamic provisioning</td>
+<td>pod references PVC</td>
+</tr>
+</tbody>
+</table>
+<p>Secrets, honestly</p>
+<ul>
+<li>Secret data is base64: <code>echo cGFzcw== | base64 -d</code>. Encoding, not encryption. Anyone with <code>get secret</code> RBAC reads it.</li>
+<li>Hardening: enable etcd encryption at rest (EncryptionConfiguration / KMS provider), restrict RBAC, avoid secrets in env vars when possible (env leaks via <code>describe</code>, crash dumps, child processes; mounted files are safer), use external secret managers (External Secrets Operator, Vault, cloud secret managers, CSI secrets store driver).</li>
+<li>Never commit Secret YAML with real values; use SealedSecrets/SOPS or external operators.</li>
+</ul>
+<p>Service mechanics</p>
+<ul>
+<li>Selector matches pod labels; mismatch -&gt; "service has no endpoints".</li>
+<li><code>port</code> (service) vs <code>targetPort</code> (container port) vs <code>nodePort</code>.</li>
+<li>Headless Service (<code>clusterIP: None</code>) returns pod IPs directly (StatefulSets).</li>
+<li>Only READY pods are in endpoints; failing readiness removes the pod from traffic without restarting it.</li>
+</ul>
+<p>Gotcha: Deployment selector is immutable after creation; labels in <code>selector.matchLabels</code> must match template labels.
+Gotcha: Pods are not durable - never rely on a pod IP; use a Service.
+Gotcha: Changing a ConfigMap does not restart pods using it as env vars; mounted-file updates propagate eventually (not with subPath). Common trick: checksum annotation in pod template (Helm) or <code>kubectl rollout restart</code>.
+Gotcha: StatefulSet PVCs are not deleted when the StatefulSet is deleted (by default).</p>
+<p>How interviewers probe it:</p>
+<ul>
+<li>"ClusterIP vs NodePort vs LoadBalancer vs Ingress?" with when to use each.</li>
+<li>"Is a Secret secure?" -&gt; no by default; list mitigations.</li>
+<li>"Deployment vs StatefulSet?" -&gt; identity + storage + ordering.</li>
+</ul>
+<hr />
+<h2 id="10-probes-resources-qos-hpa-rollouts">10. Probes, resources, QoS, HPA, rollouts</h2>
+<p>Probes</p>
+<table>
+<thead>
+<tr>
+<th>Probe</th>
+<th>Question</th>
+<th>On failure</th>
+<th>Typical endpoint</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>startup</td>
+<td>has the app finished booting?</td>
+<td>kill/restart after failureThreshold; disables liveness/readiness until it passes</td>
+<td>slow-starting apps (migrations, model loading)</td>
+</tr>
+<tr>
+<td>liveness</td>
+<td>is the process wedged/deadlocked?</td>
+<td>kubelet RESTARTS container</td>
+<td><code>/healthz</code> (cheap, NO dependency checks)</td>
+</tr>
+<tr>
+<td>readiness</td>
+<td>can it serve traffic right now?</td>
+<td>removed from Service endpoints (no restart)</td>
+<td><code>/readyz</code> (may check DB connectivity)</td>
+</tr>
+</tbody>
+</table>
+<p>Gotcha: A liveness probe that checks the database causes cascading restarts when the DB blips. Liveness = "am I alive", readiness = "can I serve".
+Gotcha: Too-aggressive liveness (short timeout, no startupProbe) = restart loop on slow start, looks like CrashLoopBackOff.</p>
+<p>Requests and limits</p>
+<div class="highlight"><pre><span></span><code> resources:
+   requests: cpu 250m, memory 256Mi   # used by SCHEDULER for placement; guaranteed minimum
+   limits:   cpu 500m, memory 512Mi   # enforced by cgroups at runtime
+ CPU over limit    -&gt; THROTTLED (slow, not killed)
+ Memory over limit -&gt; OOMKilled (exit 137), pod restarts
+</code></pre></div>
+
+<p>QoS classes (set automatically)</p>
+<table>
+<thead>
+<tr>
+<th>Class</th>
+<th>Condition</th>
+<th>Eviction order under node pressure</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Guaranteed</td>
+<td>every container: requests == limits for cpu AND memory</td>
+<td>last evicted</td>
+</tr>
+<tr>
+<td>Burstable</td>
+<td>at least one request/limit set, not Guaranteed</td>
+<td>middle</td>
+</tr>
+<tr>
+<td>BestEffort</td>
+<td>no requests/limits at all</td>
+<td>first evicted</td>
+</tr>
+</tbody>
+</table>
+<p>Gotcha: No requests -&gt; scheduler packs pods blindly and HPA cannot compute CPU utilization (it is % of the REQUEST).
+Gotcha: CPU limits can cause throttling even when the node is idle; many teams set memory limits but omit or loosen CPU limits (debated; know both sides).
+Gotcha: 1 CPU = 1000m; Mi (mebibytes) vs M (megabytes).</p>
+<p>HPA (HorizontalPodAutoscaler): scales replicas based on metrics (CPU/memory via metrics-server, custom/external metrics). Formula: <code>desired = ceil(current * currentMetric / targetMetric)</code>. Needs requests set, metrics-server installed, and has stabilization windows to avoid flapping. VPA adjusts requests; Cluster Autoscaler/Karpenter adds nodes for Pending pods.</p>
+<p>Rolling updates and rollbacks</p>
+<ul>
+<li>Default strategy RollingUpdate with <code>maxSurge: 25%</code>, <code>maxUnavailable: 25%</code> (check current docs). New ReplicaSet scales up while old scales down; readiness gates progress.</li>
+<li>Zero-downtime needs: readiness probe, graceful shutdown (handle SIGTERM, <code>preStop</code> sleep for endpoint propagation), enough replicas, <code>PodDisruptionBudget</code> for voluntary disruptions.</li>
+<li><code>kubectl rollout status deploy/api</code>, <code>kubectl rollout history deploy/api</code>, <code>kubectl rollout undo deploy/api [--to-revision=N]</code>, <code>kubectl set image deploy/api api=repo/app:1.4.3</code>.</li>
+<li><code>Recreate</code> strategy = kill all then start (downtime; for singleton/incompatible versions).</li>
+</ul>
+<p>How interviewers probe it:</p>
+<ul>
+<li>"Liveness vs readiness?" and "What happens if the DB is down and liveness checks it?"</li>
+<li>"Why is my pod OOMKilled but node has free memory?" -&gt; container limit, cgroup.</li>
+<li>"Why isn't HPA scaling?" -&gt; no requests, no metrics-server, target not exceeded, maxReplicas.</li>
+<li>"How do you roll back?" and "How is the deploy zero-downtime?"</li>
+</ul>
+<hr />
+<h2 id="11-rbac-basics-and-namespaces">11. RBAC basics and namespaces</h2>
+<div class="highlight"><pre><span></span><code> Subject (User / Group / ServiceAccount) --RoleBinding--&gt; Role (verbs on resources, in a namespace)
+ Subject --ClusterRoleBinding--&gt; ClusterRole (cluster-wide or non-namespaced resources)
+</code></pre></div>
+
+<ul>
+<li>Default deny: RBAC only adds permissions (additive, no deny rules).</li>
+<li>Every pod runs as a ServiceAccount (default one if unspecified); its token is mounted at <code>/var/run/secrets/kubernetes.io/serviceaccount</code>. Set <code>automountServiceAccountToken: false</code> if the pod does not call the API.</li>
+<li>Check: <code>kubectl auth can-i list pods --as system:serviceaccount:prod:api -n prod</code>.</li>
+<li>Principle of least privilege: namespace-scoped Roles, specific verbs, avoid <code>cluster-admin</code> and wildcards.</li>
+</ul>
+<p>Gotcha: <code>Forbidden: ... cannot list resource "pods"</code> in app logs = missing Role/RoleBinding for its ServiceAccount.
+Gotcha: Namespaces isolate names and RBAC/quota scope, but do NOT isolate network by default (add NetworkPolicy) and nodes are shared.</p>
+<p>How interviewers probe it: "Difference between Role and ClusterRole?"; "How would you give a CI job permission to deploy only to staging?"</p>
+<hr />
+<h2 id="12-full-k8s-manifests-for-the-fastapi-app">12. Full K8s manifests for the FastAPI app</h2>
+<p>API versions below are stable as of recent releases (check current docs).</p>
+<div class="highlight"><pre><span></span><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Namespace</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">myapp</span>
+<span class="nn">---</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ConfigMap</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">api-config</span>
+<span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">myapp</span>
+<span class="nt">data</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">LOG_LEVEL</span><span class="p">:</span><span class="w"> </span><span class="s">"info"</span>
+<span class="w">  </span><span class="nt">POSTGRES_HOST</span><span class="p">:</span><span class="w"> </span><span class="s">"postgres"</span><span class="w">        </span><span class="c1"># Service name of DB (managed DB host in real prod)</span>
+<span class="w">  </span><span class="nt">POSTGRES_DB</span><span class="p">:</span><span class="w"> </span><span class="s">"appdb"</span>
+<span class="nn">---</span>
+<span class="c1"># Secret: created out-of-band; shown here only for shape. base64 is NOT encryption.</span>
+<span class="c1"># Preferred: kubectl create secret generic api-secret -n myapp --from-literal=POSTGRES_PASSWORD='...'</span>
+<span class="c1"># or External Secrets / SealedSecrets / SOPS. Never commit real values.</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Secret</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">api-secret</span>
+<span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">myapp</span>
+<span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Opaque</span>
+<span class="nt">stringData</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">POSTGRES_USER</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">app</span>
+<span class="w">  </span><span class="nt">POSTGRES_PASSWORD</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">REPLACE_ME</span>
+<span class="nn">---</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apps/v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Deployment</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">api</span>
+<span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">myapp</span>
+<span class="w">  </span><span class="nt">labels</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> app</span><span class="p">:</span><span class="w"> </span><span class="nv">api</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<span class="w">  </span><span class="nt">revisionHistoryLimit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">  </span><span class="nt">strategy</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">RollingUpdate</span>
+<span class="w">    </span><span class="nt">rollingUpdate</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> maxSurge</span><span class="p">:</span><span class="w"> </span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="nt"> maxUnavailable</span><span class="p">:</span><span class="w"> </span><span class="nv">0</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">matchLabels</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> app</span><span class="p">:</span><span class="w"> </span><span class="nv">api</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="w">  </span><span class="nt">template</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">metadata</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">labels</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> app</span><span class="p">:</span><span class="w"> </span><span class="nv">api</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">spec</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">automountServiceAccountToken</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">      </span><span class="nt">terminationGracePeriodSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
+<span class="w">      </span><span class="nt">securityContext</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">runAsNonRoot</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">runAsUser</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10001</span>
+<span class="w">        </span><span class="nt">runAsGroup</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10001</span>
+<span class="w">        </span><span class="nt">fsGroup</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10001</span>
+<span class="w">        </span><span class="nt">seccompProfile</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> type</span><span class="p">:</span><span class="w"> </span><span class="nv">RuntimeDefault</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="w">      </span><span class="nt">containers</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">api</span>
+<span class="w">          </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">registry.example.com/myapp/api:1.4.2</span><span class="w">   </span><span class="c1"># pin tag; digest preferred: @sha256:...</span>
+<span class="w">          </span><span class="nt">imagePullPolicy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">IfNotPresent</span>
+<span class="w">          </span><span class="nt">ports</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http</span>
+<span class="w">              </span><span class="nt">containerPort</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8000</span>
+<span class="w">          </span><span class="nt">envFrom</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">configMapRef</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> name</span><span class="p">:</span><span class="w"> </span><span class="nv">api-config</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="w">          </span><span class="nt">env</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">POSTGRES_USER</span>
+<span class="w">              </span><span class="nt">valueFrom</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> secretKeyRef</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> name</span><span class="p">:</span><span class="w"> </span><span class="nv">api-secret</span><span class="p p-Indicator">,</span><span class="nt"> key</span><span class="p">:</span><span class="w"> </span><span class="nv">POSTGRES_USER</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">POSTGRES_PASSWORD</span>
+<span class="w">              </span><span class="nt">valueFrom</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> secretKeyRef</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> name</span><span class="p">:</span><span class="w"> </span><span class="nv">api-secret</span><span class="p p-Indicator">,</span><span class="nt"> key</span><span class="p">:</span><span class="w"> </span><span class="nv">POSTGRES_PASSWORD</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="w">          </span><span class="nt">resources</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">requests</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> cpu</span><span class="p">:</span><span class="w"> </span><span class="nv">250m</span><span class="p p-Indicator">,</span><span class="nt"> memory</span><span class="p">:</span><span class="w"> </span><span class="nv">256Mi</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="w">            </span><span class="nt">limits</span><span class="p">:</span><span class="w">   </span><span class="p p-Indicator">{</span><span class="nt"> memory</span><span class="p">:</span><span class="w"> </span><span class="nv">512Mi</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w">          </span><span class="c1"># CPU limit omitted deliberately; add if your org requires it</span>
+<span class="w">          </span><span class="nt">startupProbe</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">httpGet</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> path</span><span class="p">:</span><span class="w"> </span><span class="nv">/healthz</span><span class="p p-Indicator">,</span><span class="nt"> port</span><span class="p">:</span><span class="w"> </span><span class="nv">http</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="w">            </span><span class="nt">periodSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<span class="w">            </span><span class="nt">failureThreshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span><span class="w">                 </span><span class="c1"># up to ~90s to boot</span>
+<span class="w">          </span><span class="nt">livenessProbe</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">httpGet</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> path</span><span class="p">:</span><span class="w"> </span><span class="nv">/healthz</span><span class="p p-Indicator">,</span><span class="nt"> port</span><span class="p">:</span><span class="w"> </span><span class="nv">http</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="w">            </span><span class="nt">periodSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">            </span><span class="nt">timeoutSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="w">            </span><span class="nt">failureThreshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<span class="w">          </span><span class="nt">readinessProbe</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">httpGet</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> path</span><span class="p">:</span><span class="w"> </span><span class="nv">/readyz</span><span class="p p-Indicator">,</span><span class="nt"> port</span><span class="p">:</span><span class="w"> </span><span class="nv">http</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="w">            </span><span class="nt">periodSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">            </span><span class="nt">timeoutSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="w">            </span><span class="nt">failureThreshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<span class="w">          </span><span class="nt">lifecycle</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">preStop</span><span class="p">:</span>
+<span class="w">              </span><span class="nt">exec</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"sleep"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"5"</span><span class="p p-Indicator">]</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w">  </span><span class="c1"># let endpoints propagate before SIGTERM handling (needs sleep binary; slim images have it)</span>
+<span class="w">          </span><span class="nt">securityContext</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">allowPrivilegeEscalation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">            </span><span class="nt">readOnlyRootFilesystem</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">            </span><span class="nt">capabilities</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> drop</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"ALL"</span><span class="p p-Indicator">]</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="w">          </span><span class="nt">volumeMounts</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> name</span><span class="p">:</span><span class="w"> </span><span class="nv">tmp</span><span class="p p-Indicator">,</span><span class="nt"> mountPath</span><span class="p">:</span><span class="w"> </span><span class="nv">/tmp</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="w">      </span><span class="nt">volumes</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tmp</span>
+<span class="w">          </span><span class="nt">emptyDir</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+<span class="nn">---</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Service</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">api</span>
+<span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">myapp</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ClusterIP</span>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> app</span><span class="p">:</span><span class="w"> </span><span class="nv">api</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w">          </span><span class="c1"># must match pod template labels</span>
+<span class="w">  </span><span class="nt">ports</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http</span>
+<span class="w">      </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+<span class="w">      </span><span class="nt">targetPort</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http</span><span class="w">            </span><span class="c1"># container port name</span>
+<span class="nn">---</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">networking.k8s.io/v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Ingress</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">api</span>
+<span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">myapp</span>
+<span class="w">  </span><span class="nt">annotations</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">nginx.ingress.kubernetes.io/proxy-body-size</span><span class="p">:</span><span class="w"> </span><span class="s">"10m"</span><span class="w">   </span><span class="c1"># controller-specific (check current docs)</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">ingressClassName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx</span>
+<span class="w">  </span><span class="nt">tls</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">hosts</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">api.example.com</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">secretName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">api-tls</span><span class="w">          </span><span class="c1"># e.g., issued by cert-manager</span>
+<span class="w">  </span><span class="nt">rules</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">api.example.com</span>
+<span class="w">      </span><span class="nt">http</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">paths</span><span class="p">:</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/</span>
+<span class="w">            </span><span class="nt">pathType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Prefix</span>
+<span class="w">            </span><span class="nt">backend</span><span class="p">:</span>
+<span class="w">              </span><span class="nt">service</span><span class="p">:</span>
+<span class="w">                </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">api</span>
+<span class="w">                </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> number</span><span class="p">:</span><span class="w"> </span><span class="nv">80</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="nn">---</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">autoscaling/v2</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">HorizontalPodAutoscaler</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">api</span>
+<span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">myapp</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">scaleTargetRef</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apps/v1</span>
+<span class="w">    </span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Deployment</span>
+<span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">api</span>
+<span class="w">  </span><span class="nt">minReplicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<span class="w">  </span><span class="nt">maxReplicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">  </span><span class="nt">metrics</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Resource</span>
+<span class="w">      </span><span class="nt">resource</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cpu</span>
+<span class="w">        </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> type</span><span class="p">:</span><span class="w"> </span><span class="nv">Utilization</span><span class="p p-Indicator">,</span><span class="nt"> averageUtilization</span><span class="p">:</span><span class="w"> </span><span class="nv">70</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w">   </span><span class="c1"># % of REQUEST</span>
+<span class="nn">---</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">policy/v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PodDisruptionBudget</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">api</span>
+<span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">myapp</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">minAvailable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">matchLabels</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> app</span><span class="p">:</span><span class="w"> </span><span class="nv">api</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="nn">---</span>
+<span class="c1"># Migration as a one-shot Job (run BEFORE rolling the Deployment; or Helm pre-upgrade hook)</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">batch/v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Job</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">api-migrate-142</span>
+<span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">myapp</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">backoffLimit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="w">  </span><span class="nt">ttlSecondsAfterFinished</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">600</span>
+<span class="w">  </span><span class="nt">template</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">spec</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">restartPolicy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Never</span>
+<span class="w">      </span><span class="nt">securityContext</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> runAsNonRoot</span><span class="p">:</span><span class="w"> </span><span class="nv">true</span><span class="p p-Indicator">,</span><span class="nt"> runAsUser</span><span class="p">:</span><span class="w"> </span><span class="nv">10001</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="w">      </span><span class="nt">containers</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">migrate</span>
+<span class="w">          </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">registry.example.com/myapp/api:1.4.2</span>
+<span class="w">          </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"alembic"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"upgrade"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"head"</span><span class="p p-Indicator">]</span>
+<span class="w">          </span><span class="nt">envFrom</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">configMapRef</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> name</span><span class="p">:</span><span class="w"> </span><span class="nv">api-config</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="w">          </span><span class="nt">env</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">POSTGRES_PASSWORD</span>
+<span class="w">              </span><span class="nt">valueFrom</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> secretKeyRef</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> name</span><span class="p">:</span><span class="w"> </span><span class="nv">api-secret</span><span class="p p-Indicator">,</span><span class="nt"> key</span><span class="p">:</span><span class="w"> </span><span class="nv">POSTGRES_PASSWORD</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
+</code></pre></div>
+
+<p>Apply and verify</p>
+<div class="highlight"><pre><span></span><code> kubectl apply -f k8s/                       # or kustomize: kubectl apply -k overlays/prod
+ kubectl -n myapp rollout status deploy/api
+ kubectl -n myapp get pods,svc,ingress,hpa
+ kubectl -n myapp get endpointslices         # Service has ready backends?
+ kubectl -n myapp port-forward svc/api 8080:80 &amp; curl localhost:8080/healthz
+ kubectl -n myapp top pods                   # needs metrics-server
+ kubectl -n myapp rollout undo deploy/api    # rollback
+</code></pre></div>
+
+<p>Database in K8s: for production, a managed Postgres (RDS/Cloud SQL) is common; running Postgres yourself needs StatefulSet + PVC + backups + operator (CloudNativePG, Zalando) - mention trade-offs.</p>
+<p>Gotcha: <code>readOnlyRootFilesystem: true</code> without an emptyDir for /tmp breaks many apps.
+Gotcha: <code>runAsNonRoot: true</code> fails if the image's USER is a name (non-numeric) or root; use numeric <code>USER 10001</code>.
+Gotcha: HPA with <code>replicas:</code> hard-coded in the Deployment and re-applied via CI will fight HPA; omit <code>replicas</code> when HPA manages it.
+Gotcha: <code>maxUnavailable: 0, maxSurge: 1</code> needs spare capacity or new pods sit Pending.</p>
+<p>How interviewers probe it: "Write a Deployment on a whiteboard" (labels/selector match, probes, resources, securityContext); "Where do secrets come from?"; "Why maxUnavailable 0?".</p>
+<hr />
+<h2 id="13-debugging-containers-and-pods">13. Debugging containers and pods</h2>
+<p>Docker</p>
+<div class="highlight"><pre><span></span><code> docker ps -a                       # status, exit codes
+ docker logs -f --tail 100 &lt;c&gt;      # stdout/stderr
+ docker inspect &lt;c&gt; | jq '.[0].State'   # ExitCode, OOMKilled, Error, Health
+ docker exec -it &lt;c&gt; sh             # shell in running container (slim images may lack bash)
+ docker run --rm -it --entrypoint sh &lt;image&gt;   # container exits instantly? override entrypoint
+ docker stats                       # live cpu/mem
+ docker history &lt;image&gt;             # layers, sizes, leaked commands
+ docker system df                   # disk usage;   docker system prune  # cleanup (careful)
+</code></pre></div>
+
+<p>Kubernetes workflow (always the same loop)</p>
+<div class="highlight"><pre><span></span><code> 1. kubectl get pods -n ns -o wide                    # STATUS, RESTARTS, node
+ 2. kubectl describe pod &lt;p&gt; -n ns                    # Events at bottom, Last State, Reason, Exit Code
+ 3. kubectl logs &lt;p&gt; -n ns [-c container] [--previous]   # --previous = the crashed instance
+ 4. kubectl get events -n ns --sort-by=.lastTimestamp
+ 5. kubectl exec -it &lt;p&gt; -n ns -- sh                  # poke around, curl, env, DNS (nslookup svc)
+ 6. kubectl port-forward svc/api 8080:80 -n ns        # test from laptop
+ 7. kubectl top pod / node                            # needs metrics-server
+ 8. kubectl debug -it &lt;p&gt; --image=busybox --target=&lt;container&gt;   # ephemeral debug container for distroless
+ 9. kubectl get deploy,rs,svc,endpointslices -n ns ; kubectl rollout history deploy/&lt;d&gt;
+</code></pre></div>
+
+<p>Decision table</p>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Meaning</th>
+<th>Likely causes</th>
+<th>How to confirm / fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CrashLoopBackOff</td>
+<td>container starts, exits, kubelet restarts with exponential backoff (up to 5 min)</td>
+<td>app exception, bad config/env, missing secret, wrong command, failing liveness probe, OOM</td>
+<td><code>logs --previous</code>; <code>describe</code> Last State exit code; run image locally with same env</td>
+</tr>
+<tr>
+<td>ImagePullBackOff / ErrImagePull</td>
+<td>cannot pull image</td>
+<td>typo in name/tag, tag missing, private registry without <code>imagePullSecrets</code>, rate limit, wrong arch, no network egress</td>
+<td><code>describe</code> events show pull error; verify with <code>docker pull</code>; create docker-registry secret</td>
+</tr>
+<tr>
+<td>Pending</td>
+<td>not scheduled (or PVC unbound)</td>
+<td>insufficient cpu/mem (requests too large), taints without tolerations, nodeSelector/affinity mismatch, unbound PVC, quota</td>
+<td><code>describe</code> Events: <code>0/5 nodes available: ...</code>; fix requests, add nodes, check <code>kubectl get pvc</code></td>
+</tr>
+<tr>
+<td>ContainerCreating (stuck)</td>
+<td>kubelet working on it</td>
+<td>image pulling, volume mount failure (missing ConfigMap/Secret/PVC), CNI problem</td>
+<td><code>describe</code> events (MountVolume.SetUp failed)</td>
+</tr>
+<tr>
+<td>OOMKilled, exit 137</td>
+<td>cgroup memory limit exceeded (137 = 128 + SIGKILL 9)</td>
+<td>limit too low, memory leak, big payloads, too many workers</td>
+<td><code>describe</code> Reason OOMKilled; <code>top</code>; raise limit/fix leak/reduce workers</td>
+</tr>
+<tr>
+<td>Exit 143</td>
+<td>SIGTERM (128+15)</td>
+<td>normal shutdown signal</td>
+<td>usually fine; check graceful handling</td>
+</tr>
+<tr>
+<td>Exit 1 / 2 / 126 / 127</td>
+<td>app error / usage / not executable / command not found</td>
+<td>bad command, missing binary, permission, wrong entrypoint</td>
+<td>logs; check <code>command</code>/<code>args</code>, file perms, <code>exec format error</code> = wrong arch</td>
+</tr>
+<tr>
+<td>Running but not Ready (0/1)</td>
+<td>readiness probe failing</td>
+<td>wrong path/port, app slow, dependency down, probe timeout too short</td>
+<td><code>describe</code> -&gt; "Readiness probe failed: ..."; <code>port-forward</code> and curl the path</td>
+</tr>
+<tr>
+<td>Service has no endpoints</td>
+<td>no READY pods match selector</td>
+<td>selector/labels mismatch, pods not ready, wrong namespace, targetPort mismatch</td>
+<td><code>kubectl get endpointslices</code>; compare <code>svc.spec.selector</code> with <code>pod --show-labels</code></td>
+</tr>
+<tr>
+<td>Ingress 502/503/404</td>
+<td>controller cannot reach backend / no rule</td>
+<td>no endpoints, wrong service port, host/path mismatch, wrong ingressClass</td>
+<td>controller logs; test Service via port-forward first</td>
+</tr>
+<tr>
+<td>Evicted</td>
+<td>node pressure (memory/disk)</td>
+<td>BestEffort/Burstable pods exceeded, ephemeral storage</td>
+<td><code>describe node</code> conditions; set requests/limits</td>
+</tr>
+<tr>
+<td>Terminating forever</td>
+<td>finalizers or stuck node</td>
+<td>finalizer not cleared, volume detach, node NotReady</td>
+<td><code>describe</code>, check finalizers (last resort <code>--force --grace-period=0</code>)</td>
+</tr>
+<tr>
+<td>CreateContainerConfigError</td>
+<td>config reference broken</td>
+<td>missing ConfigMap/Secret key</td>
+<td><code>describe</code> event names the missing key</td>
+</tr>
+<tr>
+<td>Cannot connect to DB from pod</td>
+<td>network/DNS/credentials</td>
+<td>wrong host, NetworkPolicy blocking, DNS (CoreDNS), wrong secret</td>
+<td><code>exec</code> + <code>nslookup</code>, <code>nc -zv host 5432</code>, check NetworkPolicy</td>
+</tr>
+</tbody>
+</table>
+<p>Forward-deployed engineer playbook (customer env, limited access)</p>
+<ol>
+<li>Reproduce the symptom precisely (which pod, what error, since when, what changed?). Ask "what changed" first: image tag, config, secret rotation, node upgrade, quota.</li>
+<li>Gather evidence read-only: <code>get</code>, <code>describe</code>, <code>logs --previous</code>, events. Save outputs; ask customers to paste them if you lack access.</li>
+<li>Form hypothesis from the decision table; test the cheapest check first (events and exit code give 80% of answers).</li>
+<li>Mitigate before root-causing if prod is down: <code>rollout undo</code>, scale up, raise limit temporarily - communicate each action.</li>
+<li>Document: timeline, root cause, fix, prevention (probe, limit, alert).
+Customer env quirks: air-gapped registries (mirror images, imagePullSecrets), corporate proxies (<code>HTTP_PROXY</code>/<code>NO_PROXY</code> on pods), custom CA certs (mount CA bundle), strict PodSecurity/admission policies rejecting your pod (read the admission error), restrictive NetworkPolicies/egress firewalls, older K8s versions (deprecated APIs), no <code>kubectl exec</code> allowed (use ephemeral debug or logs only), different ingress controllers.</li>
+</ol>
+<p>Gotcha: <code>kubectl logs</code> shows the CURRENT container; for a crash loop you need <code>--previous</code>.
+Gotcha: <code>kubectl describe</code> Events expire (~1 hour by default); check early or rely on log aggregation.
+Gotcha: distroless/scratch images have no shell; use <code>kubectl debug</code> with an ephemeral container.
+Gotcha: <code>CrashLoopBackOff</code> is a state not a cause; the exit code and previous logs are the cause.</p>
+<p>How interviewers probe it:</p>
+<ul>
+<li>"A pod is in CrashLoopBackOff; walk me through it." (get -&gt; describe -&gt; logs --previous -&gt; exit code -&gt; reproduce).</li>
+<li>"Deploy succeeded but users get 503." -&gt; readiness, endpoints, selector, ingress.</li>
+<li>"Pod OOMKilled, what do you do?" -&gt; confirm limit vs usage, fix leak, tune workers, raise limit, add alert.</li>
+</ul>
+<hr />
+<h2 id="14-container-and-k8s-security-basics">14. Container and K8s security basics</h2>
+<table>
+<thead>
+<tr>
+<th>Control</th>
+<th>What / how</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Non-root</td>
+<td><code>USER 10001</code>; K8s <code>runAsNonRoot: true</code></td>
+</tr>
+<tr>
+<td>Read-only root filesystem</td>
+<td><code>readOnlyRootFilesystem: true</code> + emptyDir/tmpfs for writable paths</td>
+</tr>
+<tr>
+<td>Drop capabilities</td>
+<td><code>capabilities.drop: [ALL]</code>, add back only what is needed (e.g., NET_BIND_SERVICE)</td>
+</tr>
+<tr>
+<td>No privilege escalation</td>
+<td><code>allowPrivilegeEscalation: false</code>; never <code>privileged: true</code>, no hostPath/hostNetwork unless essential</td>
+</tr>
+<tr>
+<td>Seccomp</td>
+<td><code>seccompProfile: RuntimeDefault</code></td>
+</tr>
+<tr>
+<td>Pod Security Admission</td>
+<td>namespace labels enforce <code>restricted</code> / <code>baseline</code> / <code>privileged</code> profiles (PSP was removed in 1.25) (check current docs)</td>
+</tr>
+<tr>
+<td>Secrets handling</td>
+<td>not in image/ENV/ARG/git; K8s Secret + etcd encryption + RBAC, or external manager; rotate</td>
+</tr>
+<tr>
+<td>Minimal base image</td>
+<td>distroless / slim; fewer packages = fewer CVEs</td>
+</tr>
+<tr>
+<td>Image scanning</td>
+<td><code>trivy image myapp:1.4.2</code> in CI; fail on HIGH/CRITICAL (also <code>grype</code>, Docker Scout)</td>
+</tr>
+<tr>
+<td>Pin digests</td>
+<td><code>image@sha256:...</code>; admission policy to allow only pinned/signed images</td>
+</tr>
+<tr>
+<td>Supply chain</td>
+<td>generate SBOM (<code>syft</code>, <code>trivy sbom</code>; formats SPDX/CycloneDX), sign images (cosign/Sigstore), provenance attestations (SLSA), verify at admission (Kyverno/Gatekeeper/policy-controller), private trusted registry</td>
+</tr>
+<tr>
+<td>NetworkPolicy</td>
+<td>default-deny then allow specific ingress/egress (needs CNI that enforces: Calico, Cilium)</td>
+</tr>
+<tr>
+<td>RBAC least privilege</td>
+<td>scoped Roles, dedicated ServiceAccounts, disable token automount</td>
+</tr>
+<tr>
+<td>Resource limits</td>
+<td>prevents noisy neighbor / DoS</td>
+</tr>
+<tr>
+<td>Runtime sandbox</td>
+<td>gVisor / Kata for untrusted workloads</td>
+</tr>
+</tbody>
+</table>
+<p>Default-deny NetworkPolicy plus an allow rule</p>
+<div class="highlight"><pre><span></span><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">networking.k8s.io/v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">NetworkPolicy</span>
+<span class="nt">metadata</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> name</span><span class="p">:</span><span class="w"> </span><span class="nv">default-deny</span><span class="p p-Indicator">,</span><span class="nt"> namespace</span><span class="p">:</span><span class="w"> </span><span class="nv">myapp</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">podSelector</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+<span class="w">  </span><span class="nt">policyTypes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">Ingress</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">Egress</span><span class="p p-Indicator">]</span>
+<span class="nn">---</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">networking.k8s.io/v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">NetworkPolicy</span>
+<span class="nt">metadata</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> name</span><span class="p">:</span><span class="w"> </span><span class="nv">allow-ingress-to-api</span><span class="p p-Indicator">,</span><span class="nt"> namespace</span><span class="p">:</span><span class="w"> </span><span class="nv">myapp</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">podSelector</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> matchLabels</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> app</span><span class="p">:</span><span class="w"> </span><span class="nv">api</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="w">  </span><span class="nt">policyTypes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">Ingress</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">ingress</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">from</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">namespaceSelector</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">matchLabels</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> kubernetes.io/metadata.name</span><span class="p">:</span><span class="w"> </span><span class="nv">ingress-nginx</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="w">      </span><span class="nt">ports</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt"> port</span><span class="p">:</span><span class="w"> </span><span class="nv">8000</span><span class="w"> </span><span class="p p-Indicator">}]</span>
+<span class="c1"># remember to also allow egress for DNS (UDP/TCP 53 to kube-dns) and to the database once egress is denied</span>
+</code></pre></div>
+
+<p>Gotcha: NetworkPolicy objects do nothing if the CNI does not support them.
+Gotcha: Default-deny egress breaks DNS - allow port 53 to kube-dns.
+Gotcha: Scanning once at build is not enough; new CVEs appear for old images - rescan registry images regularly.
+Gotcha: Mounting the Docker socket (<code>/var/run/docker.sock</code>) into a container = root on the host.
+Gotcha: A distroless/pinned image still needs a patch process; pinned digests do not auto-update.</p>
+<p>How interviewers probe it:</p>
+<ul>
+<li>"Harden this container" -&gt; list from the table in priority order (non-root, drop caps, read-only fs, no secrets in image, scan, pin).</li>
+<li>"What is in an SBOM and why?" -&gt; inventory of components for vulnerability/license tracking and incident response (e.g., log4shell style).</li>
+<li>"How would you stop pods from talking to each other?" -&gt; NetworkPolicy default deny.</li>
+</ul>
+<hr />
+<h2 id="15-putting-it-together-interview-narratives">15. Putting it together: interview narratives</h2>
+<ol>
+<li>"Containerize and deploy a FastAPI service."
+   Multi-stage Dockerfile, non-root, exec CMD, healthcheck, cached deps -&gt; Compose locally with Postgres healthcheck -&gt; push to registry with immutable tag/digest -&gt; K8s Deployment + Service + Ingress + HPA, probes, resources, securityContext -&gt; migrations as Job -&gt; scan in CI.</li>
+<li>"Production is returning 502s after a deploy."
+   Check rollout status and events -&gt; pods Ready? -&gt; endpoints and selector -&gt; readiness probe logs -&gt; compare image/config diff -&gt; rollback if impact ongoing -&gt; root cause afterwards.</li>
+<li>"Design for zero-downtime." Readiness + maxUnavailable 0 + preStop + SIGTERM handling + PDB + backward-compatible DB migrations + multiple replicas across zones (topology spread).</li>
+<li>"Container vs VM; when not to use containers?" Need strong isolation, custom kernel, GPU/driver complexity, stateful systems with heavy ops (use managed services).</li>
+</ol>
+<p>Labs (hands-on, 2-3h)</p>
+<ol>
+<li><code>unshare</code> a PID namespace; inspect <code>/sys/fs/cgroup</code> memory limit of a running container (<code>docker run -m 64m</code>) and trigger an OOM (exit 137).</li>
+<li>Break the Dockerfile cache on purpose (COPY . first), measure, then fix ordering.</li>
+<li>Run the section 7 stack; kill <code>db</code>, watch healthcheck; run <code>down</code> vs <code>down -v</code>.</li>
+<li>kind or minikube: apply section 12; break each thing (bad image tag, wrong selector, failing readiness, tiny memory limit) and diagnose with the decision table.</li>
+<li><code>trivy image</code> your image; compare slim vs full base vulnerability counts.</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../12-cs-fundamentals/week-04-git-collaboration/cheatsheet.html">← Week 4 · Git, review and CI/CD: Cheatsheet</a><a class="next" href="../../12-cs-fundamentals/week-05-containers-orchestration/interview-qa.html">Week 5 · Containers and orchestration: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

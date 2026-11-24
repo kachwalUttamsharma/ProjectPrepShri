@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>schema.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="06-sql/week-04-schema-indexes-transactions/schema.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../06-sql/week-04-schema-indexes-transactions/lesson.html">Week 4 · Schema, indexes, transactions</a> / <span>schema.py</span></nav><button id="mark-done" data-id="06-sql/week-04-schema-indexes-transactions/schema.py">Mark as done</button></div><article class="doc">
+<h1>schema.py</h1><p class="code-path"><code>06-sql/week-04-schema-indexes-transactions/schema.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Fixtures for Week 4 (schema design, indexes, transactions).</span>
+
+<span class="sd">Unlike weeks 1-3 the exercises here return DDL / DML (CREATE TABLE, CREATE INDEX,</span>
+<span class="sd">BEGIN ... COMMIT scripts, ...), so each test builds the starting database it needs</span>
+<span class="sd">with one of the helpers below, runs YOUR SQL on it, and inspects the result.</span>
+
+<span class="sd">All connections use `isolation_level=None` (autocommit: YOU control transactions with</span>
+<span class="sd">BEGIN/COMMIT/ROLLBACK) and `PRAGMA foreign_keys = ON` (SQLite leaves FKs OFF by default!).</span>
+
+<span class="sd">Starting tables per helper</span>
+<span class="sd">--------------------------</span>
+<span class="sd">fresh_conn()          empty database</span>
+<span class="sd">db_with_users()       users(id, email)                                  2 rows</span>
+<span class="sd">db_students_courses() students(id, name), courses(id, title)           2 + 2 rows</span>
+<span class="sd">db_flat_orders()      flat_orders(order_id, customer_name, customer_email, product, price, qty)</span>
+<span class="sd">db_events()           events(id, user_id, kind, created_at, payload)    3000 rows, no indexes</span>
+<span class="sd">db_subscriptions()    subscriptions(id, user_id, active)</span>
+<span class="sd">db_accounts()         accounts(id, owner, balance CHECK &gt;= 0), audit(id, note)</span>
+<span class="sd">db_products()         products(id, name, stock, version)                (1, 'pen', 10, 3)</span>
+<span class="sd">db_stock()            stock(sku PRIMARY KEY, qty)                       ('pen', 10)</span>
+<span class="sd">db_newsletter()       newsletter(email PRIMARY KEY)</span>
+<span class="sd">db_orders()           orders(id, customer, total)</span>
+<span class="sd">db_users_for_migration()  users(id, email) with 2 rows</span>
+<span class="sd">"""</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sqlite3</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">fresh_conn</span><span class="p">():</span>
+    <span class="n">conn</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">":memory:"</span><span class="p">,</span> <span class="n">isolation_level</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"PRAGMA foreign_keys = ON"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">conn</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">db_with_users</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">fresh_conn</span><span class="p">()</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">executescript</span><span class="p">(</span>
+        <span class="s2">"CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT NOT NULL);"</span>
+        <span class="s2">"INSERT INTO users VALUES (1, 'a@x.com'), (2, 'b@x.com');"</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">c</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">db_students_courses</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">fresh_conn</span><span class="p">()</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">executescript</span><span class="p">(</span>
+        <span class="s2">"CREATE TABLE students (id INTEGER PRIMARY KEY, name TEXT);"</span>
+        <span class="s2">"CREATE TABLE courses (id INTEGER PRIMARY KEY, title TEXT);"</span>
+        <span class="s2">"INSERT INTO students VALUES (1, 'Ann'), (2, 'Bob');"</span>
+        <span class="s2">"INSERT INTO courses VALUES (10, 'SQL'), (20, 'Python');"</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">c</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">db_flat_orders</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">fresh_conn</span><span class="p">()</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">executescript</span><span class="p">(</span>
+        <span class="s2">"CREATE TABLE flat_orders (order_id INTEGER PRIMARY KEY, customer_name TEXT,"</span>
+        <span class="s2">" customer_email TEXT, product TEXT, price REAL, qty INTEGER);"</span>
+        <span class="s2">"INSERT INTO flat_orders VALUES"</span>
+        <span class="s2">" (1,'Ann','ann@x.com','pen',2.0,3),(2,'Ann','ann@x.com','book',12.5,1),"</span>
+        <span class="s2">" (3,'Bob','bob@x.com','pen',2.0,5),(4,'Cy','cy@x.com','ink',4.0,2),"</span>
+        <span class="s2">" (5,'Bob','bob@x.com','book',12.5,1);"</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">c</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">db_events</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">fresh_conn</span><span class="p">()</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
+        <span class="s2">"CREATE TABLE events (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL,"</span>
+        <span class="s2">" kind TEXT NOT NULL, created_at TEXT NOT NULL, payload TEXT)"</span>
+    <span class="p">)</span>
+    <span class="n">kinds</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"click"</span><span class="p">,</span> <span class="s2">"view"</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">]</span>
+    <span class="n">rows</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">i</span> <span class="o">%</span> <span class="mi">100</span><span class="p">,</span> <span class="n">kinds</span><span class="p">[</span><span class="n">i</span> <span class="o">%</span> <span class="mi">3</span><span class="p">],</span> <span class="sa">f</span><span class="s2">"2024-</span><span class="si">{</span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">60</span><span class="p">)</span><span class="w"> </span><span class="o">//</span><span class="w"> </span><span class="mi">30</span><span class="si">:</span><span class="s2">02d</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">60</span><span class="p">)</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">30</span><span class="si">:</span><span class="s2">02d</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="s2">"x"</span> <span class="o">*</span> <span class="mi">20</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3001</span><span class="p">)</span>
+    <span class="p">]</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">executemany</span><span class="p">(</span><span class="s2">"INSERT INTO events VALUES (?,?,?,?,?)"</span><span class="p">,</span> <span class="n">rows</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">c</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">db_subscriptions</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">fresh_conn</span><span class="p">()</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
+        <span class="s2">"CREATE TABLE subscriptions (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL,"</span>
+        <span class="s2">" active INTEGER NOT NULL)"</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">c</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">db_accounts</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">fresh_conn</span><span class="p">()</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">executescript</span><span class="p">(</span>
+        <span class="s2">"CREATE TABLE accounts (id INTEGER PRIMARY KEY, owner TEXT NOT NULL,"</span>
+        <span class="s2">" balance INTEGER NOT NULL CHECK (balance &gt;= 0));"</span>
+        <span class="s2">"CREATE TABLE audit (id INTEGER PRIMARY KEY AUTOINCREMENT, note TEXT NOT NULL);"</span>
+        <span class="s2">"INSERT INTO accounts VALUES (1, 'ann', 1000), (2, 'bob', 500);"</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">c</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">db_products</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">fresh_conn</span><span class="p">()</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">executescript</span><span class="p">(</span>
+        <span class="s2">"CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, stock INTEGER, version INTEGER);"</span>
+        <span class="s2">"INSERT INTO products VALUES (1, 'pen', 10, 3);"</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">c</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">db_stock</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">fresh_conn</span><span class="p">()</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">executescript</span><span class="p">(</span>
+        <span class="s2">"CREATE TABLE stock (sku TEXT PRIMARY KEY, qty INTEGER NOT NULL);"</span>
+        <span class="s2">"INSERT INTO stock VALUES ('pen', 10);"</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">c</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">db_newsletter</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">fresh_conn</span><span class="p">()</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"CREATE TABLE newsletter (email TEXT PRIMARY KEY)"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">c</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">db_orders</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">fresh_conn</span><span class="p">()</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">executescript</span><span class="p">(</span>
+        <span class="s2">"CREATE TABLE orders (id INTEGER PRIMARY KEY, customer TEXT, total REAL);"</span>
+        <span class="s2">"INSERT INTO orders VALUES (1,'acme',100),(2,'acme',50),(3,'globex',75);"</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">c</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">db_users_for_migration</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">fresh_conn</span><span class="p">()</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">executescript</span><span class="p">(</span>
+        <span class="s2">"CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT NOT NULL);"</span>
+        <span class="s2">"INSERT INTO users VALUES (1, 'a@x.com'), (2, 'b@x.com');"</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">c</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">plan</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="n">sql</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="p">()):</span>
+<span class="w">    </span><span class="sd">"""EXPLAIN QUERY PLAN output as one lowercase string (one line per plan step)."""</span>
+    <span class="n">rows</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"EXPLAIN QUERY PLAN "</span> <span class="o">+</span> <span class="n">sql</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+    <span class="k">return</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">r</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">script</span><span class="p">(</span><span class="n">sql</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Validate that an exercise returned SQL text."""</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">sql</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">sql</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s2">"Exercise not implemented: the function must return a SQL string."</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">sql</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../06-sql/week-04-schema-indexes-transactions/test_exercises.py.html">← Week 4 · Schema, indexes, transactions: Tests (code)</a><a class="next" href="../../06-sql/week-05-interview-problem-set/lesson.html">Week 5 · Interview problem set: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

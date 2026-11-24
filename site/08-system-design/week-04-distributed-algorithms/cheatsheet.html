@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 4 Cheatsheet - Distributed Algorithms | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="08-system-design/week-04-distributed-algorithms/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../08-system-design/README.html">System Design</a> / <a href="../../08-system-design/week-04-distributed-algorithms/lesson.html">Week 4 · Distributed algorithms</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="08-system-design/week-04-distributed-algorithms/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="week-4-cheatsheet-distributed-algorithms">Week 4 Cheatsheet - Distributed Algorithms</h1>
+<h2 id="core-facts">Core facts</h2>
+<ul>
+<li>No shared clock, partial failure, slow == dead (indistinguishable). Timeout = suspicion, not proof.</li>
+<li>FLP: async consensus can't guarantee termination with 1 crash -&gt; real systems keep safety, may lose liveness.</li>
+<li>Majority quorum: N=2f+1 tolerates f. 3 -&gt; 1, 5 -&gt; 2, 7 -&gt; 3. Even sizes are wasteful. Majorities overlap = safety.</li>
+</ul>
+<h2 id="raft-in-10-lines">Raft in 10 lines</h2>
+<ul>
+<li>States: Follower, Candidate, Leader. Terms are monotonic; max one leader per term.</li>
+<li>Election timeout (randomized) -&gt; candidate, term+1, RequestVote. Vote once per term, only if candidate log &gt;= voter log.</li>
+<li>Leader appends, AppendEntries(prevIndex, prevTerm); followers reject on mismatch; leader overwrites divergence.</li>
+<li>Commit = stored on majority (current term entry). Then apply. Snapshots compact logs.</li>
+<li>Linearizable reads: ReadIndex / lease, not just "ask leader". Stale ex-leader can serve stale reads.</li>
+<li>Used by: etcd (Kubernetes), Consul, CockroachDB, TiKV, Kafka KRaft. ZooKeeper = ZAB. Spanner = Paxos + TrueTime.</li>
+<li>Failure modes: slow disk/fsync -&gt; leader flap; quorum loss; disjoint majorities from bad membership change.</li>
+</ul>
+<h2 id="paxos-in-3-lines">Paxos in 3 lines</h2>
+<p>Prepare(n) -&gt; Promise (+ highest accepted value). Proposer must adopt that value. Accept(n,v) -&gt; chosen when majority accepts. Multi-Paxos = stable leader skips phase 1.</p>
+<h2 id="locks-and-leaders">Locks and leaders</h2>
+<ul>
+<li>Lease/TTL lock + process pause = two holders. Fix: FENCING TOKEN (monotonic; resource rejects lower).</li>
+<li>Token sources: etcd revision, ZK zxid, Raft index, DB version column. Resource must enforce (CAS).</li>
+<li>Redis SETNX/Redlock: OK for efficiency, not correctness. Prefer: avoid lock (idempotent, CAS, single-writer partition) &gt; DB lock &gt; etcd/ZK + fencing.</li>
+<li>Leader election: lease in etcd/ZK/Consul, K8s Lease, DB conditional write. Stop acting when renewal fails; make work idempotent.</li>
+</ul>
+<h2 id="time">Time</h2>
+<table>
+<thead>
+<tr>
+<th>Clock</th>
+<th>Property</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Wall (NTP)</td>
+<td>drifts, can jump back</td>
+<td>display, rough TTL; NOT ordering</td>
+</tr>
+<tr>
+<td>Monotonic</td>
+<td>local only, never back</td>
+<td>timeouts, durations</td>
+</tr>
+<tr>
+<td>Lamport</td>
+<td>a-&gt;b =&gt; L(a)&lt;L(b); converse false</td>
+<td>total order (with tie-break), cheap</td>
+</tr>
+<tr>
+<td>Vector</td>
+<td>detects concurrency, O(N)</td>
+<td>Dynamo/Riak conflict detection</td>
+</tr>
+<tr>
+<td>HLC</td>
+<td>physical + logical</td>
+<td>CockroachDB, MongoDB</td>
+</tr>
+<tr>
+<td>TrueTime</td>
+<td>[earliest, latest] + commit wait</td>
+<td>Spanner external consistency</td>
+</tr>
+<tr>
+<td>- Lamport: send -&gt; L++; receive T -&gt; L = max(L,T)+1.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>- Vector: receive W -&gt; V = max(V,W) componentwise, then V[i]++. Neither &lt;= -&gt; concurrent.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>- LWW + wall clock = silent data loss under skew.</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="failure-detection-and-gossip">Failure detection and gossip</h2>
+<ul>
+<li>Heartbeat timeout (brittle), phi accrual (adaptive; Cassandra, Akka), SWIM (random ping + k indirect pings, suspect -&gt; dead; Consul/Serf).</li>
+<li>Gossip: random peer exchange, O(log N) rounds, push/pull/push-pull. Membership, anti-entropy (Merkle trees).</li>
+<li>Gray failure = alive but broken; use deep health checks and latency outlier ejection.</li>
+</ul>
+<h2 id="transactions">Transactions</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>2PC</th>
+<th>Saga</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Atomic</td>
+<td>yes</td>
+<td>eventual (compensate)</td>
+</tr>
+<tr>
+<td>Isolation</td>
+<td>yes (locks)</td>
+<td>no (semantic locks)</td>
+</tr>
+<tr>
+<td>Blocking</td>
+<td>yes if coordinator dies</td>
+<td>no</td>
+</tr>
+<tr>
+<td>Where</td>
+<td>inside DB / Spanner-like</td>
+<td>microservices</td>
+</tr>
+<tr>
+<td>- 2PC: prepare (durable YES = promise) -&gt; commit/abort. In-doubt blocking. 3PC unused (breaks on partition).</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>- Saga: local txns + compensations (reverse order). Orchestration (Step Functions, Temporal) vs choreography (events). Steps + compensations idempotent; retry forever; pivot step last; outbox for atomic publish. TCC = Try-Confirm-Cancel.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>- Same DB? Just use an ACID transaction.</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="crdts">CRDTs</h2>
+<ul>
+<li>Merge commutative + associative + idempotent -&gt; converge without coordination.</li>
+<li>G-Counter: per-replica slots, merge = max, value = sum. PN-Counter = two G-Counters. G-Set: union. OR-Set: add-wins with unique tags. LWW-Register loses concurrent writes.</li>
+<li>Not for invariants (unique, non-negative). Cost: tombstones/metadata. Used in Redis Active-Active, Riak, Akka, collab editors.</li>
+</ul>
+<h2 id="probabilistic-structures">Probabilistic structures</h2>
+<ul>
+<li>Bloom: no false negatives. FPR ~ (1-e^(-kn/m))^k. k = 0.69 m/n. 1% ~ 9.6 bits/elem (k~7); 0.1% ~ 14.4 bits/elem (k~10). 100M @1% ~ 120 MB. No delete (counting/cuckoo). Uses: LSM reads, cache penetration, crawler dedupe.</li>
+<li>HyperLogLog: max leading zeros -&gt; 2^z; error 1.04/sqrt(m); Redis 16384 regs ~0.81%, ~12 KB; mergeable (max). PFADD/PFCOUNT/PFMERGE.</li>
+<li>Count-Min Sketch: approximate frequencies (over-estimates), heavy hitters. Merkle tree: find divergence fast. t-digest/HDR: mergeable percentiles (never average percentiles).</li>
+</ul>
+<h2 id="system-map">System map</h2>
+<p>etcd/K8s: Raft | ZK: ZAB, zxid, ephemeral nodes | Kafka: KRaft + ISR | Cassandra: gossip, phi, Merkle repair, bloom, LWW, Paxos for LWT | Spanner: Paxos + 2PC + TrueTime | CockroachDB: Raft per range + HLC | Consul: Raft + SWIM.</p>
+<h2 id="say-out-loud-checklist">Say-out-loud checklist</h2>
+<ol>
+<li>"Timeouts are guesses, so I design for false positives: idempotency and fencing."</li>
+<li>"Consensus for small critical metadata, not the data path; it's CP and needs a majority."</li>
+<li>"I avoid distributed transactions: sagas with idempotent steps and outbox; 2PC only inside systems built for it."</li>
+<li>"Logical clocks or versions for ordering, never raw wall-clock."</li>
+<li>"Bloom/HLL trade exactness for orders-of-magnitude memory; I know the error bounds."</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../08-system-design/week-04-distributed-algorithms/interview-qa.html">← Week 4 · Distributed algorithms: Interview Q&amp;A</a><a class="next" href="../../08-system-design/week-05-architecture-operations/lesson.html">Week 5 · Architecture and operations: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

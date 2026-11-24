@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 1: Classes and objects | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="02-oop/week-01-classes-objects/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../02-oop/week-01-classes-objects/lesson.html">Object-Oriented Python</a> / <a href="../../02-oop/week-01-classes-objects/lesson.html">Week 1 · Classes and objects</a> / <span>Lesson</span></nav><button id="mark-done" data-id="02-oop/week-01-classes-objects/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-1-classes-and-objects">Week 1: Classes and objects</h1>
+<h2 id="1-why-classes">1. Why classes?</h2>
+<p>A class bundles <strong>data</strong> (attributes) and <strong>behaviour</strong> (methods) into one new type. Interviews (and real code) use classes to model things: accounts, stacks, parking spots.</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Point</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>   <span class="c1"># runs when you call Point(1, 2)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="n">x</span>              <span class="c1"># instance attributes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="n">y</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">move</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dx</span><span class="p">,</span> <span class="n">dy</span><span class="p">):</span>     <span class="c1"># a method: first parameter is the object itself</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x</span> <span class="o">+=</span> <span class="n">dx</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y</span> <span class="o">+=</span> <span class="n">dy</span>
+
+<span class="n">p</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>    <span class="c1"># p is an *instance* (object) of class Point</span>
+<span class="n">p</span><span class="o">.</span><span class="n">move</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+<span class="n">p</span><span class="o">.</span><span class="n">x</span>                <span class="c1"># 4</span>
+</code></pre></div>
+
+<h2 id="2-self">2. <code>self</code></h2>
+<p><code>p.move(3, 0)</code> is sugar for <code>Point.move(p, 3, 0)</code>. <code>self</code> is just the name (by convention) of the first parameter: the instance the method was called on. You must write it in every method signature and use <code>self.</code> to reach attributes.</p>
+<h2 id="3-__init__">3. <code>__init__</code></h2>
+<p>The initializer. It sets up the starting state. It must return <code>None</code>. Validate inputs here (<code>raise ValueError</code>) so an object is never created in a broken state.</p>
+<h2 id="4-instance-vs-class-attributes">4. Instance vs class attributes</h2>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Dog</span><span class="p">:</span>
+    <span class="n">species</span> <span class="o">=</span> <span class="s2">"dog"</span>          <span class="c1"># class attribute: shared by ALL instances</span>
+    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>     <span class="c1"># instance attribute: one per object</span>
+        <span class="n">Dog</span><span class="o">.</span><span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>       <span class="c1"># modify the class attribute via the class name</span>
+</code></pre></div>
+
+<ul>
+<li>Lookup order: instance first, then class. <code>d.species</code> finds the class one.</li>
+<li><code>d.species = "wolf"</code> creates a new <em>instance</em> attribute that shadows the class one; it does not change other dogs.</li>
+<li>Inside methods, write <code>Dog.count += 1</code>, not <code>self.count += 1</code> (that would create an instance attribute).</li>
+</ul>
+<h2 id="5-methods-that-return-vs-mutate">5. Methods that return vs mutate</h2>
+<p>Decide per method: does it change <code>self</code> (mutate, return <code>None</code>) or compute something (return a value)? Be consistent; <code>list.sort()</code> mutates and returns <code>None</code>, <code>sorted()</code> returns a new list.</p>
+<h2 id="6-objects-are-references">6. Objects are references</h2>
+<div class="highlight"><pre><span></span><code><span class="n">a</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+<span class="n">b</span> <span class="o">=</span> <span class="n">a</span>            <span class="c1"># same object, two names</span>
+<span class="n">b</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="mi">9</span>
+<span class="n">a</span><span class="o">.</span><span class="n">x</span>              <span class="c1"># 9</span>
+</code></pre></div>
+
+<p><code>==</code> on plain objects compares identity until you define <code>__eq__</code> (week 2). <code>is</code> tests identity.</p>
+<h2 id="7-printing-objects">7. Printing objects</h2>
+<p><code>print(p)</code> gives <code>&lt;__main__.Point object at 0x...&gt;</code>. Define <code>__repr__</code> (week 2) to fix that. Use <code>vars(p)</code> or <code>p.__dict__</code> to peek at attributes.</p>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li>Forgetting <code>self</code> in the signature: <code>def move(dx, dy)</code> -&gt; <code>TypeError: takes 2 positional arguments but 3 were given</code>.</li>
+<li>Forgetting <code>self.</code> inside: <code>x = x</code> sets a local, not an attribute.</li>
+<li><strong>Mutable default argument</strong>: <code>def __init__(self, items=[])</code> shares ONE list across every instance. Use <code>items=None</code> then <code>self.items = [] if items is None else list(items)</code>.</li>
+<li><strong>Mutable class attribute</strong>: <code>members = []</code> at class level is shared by all instances. Create lists in <code>__init__</code>.</li>
+<li>Writing <code>return</code> in <code>__init__</code>, or calling a method without parentheses (<code>acct.balance()</code> vs <code>acct.balance</code>).</li>
+<li>Using <code>self.count += 1</code> when you meant the shared class counter.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then from the repo root (<code>&lt;project-root&gt;</code>):
+<code>.venv/bin/pytest 02-oop/week-01-classes-objects -v</code>
+Then show me your code for review. Interview lens: be able to write <code>Stack</code>, <code>BankAccount</code> and a counter class from memory, and explain <code>self</code> and class-vs-instance attributes out loud.</p>
+</article><div class="pager"><a class="prev" href="../../01-basics/week-08-projects-review/test_exercises.py.html">← Week 8 · Projects and review: Tests (code)</a><a class="next" href="../../02-oop/week-01-classes-objects/exercises.py.html">Week 1 · Classes and objects: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

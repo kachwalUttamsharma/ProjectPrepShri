@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Data Engineering Study Track (senior interview prep, ~7 weeks at 6-8 hrs/week) | Study Hub</title><link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/pygments.css"></head>
+<body data-root="../" data-page-id="14-data-engineering/README" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../index.html">Home</a> / <a href="../14-data-engineering/README.html">Data Engineering</a> / <span>Data Engineering Study Track (senior interview prep, ~7 weeks at 6-8 hrs/week)</span></nav><button id="mark-done" data-id="14-data-engineering/README">Mark as done</button></div><article class="doc">
+<h1 id="data-engineering-study-track-senior-interview-prep-7-weeks-at-6-8-hrsweek">Data Engineering Study Track (senior interview prep, ~7 weeks at 6-8 hrs/week)</h1>
+<p>Goal: pass senior data engineer interviews: modeling, Spark, orchestration, streaming, lakehouse, quality/governance, and end-to-end pipeline design. Assumes you can write intermediate Python and basic SQL (see <code>../06-sql/</code>, <code>../10-python-depth/</code>, <code>../07-aws/</code>). The system design track (<code>../08-system-design/</code>) pairs with week 7.</p>
+<h2 id="honest-caveats">Honest caveats</h2>
+<ul>
+<li>Written from memory, without live access to vendor docs. Concepts are stable; defaults, limits, prices, config names and feature availability change. Anything version-specific is marked "(check current docs)". Verify before quoting a number in an interview.</li>
+<li>Code that runs in this repo's venv is verified (SQL on sqlite3, stdlib Python). Spark, Airflow, Kafka, dbt and cloud snippets are illustrative unless stated otherwise, and need their own installs and credentials.</li>
+<li>Interview answers are templates: adapt to your real experience. Interviewers at senior level care about trade-offs, failure modes and operations more than API recall.</li>
+</ul>
+<h2 id="study-order">Study order</h2>
+<table>
+<thead>
+<tr>
+<th>Week</th>
+<th>Folder</th>
+<th>Topics</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>week-01-modeling-warehousing</td>
+<td>OLTP/OLAP, normalization, star/snowflake, fact types, dimensions, grain, SCD 1/2/3/6, Kimball/Inmon/Data Vault, late data, columnar warehouses, cost control, ELT vs ETL, modeling cases</td>
+</tr>
+<tr>
+<td>2</td>
+<td>week-02-spark</td>
+<td>Architecture, DAG/stages/shuffles, joins, skew, partitioning, AQE, caching, memory, Structured Streaming basics, tuning, debugging via Spark UI</td>
+</tr>
+<tr>
+<td>3</td>
+<td>week-03-orchestration-dbt</td>
+<td>Airflow concepts (DAGs, scheduling, idempotency, backfills, sensors, XCom, executors), dbt (models, incremental, snapshots, tests), CI/CD</td>
+</tr>
+<tr>
+<td>4</td>
+<td>week-04-kafka-streaming</td>
+<td>Kafka (partitions, consumer groups, offsets, delivery semantics, exactly-once), stream processing (windows, watermarks, state), CDC, schema registry</td>
+</tr>
+<tr>
+<td>5</td>
+<td>week-05-lakehouse-formats</td>
+<td>Parquet internals, ORC/Avro, partitioning, small files, Delta/Iceberg/Hudi, medallion, catalogs, AWS tie-ins</td>
+</tr>
+<tr>
+<td>6</td>
+<td>week-06-quality-governance</td>
+<td>Data quality, contracts, observability, lineage, privacy/PII, access control, SLAs, incident handling</td>
+</tr>
+<tr>
+<td>7</td>
+<td>week-07-pipeline-design</td>
+<td>End-to-end pipeline design interviews, capacity math, reliability, cost, mock scenarios</td>
+</tr>
+</tbody>
+</table>
+<p>Then: <code>rapid-fire.md</code> (one-liners across all weeks), reviewed daily in the last two weeks.</p>
+<p>Note: weeks 2, 3, 4, 6 and 7 may be added separately; check which folders exist.</p>
+<h2 id="weekly-routine">Weekly routine</h2>
+<ol>
+<li>Read <code>lesson.md</code> (2-3 hrs). Run every code block; predict output first, then change an input and predict again.</li>
+<li>Do <code>interview-qa.md</code> out loud, cover-and-compare (2 hrs). Record yourself on design/scenario questions.</li>
+<li>Memorize <code>cheatsheet.md</code>; redraw the central diagram from memory (30-45 min).</li>
+<li>Build something small: a tiny pipeline on local files with sqlite/DuckDB, a toy SCD2 loader, a Parquet-inspecting script.</li>
+<li>Last 30 min: explain the week's three key trade-offs without notes.</li>
+</ol>
+<h2 id="interview-habits-to-practice">Interview habits to practice</h2>
+<ul>
+<li>Clarify first: data volume, latency/freshness, consumers, SLAs, correctness needs, budget, team skills.</li>
+<li>State grain, keys and idempotency up front for every pipeline step.</li>
+<li>Always cover failure modes: late/duplicate/out-of-order data, backfills, schema changes, bad records, retries.</li>
+<li>Mention observability, data quality tests and cost unprompted.</li>
+<li>Give a phased plan (MVP then hardening). Justify choices with trade-offs, not brand names.</li>
+<li>When unsure of a number, give the order of magnitude and say how you would verify.</li>
+</ul>
+<h2 id="suggested-external-resources-by-area">Suggested external resources (by area)</h2>
+<ul>
+<li>Modeling: Kimball, "The Data Warehouse Toolkit" (3rd ed.); Kimball Group design tips; Data Vault 2.0 overview (Linstedt); dbt "How we structure our dbt projects".</li>
+<li>Warehouses: Snowflake, BigQuery and Redshift official docs (architecture and cost sections; check current docs).</li>
+<li>Storage/systems: Martin Kleppmann, "Designing Data-Intensive Applications" (chapters on storage, batch, streams, consistency).</li>
+<li>Spark: "Spark: The Definitive Guide"; official Spark tuning guide and SQL/AQE docs; Databricks blog posts on skew, AQE and Delta.</li>
+<li>Orchestration: Apache Airflow docs (core concepts, best practices); dbt docs (incremental models, snapshots, tests); "Fundamentals of Data Engineering" (Reis and Housley).</li>
+<li>Streaming: Kafka documentation (design section); "Kafka: The Definitive Guide"; Confluent blog on exactly-once; Flink docs (time and watermarks); Tyler Akidau, "Streaming 101/102".</li>
+<li>Lakehouse: Delta Lake, Apache Iceberg and Apache Hudi docs and specs; Parquet format spec (GitHub apache/parquet-format); Dremel paper for nested encoding.</li>
+<li>Quality/governance: Great Expectations and Soda docs; dbt tests; OpenLineage; data contracts writing (e.g. Chad Sanderson) and DAMA-DMBOK as vocabulary.</li>
+<li>AWS: AWS Well-Architected Data Analytics lens; Athena, Glue and Lake Formation docs (check current docs).</li>
+<li>Practice: SQL window functions and sessionization (<code>../06-sql/</code>), LeetCode/StrataScratch SQL, system design case studies of pipelines at large companies' engineering blogs.</li>
+</ul>
+<h2 id="files">Files</h2>
+<ul>
+<li>week-NN-*/lesson.md, interview-qa.md, cheatsheet.md</li>
+<li>week-01 also has <code>scd2_demo.sql</code> (run: <code>sqlite3 :memory: &lt; scd2_demo.sql</code>)</li>
+<li>rapid-fire.md at the track root</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../06-sql/general-sql/rapid-fire.html">← General SQL: Rapid-fire Q&amp;A</a><a class="next" href="../14-data-engineering/week-01-modeling-warehousing/lesson.html">Week 1 · Modeling and warehousing: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../assets/data.js"></script><script src="../assets/app.js"></script></body></html>

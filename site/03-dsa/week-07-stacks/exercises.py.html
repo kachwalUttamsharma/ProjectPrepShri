@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-07-stacks/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-07-stacks/lesson.html">Week 7 · Stacks</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="03-dsa/week-07-stacks/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>03-dsa/week-07-stacks/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 7 exercises: stacks and monotonic stacks. Replace each `...` with your code.</span>
+
+<span class="sd">Run tests from the repo root:  .venv/bin/pytest 03-dsa/week-07-stacks -q</span>
+<span class="sd">Aim for the stated time/space complexity.</span>
+<span class="sd">"""</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">is_valid_parentheses</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 20. Given a string of only '()[]{}' return True if brackets are</span>
+<span class="sd">    closed by the same type and in the correct order. Empty string is valid.</span>
+
+<span class="sd">    '()[]{}' -&gt; True    '(]' -&gt; False    '([)]' -&gt; False    '{[]}' -&gt; True</span>
+<span class="sd">    Hint: push openers; on a closer, the top of the stack must be its partner.</span>
+<span class="sd">    Time O(n), Space O(n).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">remove_adjacent_duplicates</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 1047. Repeatedly remove pairs of equal ADJACENT characters until</span>
+<span class="sd">    none remain; return the result.</span>
+
+<span class="sd">    'abbaca' -&gt; 'ca'    'azxxzy' -&gt; 'ay'    'aaa' -&gt; 'a'    '' -&gt; ''</span>
+<span class="sd">    Hint: compare each char with the top of the stack.</span>
+<span class="sd">    Time O(n), Space O(n).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">MinStack</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""LeetCode 155. Stack supporting push, pop, top and get_min, all in O(1).</span>
+
+<span class="sd">    s = MinStack(); s.push(-2); s.push(0); s.push(-3)</span>
+<span class="sd">    s.get_min() -&gt; -3;  s.pop();  s.top() -&gt; 0;  s.get_min() -&gt; -2</span>
+<span class="sd">    Hint: store (value, min_so_far) pairs, or a second stack of minimums.</span>
+<span class="sd">    You may assume pop/top/get_min are only called on a non-empty stack.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">push</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">pop</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Remove the top element (return value is ignored)."""</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">top</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Return the top element."""</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_min</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Return the minimum element currently in the stack."""</span>
+        <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">eval_rpn</span><span class="p">(</span><span class="n">tokens</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 150. Evaluate a Reverse Polish Notation expression.</span>
+<span class="sd">    tokens is a list of strings: integers (possibly negative) and + - * /.</span>
+<span class="sd">    Division truncates toward zero.</span>
+
+<span class="sd">    ['2','1','+','3','*'] -&gt; 9      ['4','13','5','/','+'] -&gt; 6</span>
+<span class="sd">    ['10','6','9','3','+','-11','*','/','*','17','+','5','+'] -&gt; 22</span>
+<span class="sd">    ['-7','2','/'] -&gt; -3  (NOT -4)</span>
+<span class="sd">    Hint: for a - b, b is popped first. Use int(a / b) for truncation.</span>
+<span class="sd">    Time O(n), Space O(n).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">daily_temperatures</span><span class="p">(</span><span class="n">temps</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 739. For each day, return how many days until a warmer</span>
+<span class="sd">    temperature; 0 if there is none.</span>
+
+<span class="sd">    [73,74,75,71,69,72,76,73] -&gt; [1,1,4,2,1,1,0,0]</span>
+<span class="sd">    [30,40,50,60] -&gt; [1,1,1,0]      [30] -&gt; [0]      [] -&gt; []</span>
+<span class="sd">    Hint: monotonic (decreasing) stack of indices.</span>
+<span class="sd">    Time O(n), Space O(n).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">next_greater_circular</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 503. For each element, find the next strictly greater element,</span>
+<span class="sd">    searching circularly (wrap around). Use -1 if none exists.</span>
+
+<span class="sd">    [1,2,1] -&gt; [2,-1,2]      [1,2,3,4,3] -&gt; [2,3,4,-1,4]      [5] -&gt; [-1]</span>
+<span class="sd">    Hint: loop i over range(2*n), use nums[i % n], only push when i &lt; n.</span>
+<span class="sd">    Time O(n), Space O(n).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">simplify_path</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 71. Convert an absolute Unix path to its canonical form.</span>
+<span class="sd">    '.' = current dir, '..' = parent dir (no-op at root), multiple slashes</span>
+<span class="sd">    collapse, no trailing slash (except root '/').</span>
+
+<span class="sd">    '/home/' -&gt; '/home'      '/../' -&gt; '/'      '/home//foo/' -&gt; '/home/foo'</span>
+<span class="sd">    '/a/./b/../../c/' -&gt; '/c'      '/a/../../b' -&gt; '/b'      '/...' -&gt; '/...'</span>
+<span class="sd">    Hint: split on '/', handle '', '.', '..' specially.</span>
+<span class="sd">    Time O(n), Space O(n).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">asteroid_collision</span><span class="p">(</span><span class="n">asteroids</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 735. Each integer is an asteroid: |value| = size, sign =</span>
+<span class="sd">    direction (positive moves right, negative left). All move at the same speed.</span>
+<span class="sd">    When two meet, the smaller explodes; equal sizes both explode. Asteroids</span>
+<span class="sd">    moving the same direction never meet. Return the survivors in order.</span>
+
+<span class="sd">    [5,10,-5] -&gt; [5,10]      [8,-8] -&gt; []      [10,2,-5] -&gt; [10]</span>
+<span class="sd">    [-2,-1,1,2] -&gt; [-2,-1,1,2]      [] -&gt; []</span>
+<span class="sd">    Hint: collisions only happen when top &gt; 0 and the new one &lt; 0.</span>
+<span class="sd">    Time O(n), Space O(n).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">decode_string</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 394. Decode k[encoded] -&gt; encoded repeated k times. k can have</span>
+<span class="sd">    multiple digits and groups can be nested. Input is always valid.</span>
+
+<span class="sd">    '3[a]2[bc]' -&gt; 'aaabcbc'      '3[a2[c]]' -&gt; 'accaccacc'</span>
+<span class="sd">    '2[abc]3[cd]ef' -&gt; 'abcabccdcdcdef'      'abc' -&gt; 'abc'      '10[a]' -&gt; 'aaaaaaaaaa'</span>
+<span class="sd">    Hint: on '[' push (current_string, k); on ']' pop and combine.</span>
+<span class="sd">    Time O(output length), Space O(output length).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">largest_rectangle_in_histogram</span><span class="p">(</span><span class="n">heights</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 84 (Hard). Given bar heights (each bar width 1), return the area</span>
+<span class="sd">    of the largest rectangle in the histogram.</span>
+
+<span class="sd">    [2,1,5,6,2,3] -&gt; 10      [2,4] -&gt; 4      [] -&gt; 0      [5] -&gt; 5</span>
+<span class="sd">    [1,1,1,1] -&gt; 4           [6,5,4,3,2,1] -&gt; 12</span>
+<span class="sd">    Hint: increasing stack of indices; when a shorter bar arrives, pop and</span>
+<span class="sd">    compute width using the new top of the stack. Append a 0 sentinel.</span>
+<span class="sd">    Time O(n), Space O(n).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">trap_rain_water</span><span class="p">(</span><span class="n">height</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 42 (Hard). Given elevation heights (width 1 each), return how</span>
+<span class="sd">    much water is trapped after raining. Solve it with a monotonic stack</span>
+<span class="sd">    (a two-pointer O(1)-space solution also exists; try both).</span>
+
+<span class="sd">    [0,1,0,2,1,0,1,3,2,1,2,1] -&gt; 6      [4,2,0,3,2,5] -&gt; 9</span>
+<span class="sd">    [] -&gt; 0      [3] -&gt; 0      [1,2,3] -&gt; 0</span>
+<span class="sd">    Time O(n), Space O(n) (stack) or O(1) (two pointers).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-07-stacks/lesson.html">← Week 7 · Stacks: Lesson</a><a class="next" href="../../03-dsa/week-07-stacks/test_exercises.py.html">Week 7 · Stacks: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

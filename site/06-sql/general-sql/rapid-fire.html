@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rapid-fire: 20 mixed questions (parts 01-06) | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="06-sql/general-sql/rapid-fire" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../06-sql/general-sql/README.html">General SQL</a> / <span>Rapid-fire: 20 mixed questions (parts 01-06)</span></nav><button id="mark-done" data-id="06-sql/general-sql/rapid-fire">Mark as done</button></div><article class="doc">
+<h1 id="rapid-fire-20-mixed-questions-parts-01-06">Rapid-fire: 20 mixed questions (parts 01-06)</h1>
+<p>Answer each in under 30 seconds out loud, then check. Non-SQLite facts: check current docs.</p>
+<ol>
+<li>(01) Name the five SQL sub-languages. -- DDL, DML, DQL (often folded into DML), DCL (GRANT/REVOKE), TCL (COMMIT/ROLLBACK/SAVEPOINT).</li>
+<li>(01) DELETE vs TRUNCATE? -- DELETE is row-by-row DML with WHERE, logged, fires row triggers. TRUNCATE empties the table quickly, no WHERE; transactional in Postgres, implicit commit in MySQL; resets identity depending on dialect.</li>
+<li>(01) Upsert syntax in Postgres/SQLite vs MySQL? -- <code>INSERT ... ON CONFLICT (key) DO UPDATE SET ...</code> vs <code>INSERT ... ON DUPLICATE KEY UPDATE ...</code>; standard form is <code>MERGE</code>.</li>
+<li>(01) What does <code>RETURNING</code> do and who supports it? -- Returns affected rows from INSERT/UPDATE/DELETE; Postgres, SQLite (3.35+); MariaDB for some; SQL Server uses <code>OUTPUT</code>; MySQL lacks it.</li>
+<li>(02) UNION vs UNION ALL? -- UNION removes duplicates (sort/hash cost); UNION ALL keeps them and is faster.</li>
+<li>(02) COALESCE vs NULLIF? -- COALESCE returns first non-NULL; NULLIF(a,b) returns NULL if a=b (classic: divide by NULLIF(x,0)).</li>
+<li>(02) Why is OFFSET pagination slow on deep pages and what is the alternative? -- The engine reads and discards offset rows; use keyset: <code>WHERE (created_at,id) &lt; (:last_created,:last_id) ORDER BY created_at DESC,id DESC LIMIT n</code>.</li>
+<li>(02) What is LATERAL / CROSS APPLY? -- A join whose right side may reference columns of the left row (top-N per group, set-returning functions).</li>
+<li>(02) Postgres JSON vs JSONB? -- JSON stores text as-is; JSONB is binary, indexable (GIN), no key order or duplicates.</li>
+<li>(03) View vs materialized view? -- View is a stored query run every time; materialized view stores results and must be refreshed.</li>
+<li>(03) Why prefer UUIDv7/bigint over random UUIDv4 as clustered PK in MySQL? -- Random keys cause page splits and poor locality in a clustered index; time-ordered ids append.</li>
+<li>(03) What does <code>GRANT SELECT ON t TO role</code> do and what is row-level security? -- Grants privilege; RLS (Postgres policies) filters which rows a role can see/modify.</li>
+<li>(04) Which is faster for a read-heavy range scan: B-tree or LSM, and write-heavy? -- B-tree good for reads and ranges; LSM favours high write throughput with compaction cost and read amplification.</li>
+<li>(04) What does <code>EXPLAIN ANALYZE</code> add to <code>EXPLAIN</code> in Postgres? -- Actually executes the query and reports real times and row counts next to estimates; wrap writes in a transaction you roll back.</li>
+<li>(04) Why might an index not be used? -- Function on the column, leading wildcard LIKE, type mismatch, low selectivity, stale statistics, wrong column order in composite index.</li>
+<li>(04) Name the three join algorithms. -- Nested loop (good with index on inner), hash join (equality, big unsorted inputs), merge join (sorted inputs).</li>
+<li>(05) Which anomaly does REPEATABLE READ in Postgres not stop? -- Write skew (SERIALIZABLE stops it). Postgres RR prevents phantoms by snapshot; MySQL RR uses next-key locks for locking reads.</li>
+<li>(05) <code>SELECT ... FOR UPDATE SKIP LOCKED</code> is for? -- Job queues: workers claim different unlocked rows without waiting.</li>
+<li>(05) How do you avoid a deadlock? -- Acquire locks in a consistent order, keep transactions short, retry on deadlock error.</li>
+<li>(06) Why are PK/FK constraints "informational" in BigQuery/Snowflake and why does it matter? -- Not enforced, so duplicates and orphans can load; dedupe in the pipeline (ROW_NUMBER) and validate with tests.</li>
+</ol>
+<p>Stretch: re-answer 13-17 using the part 04/05 lessons, with a concrete plan or table.</p>
+</article><div class="pager"><a class="prev" href="../../06-sql/general-sql/cheatsheet.html">← General SQL: Cheatsheet</a><a class="next" href="../../14-data-engineering/README.html">Data Engineering: Overview →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

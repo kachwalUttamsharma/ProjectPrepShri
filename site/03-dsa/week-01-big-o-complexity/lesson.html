@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 1: Big-O and complexity analysis | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-01-big-o-complexity/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Week 1 · Big-O and complexity</a> / <span>Lesson</span></nav><button id="mark-done" data-id="03-dsa/week-01-big-o-complexity/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-1-big-o-and-complexity-analysis">Week 1: Big-O and complexity analysis</h1>
+<h2 id="1-concept-2-hrs">1. Concept (~2 hrs)</h2>
+<p>Big-O describes how runtime (or memory) <strong>grows</strong> as input size <code>n</code> grows, ignoring constants and lower-order terms. Interviewers always ask "what is the time and space complexity?" - you must answer without hesitation.</p>
+<table>
+<thead>
+<tr>
+<th>Class</th>
+<th>Name</th>
+<th>Typical example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>O(1)</td>
+<td>constant</td>
+<td>dict lookup, list index, append (amortized)</td>
+</tr>
+<tr>
+<td>O(log n)</td>
+<td>logarithmic</td>
+<td>binary search, halving a number, heap push/pop</td>
+</tr>
+<tr>
+<td>O(n)</td>
+<td>linear</td>
+<td>one loop, <code>in</code> on a list, sum</td>
+</tr>
+<tr>
+<td>O(n log n)</td>
+<td>linearithmic</td>
+<td>sorting, merge sort</td>
+</tr>
+<tr>
+<td>O(n^2)</td>
+<td>quadratic</td>
+<td>nested loops over the same input</td>
+</tr>
+<tr>
+<td>O(2^n)</td>
+<td>exponential</td>
+<td>all subsets, naive Fibonacci</td>
+</tr>
+<tr>
+<td>O(n!)</td>
+<td>factorial</td>
+<td>all permutations</td>
+</tr>
+</tbody>
+</table>
+<p>Rules:</p>
+<ul>
+<li>Drop constants: <code>O(2n)</code> -&gt; <code>O(n)</code>. Drop lower terms: <code>O(n^2 + n)</code> -&gt; <code>O(n^2)</code>.</li>
+<li>Sequential steps <strong>add</strong>, nested steps <strong>multiply</strong>.</li>
+<li>Different inputs get different variables: two arrays -&gt; <code>O(n + m)</code> or <code>O(n * m)</code>, not <code>O(n)</code>.</li>
+<li><strong>Amortized</strong>: <code>list.append</code> is O(1) amortized (occasional O(n) resize, averaging out).</li>
+<li><strong>Space</strong> counts extra memory you allocate (not the input). Recursion depth counts too.</li>
+<li>Worst case unless stated otherwise (hash lookups are O(1) average, O(n) worst).</li>
+</ul>
+<h2 id="2-python-built-in-costs-memorize">2. Python built-in costs (memorize)</h2>
+<table>
+<thead>
+<tr>
+<th>Structure</th>
+<th>O(1)</th>
+<th>O(n)</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>list</code></td>
+<td><code>a[i]</code>, <code>a[i]=x</code>, <code>append</code>, <code>pop()</code></td>
+<td><code>insert(i,x)</code>, <code>pop(0)</code>, <code>x in a</code>, <code>remove</code>, <code>a.index</code>, <code>a[i:j]</code> (O(j-i)), <code>a + b</code>, <code>sorted</code> is O(n log n)</td>
+<td><code>pop(0)</code> and <code>insert(0,x)</code> shift everything</td>
+</tr>
+<tr>
+<td><code>dict</code></td>
+<td>get/set/del/<code>in</code> (avg)</td>
+<td>iterate, copy, <code>keys()</code> list conversion</td>
+<td>keys must be hashable; insertion-ordered</td>
+</tr>
+<tr>
+<td><code>set</code></td>
+<td>add/remove/<code>in</code> (avg)</td>
+<td>iterate; <code>a &amp; b</code> is O(min(n,m)), <code>a | b</code> is O(n+m)</td>
+<td></td>
+</tr>
+<tr>
+<td><code>collections.deque</code></td>
+<td><code>append</code>, <code>appendleft</code>, <code>pop</code>, <code>popleft</code></td>
+<td>index in the middle is O(n)</td>
+<td>use for queues</td>
+</tr>
+<tr>
+<td><code>str</code></td>
+<td><code>s[i]</code>, <code>len</code></td>
+<td><code>s + t</code> (new string), <code>in</code> (substring search), <code>s[i:j]</code>, <code>join</code></td>
+<td>immutable!</td>
+</tr>
+<tr>
+<td><code>heapq</code></td>
+<td><code>heap[0]</code></td>
+<td><code>heappush/heappop</code> O(log n), <code>heapify</code> O(n)</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>Classic trap: <code>result += ch</code> in a loop <strong>may</strong> be O(n^2) for strings (new string each time; CPython sometimes optimizes but never rely on it). Collect pieces in a list and <code>"".join(pieces)</code> once: O(n).
+Another trap: <code>x in some_list</code> inside a loop -&gt; accidental O(n^2). Convert to a <code>set</code> first.
+Another trap: slicing <code>a[1:]</code> in recursion copies -&gt; O(n) per call.</p>
+<h2 id="3-how-to-analyze-code">3. How to analyze code</h2>
+<ol>
+<li>Count loops: a loop over n is O(n); a loop that halves/doubles the counter is O(log n).</li>
+<li>Nested loops multiply, unless the inner bound shrinks: <code>for i in range(n): for j in range(i)</code> is n(n-1)/2 = O(n^2).</li>
+<li>Recursion: write the recurrence. <code>T(n) = T(n/2) + O(1)</code> -&gt; O(log n). <code>T(n)=2T(n/2)+O(n)</code> -&gt; O(n log n). <code>T(n)=2T(n-1)</code> -&gt; O(2^n).</li>
+<li>Hidden costs inside the loop body (slicing, <code>in list</code>, <code>sorted</code>, string concat).</li>
+<li>Space: new containers + recursion stack.</li>
+</ol>
+<h2 id="4-patterns-to-recognize">4. Patterns to recognize</h2>
+<ul>
+<li>"Find a pair/duplicate" with brute force O(n^2) -&gt; trade space for time with a set/dict: O(n).</li>
+<li>Sorted input or "O(log n)" required -&gt; binary search.</li>
+<li>"Do it in place / O(1) space" -&gt; two pointers / index tricks.</li>
+<li>n up to 10^5 -&gt; need O(n log n) or better. n up to ~20 -&gt; exponential is OK. n up to ~1000 -&gt; O(n^2) OK.</li>
+</ul>
+<h2 id="5-template-trading-space-for-time">5. Template: trading space for time</h2>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">has_pair_with_sum</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>      <span class="c1"># O(n) time, O(n) space</span>
+    <span class="n">seen</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">nums</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">target</span> <span class="o">-</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">return</span> <span class="kc">False</span>
+</code></pre></div>
+
+<p>Template: fast exponentiation (halve the problem)</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">power</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>                          <span class="c1"># O(log n)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="k">while</span> <span class="n">n</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">n</span> <span class="o">&amp;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">*=</span> <span class="n">x</span>
+        <span class="n">x</span> <span class="o">*=</span> <span class="n">x</span>
+        <span class="n">n</span> <span class="o">&gt;&gt;=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">result</span>
+</code></pre></div>
+
+<h2 id="6-common-mistakes">6. Common mistakes</h2>
+<ul>
+<li>Saying O(n) for something that does <code>sorted</code> inside (it's O(n log n)).</li>
+<li>Forgetting that <code>str</code> slicing/concat and <code>list</code> slicing copy.</li>
+<li>Forgetting recursion stack space (a recursive O(n) depth is O(n) space).</li>
+<li>Treating <code>a.pop(0)</code>, <code>a.insert(0, x)</code>, <code>x in list</code> as O(1).</li>
+<li>Using one variable <code>n</code> for two different inputs.</li>
+<li>Calling two-pass approaches "O(2n)" - say O(n).</li>
+</ul>
+<h2 id="7-interview-tips">7. Interview tips</h2>
+<ul>
+<li>State brute force first with its complexity, then improve. Say <em>why</em> the bottleneck is what it is.</li>
+<li>Always state both time and space, and mention average vs worst case for hashing.</li>
+<li>Clarify constraints (n, value range) - they tell you the intended complexity.</li>
+<li>Python-specific: mention that <code>sort</code> is Timsort O(n log n) and stable; <code>heapq</code> is a min-heap.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run <code>.venv/bin/pytest 03-dsa/week-01-big-o-complexity -q</code>. The tests include larger inputs: an accidentally quadratic solution will be noticeably slow.</p>
+</article><div class="pager"><a class="prev" href="../../09-behavioral-career/06-master-study-schedule.html">← 06 · Master study schedule</a><a class="next" href="../../03-dsa/week-01-big-o-complexity/exercises.py.html">Week 1 · Big-O and complexity: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

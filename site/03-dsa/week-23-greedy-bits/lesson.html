@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 23: Greedy algorithms + bit manipulation | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-23-greedy-bits/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-23-greedy-bits/lesson.html">Week 23 · Greedy and bit manipulation</a> / <span>Lesson</span></nav><button id="mark-done" data-id="03-dsa/week-23-greedy-bits/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-23-greedy-algorithms-bit-manipulation">Week 23: Greedy algorithms + bit manipulation</h1>
+<h2 id="part-a-greedy">Part A: Greedy</h2>
+<h3 id="1-concept">1. Concept</h3>
+<p>A greedy algorithm makes the locally best choice at each step and never
+reconsiders. It works only when the problem has:</p>
+<ul>
+<li><strong>Greedy-choice property</strong>: some optimal solution contains the locally best choice.</li>
+<li><strong>Optimal substructure</strong>: what remains after the choice is a smaller instance of the same problem.</li>
+</ul>
+<h3 id="2-recognising-greedy">2. Recognising greedy</h3>
+<ul>
+<li>"Minimum number of X to cover/remove/schedule", intervals, jumps, tasks.</li>
+<li>Sorting by one key makes the answer fall out (end time, deadline, ratio).</li>
+<li>A DP exists but the table only ever looks at the best neighbour -&gt; collapse to greedy.</li>
+<li>Counter-example search fails after 5 minutes of trying small cases.</li>
+</ul>
+<h3 id="3-proving-it-what-google-interviewers-probe">3. Proving it (what Google interviewers probe)</h3>
+<p>Use an <strong>exchange argument</strong>: take any optimal solution; swap its first choice
+for the greedy choice; show it is no worse. Or a <strong>stays-ahead</strong> argument:
+after k steps greedy is at least as far as any other strategy.
+Even a 2-sentence justification earns credit. Always test on a tricky small case.</p>
+<h3 id="4-templates">4. Templates</h3>
+<p>Interval scheduling (max non-overlapping = sort by END):</p>
+<div class="highlight"><pre><span></span><code><span class="n">intervals</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">end</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">"-inf"</span><span class="p">);</span> <span class="n">kept</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">intervals</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">s</span> <span class="o">&gt;=</span> <span class="n">end</span><span class="p">:</span>
+        <span class="n">kept</span> <span class="o">+=</span> <span class="mi">1</span><span class="p">;</span> <span class="n">end</span> <span class="o">=</span> <span class="n">e</span>
+</code></pre></div>
+
+<p>Farthest reach (jump game):</p>
+<div class="highlight"><pre><span></span><code><span class="n">far</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">i</span> <span class="o">&gt;</span> <span class="n">far</span><span class="p">:</span> <span class="k">return</span> <span class="kc">False</span>
+    <span class="n">far</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">far</span><span class="p">,</span> <span class="n">i</span> <span class="o">+</span> <span class="n">x</span><span class="p">)</span>
+</code></pre></div>
+
+<p>BFS-levels jump (min jumps): track <code>end</code> of current level and <code>far</code>; when <code>i == end</code>, jumps += 1, end = far.
+Running total reset (gas station): if the prefix balance goes negative, no start up to here works; restart after it.
+Last-occurrence extension (partition labels): precompute last index, extend the current part's end.</p>
+<h3 id="5-complexity">5. Complexity</h3>
+<p>Usually O(n) after an O(n log n) sort; O(1) extra space.</p>
+<h3 id="6-common-mistakes">6. Common mistakes</h3>
+<ul>
+<li>Sorting by the wrong key (start vs end for scheduling).</li>
+<li>Greedy where it fails: coin change with arbitrary coins, 0/1 knapsack, longest path. Know a counter-example: coins {1,3,4}, amount 6 -&gt; greedy 4+1+1, optimum 3+3.</li>
+<li>Touching intervals: decide <code>&lt;</code> vs <code>&lt;=</code> explicitly.</li>
+<li>Skipping the empty-input / single-element cases.</li>
+</ul>
+<h2 id="part-b-bit-manipulation">Part B: Bit manipulation</h2>
+<h3 id="1-core-facts">1. Core facts</h3>
+<div class="highlight"><pre><span></span><code><span class="n">x</span> <span class="o">&amp;</span> <span class="mi">1</span>            <span class="c1"># lowest bit (odd/even)</span>
+<span class="n">x</span> <span class="o">&gt;&gt;</span> <span class="n">k</span> <span class="o">&amp;</span> <span class="mi">1</span>       <span class="c1"># k-th bit</span>
+<span class="n">x</span> <span class="o">|</span> <span class="p">(</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="n">k</span><span class="p">)</span>     <span class="c1"># set bit k</span>
+<span class="n">x</span> <span class="o">&amp;</span> <span class="o">~</span><span class="p">(</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="n">k</span><span class="p">)</span>    <span class="c1"># clear bit k</span>
+<span class="n">x</span> <span class="o">^</span> <span class="p">(</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="n">k</span><span class="p">)</span>     <span class="c1"># toggle bit k</span>
+<span class="n">x</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>      <span class="c1"># clear lowest set bit (Kernighan)</span>
+<span class="n">x</span> <span class="o">&amp;</span> <span class="o">-</span><span class="n">x</span>           <span class="c1"># isolate lowest set bit</span>
+<span class="n">a</span> <span class="o">^</span> <span class="n">a</span> <span class="o">==</span> <span class="mi">0</span><span class="p">;</span> <span class="n">a</span> <span class="o">^</span> <span class="mi">0</span> <span class="o">==</span> <span class="n">a</span><span class="p">;</span> <span class="n">XOR</span> <span class="ow">is</span> <span class="n">commutative</span><span class="o">/</span><span class="n">associative</span>
+</code></pre></div>
+
+<p>Powers of two have exactly one set bit: <code>x &gt; 0 and x &amp; (x-1) == 0</code>.</p>
+<h3 id="2-python-specifics">2. Python specifics</h3>
+<ul>
+<li>Ints are arbitrary precision; negatives behave as infinite two's complement. For 32-bit emulation mask with <code>&amp; 0xFFFFFFFF</code>.</li>
+<li><code>bin(x).count("1")</code> and <code>int.bit_count()</code> exist; interviewers still want you to know Kernighan.</li>
+<li><code>~x == -x - 1</code>. Operator precedence: <code>&amp;</code>, <code>^</code>, <code>|</code> bind LOWER than <code>==</code>. Always parenthesise: <code>(x &amp; 1) == 0</code>.</li>
+</ul>
+<h3 id="3-patterns">3. Patterns</h3>
+<ul>
+<li>XOR cancellation: single number, missing number, find the duplicate pairs.</li>
+<li>Bitmask as a set: subsets of n &lt;= ~20 items via <code>for mask in range(1 &lt;&lt; n)</code>; DP over masks (TSP-like) at n &lt;= 20.</li>
+<li>Counting bits, parity, swapping without temp, fast power of two checks.</li>
+</ul>
+<h3 id="4-complexity">4. Complexity</h3>
+<p>Most are O(1) or O(bits) or O(n) with O(1) extra space, which is the usual follow-up ("do it without a hash set").</p>
+<h3 id="5-common-mistakes">5. Common mistakes</h3>
+<ul>
+<li>Missing parentheses around bit ops in comparisons.</li>
+<li>Assuming 32-bit overflow in Python.</li>
+<li>Right-shifting negatives (arithmetic shift in Python: sign preserved, loops forever with <code>while n:</code>).</li>
+<li>Off-by-one on bit indices (0-based from LSB).</li>
+</ul>
+<h2 id="interview-tips">Interview tips</h2>
+<ul>
+<li>Greedy: state the greedy rule, give a one-line justification, then try to break it with a small example before coding.</li>
+<li>If unsure greedy is valid, say "I'd verify with DP / brute force on small inputs" and offer the DP.</li>
+<li>Bits: say the O(1) space angle; mention hash-set / sum alternatives first, then the XOR trick.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code> (10 problems), then run
+<code>&lt;project-root&gt;/.venv/bin/pytest -q</code> from this folder.
+Tests include brute-force cross-checks, so a wrong greedy rule will be caught.</p>
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-22-dp-2d/test_exercises.py.html">← Week 22 · 2-D dynamic programming: Tests (code)</a><a class="next" href="../../03-dsa/week-23-greedy-bits/exercises.py.html">Week 23 · Greedy and bit manipulation: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

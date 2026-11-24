@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 15: Heaps / priority queues (heapq, top-K) | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-15-heaps/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-15-heaps/lesson.html">Week 15 · Heaps</a> / <span>Lesson</span></nav><button id="mark-done" data-id="03-dsa/week-15-heaps/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-15-heaps-priority-queues-heapq-top-k">Week 15: Heaps / priority queues (heapq, top-K)</h1>
+<h2 id="1-concept">1. Concept</h2>
+<p>A heap is a complete binary tree stored in an array where each parent is &lt;= its children (min-heap).
+The smallest element is always at index 0. You get:</p>
+<ul>
+<li>peek min: O(1)</li>
+<li>push / pop min: O(log n)</li>
+<li>heapify an existing list: O(n)
+It is <em>not</em> sorted - only the root is guaranteed. Use it when you repeatedly need "the current best".</li>
+</ul>
+<p>Python's <code>heapq</code> is a <strong>min-heap</strong> on a plain list:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">heapq</span>
+<span class="n">h</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="mi">5</span><span class="p">);</span> <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="n">h</span><span class="p">)</span>            <span class="c1"># 1</span>
+<span class="n">heapq</span><span class="o">.</span><span class="n">heapify</span><span class="p">(</span><span class="n">lst</span><span class="p">)</span>          <span class="c1"># in place, O(n)</span>
+<span class="n">heapq</span><span class="o">.</span><span class="n">heapreplace</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>     <span class="c1"># pop then push, one step (fast)</span>
+<span class="n">heapq</span><span class="o">.</span><span class="n">heappushpop</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>     <span class="c1"># push then pop</span>
+<span class="n">heapq</span><span class="o">.</span><span class="n">nlargest</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">it</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">f</span><span class="p">);</span> <span class="n">heapq</span><span class="o">.</span><span class="n">nsmallest</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">it</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Max-heap: push <code>-x</code>. Tuples compare lexicographically: <code>(priority, tiebreak, payload)</code>.</p>
+<h2 id="2-how-to-recognize-the-pattern">2. How to recognize the pattern</h2>
+<ul>
+<li>"k largest / smallest / most frequent / closest" -&gt; size-k heap.</li>
+<li>"Merge k sorted ..." -&gt; heap of the k current heads.</li>
+<li>"Running median / stream" -&gt; two heaps.</li>
+<li>"Always process the most/least X next" (scheduling, smashing stones, Dijkstra next week) -&gt; priority queue.</li>
+<li>"Rearrange so no two equal adjacent" -&gt; greedy with a max-heap.</li>
+</ul>
+<h2 id="3-templates">3. Templates</h2>
+<h3 id="top-k-largest-with-a-min-heap-of-size-k-on-log-k">Top-K largest with a min-heap of size k (O(n log k))</h3>
+<div class="highlight"><pre><span></span><code><span class="n">h</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">nums</span><span class="p">:</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">h</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">k</span><span class="p">:</span> <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">x</span> <span class="o">&gt;</span> <span class="n">h</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span> <span class="n">heapq</span><span class="o">.</span><span class="n">heapreplace</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+<span class="c1"># h[0] is the k-th largest; h holds the k largest</span>
+</code></pre></div>
+
+<p>Rule of thumb: for the k LARGEST keep a MIN-heap; for the k SMALLEST keep a MAX-heap (negated).</p>
+<h3 id="merge-k-sorted-lists">Merge k sorted lists</h3>
+<div class="highlight"><pre><span></span><code><span class="n">h</span> <span class="o">=</span> <span class="p">[(</span><span class="n">node</span><span class="o">.</span><span class="n">val</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">node</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">node</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">lists</span><span class="p">)</span> <span class="k">if</span> <span class="n">node</span><span class="p">]</span>
+<span class="n">heapq</span><span class="o">.</span><span class="n">heapify</span><span class="p">(</span><span class="n">h</span><span class="p">)</span>
+<span class="k">while</span> <span class="n">h</span><span class="p">:</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">node</span> <span class="o">=</span> <span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="n">h</span><span class="p">)</span>
+    <span class="n">tail</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">node</span><span class="p">;</span> <span class="n">tail</span> <span class="o">=</span> <span class="n">node</span>
+    <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">next</span><span class="p">:</span> <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">val</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">node</span><span class="o">.</span><span class="n">next</span><span class="p">))</span>
+</code></pre></div>
+
+<p>The index <code>i</code> prevents Python from comparing <code>ListNode</code>s on ties (TypeError).</p>
+<h3 id="two-heaps-for-the-median">Two heaps for the median</h3>
+<div class="highlight"><pre><span></span><code><span class="n">lo</span> <span class="o">=</span> <span class="p">[]</span>   <span class="c1"># max-heap (negated): lower half</span>
+<span class="n">hi</span> <span class="o">=</span> <span class="p">[]</span>   <span class="c1"># min-heap: upper half</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+    <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">lo</span><span class="p">,</span> <span class="o">-</span><span class="n">x</span><span class="p">)</span>
+    <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">hi</span><span class="p">,</span> <span class="o">-</span><span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="n">lo</span><span class="p">))</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">hi</span><span class="p">)</span> <span class="o">&gt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">lo</span><span class="p">):</span> <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">lo</span><span class="p">,</span> <span class="o">-</span><span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="n">hi</span><span class="p">))</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">median</span><span class="p">():</span>
+    <span class="k">return</span> <span class="o">-</span><span class="n">lo</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">lo</span><span class="p">)</span> <span class="o">&gt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">hi</span><span class="p">)</span> <span class="k">else</span> <span class="p">(</span><span class="o">-</span><span class="n">lo</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">hi</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">/</span> <span class="mi">2</span>
+</code></pre></div>
+
+<h3 id="frontier-expansion-k-smallest-pairs-k-th-in-a-sorted-matrix">"Frontier expansion" (k smallest pairs, k-th in a sorted matrix)</h3>
+<p>Seed the heap with the first column/row, pop the min, push its successor. Total work O(k log k).</p>
+<h3 id="lazy-deletion">Lazy deletion</h3>
+<p>Heaps cannot remove arbitrary items. Mark items as removed (a set / counter) and skip them when they surface at the top.</p>
+<h2 id="4-complexity">4. Complexity</h2>
+<ul>
+<li>build heap O(n); push/pop O(log n); top-K over n items O(n log k) time, O(k) space.</li>
+<li>Beats sorting (O(n log n)) when k &lt;&lt; n, and works on streams.</li>
+<li>Quickselect gives expected O(n) for a one-off k-th element, but a heap handles streams.</li>
+<li>Two-heap median: O(log n) add, O(1) query.</li>
+</ul>
+<h2 id="5-common-mistakes">5. Common mistakes</h2>
+<ul>
+<li>Using <code>heapq</code> as a max-heap without negating (or negating once and forgetting to negate back).</li>
+<li>Wrong heap type for top-K: min-heap for largest, max-heap for smallest.</li>
+<li>Pushing tuples whose second element is not comparable (nodes, dicts) with tied priorities -&gt; TypeError. Add an index.</li>
+<li>Calling <code>sorted(h)</code> or indexing <code>h[1]</code> as "second smallest": only <code>h[0]</code> is meaningful.</li>
+<li>Pushing all n items then popping k (O(n log n) and O(n) memory) when O(n log k) was expected.</li>
+<li>Median heaps: forgetting to rebalance, or an off-by-one when sizes differ.</li>
+<li>Reorganize string / task scheduler: not holding the just-used item out for the cooldown.</li>
+</ul>
+<h2 id="6-interview-tips">6. Interview tips</h2>
+<ul>
+<li>Name the trade-off aloud: "sort is O(n log n), heap of size k is O(n log k), quickselect is O(n) average".</li>
+<li>Ask whether the data is a stream or fits in memory; this picks heap vs quickselect.</li>
+<li>For "merge k", mention divide-and-conquer pairwise merge as an equal-complexity, O(1)-space alternative.</li>
+<li>Know the task-scheduler formula AND the heap simulation; interviewers like both.</li>
+<li>Expect follow-ups: sliding window median (two heaps + lazy deletion), IPO, meeting rooms II, find K pairs, smallest range covering k lists.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code> (10 problems), then run <code>cd 03-dsa/week-15-heaps &amp;&amp; ../../.venv/bin/pytest -q</code>.</p>
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-14-bsts/test_exercises.py.html">← Week 14 · Binary search trees: Tests (code)</a><a class="next" href="../../03-dsa/week-15-heaps/exercises.py.html">Week 15 · Heaps: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

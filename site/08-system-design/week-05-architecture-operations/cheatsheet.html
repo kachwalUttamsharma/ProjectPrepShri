@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 5 Cheatsheet - Architecture and Operations | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="08-system-design/week-05-architecture-operations/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../08-system-design/README.html">System Design</a> / <a href="../../08-system-design/week-05-architecture-operations/lesson.html">Week 5 · Architecture and operations</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="08-system-design/week-05-architecture-operations/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="week-5-cheatsheet-architecture-and-operations">Week 5 Cheatsheet - Architecture and Operations</h1>
+<p>Numbers marked "check current docs" change. Long form: lesson.md.</p>
+<h2 id="monolith-vs-microservices">Monolith vs microservices</h2>
+<ul>
+<li>Default: modular monolith. Split for team autonomy, independent scaling, fault isolation.</li>
+<li>Costs: network failures, no cross-service ACID, ops overhead. Smell: shared DB, lockstep deploys.</li>
+<li>Migration: strangler fig. Patterns: sidecar, BFF, anti-corruption layer.</li>
+</ul>
+<h2 id="api-design">API design</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>REST</th>
+<th>gRPC</th>
+<th>GraphQL</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Use</td>
+<td>public CRUD</td>
+<td>internal, streaming</td>
+<td>multi-client, nested</td>
+</tr>
+<tr>
+<td>Cache</td>
+<td>easy (HTTP/CDN)</td>
+<td>hard</td>
+<td>hard</td>
+</tr>
+<tr>
+<td>Gotcha</td>
+<td>over-fetch</td>
+<td>needs HTTP/2 LB</td>
+<td>N+1, query cost</td>
+</tr>
+<tr>
+<td>- Codes: 400 bad, 401 unauthn, 403 forbidden, 404, 409 conflict, 429 (Retry-After), 503 overload.</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>- Pagination: cursor (keyset) for big/feeds, offset only for small. Opaque cursor + tiebreaker.</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>- Versioning: additive, tolerant reader, deprecate with Sunset. Expand then contract.</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>- POST not idempotent -&gt; Idempotency-Key. Long ops -&gt; 202 + status URL. ETag/If-Match for concurrency.</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="discovery-and-gateway">Discovery and gateway</h2>
+<ul>
+<li>Client-side (Eureka), server-side (LB, K8s Service), DNS/mesh (Envoy). Health checks, readiness vs liveness.</li>
+<li>Gateway: authn, rate limit, routing, TLS, aggregation. LB = distribute; gateway = north-south; mesh = east-west.</li>
+</ul>
+<h2 id="observability">Observability</h2>
+<ul>
+<li>Metrics (alerts/trends), logs (detail), traces (path/timing). Link via trace_id (W3C traceparent, OpenTelemetry).</li>
+<li>RED: rate, errors, duration. USE: utilization, saturation, errors. Golden: latency, traffic, errors, saturation.</li>
+<li>Percentiles not averages. Fan-out: P(slow)=1-(1-p)^N (100 x p99 -&gt; 63%).</li>
+<li>No high-cardinality metric labels. Structured logs, no secrets. Tail-based sampling keeps errors/slow.</li>
+<li>Alert on SLO burn rate, with runbooks. Liveness shallow.</li>
+</ul>
+<h2 id="deployment">Deployment</h2>
+<table>
+<thead>
+<tr>
+<th>Strategy</th>
+<th>Rollback</th>
+<th>Cost</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Rolling</td>
+<td>slow</td>
+<td>low</td>
+<td>mixed versions</td>
+</tr>
+<tr>
+<td>Blue-green</td>
+<td>instant</td>
+<td>2x</td>
+<td>DB must be compatible</td>
+</tr>
+<tr>
+<td>Canary</td>
+<td>auto</td>
+<td>low</td>
+<td>needs metrics</td>
+</tr>
+<tr>
+<td>Shadow</td>
+<td>n/a</td>
+<td>2x load</td>
+<td>no user impact; beware side effects</td>
+</tr>
+<tr>
+<td>Flags</td>
+<td>instant</td>
+<td>low</td>
+<td>clean up flags</td>
+</tr>
+<tr>
+<td>- Graceful shutdown + connection draining. Immutable artifacts. Stage config pushes like code.</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="multi-region-dr">Multi-region / DR</h2>
+<ul>
+<li>RPO = data loss; RTO = downtime.</li>
+<li>Backup/restore (hrs) &lt; pilot light &lt; warm standby &lt; active-active (~0).</li>
+<li>Data is the hard part: home-region partitioning, single-writer + replicas, LWW/CRDT multi-writer, Spanner-style global consensus.</li>
+<li>Risks: replication lag, split-brain (fence), standby under-capacity, control plane in dead region, DNS TTL.</li>
+<li>3-2-1 backups; test restores; game days.</li>
+</ul>
+<h2 id="security">Security</h2>
+<ul>
+<li>AuthN vs AuthZ. OAuth2 = delegation, OIDC = identity, PKCE for public clients, client credentials for services.</li>
+<li>JWT: validate sig, exp, iss, aud; short-lived; hard to revoke; signed not encrypted.</li>
+<li>RBAC / ABAC / ReBAC. Check authz server-side every request (IDOR). Tenant id from token.</li>
+<li>TLS 1.3: ECDHE forward secrecy, 1 RTT. mTLS for service identity. Automate cert rotation.</li>
+<li>Envelope encryption (KMS). Secrets in manager, IAM roles, rotation. Parameterized queries. WAF + rate limits.</li>
+</ul>
+<h2 id="llm-rag-service">LLM / RAG service</h2>
+<div class="highlight"><pre><span></span><code> gateway(authn, quotas) -&gt; guardrails in -&gt; cache -&gt; retrieve(hybrid+rerank, ACL filter)
+   -&gt; prompt build (token budget) -&gt; LLM (timeout, retry+jitter, fallback, breaker) -&gt; guardrails out -&gt; stream + citations
+ async: logs/traces/cost; ingestion: parse-&gt;chunk-&gt;embed-&gt;upsert (idempotent, versioned, deletes propagate)
+</code></pre></div>
+
+<ul>
+<li>Constraints: seconds latency, per-token cost (output &gt; input price; check current docs), TPM/RPM limits, nondeterminism.</li>
+<li>Latency: stream, shrink prompt, route small models, parallelize, prefix cache, cap output.</li>
+<li>Cost: cost = in_tok<em>p_in + out_tok</em>p_out (+embed, vector DB). Route, cache, trim, batch API, per-tenant budgets.</li>
+<li>Cache: exact (safe), semantic (threshold, partition by tenant/ACL, invalidate on doc change), embeddings cache.</li>
+<li>Rate limits: per-tenant token bucket (in tokens) + global limiter for provider; 429 -&gt; backoff+jitter, fallback, queue, priority.</li>
+<li>Evals: offline set in CI; retrieval (recall@k, MRR, nDCG) vs generation (faithfulness, relevance); LLM-judge calibrated; online feedback. Version prompt/model/index/embedder.</li>
+<li>Guardrails: PII, injection (direct + indirect via docs), ACL at retrieval, schema validation, citations/refuse, least-privilege tools, step/cost caps.</li>
+<li>Most RAG bugs = retrieval (chunking, stale index, missing filter).</li>
+</ul>
+<h2 id="say-unprompted-at-the-end">Say unprompted at the end</h2>
+<p>Multi-AZ, SLOs and alerts, canary + rollback, backups with tested restore, secrets/TLS/least privilege, tenant isolation, cost levers, what you would monitor.</p>
+<h2 id="cross-links">Cross-links</h2>
+<p><a href="../../07-aws/week-05-integration-ops-security/lesson.html">07-aws week 5</a>, <a href="../../07-aws/week-06-architecture-fde/lesson.html">07-aws week 6</a>.</p>
+</article><div class="pager"><a class="prev" href="../../08-system-design/week-05-architecture-operations/interview-qa.html">← Week 5 · Architecture and operations: Interview Q&amp;A</a><a class="next" href="../../08-system-design/week-06-hld-designs/framework.html">Week 6 · HLD designs: Design framework →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

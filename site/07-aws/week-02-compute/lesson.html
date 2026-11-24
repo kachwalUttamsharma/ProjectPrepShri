@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 2 - Compute: EC2, Lambda, Containers, Beanstalk, ELB, Auto Scaling | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="07-aws/week-02-compute/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../07-aws/README.html">AWS</a> / <a href="../../07-aws/week-02-compute/lesson.html">Week 2 · Compute</a> / <span>Lesson</span></nav><button id="mark-done" data-id="07-aws/week-02-compute/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-2-compute-ec2-lambda-containers-beanstalk-elb-auto-scaling">Week 2 - Compute: EC2, Lambda, Containers, Beanstalk, ELB, Auto Scaling</h1>
+<p>Numbers: verify "(check current docs)" before quoting.</p>
+<hr />
+<h2 id="1-ec2-elastic-compute-cloud">1. EC2 (Elastic Compute Cloud)</h2>
+<p><strong>What:</strong> Virtual machines (Nitro-based) in a chosen AZ. You manage OS and up.</p>
+<h3 id="instance-families-letter-purpose">Instance families (letter = purpose)</h3>
+<table>
+<thead>
+<tr>
+<th>Family</th>
+<th>Optimized for</th>
+<th>Examples</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>T (t3/t4g)</td>
+<td>Burstable general purpose (CPU credits)</td>
+<td>dev, small web</td>
+</tr>
+<tr>
+<td>M</td>
+<td>General purpose balanced</td>
+<td>app servers</td>
+</tr>
+<tr>
+<td>C</td>
+<td>Compute</td>
+<td>batch, encoding, game servers</td>
+</tr>
+<tr>
+<td>R / X / z</td>
+<td>Memory</td>
+<td>in-memory DBs, caches</td>
+</tr>
+<tr>
+<td>I / D</td>
+<td>Storage (NVMe local, dense HDD)</td>
+<td>NoSQL, data warehouses</td>
+</tr>
+<tr>
+<td>P / G / Inf / Trn</td>
+<td>GPU / inference / training chips</td>
+<td>ML training, inference</td>
+</tr>
+<tr>
+<td>Suffixes: <code>g</code> = Graviton (ARM, usually better price/perf), <code>a</code> = AMD, <code>i</code> = Intel, <code>n</code> = network, <code>d</code> = local NVMe disk. Example <code>m7g.large</code>.</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="pricing-models">Pricing models</h3>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Discount</th>
+<th>Commitment</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>On-Demand</td>
+<td>0</td>
+<td>none</td>
+<td>per-second billing (Linux, 60 s min)</td>
+</tr>
+<tr>
+<td>Savings Plans (Compute / EC2 Instance)</td>
+<td>up to ~70%</td>
+<td>1 or 3 yr $/hr</td>
+<td>Compute SP flexible across family/region/Fargate/Lambda</td>
+</tr>
+<tr>
+<td>Reserved Instances (Standard/Convertible)</td>
+<td>up to ~70%</td>
+<td>1 or 3 yr</td>
+<td>Less flexible; mostly superseded by Savings Plans</td>
+</tr>
+<tr>
+<td>Spot</td>
+<td>up to ~90%</td>
+<td>none</td>
+<td>can be reclaimed with 2-minute warning; for stateless/fault-tolerant</td>
+</tr>
+<tr>
+<td>Dedicated Hosts / Instances</td>
+<td>premium</td>
+<td>optional</td>
+<td>licensing (BYOL), compliance</td>
+</tr>
+<tr>
+<td>Capacity Reservations</td>
+<td>none</td>
+<td>none</td>
+<td>guarantee capacity in an AZ</td>
+</tr>
+<tr>
+<td>Typical strategy: baseline on Savings Plans, spikes On-Demand, batch/stateless on Spot (diversify instance types and AZs, use capacity-optimized allocation).</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="ami">AMI</h3>
+<p>Template of root volume + launch permissions + block device mapping. Regional (copy across regions). Sources: AWS-provided, Marketplace, custom (golden AMIs via EC2 Image Builder/Packer). Launch template = AMI + type + SG + user data + IAM profile.</p>
+<h3 id="storage-for-ec2">Storage for EC2</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>EBS</th>
+<th>Instance store</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Persistence</td>
+<td>persists independent of instance (unless DeleteOnTermination)</td>
+<td>ephemeral: lost on stop/terminate/host failure</td>
+</tr>
+<tr>
+<td>Attach</td>
+<td>network-attached, AZ-scoped, snapshots to S3</td>
+<td>physically attached NVMe</td>
+</tr>
+<tr>
+<td>Perf</td>
+<td>gp3 baseline 3,000 IOPS/125 MB/s (up to 16,000 IOPS/1,000 MB/s); io2 Block Express up to 256,000 IOPS (check current docs)</td>
+<td>very high IOPS, low latency</td>
+</tr>
+<tr>
+<td>Use</td>
+<td>boot, DBs, general</td>
+<td>cache, scratch, buffers, replicated data</td>
+</tr>
+<tr>
+<td>EBS types: gp3 (default SSD), io1/io2 (provisioned IOPS, DBs), st1 (throughput HDD), sc1 (cold HDD). EBS Multi-Attach for io1/io2 in same AZ. Volume size up to 64 TiB (check docs). Snapshots incremental, region-copyable. Encryption via KMS, transparent.</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="networking-and-misc">Networking and misc</h3>
+<ul>
+<li>Security groups (stateful firewall), key pair/SSM Session Manager (preferred over SSH + open port 22), Elastic IP (charged when idle; public IPv4 addresses now cost money hourly), placement groups (cluster / spread / partition), ENA/EFA, user data (bootstrap, runs at first boot), IMDSv2 (require tokens).</li>
+<li>Stop vs terminate vs hibernate. Stopped = no compute charge, still pay EBS. Public IP changes on stop/start (not with EIP).</li>
+<li>Limits: On-demand vCPU service quotas per family per region (check current docs).</li>
+</ul>
+<p><strong>When NOT EC2:</strong> spiky/event-driven small work (Lambda), you don't want to patch OSes (Fargate/managed), simple static sites (S3+CloudFront).</p>
+<hr />
+<h2 id="2-lambda">2. Lambda</h2>
+<p><strong>What:</strong> Run code on events without managing servers; pay per request and GB-seconds (per-ms billing).</p>
+<p>Key limits (check current docs)</p>
+<ul>
+<li>Timeout max 15 min. Memory 128 MB - 10,240 MB (CPU scales with memory; ~1 vCPU at 1,769 MB). Ephemeral /tmp 512 MB default up to 10,240 MB.</li>
+<li>Payload: 6 MB sync request/response; async event up to 256 KB (increased in 2025 - check). Response streaming supports larger.</li>
+<li>Deployment: zip 50 MB direct upload / 250 MB unzipped incl. layers; container image up to 10 GB.</li>
+<li>Concurrency: account default 1,000 per region (soft limit). Scaling: each function can add up to 1,000 concurrent executions every 10 seconds.</li>
+<li>Env vars 4 KB. 5 layers per function.</li>
+</ul>
+<p>Invocation models</p>
+<ul>
+<li>Synchronous (API Gateway, ALB, function URL, SDK RequestResponse): caller waits, handles errors/retry.</li>
+<li>Asynchronous (S3, SNS, EventBridge): Lambda queues; auto retries twice; use DLQ or on-failure destinations.</li>
+<li>Poll-based event source mapping (SQS, Kinesis, DynamoDB Streams, Kafka): Lambda polls and batches; failures retry batch; use <code>ReportBatchItemFailures</code>, bisect batch, DLQ/on-failure destination. For SQS set queue visibility timeout &gt;= 6x function timeout.</li>
+</ul>
+<p>Cold starts</p>
+<div class="highlight"><pre><span></span><code> request -&gt; [new env: download code, start runtime, init (imports, clients)] -&gt; handler   (cold)
+ request -&gt;                                                    handler                   (warm)
+</code></pre></div>
+
+<p>Mitigation: smaller packages, lazy imports, init clients outside handler, Provisioned Concurrency (pay to keep warm), SnapStart (Java; also Python/.NET), choose ARM/faster runtimes, avoid VPC ENI concerns (now mostly fixed with Hyperplane). Cold starts typically hundreds of ms to a few seconds, worse for JVM/large packages.</p>
+<p>Concurrency types: Unreserved (shared pool), Reserved (guarantees AND caps a function; also protects downstream like RDS), Provisioned (pre-initialized, billed).</p>
+<p>Pricing: requests ($0.20 per 1M) + GB-seconds; free tier 1M requests + 400,000 GB-s per month. ARM ~20% cheaper. Cost cliff: long-running or steady high-traffic work is cheaper on containers/EC2.</p>
+<p>Gotchas: Lambda to RDS needs RDS Proxy (connection storms); no persistent connections; throttling returns 429; recursion loops (S3 -&gt; Lambda -&gt; S3 same bucket); logs go to CloudWatch (cost); API Gateway 29 s timeout (default) shorter than Lambda 15 min; idempotency required because retries/at-least-once.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">json</span><span class="o">,</span><span class="w"> </span><span class="nn">boto3</span>
+<span class="n">s3</span> <span class="o">=</span> <span class="n">boto3</span><span class="o">.</span><span class="n">client</span><span class="p">(</span><span class="s2">"s3"</span><span class="p">)</span>             <span class="c1"># init outside handler -&gt; reused on warm starts</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">handler</span><span class="p">(</span><span class="n">event</span><span class="p">,</span> <span class="n">context</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">rec</span> <span class="ow">in</span> <span class="n">event</span><span class="p">[</span><span class="s2">"Records"</span><span class="p">]:</span>    <span class="c1"># SQS batch</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">rec</span><span class="p">[</span><span class="s2">"body"</span><span class="p">])</span>
+        <span class="n">s3</span><span class="o">.</span><span class="n">put_object</span><span class="p">(</span><span class="n">Bucket</span><span class="o">=</span><span class="s2">"my-bucket"</span><span class="p">,</span> <span class="n">Key</span><span class="o">=</span><span class="sa">f</span><span class="s2">"out/</span><span class="si">{</span><span class="n">body</span><span class="p">[</span><span class="s1">'id'</span><span class="p">]</span><span class="si">}</span><span class="s2">.json"</span><span class="p">,</span> <span class="n">Body</span><span class="o">=</span><span class="n">rec</span><span class="p">[</span><span class="s2">"body"</span><span class="p">])</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"statusCode"</span><span class="p">:</span> <span class="mi">200</span><span class="p">}</span>
+</code></pre></div>
+
+<hr />
+<h2 id="3-containers-ecs-eks-fargate-ecr">3. Containers: ECS, EKS, Fargate, ECR</h2>
+<div class="highlight"><pre><span></span><code>          +-- ECS (AWS-native orchestrator) --+      +-- EKS (managed Kubernetes control plane) --+
+ Compute: |  EC2 launch type | Fargate        |      |  managed node groups | Karpenter | Fargate  |
+          +-----------------------------------+      +--------------------------------------------+
+ Images: ECR (private registry, scan, replication, lifecycle policies)
+</code></pre></div>
+
+<ul>
+<li><strong>ECS:</strong> concepts: cluster, task definition (container spec: image, cpu/mem, ports, env/secrets, roles), task (running instance), service (keeps N tasks, integrates with ALB, rolling/blue-green deployments via CodeDeploy). Task role vs task execution role. No control-plane fee.</li>
+<li><strong>Fargate:</strong> serverless compute for ECS/EKS: no EC2 to manage, per-vCPU/GB-second pricing, each task its own kernel/ENI (awsvpc). Max task size 16 vCPU / 120 GB (check docs); ephemeral storage 20 GB default up to 200 GB. Costs more per unit than well-packed EC2; Spot Fargate available. No privileged containers/GPUs (limited).</li>
+<li><strong>EKS:</strong> conformant Kubernetes; control plane charged (~$0.10/hr per cluster), you manage add-ons, upgrades (version support windows), node scaling (Cluster Autoscaler/Karpenter), IAM via IRSA / EKS Pod Identity. Pick for K8s portability, ecosystem (Helm, operators), existing K8s skills.</li>
+<li><strong>ECS vs EKS:</strong> ECS simpler, deep AWS integration, less lock-in knowledge needed; EKS portable, richer ecosystem, more operational overhead.</li>
+<li><strong>App Runner:</strong> even simpler, deploy container/source -&gt; HTTPS service with autoscaling. Good for small web APIs. (check current availability/roadmap.)</li>
+<li><strong>ECR:</strong> private image registry, image scanning, immutable tags, lifecycle policies, cross-region replication, pull-through cache.</li>
+<li><strong>Lambda vs Fargate vs EC2</strong> quick rule: event-driven + short -&gt; Lambda; long-running service or &gt;15 min or needs custom runtime/large memory -&gt; Fargate; special hardware/max cost efficiency at scale/GPU -&gt; EC2.</li>
+</ul>
+<p>Gotchas: Fargate tasks in private subnets need NAT or VPC endpoints (ECR, S3, CloudWatch Logs, Secrets Manager) to pull images and log; health check grace period; ALB target type <code>ip</code> for awsvpc; task stuck PENDING (no capacity/ENI/IP exhaustion); <code>exec</code> into container via ECS Exec needs SSM perms.</p>
+<hr />
+<h2 id="4-elastic-beanstalk">4. Elastic Beanstalk</h2>
+<p>PaaS: upload code (Python, Node, Java, Docker...), Beanstalk provisions EC2 + ASG + ELB + monitoring. You keep access to resources. Deployment policies: all-at-once, rolling, rolling with additional batch, immutable, blue/green (CNAME swap), traffic-splitting. Use for quick lift-and-shift of web apps with minimal ops knowledge; avoid for new modern architectures (prefer ECS/App Runner/Lambda). Free service; pay for underlying resources.</p>
+<hr />
+<h2 id="5-elastic-load-balancing">5. Elastic Load Balancing</h2>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Layer</th>
+<th>Features</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ALB</td>
+<td>7 (HTTP/HTTPS/gRPC/WebSocket)</td>
+<td>path/host/header routing, redirects, auth (OIDC/Cognito), WAF, Lambda targets, sticky sessions, HTTP/2</td>
+<td>web apps, microservices</td>
+</tr>
+<tr>
+<td>NLB</td>
+<td>4 (TCP/UDP/TLS)</td>
+<td>millions of rps, ultra-low latency, static IP/Elastic IP per AZ, preserves client IP, PrivateLink endpoint service</td>
+<td>non-HTTP, static IP needs, extreme perf</td>
+</tr>
+<tr>
+<td>GWLB</td>
+<td>3</td>
+<td>transparent insertion of appliances (firewalls, IDS) via GENEVE</td>
+<td>security appliances</td>
+</tr>
+<tr>
+<td>CLB</td>
+<td>4/7 legacy</td>
+<td>-</td>
+<td>avoid</td>
+</tr>
+<tr>
+<td>Concepts: target groups (instance/ip/lambda/ALB targets), health checks, cross-zone load balancing (ALB on by default, no inter-AZ charge; NLB off by default, inter-AZ charges if enabled), connection draining (deregistration delay default 300 s), SNI + ACM certs for TLS termination, idle timeout 60 s default (ALB), <code>X-Forwarded-For</code> header, access logs to S3.</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Pricing: hourly + LCUs (ALB) / NLCUs.</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Troubleshoot: 502 = bad response from target / target closed connection; 503 = no healthy targets; 504 = target timeout (idle timeout &lt; app time); check SG allows LB -&gt; target, health check path/port, subnets in &gt;=2 AZs.</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="6-auto-scaling">6. Auto Scaling</h2>
+<ul>
+<li>EC2 Auto Scaling Group: min/desired/max, launch template, multi-AZ spread, health checks (EC2 + ELB), mixed instances policy (on-demand + spot), instance refresh (rolling AMI updates), lifecycle hooks, warm pools.</li>
+<li>Policies: target tracking (e.g. keep CPU 50% or ALBRequestCountPerTarget - simplest and preferred), step scaling, simple scaling, scheduled, predictive scaling.</li>
+<li>Scale on queue depth for workers (SQS backlog per instance). Cooldown / instance warm-up avoids flapping.</li>
+<li>Application Auto Scaling covers ECS service tasks, DynamoDB capacity, Lambda provisioned concurrency, Aurora replicas, etc.</li>
+<li>Scale OUT quickly, scale IN slowly.</li>
+</ul>
+<div class="highlight"><pre><span></span><code> Users -&gt; Route 53 -&gt; ALB (2+ AZs) -&gt; Target group -&gt; ASG: EC2 / ECS tasks in private subnets
+                                                   |-&gt; scale on ALBRequestCountPerTarget
+                                                   -&gt; RDS Multi-AZ (data tier)
+</code></pre></div>
+
+<h2 id="7-choosing-compute-decision-guide">7. Choosing compute (decision guide)</h2>
+<ul>
+<li>Static content -&gt; S3 + CloudFront.</li>
+<li>Event-driven glue, spiky, short -&gt; Lambda.</li>
+<li>Containerized service, no cluster ops -&gt; ECS Fargate (or App Runner for simplest).</li>
+<li>Need K8s -&gt; EKS.</li>
+<li>Legacy/monolith/lift-and-shift/license-bound/GPU -&gt; EC2 (+ASG, ALB).</li>
+<li>Batch -&gt; AWS Batch (Spot).
+Alternatives outside AWS: GCP Cloud Run/GKE, Azure Functions/AKS, Heroku, Lightsail (simple VPS in AWS).</li>
+</ul>
+<h2 id="8-boto3-illustrations">8. boto3 illustrations</h2>
+<div class="highlight"><pre><span></span><code><span class="n">ec2</span> <span class="o">=</span> <span class="n">boto3</span><span class="o">.</span><span class="n">client</span><span class="p">(</span><span class="s2">"ec2"</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">ec2</span><span class="o">.</span><span class="n">describe_instances</span><span class="p">(</span><span class="n">Filters</span><span class="o">=</span><span class="p">[{</span><span class="s2">"Name"</span><span class="p">:</span><span class="s2">"instance-state-name"</span><span class="p">,</span><span class="s2">"Values"</span><span class="p">:[</span><span class="s2">"running"</span><span class="p">]}])[</span><span class="s2">"Reservations"</span><span class="p">]:</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">r</span><span class="p">[</span><span class="s2">"Instances"</span><span class="p">]:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">i</span><span class="p">[</span><span class="s2">"InstanceId"</span><span class="p">],</span> <span class="n">i</span><span class="p">[</span><span class="s2">"InstanceType"</span><span class="p">],</span> <span class="n">i</span><span class="p">[</span><span class="s2">"Placement"</span><span class="p">][</span><span class="s2">"AvailabilityZone"</span><span class="p">])</span>
+
+<span class="n">lam</span> <span class="o">=</span> <span class="n">boto3</span><span class="o">.</span><span class="n">client</span><span class="p">(</span><span class="s2">"lambda"</span><span class="p">)</span>
+<span class="n">lam</span><span class="o">.</span><span class="n">invoke</span><span class="p">(</span><span class="n">FunctionName</span><span class="o">=</span><span class="s2">"my-fn"</span><span class="p">,</span> <span class="n">InvocationType</span><span class="o">=</span><span class="s2">"Event"</span><span class="p">,</span> <span class="n">Payload</span><span class="o">=</span><span class="sa">b</span><span class="s1">'{"x":1}'</span><span class="p">)</span>  <span class="c1"># async</span>
+</code></pre></div>
+</article><div class="pager"><a class="prev" href="../../07-aws/week-01-core-iam/labs.html">← Week 1 · Core ideas and IAM: Labs</a><a class="next" href="../../07-aws/week-02-compute/interview-qa.html">Week 2 · Compute: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

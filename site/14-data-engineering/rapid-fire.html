@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rapid-Fire: Data Engineering (one-liners) | Study Hub</title><link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/pygments.css"></head>
+<body data-root="../" data-page-id="14-data-engineering/rapid-fire" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../index.html">Home</a> / <a href="../14-data-engineering/README.html">Data Engineering</a> / <span>Rapid-Fire: Data Engineering (one-liners)</span></nav><button id="mark-done" data-id="14-data-engineering/rapid-fire">Mark as done</button></div><article class="doc">
+<h1 id="rapid-fire-data-engineering-one-liners">Rapid-Fire: Data Engineering (one-liners)</h1>
+<p>Answer aloud in under 15 seconds each. Version-specific details: check current docs.</p>
+<h2 id="modeling-and-warehousing">Modeling and warehousing</h2>
+<ol>
+<li><strong>Grain?</strong> What exactly one fact row represents; declare it first.</li>
+<li><strong>Star vs snowflake?</strong> Star = denormalized dims, one hop; snowflake = normalized dims, more joins.</li>
+<li><strong>Surrogate key why?</strong> Stable, meaningless key that supports SCD2 and insulates from source key changes.</li>
+<li><strong>SCD2?</strong> New row per change with valid_from/valid_to/is_current; facts point to the version valid at event time.</li>
+<li><strong>SCD1 vs SCD2?</strong> Overwrite loses history; versioning keeps it.</li>
+<li><strong>Degenerate dimension?</strong> An identifier kept in the fact (order number) with no dimension table.</li>
+<li><strong>Conformed dimension?</strong> Same dimension shared across facts so you can drill across.</li>
+<li><strong>Semi-additive measure?</strong> Can sum across some dimensions but not time (balance).</li>
+<li><strong>Accumulating snapshot?</strong> One row per process instance, updated as milestones occur.</li>
+<li><strong>Bridge table?</strong> Resolves many-to-many between fact and dimension, often with weights.</li>
+<li><strong>Inferred member?</strong> Placeholder dimension row created when a fact arrives before its dimension.</li>
+<li><strong>Kimball vs Inmon?</strong> Dimensional marts bottom-up vs normalized enterprise warehouse top-down.</li>
+<li><strong>Data Vault parts?</strong> Hubs (keys), links (relationships), satellites (attributes and history).</li>
+<li><strong>ELT vs ETL?</strong> Load raw then transform in the warehouse vs transform before loading.</li>
+<li><strong>Why columnar for analytics?</strong> Read only needed columns, compress better, skip blocks via stats.</li>
+</ol>
+<h2 id="sql-and-warehouse-practice">SQL and warehouse practice</h2>
+<ol start="16">
+<li><strong>Partition vs cluster?</strong> Partition splits storage by a column for pruning; clustering orders data within it for tight stats.</li>
+<li><strong>Biggest warehouse cost lever?</strong> Bytes scanned or compute time: prune columns/partitions, incremental models, right-size compute.</li>
+<li><strong>Window function for dedupe?</strong> <code>ROW_NUMBER() OVER (PARTITION BY key ORDER BY ts DESC) = 1</code>.</li>
+<li><strong>Why not SELECT * in a warehouse?</strong> Columnar cost and IO scale with columns read.</li>
+<li><strong>Idempotent load?</strong> Re-running yields the same result: MERGE on keys or overwrite a partition.</li>
+</ol>
+<h2 id="spark">Spark</h2>
+<ol start="21">
+<li><strong>Narrow vs wide transformation?</strong> Narrow needs no shuffle (map, filter); wide shuffles (groupBy, join).</li>
+<li><strong>What defines a stage boundary?</strong> A shuffle.</li>
+<li><strong>Transformation vs action?</strong> Transformations are lazy; actions (count, write) trigger execution.</li>
+<li><strong>Data skew fix?</strong> Salting, broadcast the small side, AQE skew join, pre-aggregate.</li>
+<li><strong>Broadcast join when?</strong> One side small enough to ship to every executor; avoids shuffle.</li>
+<li><strong>repartition vs coalesce?</strong> repartition does a full shuffle (any count); coalesce merges partitions without shuffle (decrease only).</li>
+<li><strong>cache vs persist?</strong> cache = persist with default storage level; both only help when data is reused.</li>
+<li><strong>What does AQE do?</strong> Re-optimizes at runtime: coalesces shuffle partitions, switches join strategy, splits skewed partitions.</li>
+<li><strong>Why avoid Python UDFs?</strong> Serialization overhead between JVM and Python; prefer built-ins or pandas UDFs.</li>
+<li><strong>Executor OOM causes?</strong> Skewed partitions, large collects, too few partitions, big broadcast, memory overhead for Python.</li>
+</ol>
+<h2 id="airflow-and-dbt">Airflow and dbt</h2>
+<ol start="31">
+<li><strong>Idempotent task?</strong> Safe to re-run with same inputs; writes by key or partition overwrite.</li>
+<li><strong>Catchup/backfill?</strong> Running past schedule intervals; keep tasks parameterized by logical date.</li>
+<li><strong>Sensor downside?</strong> Occupies a worker slot while polling unless deferrable/reschedule mode.</li>
+<li><strong>XCom use?</strong> Small metadata between tasks, not datasets.</li>
+<li><strong>Executors?</strong> Local, Celery, Kubernetes; choose by scale and isolation needs.</li>
+<li><strong>Airflow is a ...?</strong> Orchestrator, not a data processing engine: trigger work elsewhere.</li>
+<li><strong>dbt incremental model?</strong> Only processes new/changed rows using <code>is_incremental()</code> and a unique key.</li>
+<li><strong>dbt snapshot?</strong> Implements SCD2 on a source table.</li>
+<li><strong>dbt tests basics?</strong> unique, not_null, accepted_values, relationships, plus custom SQL tests.</li>
+<li><strong>Data interval vs execution date?</strong> Run covers the interval that just ended; logical date is the interval start (Airflow 2 semantics; check current docs).</li>
+</ol>
+<h2 id="kafka-and-streaming">Kafka and streaming</h2>
+<ol start="41">
+<li><strong>Partition purpose?</strong> Unit of parallelism and ordering; ordering is guaranteed only within a partition.</li>
+<li><strong>Consumer group?</strong> Consumers sharing partitions; each partition goes to one consumer in the group.</li>
+<li><strong>Offset commit timing and semantics?</strong> Commit after processing = at-least-once; before = at-most-once.</li>
+<li><strong>Exactly-once in Kafka?</strong> Idempotent producer plus transactions plus read_committed consumers; end-to-end needs idempotent sinks.</li>
+<li><strong>Key choice?</strong> Determines partition; choose to preserve per-entity order and avoid hot keys.</li>
+<li><strong>Log compaction?</strong> Keeps the latest record per key; used for changelog/state topics.</li>
+<li><strong>Replication factor and ISR?</strong> Copies of a partition; in-sync replicas with min.insync.replicas + acks=all give durability.</li>
+<li><strong>Watermark?</strong> Estimate of event-time progress; decides when windows close and late data is dropped.</li>
+<li><strong>Event time vs processing time?</strong> When it happened vs when you saw it; use event time for correctness.</li>
+<li><strong>CDC?</strong> Capturing row changes from a database log (Debezium) as an event stream.</li>
+<li><strong>Schema registry?</strong> Central schema store with compatibility rules for producers/consumers.</li>
+<li><strong>Kafka vs queue (SQS)?</strong> Kafka is a replayable partitioned log with multiple independent consumers; SQS is a deletion-on-consume queue.</li>
+</ol>
+<h2 id="lakehouse-and-formats">Lakehouse and formats</h2>
+<ol start="53">
+<li><strong>Parquet structure?</strong> Row groups, column chunks, pages, footer with schema and statistics.</li>
+<li><strong>Predicate pushdown?</strong> Skip row groups/pages via min/max statistics before reading.</li>
+<li><strong>Avro vs Parquet?</strong> Avro row-based for messages and evolution; Parquet columnar for analytics.</li>
+<li><strong>Small files problem?</strong> Too many tiny files slow listing and tasks; fix by compaction and write tuning.</li>
+<li><strong>Why Delta/Iceberg/Hudi?</strong> ACID, snapshots, row-level changes and schema evolution on object storage.</li>
+<li><strong>Copy-on-write vs merge-on-read?</strong> CoW rewrites files on update; MoR writes delta files merged later.</li>
+<li><strong>Time travel limit?</strong> Retention: vacuum/expire removes old files.</li>
+<li><strong>Medallion?</strong> Bronze raw, silver cleaned, gold business-ready.</li>
+<li><strong>Partitioning pitfall?</strong> High-cardinality partition columns create many tiny partitions.</li>
+<li><strong>Glue Data Catalog?</strong> AWS managed Hive-compatible metastore used by Athena, EMR, Glue, Spectrum.</li>
+<li><strong>Athena billing?</strong> Per data scanned; reduce with Parquet, partitions, column pruning (check current docs).</li>
+<li><strong>Lake Formation?</strong> Central fine-grained permissions on catalog resources across AWS analytics engines.</li>
+</ol>
+<h2 id="quality-governance-pipelines">Quality, governance, pipelines</h2>
+<ol start="65">
+<li><strong>Data contract?</strong> Agreed schema, semantics, freshness and quality between producer and consumer, enforced in CI.</li>
+<li><strong>Five common quality checks?</strong> Freshness, volume, schema, nulls/uniqueness, referential integrity/distribution.</li>
+<li><strong>Data lineage?</strong> Tracking where data came from and what depends on it (OpenLineage).</li>
+<li><strong>PII handling?</strong> Classify, minimize, mask/tokenize, encrypt, restrict access, support deletion.</li>
+<li><strong>Dead-letter queue?</strong> Where unprocessable records go so the pipeline continues and they can be fixed/replayed.</li>
+<li><strong>Backfill strategy?</strong> Parameterize by date range, idempotent writes, throttle, validate against totals.</li>
+<li><strong>Late-arriving data handling?</strong> Watermark/lookback window and reprocessing of affected partitions.</li>
+<li><strong>SLA vs SLO for pipelines?</strong> SLA is the external commitment (data ready by 7am); SLO is the internal target and monitoring.</li>
+<li><strong>Batch vs streaming choice?</strong> Streaming only when freshness requirements justify added complexity and cost.</li>
+<li><strong>Lambda vs Kappa?</strong> Lambda keeps separate batch and speed paths; Kappa uses one streaming path with replay.</li>
+<li><strong>Exactly-once vs effectively-once?</strong> Duplicates possible in transport; idempotent writes make results effectively once.</li>
+<li><strong>Pipeline monitoring essentials?</strong> Freshness, row counts, failure/retry rates, runtime, cost, data quality results with alerting.</li>
+<li><strong>Reprocessing safely?</strong> Immutable raw data plus deterministic transforms and versioned code.</li>
+<li><strong>Handling schema drift?</strong> Contract + compatibility checks + evolution policy; quarantine non-conforming records.</li>
+<li><strong>Cost vs latency trade-off?</strong> Lower latency usually means always-on compute and smaller files; pick the slowest acceptable freshness.</li>
+<li><strong>What do you do first on a failed pipeline at 3am?</strong> Check scope/impact, stop bad data propagating, fix or roll back, backfill, then write a post-incident action.</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../14-data-engineering/week-07-pipeline-design/cheatsheet.html">← Week 7 · Pipeline design: Cheatsheet</a><a class="next" href="../14-data-engineering/mock-interview.html">Data Engineering: Mock interview →</a></div></main><aside id="toc"></aside></div>
+<script src="../assets/data.js"></script><script src="../assets/app.js"></script></body></html>

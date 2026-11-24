@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 6 cheatsheet: quality and governance | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="14-data-engineering/week-06-quality-governance/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../14-data-engineering/week-06-quality-governance/lesson.html">Week 6 · Quality and governance</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="14-data-engineering/week-06-quality-governance/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="week-6-cheatsheet-quality-and-governance">Week 6 cheatsheet: quality and governance</h1>
+<h2 id="dimensions">Dimensions</h2>
+<p>Completeness | Validity | Uniqueness | Consistency | Timeliness | Accuracy (+ integrity, volume, drift)</p>
+<h2 id="check-typical-implementation">Check -&gt; typical implementation</h2>
+<ul>
+<li>schema: compare expected vs actual columns/types</li>
+<li>null: <code>COUNT(*) FILTER (WHERE col IS NULL)/COUNT(*)</code> vs threshold</li>
+<li>range/domain: <code>WHERE col NOT BETWEEN a AND b</code>, accepted_values</li>
+<li>unique: <code>GROUP BY key HAVING COUNT(*)&gt;1</code></li>
+<li>referential: <code>LEFT JOIN parent ... WHERE parent.key IS NULL</code></li>
+<li>freshness: <code>now() - max(loaded_at) &gt; SLA</code></li>
+<li>volume: modified z = 0.6745*(x-median)/MAD, flag |z|&gt;3.5; use day-of-week baselines</li>
+<li>drift: PSI &lt;0.1 stable, 0.1-0.25 watch, &gt;0.25 major (rule of thumb); KS test</li>
+<li>reconcile: counts, sums, per-partition checksums, row diff</li>
+</ul>
+<h2 id="failure-handling">Failure handling</h2>
+<p>block (circuit breaker) | quarantine bad rows | warn. Write-Audit-Publish. Tier severity.</p>
+<h2 id="compatibility-avroschema-registry">Compatibility (Avro/Schema Registry)</h2>
+<ul>
+<li>BACKWARD: new reads old. add with default, delete OK. Upgrade consumers first.</li>
+<li>FORWARD: old reads new. add OK, delete only if default existed. Upgrade producers first.</li>
+<li>FULL: both. *_TRANSITIVE: against all versions.</li>
+<li>Type change or rename: breaking; use new field + migration.</li>
+</ul>
+<h2 id="observability">Observability</h2>
+<p>Freshness, volume, schema, distribution, lineage. SLI measure -&gt; SLO target -&gt; SLA promise. Alert on SLO symptoms, include runbook. Blameless postmortem + new check.</p>
+<h2 id="privacy-toolbox">Privacy toolbox</h2>
+<p>mask (static/dynamic) | tokenize (vault) | HMAC hash (never plain hash of low-entropy) | encrypt (KMS, envelope) | generalize / k-anon / DP | RLS + CLS | audit logs.</p>
+<h2 id="gdprccpa">GDPR/CCPA</h2>
+<p>access, rectification, erasure, minimization, retention, breach notice (GDPR 72h). Erasure plan: subject registry -&gt; delete in raw/curated/marts/features -&gt; compact/vacuum -&gt; backups expire -&gt; crypto-shred immutable stores -&gt; audit trail.</p>
+<h2 id="testing-pipelines">Testing pipelines</h2>
+<p>unit (pure functions) | integration (small dataset, ephemeral env) | contract (schema at the boundary) | prod data tests | idempotency &amp; backfill-equals-prod | masked/synthetic test data.</p>
+<h2 id="tools-check-current-docs">Tools (check current docs)</h2>
+<p>dbt tests (unique, not_null, accepted_values, relationships, contracts), Great Expectations, Soda, Deequ, OpenLineage, DataHub/OpenMetadata/Unity Catalog.</p>
+<h2 id="finops-levers">FinOps levers</h2>
+<p>prune partitions, incremental models, compaction, right-size/auto-suspend, lifecycle tiers, retention, tag + showback, kill unused tables, question real-time SLAs.</p>
+<h2 id="mdm">MDM</h2>
+<p>golden record = match + merge (survivorship) + cross-reference IDs; stewardship owns it.</p>
+</article><div class="pager"><a class="prev" href="../../14-data-engineering/week-06-quality-governance/interview-qa.html">← Week 6 · Quality and governance: Interview Q&amp;A</a><a class="next" href="../../14-data-engineering/week-06-quality-governance/exercises.py.html">Week 6 · Quality and governance: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>General SQL: the language beyond the weekly exercises | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="06-sql/general-sql/README" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../06-sql/general-sql/README.html">General SQL</a> / <span>General SQL: the language beyond the weekly exercises</span></nav><button id="mark-done" data-id="06-sql/general-sql/README">Mark as done</button></div><article class="doc">
+<h1 id="general-sql-the-language-beyond-the-weekly-exercises">General SQL: the language beyond the weekly exercises</h1>
+<p>Weeks 1-5 (<code>../week-01..05</code>) taught querying through Python + SQLite. This track
+covers SQL as a database language in its own right: DDL/DML, dialects, database
+objects, internals, concurrency, and engine/warehouse differences. No Python needed.</p>
+<p>Prerequisite: finish at least weeks 1-4 (SELECT, joins, CTE/window, indexes, ACID basics).
+Parts link back to those lessons instead of repeating them.</p>
+<h2 id="study-order">Study order</h2>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Folder</th>
+<th>Topic</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>01</td>
+<td><code>01-language-map-ddl-dml/</code></td>
+<td>Sub-languages, types, DDL, constraints, DML, upsert, MERGE, RETURNING</td>
+</tr>
+<tr>
+<td>02</td>
+<td><code>02-set-ops-functions-json/</code></td>
+<td>Set operations, functions by dialect, pagination, LATERAL, pivot, JSON</td>
+</tr>
+<tr>
+<td>03</td>
+<td><code>03-objects-programmability/</code></td>
+<td>Views, sequences, triggers, procedures, schemas, roles, RLS</td>
+</tr>
+<tr>
+<td>04</td>
+<td><code>04-how-databases-work/</code></td>
+<td>Storage, WAL, MVCC, planner, EXPLAIN, index types, join algorithms</td>
+</tr>
+<tr>
+<td>05</td>
+<td><code>05-concurrency-reliability/</code></td>
+<td>Isolation anomalies, locks, deadlocks, replication, backups, migrations</td>
+</tr>
+<tr>
+<td>06</td>
+<td><code>06-engines-warehouses-modeling/</code></td>
+<td>Engine comparison, OLTP vs OLAP, columnar, partitioning, star schema, SCD</td>
+</tr>
+</tbody>
+</table>
+<p>Then: <code>rapid-fire.md</code> (20 mixed questions) and <code>cheatsheet.md</code> (dialect differences).</p>
+<p>Per part, in this order: read <code>lesson.md</code>, run <code>setup.sql</code>, attempt <code>practice.sql</code>,
+quiz yourself with <code>interview-qa.md</code>. Solutions are deliberately not in this repo
+(<code>/tmp/ref-generalsql/&lt;part&gt;/solutions.sql</code> on the machine that generated them;
+it may be wiped on reboot, so try the tasks first and ask for them if missing).</p>
+<h2 id="practising-with-the-sqlite3-cli">Practising with the sqlite3 CLI</h2>
+<div class="highlight"><pre><span></span><code>sqlite3 :memory:                      # scratch database
+sqlite3 practice.db                   # persistent file
+</code></pre></div>
+
+<p>Inside the shell:</p>
+<div class="highlight"><pre><span></span><code>.read setup.sql        -- load a part's schema and data
+.headers on
+.mode column           -- or: .mode box / .mode markdown
+.tables
+.schema employees
+.read my_answers.sql
+.quit
+</code></pre></div>
+
+<p>Tips: write answers in a scratch file and <code>.read</code> it repeatedly. Enable
+<code>PRAGMA foreign_keys = ON;</code> per connection (SQLite leaves it off by default).
+Some tasks (Postgres/MySQL-only features) cannot run in SQLite; those are marked,
+and the lessons label snippets "not run here, verify" when they were not executed.</p>
+<h2 id="optional-real-postgres-and-mysql-via-docker">Optional: real Postgres and MySQL via Docker</h2>
+<div class="highlight"><pre><span></span><code>docker run --name pg -e POSTGRES_PASSWORD=pw -p 5432:5432 -d postgres
+docker exec -it pg psql -U postgres
+
+docker run --name my -e MYSQL_ROOT_PASSWORD=pw -p 3306:3306 -d mysql
+docker exec -it my mysql -uroot -ppw
+</code></pre></div>
+
+<p>Load a script: <code>docker exec -i pg psql -U postgres &lt; setup.sql</code> (setup scripts are
+written for SQLite; small edits such as <code>AUTOINCREMENT</code> vs <code>SERIAL</code>/<code>GENERATED ... AS IDENTITY</code>
+may be needed, see part 01). Clean up with <code>docker rm -f pg my</code>. Image tags and
+defaults change between versions: check current docs.</p>
+<h2 id="conventions">Conventions</h2>
+<ul>
+<li>Verified in SQLite: examples with pasted output. Everything else is flagged "not run here, verify".</li>
+<li>Version-dependent facts say "check current docs".</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../../06-sql/week-05-interview-problem-set/schema.py.html">← Week 5 · Interview problem set: schema.py</a><a class="next" href="../../06-sql/general-sql/01-language-map-ddl-dml/lesson.html">Part 1 · Language map, DDL and DML: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

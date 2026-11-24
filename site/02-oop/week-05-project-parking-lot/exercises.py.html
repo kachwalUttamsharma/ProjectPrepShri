@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="02-oop/week-05-project-parking-lot/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../02-oop/week-01-classes-objects/lesson.html">Object-Oriented Python</a> / <a href="../../02-oop/week-05-project-parking-lot/lesson.html">Week 5 · Project: parking lot</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="02-oop/week-05-project-parking-lot/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>02-oop/week-05-project-parking-lot/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 5 project: parking lot system. Read lesson.md for the full spec.</span>
+
+<span class="sd">Enums and exception classes are provided. Implement everything marked `...`.</span>
+<span class="sd">"""</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">ABC</span><span class="p">,</span> <span class="n">abstractmethod</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">Enum</span><span class="p">,</span> <span class="n">IntEnum</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">VehicleType</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+    <span class="n">MOTORCYCLE</span> <span class="o">=</span> <span class="s2">"motorcycle"</span>
+    <span class="n">CAR</span> <span class="o">=</span> <span class="s2">"car"</span>
+    <span class="n">TRUCK</span> <span class="o">=</span> <span class="s2">"truck"</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">SpotType</span><span class="p">(</span><span class="n">IntEnum</span><span class="p">):</span>
+    <span class="n">SMALL</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">MEDIUM</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">LARGE</span> <span class="o">=</span> <span class="mi">3</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ParkingError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Base class for all parking errors."""</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">LotFullError</span><span class="p">(</span><span class="n">ParkingError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""No free spot fits the vehicle."""</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">DuplicateVehicleError</span><span class="p">(</span><span class="n">ParkingError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""The plate is already parked in the lot."""</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">InvalidTicketError</span><span class="p">(</span><span class="n">ParkingError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Unknown or already-used ticket."""</span>
+
+
+<span class="c1"># Which spot types each vehicle may use. Fill this in (see lesson.md).</span>
+<span class="n">FITS</span> <span class="o">=</span> <span class="p">{}</span>
+
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Vehicle</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Fields: plate: str, vehicle_type: VehicleType."""</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ParkingSpot</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""ParkingSpot(spot_id, spot_type). Attributes: spot_id, spot_type, vehicle (None).</span>
+
+<span class="sd">    is_free (property), can_fit(vehicle) -&gt; bool (type fits; ignores occupancy),</span>
+<span class="sd">    park(vehicle) -&gt; None (ParkingError if occupied or doesn't fit),</span>
+<span class="sd">    leave() -&gt; the vehicle (ParkingError if empty).</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">spot_id</span><span class="p">,</span> <span class="n">spot_type</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_free</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">can_fit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vehicle</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">park</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vehicle</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">leave</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Ticket</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Fields: ticket_id: int, plate: str, spot_id: int, entry_time: float."""</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">PricingStrategy</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Abstract: fee(vehicle_type, minutes) -&gt; int."""</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">fee</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vehicle_type</span><span class="p">,</span> <span class="n">minutes</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">HourlyPricing</span><span class="p">(</span><span class="n">PricingStrategy</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""HourlyPricing(rates: dict[VehicleType, int]).</span>
+<span class="sd">    fee = rate * max(1, ceil(minutes / 60)); unknown vehicle type -&gt; ValueError.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rates</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">fee</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vehicle_type</span><span class="p">,</span> <span class="n">minutes</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">FlatPricing</span><span class="p">(</span><span class="n">PricingStrategy</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""FlatPricing(amount): fee is always `amount`."""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">amount</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">fee</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vehicle_type</span><span class="p">,</span> <span class="n">minutes</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ParkingLot</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""ParkingLot(spots, pricing, clock=None). See lesson.md for every rule."""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">spots</span><span class="p">,</span> <span class="n">pricing</span><span class="p">,</span> <span class="n">clock</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">park</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vehicle</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Return a Ticket. DuplicateVehicleError / LotFullError as per spec."""</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">unpark</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ticket_id</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Free the spot and return the fee (int). InvalidTicketError if unknown/used."""</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">available_count</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">spot_type</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_full</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">find_vehicle</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">plate</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Return the spot_id holding this plate, or None."""</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">occupancy</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""{SpotType: (occupied, total)} for each spot type present."""</span>
+        <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../02-oop/week-05-project-parking-lot/lesson.html">← Week 5 · Project: parking lot: Lesson</a><a class="next" href="../../02-oop/week-05-project-parking-lot/test_exercises.py.html">Week 5 · Project: parking lot: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

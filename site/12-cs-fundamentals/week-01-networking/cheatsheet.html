@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 1 - Networking Cheatsheet | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="12-cs-fundamentals/week-01-networking/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../12-cs-fundamentals/README.html">CS Fundamentals</a> / <a href="../../12-cs-fundamentals/week-01-networking/lesson.html">Week 1 · Networking</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="12-cs-fundamentals/week-01-networking/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="week-1-networking-cheatsheet">Week 1 - Networking Cheatsheet</h1>
+<p>Facts marked "(check current docs)" are version-dependent.</p>
+<hr />
+<h2 id="layers">Layers</h2>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Unit</th>
+<th>Examples</th>
+<th>One-liner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>L7 Application</td>
+<td>message</td>
+<td>HTTP, DNS, gRPC</td>
+<td>what apps speak</td>
+</tr>
+<tr>
+<td>(TLS)</td>
+<td>records</td>
+<td>TLS 1.3</td>
+<td>encrypt + authenticate, above TCP</td>
+</tr>
+<tr>
+<td>L4 Transport</td>
+<td>segment</td>
+<td>TCP, UDP, QUIC</td>
+<td>ports, reliability, flow/congestion</td>
+</tr>
+<tr>
+<td>L3 Network</td>
+<td>packet</td>
+<td>IP, ICMP</td>
+<td>end-to-end addressing, routers</td>
+</tr>
+<tr>
+<td>L2 Link</td>
+<td>frame</td>
+<td>Ethernet, Wi-Fi, ARP</td>
+<td>per-hop delivery by MAC, switches</td>
+</tr>
+<tr>
+<td>L1 Physical</td>
+<td>bits</td>
+<td>cable, radio</td>
+<td>signals</td>
+</tr>
+</tbody>
+</table>
+<h2 id="subnet-math">Subnet math</h2>
+<table>
+<thead>
+<tr>
+<th>Prefix</th>
+<th>Mask</th>
+<th>Addresses</th>
+<th>Usable (classic)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>/32</td>
+<td>255.255.255.255</td>
+<td>1</td>
+<td>host route</td>
+</tr>
+<tr>
+<td>/30</td>
+<td>255.255.255.252</td>
+<td>4</td>
+<td>2</td>
+</tr>
+<tr>
+<td>/28</td>
+<td>255.255.255.240</td>
+<td>16</td>
+<td>14</td>
+</tr>
+<tr>
+<td>/26</td>
+<td>255.255.255.192</td>
+<td>64</td>
+<td>62</td>
+</tr>
+<tr>
+<td>/24</td>
+<td>255.255.255.0</td>
+<td>256</td>
+<td>254</td>
+</tr>
+<tr>
+<td>/22</td>
+<td>255.255.252.0</td>
+<td>1,024</td>
+<td>1,022</td>
+</tr>
+<tr>
+<td>/20</td>
+<td>255.255.240.0</td>
+<td>4,096</td>
+<td>4,094</td>
+</tr>
+<tr>
+<td>/16</td>
+<td>255.255.0.0</td>
+<td>65,536</td>
+<td>65,534</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>Addresses = 2^(32-N); block size in the interesting octet = 256 - mask octet.</li>
+<li>Network = floor(octet / block) * block. Example: 172.16.37.200/20 -&gt; 172.16.32.0, broadcast 172.16.47.255.</li>
+<li>Cloud subnets reserve extra addresses (AWS: 5; check current docs).</li>
+<li>Private: 10/8, 172.16/12, 192.168/16. Loopback 127/8. Link-local 169.254/16. CGNAT 100.64/10.</li>
+<li>Longest prefix wins in routing.</li>
+</ul>
+<h2 id="tcp-vs-udp">TCP vs UDP</h2>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>One-liner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Handshake</td>
+<td>SYN, SYN-ACK, ACK = 1 RTT</td>
+</tr>
+<tr>
+<td>Teardown</td>
+<td>FIN/ACK each way; closer enters TIME_WAIT (~2 MSL, 60s Linux)</td>
+</tr>
+<tr>
+<td>TIME_WAIT pile</td>
+<td>pool connections; widen port range; do not disable</td>
+</tr>
+<tr>
+<td>CLOSE_WAIT pile</td>
+<td>app bug: not calling close()</td>
+</tr>
+<tr>
+<td>RST</td>
+<td>abrupt abort: closed port, crash, firewall, idle timeout</td>
+</tr>
+<tr>
+<td>Flow control</td>
+<td>receiver window (rwnd) protects receiver</td>
+</tr>
+<tr>
+<td>Congestion control</td>
+<td>cwnd protects network; in flight &lt;= min(rwnd, cwnd)</td>
+</tr>
+<tr>
+<td>Slow start</td>
+<td>cwnd doubles per RTT (initial ~10 segments; check current docs)</td>
+</tr>
+<tr>
+<td>Congestion avoidance</td>
+<td>+1 MSS per RTT; loss -&gt; halve (timeout -&gt; reset harder)</td>
+</tr>
+<tr>
+<td>Fast retransmit</td>
+<td>3 duplicate ACKs, no timeout wait</td>
+</tr>
+<tr>
+<td>BDP</td>
+<td>bandwidth x RTT = bytes needed in flight</td>
+</tr>
+<tr>
+<td>Nagle / delayed ACK</td>
+<td>latency trap; use TCP_NODELAY</td>
+</tr>
+<tr>
+<td>UDP</td>
+<td>no handshake/ordering/CC; DNS, QUIC, RTP, DHCP</td>
+</tr>
+</tbody>
+</table>
+<h2 id="dns">DNS</h2>
+<table>
+<thead>
+<tr>
+<th>Record</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A / AAAA</td>
+<td>name -&gt; IPv4 / IPv6</td>
+</tr>
+<tr>
+<td>CNAME</td>
+<td>alias; not at apex</td>
+</tr>
+<tr>
+<td>NS</td>
+<td>zone delegation</td>
+</tr>
+<tr>
+<td>MX</td>
+<td>mail servers (priority)</td>
+</tr>
+<tr>
+<td>TXT</td>
+<td>SPF, DKIM, verification</td>
+</tr>
+<tr>
+<td>SRV</td>
+<td>host + port</td>
+</tr>
+<tr>
+<td>PTR</td>
+<td>reverse lookup</td>
+</tr>
+<tr>
+<td>SOA</td>
+<td>zone metadata, negative TTL</td>
+</tr>
+<tr>
+<td>CAA</td>
+<td>allowed cert issuers</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>Path: stub -&gt; recursive -&gt; root -&gt; TLD -&gt; authoritative; cached by TTL at every level.</li>
+<li>Status: NOERROR, NXDOMAIN (no such name), SERVFAIL (resolver failure/DNSSEC), REFUSED (ACL).</li>
+<li>Before migrations: lower TTL ahead of time; negative answers are cached too.</li>
+<li>dig bypasses the OS resolver; curl/ping use it (/etc/hosts, search domains).</li>
+</ul>
+<h2 id="http-versions">HTTP versions</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>1.1</th>
+<th>2</th>
+<th>3</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Transport</td>
+<td>TCP</td>
+<td>TCP</td>
+<td>QUIC over UDP</td>
+</tr>
+<tr>
+<td>Multiplexing</td>
+<td>no</td>
+<td>yes</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>HOL blocking</td>
+<td>HTTP + TCP</td>
+<td>TCP-level</td>
+<td>none across streams</td>
+</tr>
+<tr>
+<td>Compression</td>
+<td>none</td>
+<td>HPACK</td>
+<td>QPACK</td>
+</tr>
+<tr>
+<td>Setup</td>
+<td>TCP + TLS</td>
+<td>TCP + TLS</td>
+<td>combined, 1 RTT (0-RTT possible)</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>Negotiation: ALPN "h2"; HTTP/3 via Alt-Svc / HTTPS records; fall back when UDP/443 blocked.</li>
+</ul>
+<h2 id="tls-and-certs">TLS and certs</h2>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>One-liner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TLS 1.3</td>
+<td>1-RTT handshake, forward secrecy, weak ciphers removed</td>
+</tr>
+<tr>
+<td>0-RTT</td>
+<td>replayable; idempotent requests only</td>
+</tr>
+<tr>
+<td>Chain</td>
+<td>leaf -&gt; intermediate -&gt; root (server sends leaf + intermediates)</td>
+</tr>
+<tr>
+<td>SAN</td>
+<td>holds the valid hostnames; CN is legacy</td>
+</tr>
+<tr>
+<td>Wildcard</td>
+<td>one label only</td>
+</tr>
+<tr>
+<td>SNI</td>
+<td>hostname in ClientHello to pick cert</td>
+</tr>
+<tr>
+<td>mTLS</td>
+<td>client also presents cert</td>
+</tr>
+<tr>
+<td>Verify error 20</td>
+<td>missing intermediate or untrusted root</td>
+</tr>
+<tr>
+<td>Public cert lifetimes</td>
+<td>shrinking toward ~47 days (check current docs)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="http-status-methods-caching">HTTP status, methods, caching</h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>200 / 201 / 202 / 204</td>
+<td>OK / Created / Accepted / No Content</td>
+</tr>
+<tr>
+<td>301/308 vs 302/307</td>
+<td>permanent vs temporary redirect (307/308 keep method)</td>
+</tr>
+<tr>
+<td>304</td>
+<td>Not Modified (conditional GET)</td>
+</tr>
+<tr>
+<td>400 / 422</td>
+<td>malformed / validation failed (FastAPI default 422)</td>
+</tr>
+<tr>
+<td>401 / 403</td>
+<td>unauthenticated / forbidden</td>
+</tr>
+<tr>
+<td>404 / 405 / 409</td>
+<td>not found / method not allowed / conflict</td>
+</tr>
+<tr>
+<td>429</td>
+<td>rate limited (Retry-After)</td>
+</tr>
+<tr>
+<td>500 / 502 / 503 / 504</td>
+<td>app error / bad upstream / unavailable / upstream timeout</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Safe</th>
+<th>Idempotent</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET HEAD OPTIONS</td>
+<td>yes</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>PUT DELETE</td>
+<td>no</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>POST</td>
+<td>no</td>
+<td>no</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td>no</td>
+<td>not guaranteed</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Cache header</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>max-age / s-maxage</td>
+<td>fresh seconds (browser / shared cache)</td>
+</tr>
+<tr>
+<td>no-cache</td>
+<td>store but revalidate every time</td>
+</tr>
+<tr>
+<td>no-store</td>
+<td>never store</td>
+</tr>
+<tr>
+<td>private / public</td>
+<td>browser-only / shareable</td>
+</tr>
+<tr>
+<td>ETag + If-None-Match</td>
+<td>validator -&gt; 304</td>
+</tr>
+<tr>
+<td>Vary</td>
+<td>which request headers key the cache</td>
+</tr>
+</tbody>
+</table>
+<h2 id="cors-and-auth">CORS and auth</h2>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>One-liner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Origin</td>
+<td>scheme + host + port</td>
+</tr>
+<tr>
+<td>CORS</td>
+<td>browser-enforced; curl ignores it</td>
+</tr>
+<tr>
+<td>Preflight</td>
+<td>OPTIONS before non-simple requests (PUT/DELETE, JSON, Authorization)</td>
+</tr>
+<tr>
+<td>Credentials</td>
+<td>need Allow-Credentials + explicit origin (not *)</td>
+</tr>
+<tr>
+<td>HttpOnly</td>
+<td>JS cannot read cookie</td>
+</tr>
+<tr>
+<td>Secure</td>
+<td>HTTPS only</td>
+</tr>
+<tr>
+<td>SameSite</td>
+<td>Strict / Lax (default in browsers) / None+Secure</td>
+</tr>
+<tr>
+<td>JWT</td>
+<td>header.payload.signature; encoded not encrypted</td>
+</tr>
+<tr>
+<td>JWT checks</td>
+<td>signature, exp, iss, aud, pinned alg</td>
+</tr>
+<tr>
+<td>Session vs JWT</td>
+<td>revocable + store vs stateless + hard to revoke</td>
+</tr>
+<tr>
+<td>CSRF / XSS</td>
+<td>cookie auto-attach / injected script</td>
+</tr>
+</tbody>
+</table>
+<h2 id="real-time">Real-time</h2>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Direction</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Short polling</td>
+<td>client pull</td>
+<td>simple, wasteful</td>
+</tr>
+<tr>
+<td>Long polling</td>
+<td>client pull, held</td>
+<td>works everywhere</td>
+</tr>
+<tr>
+<td>SSE</td>
+<td>server -&gt; client</td>
+<td>text/event-stream, auto-reconnect, disable proxy buffering</td>
+</tr>
+<tr>
+<td>WebSocket</td>
+<td>both</td>
+<td>HTTP Upgrade (101), needs heartbeats, sticky/pub-sub to scale</td>
+</tr>
+</tbody>
+</table>
+<h2 id="debug-symptoms">Debug symptoms</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Likely meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Connection refused (fast)</td>
+<td>host reachable, nothing listening / REJECT</td>
+</tr>
+<tr>
+<td>Timeout (slow)</td>
+<td>packets dropped: firewall, SG, route, down host</td>
+</tr>
+<tr>
+<td>Connection reset</td>
+<td>RST: proxy idle timeout, crash, wrong protocol</td>
+</tr>
+<tr>
+<td>Works on localhost only</td>
+<td>bound to 127.0.0.1</td>
+</tr>
+<tr>
+<td>Small requests OK, big hang</td>
+<td>MTU / PMTU black hole</td>
+</tr>
+<tr>
+<td>Hangs after N min idle</td>
+<td>NAT/LB idle timeout; use keepalive</td>
+</tr>
+<tr>
+<td>Sporadic 502 after idle</td>
+<td>app keep-alive shorter than LB idle timeout</td>
+</tr>
+<tr>
+<td>dig works, curl fails</td>
+<td>OS resolver, hosts file, proxy env</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="key-commands">Key commands</h2>
+<div class="highlight"><pre><span></span><code>dig example.com +short | dig +trace example.com | dig @8.8.8.8 example.com MX | dig -x IP
+nslookup example.com
+curl -v URL
+curl -sS -o /dev/null -w 'dns=%{time_namelookup} tcp=%{time_connect} tls=%{time_appconnect} ttfb=%{time_starttransfer} total=%{time_total}\n' URL
+curl --resolve host:443:IP https://host/        # bypass DNS, keep SNI
+curl -4 / -6 | curl --http2 / --http1.1 | curl -N (streaming) | curl -L -I
+nc -vz host 443                                 # TCP port check
+openssl s_client -connect host:443 -servername host -showcerts
+openssl x509 -noout -dates -subject -ext subjectAltName
+ss -ltnp  (Linux)       lsof -iTCP -sTCP:LISTEN -P -n  (macOS/Linux)       netstat -rn
+lsof -i :8000
+ss -s | netstat -an | awk '/tcp/ {print $NF}' | sort | uniq -c
+traceroute -n host | mtr -rwc 20 host
+sudo tcpdump -i any -nn 'host IP and port 443' -c 20
+ping -D -s 1472 host    (macOS DF)     ping -M do -s 1472 host  (Linux)
+uvicorn app:app --host 0.0.0.0 --port 8000 --proxy-headers
+</code></pre></div>
+
+<h2 id="memorize">Memorize</h2>
+<ul>
+<li>Debug bottom-up: DNS -&gt; route/ping -&gt; TCP connect -&gt; TLS -&gt; HTTP -&gt; app. Stop at first failing rung.</li>
+<li>Refused = RST came back (nobody listening). Timeout = silence (dropped).</li>
+<li>~4 RTTs cold (DNS + TCP + TLS + request); keep-alive, TLS 1.3, HTTP/3, CDN cut them.</li>
+<li>TIME_WAIT is normal; CLOSE_WAIT is a leak.</li>
+<li>h2 fixes HTTP-level HOL; QUIC fixes TCP-level HOL.</li>
+<li>TLS 1.3 = 1 RTT, forward secrecy; cert chain: send leaf + intermediates, not root.</li>
+<li>401 = who are you; 403 = not allowed; 502 = bad upstream; 504 = upstream slow.</li>
+<li>CORS is browser-only; preflight is OPTIONS; no <code>*</code> with credentials.</li>
+<li>JWT payload is readable by anyone; validate sig, exp, iss, aud, alg.</li>
+<li>Set connect AND read timeouts; retry only idempotent requests, with backoff + jitter.</li>
+<li>Never use <code>-k</code> / <code>verify=False</code> as a fix.</li>
+<li>Overlapping CIDRs block peering/VPN; ask the customer for ranges up front.</li>
+<li>Capture timestamps, IP:port, request IDs, and command output when escalating.</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../../12-cs-fundamentals/week-01-networking/interview-qa.html">← Week 1 · Networking: Interview Q&amp;A</a><a class="next" href="../../12-cs-fundamentals/week-02-operating-systems/lesson.html">Week 2 · Operating systems: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

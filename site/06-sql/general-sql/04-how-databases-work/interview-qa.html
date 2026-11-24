@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Part 04 interview Q&amp;A: how databases work | Study Hub</title><link rel="stylesheet" href="../../../assets/style.css"><link rel="stylesheet" href="../../../assets/pygments.css"></head>
+<body data-root="../../../" data-page-id="06-sql/general-sql/04-how-databases-work/interview-qa" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../../index.html">Home</a> / <a href="../../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../../06-sql/general-sql/README.html">General SQL</a> / <a href="../../../06-sql/general-sql/04-how-databases-work/lesson.html">Part 4 · How databases work</a> / <span>Interview Q&amp;A</span></nav><button id="mark-done" data-id="06-sql/general-sql/04-how-databases-work/interview-qa">Mark as done</button></div><article class="doc">
+<h1 id="part-04-interview-qa-how-databases-work">Part 04 interview Q&amp;A: how databases work</h1>
+<p>Back to <a href="lesson.html">lesson</a>. Postgres/MySQL specifics: check current docs for version details.</p>
+<p><strong>1. What is a page and why does it matter?</strong>
+The fixed-size unit of disk/memory I/O (Postgres 8 KB, InnoDB 16 KB by default). Cost of a query is roughly pages touched, not rows. Hence locality, covering indexes, and caching matter.</p>
+<p><strong>2. B-tree vs LSM tree?</strong>
+B-tree updates pages in place, gives stable read latency and good range scans; used by Postgres, InnoDB, SQLite. LSM buffers writes in memory, flushes sorted immutable files and compacts later: much higher write throughput, but read and write amplification via compaction (RocksDB, Cassandra).</p>
+<p><strong>3. What is a WAL and why write it first?</strong>
+Write-ahead log: changes are logged sequentially and fsynced at commit before data pages are modified. Sequential log writes are cheap; data pages are flushed lazily. After a crash, replay the log. It also powers replication and PITR.</p>
+<p><strong>4. What does a checkpoint do?</strong>
+Flushes dirty pages to data files and records a point from which recovery needs to start, bounding recovery time.</p>
+<p><strong>5. Explain MVCC.</strong>
+Rows have multiple versions; each transaction reads a snapshot, so readers do not block writers and vice versa. Postgres stores new versions in the heap and needs VACUUM; InnoDB updates in place and reconstructs old versions from undo logs.</p>
+<p><strong>6. Why does Postgres need VACUUM?</strong>
+Updates/deletes leave dead tuples; VACUUM marks the space reusable, updates the visibility map (enabling index-only scans), and prevents transaction-id wraparound. Long transactions block cleanup, causing bloat.</p>
+<p><strong>7. Clustered vs heap tables?</strong>
+InnoDB's table is the PK B-tree; secondary indexes hold PK values (extra lookup, PK size inflates all indexes). Postgres uses a heap with all indexes pointing to tuple ids. Implication: choose short, mostly sequential PKs in InnoDB.</p>
+<p><strong>8. How does a cost-based optimizer choose a plan?</strong>
+It enumerates access paths, join orders and algorithms, estimates cost using statistics (row counts, distinct values, histograms), and picks the lowest estimate. Bad estimates give bad plans.</p>
+<p><strong>9. A query was fast yesterday and slow today. Causes?</strong>
+Stale statistics or data growth changing selectivity, plan flip, parameter-sensitive plan, bloat, lock waits, cache eviction, new missing index, a long transaction. Start with EXPLAIN (ANALYZE) and compare estimated vs actual rows.</p>
+<p><strong>10. EXPLAIN vs EXPLAIN ANALYZE?</strong>
+EXPLAIN shows the plan and estimates without running. EXPLAIN ANALYZE executes it and shows actual time and rows (Postgres; MySQL 8.0.18+). Beware it really executes DML; use a rolled-back transaction.</p>
+<p><strong>11. How do you read a Postgres plan?</strong>
+Inside-out (deepest node first), compare estimated rows with actual, remember actuals are per loop, check node types (Seq Scan, Index Scan, Bitmap, joins), <code>Rows Removed by Filter</code>, buffers hit vs read, and sort spill to disk.</p>
+<p><strong>12. MySQL EXPLAIN <code>type</code> values?</strong>
+Best to worst: system/const, eq_ref, ref, range, index, ALL. <code>ALL</code> is a full table scan. <code>Extra</code> with <code>Using filesort</code>/<code>Using temporary</code> signals extra work; <code>Using index</code> means covering.</p>
+<p><strong>13. When does the planner ignore an index?</strong>
+Low selectivity (most rows match), tiny table, predicate not sargable (function on column, implicit cast, leading wildcard), stale stats, wrong column order in a composite, or the index type does not support the operator.</p>
+<p><strong>14. Composite index column order?</strong>
+Leftmost-prefix rule. Put equality columns first, then the range column, then ones serving ORDER BY; consider selectivity and which queries must be supported. <code>(a,b)</code> does not serve <code>WHERE b=?</code> efficiently.</p>
+<p><strong>15. What is a covering index?</strong>
+An index containing all columns the query needs, so the table is never visited (<code>Index Only Scan</code>, <code>Using index</code>, <code>COVERING INDEX</code>). Postgres: <code>INCLUDE</code>; others add columns to the key.</p>
+<p><strong>16. When use a partial or functional index?</strong>
+Partial: only a small hot subset is queried (<code>WHERE status='pending'</code>), saving space and write cost (not in MySQL). Functional: queries filter on an expression like <code>lower(email)</code>; the query must use the same expression.</p>
+<p><strong>17. Postgres index types beyond B-tree?</strong>
+Hash (equality), GIN (JSONB, arrays, full-text, trigrams), GiST/SP-GiST (geometry, ranges, nearest neighbour), BRIN (huge, naturally ordered tables).</p>
+<p><strong>18. Compare nested loop, hash and merge join.</strong>
+Nested loop: outer small plus index on inner key. Hash: build table on smaller side, great for large equality joins, memory-bound. Merge: both sides sorted, good for big sorted inputs. MySQL gained hash joins in 8.0.18 and has no merge join (check current docs).</p>
+<p><strong>19. What is the N+1 problem and how do you fix it?</strong>
+One query for parents, then one per parent for children, so many round trips. Fix with a JOIN, batched <code>IN</code>/<code>ANY</code> loading (select-in eager loading), and an index on the FK. Detect with query counts and <code>pg_stat_statements</code>.</p>
+<p><strong>20. Why is <code>OFFSET 100000</code> slow and what is the alternative?</strong>
+The database must produce and discard all skipped rows, so cost grows with offset. Use keyset pagination: <code>WHERE (sort_col, id) &lt; (:last_sort, :last_id) ORDER BY sort_col DESC, id DESC LIMIT n</code>, backed by a matching index.</p>
+<p><strong>21. Name five quick fixes for a slow query.</strong>
+Make predicates sargable, add/adjust composite or covering index, select fewer columns, keyset pagination, refresh statistics, eliminate N+1, rewrite correlated subquery or <code>NOT IN</code>, batch writes.</p>
+</article><div class="pager"><a class="prev" href="../../../06-sql/general-sql/04-how-databases-work/lesson.html">← Part 4 · How databases work: Lesson</a><a class="next" href="../../../06-sql/general-sql/04-how-databases-work/setup.sql.html">Part 4 · How databases work: setup.sql (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../../assets/data.js"></script><script src="../../../assets/app.js"></script></body></html>

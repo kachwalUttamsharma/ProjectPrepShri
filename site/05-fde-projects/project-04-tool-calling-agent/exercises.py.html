@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="05-fde-projects/project-04-tool-calling-agent/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../05-fde-projects/project-01-llm-basics/lesson.html">FDE Projects</a> / <a href="../../05-fde-projects/project-04-tool-calling-agent/lesson.html">Project 4 · Tool-calling agent</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="05-fde-projects/project-04-tool-calling-agent/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>05-fde-projects/project-04-tool-calling-agent/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Project 4: tool-calling agent. Read lesson.md first.</span>
+
+<span class="sd">Protocol (the model's reply is ALWAYS one JSON object as text):</span>
+<span class="sd">    {"tool": "&lt;name&gt;", "args": {...}}     -&gt; call a tool</span>
+<span class="sd">    {"final": "&lt;answer for the customer&gt;"} -&gt; finish</span>
+
+<span class="sd">`llm` is any callable: llm(messages: list[dict]) -&gt; str, where each message is</span>
+<span class="sd">{"role": "user" | "assistant", "content": str}. Tests pass a FakeLLM; no network.</span>
+<span class="sd">"""</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sqlite3</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Callable</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ToolError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Raised for any problem the MODEL should be told about (bad args, unknown tool...)."""</span>
+
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Tool</span><span class="p">:</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">description</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">parameters</span><span class="p">:</span> <span class="nb">dict</span>  <span class="c1"># {"arg": {"type": "string"|"integer"|"number"|"boolean", "required": bool, "default": any}}</span>
+    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">AgentResult</span><span class="p">:</span>
+    <span class="n">answer</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">steps</span><span class="p">:</span> <span class="nb">int</span>  <span class="c1"># number of LLM calls made</span>
+    <span class="n">stopped_reason</span><span class="p">:</span> <span class="nb">str</span>  <span class="c1"># "final" or "max_steps"</span>
+    <span class="n">trace</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>  <span class="c1"># list of (tool_name, args, observation_dict)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">seed_crm_db</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">Connection</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""PROVIDED. In-memory CRM with customers and orders."""</span>
+    <span class="n">conn</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">":memory:"</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">row_factory</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">Row</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">executescript</span><span class="p">(</span>
+<span class="w">        </span><span class="sd">"""</span>
+<span class="sd">        CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT, email TEXT UNIQUE, plan TEXT);</span>
+<span class="sd">        CREATE TABLE orders (id INTEGER PRIMARY KEY, customer_id INTEGER, total_cents INTEGER,</span>
+<span class="sd">                             status TEXT, created TEXT);</span>
+<span class="sd">        INSERT INTO customers VALUES (1, 'Ada Lovelace', 'ada@example.com', 'pro');</span>
+<span class="sd">        INSERT INTO customers VALUES (2, 'Grace Hopper', 'grace@example.com', 'free');</span>
+<span class="sd">        INSERT INTO orders VALUES (10, 1, 5000, 'shipped', '2026-01-03');</span>
+<span class="sd">        INSERT INTO orders VALUES (11, 1, 1200, 'refunded', '2026-02-10');</span>
+<span class="sd">        INSERT INTO orders VALUES (12, 1, 9900, 'pending', '2026-03-01');</span>
+<span class="sd">        INSERT INTO orders VALUES (13, 2, 700, 'shipped', '2026-02-20');</span>
+<span class="sd">        """</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">conn</span>
+
+
+<span class="c1"># ---------------------------------------------------------------- 1</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">validate_args</span><span class="p">(</span><span class="n">schema</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Validate `args` against `schema` and return a cleaned copy.</span>
+
+<span class="sd">    schema: {"arg": {"type": "string", "required": True, "default": ...}}</span>
+<span class="sd">    Rules:</span>
+<span class="sd">    - unknown arg -&gt; ToolError mentioning the arg name</span>
+<span class="sd">    - missing required arg (required defaults to False) -&gt; ToolError mentioning the name</span>
+<span class="sd">    - missing optional arg with a "default" -&gt; filled in; without default -&gt; omitted</span>
+<span class="sd">    - wrong type -&gt; ToolError. "integer" must be int and NOT bool; "number" is int or</span>
+<span class="sd">      float (not bool); "string" str; "boolean" bool.</span>
+<span class="sd">    - args that is not a dict -&gt; ToolError</span>
+<span class="sd">    Hint: isinstance(True, int) is True in Python!</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># ---------------------------------------------------------------- 2</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ToolRegistry</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Holds tools by name."""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">register</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tool</span><span class="p">:</span> <span class="n">Tool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Add a tool. Duplicate name -&gt; ValueError."""</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return the tool or raise ToolError(f"unknown tool: {name}")."""</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Sorted tool names."""</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">describe</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Prompt-ready text, one line per tool (sorted by name):</span>
+<span class="sd">        '- name(arg1: type, arg2: type?): description'</span>
+<span class="sd">        Optional args (not required) get a trailing '?'. Hint: join with newlines.</span>
+<span class="sd">        """</span>
+        <span class="o">...</span>
+
+
+<span class="c1"># ---------------------------------------------------------------- 3</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">parse_action</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Parse the model reply. Return ("final", answer_str) or ("tool", (name, args_dict)).</span>
+
+<span class="sd">    - Replies may be wrapped in ```json fences; strip them.</span>
+<span class="sd">    - Invalid JSON, non-object, or neither "final" nor "tool" key -&gt; ToolError.</span>
+<span class="sd">    - "args" defaults to {}. "tool" must be a str and args a dict, else ToolError.</span>
+<span class="sd">    Hint: strip text, remove a leading ```json / ``` and trailing ``` then json.loads.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># ---------------------------------------------------------------- 4</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">run_tool</span><span class="p">(</span><span class="n">registry</span><span class="p">:</span> <span class="n">ToolRegistry</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">allowed</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Execute one tool call and NEVER raise. Return an observation dict:</span>
+<span class="sd">    {"ok": True, "result": &lt;value&gt;} or {"ok": False, "error": "&lt;message&gt;"}.</span>
+<span class="sd">    - allowed (allow-list): if not None and name not in it -&gt; error containing "not allowed"</span>
+<span class="sd">    - unknown tool, bad args (validate_args) -&gt; error with the ToolError message</span>
+<span class="sd">    - any exception inside the tool -&gt; error like "tool failed: &lt;ExcType&gt;: &lt;msg&gt;"</span>
+<span class="sd">    The model sees these errors and can self-correct.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># ---------------------------------------------------------------- 5</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">is_read_only_sql</span><span class="p">(</span><span class="n">sql</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""True only for a single SELECT statement.</span>
+<span class="sd">    - strip whitespace, allow one trailing ';'</span>
+<span class="sd">    - must start with SELECT (case-insensitive)</span>
+<span class="sd">    - no other ';' (no stacked statements)</span>
+<span class="sd">    - must not contain write keywords as whole words: insert update delete drop alter</span>
+<span class="sd">      create replace attach pragma (case-insensitive)</span>
+<span class="sd">    Hint: re.search(r"\\b(insert|update|...)\\b", sql, re.I)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># ---------------------------------------------------------------- 6</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">lookup_customer</span><span class="p">(</span><span class="n">conn</span><span class="p">:</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">Connection</span><span class="p">,</span> <span class="n">email</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return {"id","name","email","plan"} for the email (case-insensitive) or None.</span>
+<span class="sd">    Use a parameterized query (?), never f-strings in SQL."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">list_orders</span><span class="p">(</span><span class="n">conn</span><span class="p">:</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">Connection</span><span class="p">,</span> <span class="n">customer_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">status</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Orders of a customer, newest first (ORDER BY created DESC, id DESC), optional</span>
+<span class="sd">    status filter, at most `limit` rows. Each dict: id, total_cents, status, created."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">run_readonly_query</span><span class="p">(</span><span class="n">conn</span><span class="p">:</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">Connection</span><span class="p">,</span> <span class="n">sql</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">max_rows</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">20</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Run a model-written SELECT. If not is_read_only_sql -&gt; raise ToolError("only</span>
+<span class="sd">    single SELECT statements are allowed"). Return at most max_rows rows as dicts</span>
+<span class="sd">    (use cursor.fetchmany)."""</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># ---------------------------------------------------------------- 7</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">build_crm_registry</span><span class="p">(</span><span class="n">conn</span><span class="p">:</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">Connection</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ToolRegistry</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Registry with three tools wrapping the functions above:</span>
+<span class="sd">    - lookup_customer(email: string, required)</span>
+<span class="sd">    - list_orders(customer_id: integer required, status: string optional, limit: integer optional default 10)</span>
+<span class="sd">    - run_query(sql: string required)  -&gt; run_readonly_query</span>
+<span class="sd">    Each needs a one-line description. Hint: use lambda/closures to bind `conn`.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># ---------------------------------------------------------------- 8</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">run_agent</span><span class="p">(</span><span class="n">llm</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">list</span><span class="p">],</span> <span class="nb">str</span><span class="p">],</span> <span class="n">registry</span><span class="p">:</span> <span class="n">ToolRegistry</span><span class="p">,</span> <span class="n">question</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+              <span class="n">max_steps</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span> <span class="n">allowed</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AgentResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""The agent loop.</span>
+
+<span class="sd">    messages starts as [{"role": "user", "content": &lt;question&gt;}]. Each step (up to</span>
+<span class="sd">    max_steps):</span>
+<span class="sd">      1. reply = llm(messages); append {"role": "assistant", "content": reply}</span>
+<span class="sd">      2. parse_action(reply). On ToolError: append a user message</span>
+<span class="sd">         "ERROR: &lt;msg&gt;" and continue (the bad reply still counts as a step).</span>
+<span class="sd">      3. "final" -&gt; return AgentResult(answer, steps, "final", trace)</span>
+<span class="sd">      4. "tool"  -&gt; obs = run_tool(...); trace.append((name, args, obs));</span>
+<span class="sd">         append {"role": "user", "content": "TOOL_RESULT: " + json.dumps(obs)}</span>
+<span class="sd">    If the loop ends without a final: AgentResult(None, max_steps, "max_steps", trace).</span>
+<span class="sd">    `steps` = number of llm calls made. Hint: json.dumps(obs, default=str).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../05-fde-projects/project-04-tool-calling-agent/lesson.html">← Project 4 · Tool-calling agent: Lesson</a><a class="next" href="../../05-fde-projects/project-04-tool-calling-agent/test_exercises.py.html">Project 4 · Tool-calling agent: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

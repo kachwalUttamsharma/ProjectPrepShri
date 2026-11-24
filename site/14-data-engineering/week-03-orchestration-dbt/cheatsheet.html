@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Orchestration and dbt cheatsheet | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="14-data-engineering/week-03-orchestration-dbt/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../14-data-engineering/week-03-orchestration-dbt/lesson.html">Week 3 · Orchestration and dbt</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="14-data-engineering/week-03-orchestration-dbt/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="orchestration-and-dbt-cheatsheet">Orchestration and dbt cheatsheet</h1>
+<p><strong>Airflow</strong>: DAG -&gt; tasks (operator instances) -&gt; task instances per run. Scheduler creates runs and queues tasks; executor (Local/Celery/K8s) runs them; metadata DB holds state.
+<strong>Data interval</strong>: run <code>ds=2024-05-01</code> covers [05-01, 05-02) and fires after it ends. Use <code>data_interval_start/end</code>, not <code>now()</code>.
+<strong>catchup=True</strong> creates runs for every missed interval. <strong>Backfill</strong> = rerun history; needs idempotent tasks.
+<strong>XCom</strong> = small metadata only. <strong>Sensors</strong>: reschedule mode/deferrable. <strong>Retries</strong> + backoff; <strong>trigger rules</strong> for cleanup tasks (<code>all_done</code>).
+<strong>Pitfalls</strong>: heavy top-level DAG code, non-idempotent appends, giant XComs, huge/tiny tasks, poke sensors, dynamic start_date.
+<strong>Alternatives</strong>: Dagster (assets), Prefect (Python-first), Step Functions (state machines), managed Airflow (MWAA/Composer).</p>
+<p><strong>dbt</strong>: model = SELECT; materializations view/table/incremental/ephemeral. <code>ref()</code> = DAG edges, <code>source()</code> = raw inputs. Tests: unique, not_null, accepted_values, relationships. Snapshots = SCD2. <code>dbt build</code> = run + test in order. Incremental: <code>is_incremental()</code>, <code>unique_key</code>, strategy merge/delete+insert/insert_overwrite (adapter-specific).</p>
+<p><strong>Load patterns</strong>: full refresh | watermark (misses deletes, late updates) | CDC (log, handles deletes) | MERGE/upsert | partition overwrite (idempotent by design).
+<strong>Idempotency recipe</strong>: deterministic key or partition + overwrite/merge + transaction. Advance watermark in the same transaction as the data.
+<strong>Exactly-once effect</strong> = at-least-once delivery + idempotent write/dedupe (<code>row_number() ... = 1</code>).
+<strong>Late data</strong>: lookback window, reprocess last N days, event_time vs ingested_at.
+<strong>Failure handling</strong>: retry transient, DLQ poison records, alert on failure and on missing success, row-count/freshness tests.</p>
+</article><div class="pager"><a class="prev" href="../../14-data-engineering/week-03-orchestration-dbt/interview-qa.html">← Week 3 · Orchestration and dbt: Interview Q&amp;A</a><a class="next" href="../../14-data-engineering/week-03-orchestration-dbt/exercises.py.html">Week 3 · Orchestration and dbt: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

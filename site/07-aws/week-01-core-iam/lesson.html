@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 1 - Core Ideas: Global Infrastructure, IAM, Shared Responsibility, Organizations | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="07-aws/week-01-core-iam/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../07-aws/README.html">AWS</a> / <a href="../../07-aws/week-01-core-iam/lesson.html">Week 1 · Core ideas and IAM</a> / <span>Lesson</span></nav><button id="mark-done" data-id="07-aws/week-01-core-iam/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-1-core-ideas-global-infrastructure-iam-shared-responsibility-organizations">Week 1 - Core Ideas: Global Infrastructure, IAM, Shared Responsibility, Organizations</h1>
+<p>Time budget: ~7-8 hrs. Read lesson (3h), Q&amp;A aloud (2h), cheatsheet + optional labs (2h).
+Numbers marked "(check current docs)" change over time; verify before quoting in an interview.</p>
+<hr />
+<h2 id="1-global-infrastructure">1. Global infrastructure</h2>
+<div class="highlight"><pre><span></span><code> AWS Global
+ |-- Region (e.g. us-east-1, eu-west-1)  -- isolated geographic area, own services/pricing/quotas
+ |     |-- Availability Zone (AZ)        -- one or more discrete data centers, separate power/network/flood plain
+ |     |     (AZs in a region are linked by low-latency private fiber; typically 3 or more AZs per region)
+ |-- Local Zones   -- extensions of a region closer to cities (latency-sensitive: media, gaming)
+ |-- Wavelength    -- compute embedded in telco 5G networks
+ |-- Outposts      -- AWS hardware in YOUR data center (hybrid)
+ |-- Edge locations / PoPs -- CloudFront, Route 53, WAF, Shield, Global Accelerator (hundreds of sites)
+        Regional edge caches sit between edge locations and origin
+</code></pre></div>
+
+<p>Key points</p>
+<ul>
+<li>Region = unit of data residency, isolation, and compliance. Data does not leave a region unless you move it.</li>
+<li>AZ = unit of high availability. "Multi-AZ" = survive a data-center failure. "Multi-Region" = survive a regional failure / reduce latency globally / DR.</li>
+<li>AZ names (us-east-1a) are mapped per-account (randomized); use AZ IDs (use1-az1) when coordinating across accounts.</li>
+<li>Some services are global (IAM, Route 53, CloudFront, Organizations, WAF for CloudFront); most are regional; EC2/EBS subnets are AZ-scoped.</li>
+<li>Choosing a region: latency to users, compliance/data residency, service availability, price (varies by region; us-east-1 is typically cheapest and gets new services first), DR pairing.</li>
+<li>Opt-in regions must be enabled in the account first.</li>
+</ul>
+<p>Gotcha: "I can't see my EC2 instance" -&gt; you are in the wrong region in the console/CLI.</p>
+<hr />
+<h2 id="2-shared-responsibility-model">2. Shared Responsibility Model</h2>
+<div class="highlight"><pre><span></span><code> CUSTOMER: "security IN the cloud"          AWS: "security OF the cloud"
+ +------------------------------------+     +-----------------------------------+
+ | Customer data, IAM, app code       |     | Physical data centers, hardware   |
+ | OS patching (EC2), firewall (SG)   |     | Hypervisor, host OS (Nitro)       |
+ | Encryption choices, network config |     | Global network, managed-service   |
+ +------------------------------------+     | internals                         |
+                                            +-----------------------------------+
+</code></pre></div>
+
+<ul>
+<li>Responsibility shifts with abstraction: EC2 (you patch the OS) -&gt; RDS (AWS patches the DB engine, you manage users/params/security groups/data) -&gt; Lambda/S3 (AWS manages runtime/infrastructure; you manage code, IAM, bucket policies, data).</li>
+<li>"Inherited controls" (physical), "shared controls" (patching, config mgmt, training), "customer-specific controls".</li>
+<li>Interview line: "AWS secures the cloud; I secure what I put in it. Most breaches are misconfiguration - public S3 bucket, over-broad IAM - which are customer-side."</li>
+<li>Compliance: AWS Artifact gives audit reports (SOC, ISO, PCI) on demand.</li>
+</ul>
+<hr />
+<h2 id="3-iam-identity-and-access-management">3. IAM (Identity and Access Management)</h2>
+<p><strong>What:</strong> Global service controlling who (authentication) can do what (authorization) on which AWS resources. Free.</p>
+<h3 id="building-blocks">Building blocks</h3>
+<table>
+<thead>
+<tr>
+<th>Concept</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Root user</td>
+<td>Email that created the account. Full power. MFA on, no access keys, use only for the few root-only tasks (close account, change support plan, restore IAM perms, etc.)</td>
+</tr>
+<tr>
+<td>IAM user</td>
+<td>Long-lived identity for a person/app. Prefer SSO/Identity Center for humans; avoid users + access keys.</td>
+</tr>
+<tr>
+<td>Group</td>
+<td>Collection of users; attach policies to groups. Cannot nest groups. Groups are not principals (cannot be named in a resource policy Principal).</td>
+</tr>
+<tr>
+<td>Role</td>
+<td>Identity with permissions but no long-term credentials; assumed by users, services, other accounts, federated identities. Gives temporary credentials via STS.</td>
+</tr>
+<tr>
+<td>Policy</td>
+<td>JSON document of permissions.</td>
+</tr>
+<tr>
+<td>Permissions boundary</td>
+<td>Max-permissions guardrail on a user/role (effective = identity policy AND boundary).</td>
+</tr>
+<tr>
+<td>SCP</td>
+<td>Org-level guardrail on accounts/OUs (does not grant, only limits; does not affect management account).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="policy-types">Policy types</h3>
+<ol>
+<li>Identity-based (attach to user/group/role): AWS managed, customer managed, inline.</li>
+<li>Resource-based (attach to resource: S3 bucket policy, SQS, KMS key policy, Lambda, role trust policy). Has <code>Principal</code>.</li>
+<li>Permissions boundaries. 4. SCPs / RCPs (resource control policies). 5. Session policies (passed at AssumeRole). 6. ACLs (legacy, S3).</li>
+</ol>
+<h3 id="policy-anatomy">Policy anatomy</h3>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"Version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2012-10-17"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"Statement"</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span>
+<span class="w">    </span><span class="nt">"Sid"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ReadReportsBucket"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"Effect"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Allow"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"Action"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"s3:GetObject"</span><span class="p">,</span><span class="w"> </span><span class="s2">"s3:ListBucket"</span><span class="p">],</span>
+<span class="w">    </span><span class="nt">"Resource"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"arn:aws:s3:::reports"</span><span class="p">,</span><span class="w"> </span><span class="s2">"arn:aws:s3:::reports/*"</span><span class="p">],</span>
+<span class="w">    </span><span class="nt">"Condition"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"IpAddress"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"aws:SourceIp"</span><span class="p">:</span><span class="w"> </span><span class="s2">"203.0.113.0/24"</span><span class="p">}}</span>
+<span class="w">  </span><span class="p">}]</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>Note: <code>ListBucket</code> applies to the bucket ARN; <code>GetObject</code> to <code>bucket/*</code>. Classic gotcha.</p>
+<h3 id="evaluation-logic-memorize">Evaluation logic (memorize)</h3>
+<ol>
+<li>Default = implicit DENY.</li>
+<li>Explicit DENY anywhere wins over everything.</li>
+<li>Otherwise need an explicit ALLOW (identity or resource policy).</li>
+<li>Within the same account, identity policy OR resource policy allow is enough (union) - unless an SCP/boundary/session policy doesn't permit it.</li>
+<li>Cross-account: need allow on BOTH sides (identity policy in caller account AND resource policy / trust in target), roughly.</li>
+<li>With Orgs: effective = SCP AND (boundary) AND (session) AND (identity/resource allow).</li>
+</ol>
+<h3 id="roles-trust-sts">Roles, trust, STS</h3>
+<div class="highlight"><pre><span></span><code> Caller (user / EC2 / Lambda / other account)
+      |  sts:AssumeRole  (allowed by role TRUST policy + caller's identity policy)
+      v
+ STS returns temporary creds: AccessKeyId + SecretAccessKey + SessionToken (expire)
+      |
+      v  call AWS APIs with role's PERMISSION policy
+</code></pre></div>
+
+<ul>
+<li>Role has two policies: trust policy (who can assume) and permissions policy (what it can do).</li>
+<li>AssumeRole session: default 1 hr, 15 min to 12 hr (role max session setting). Role chaining caps at 1 hr.</li>
+<li>Related STS calls: AssumeRoleWithWebIdentity (OIDC, e.g. EKS IRSA, GitHub Actions), AssumeRoleWithSAML, GetSessionToken, GetCallerIdentity (the "whoami", needs no permissions).</li>
+<li>Instance profile = container that passes a role to EC2. Lambda has an execution role. ECS has task role (app permissions) vs task execution role (pull image, write logs, fetch secrets).</li>
+<li>Cross-account: add trust to role in account B for account A principal; use <code>ExternalId</code> for third parties (confused deputy).</li>
+<li>IAM Identity Center (successor to AWS SSO): central SSO for humans across accounts, permission sets, short-lived creds. Recommended for workforce.</li>
+</ul>
+<h3 id="least-privilege-workflow">Least privilege workflow</h3>
+<p>Start from managed/starter policy -&gt; use IAM Access Analyzer (policy generation from CloudTrail, unused access findings, external-access findings) -&gt; "last accessed" data -&gt; tighten -&gt; add conditions (<code>aws:MultiFactorAuthPresent</code>, <code>aws:SourceVpce</code>, <code>aws:PrincipalOrgID</code>, tag-based ABAC).</p>
+<h3 id="limits-check-current-docs">Limits (check current docs)</h3>
+<p>Users per account 5,000; groups 300; roles 1,000 (raisable); managed policy size 6,144 characters; inline per user 2,048 chars total; managed policies per role 10 by default (raisable to 20).</p>
+<h3 id="when-not-to-use-iam-users">When NOT to use IAM users</h3>
+<p>Apps on AWS compute (use roles), CI/CD (use OIDC federation to a role), humans (use Identity Center). Static access keys leak.</p>
+<h3 id="gotchas">Gotchas</h3>
+<ul>
+<li><code>"Action": "*", "Resource": "*"</code> is admin; wildcard principals <code>"Principal": "*"</code> on resource policy = public.</li>
+<li>Changing a policy is eventually consistent (seconds).</li>
+<li>Deny with <code>NotAction</code> is easy to get wrong.</li>
+<li>Credentials precedence in SDK/CLI: explicit params -&gt; env vars -&gt; shared credentials/config profile -&gt; container creds -&gt; instance metadata (IMDSv2). Never hardcode keys.</li>
+</ul>
+<hr />
+<h2 id="4-aws-organizations-billing-basics">4. AWS Organizations, billing basics</h2>
+<ul>
+<li>Organizations: group accounts into a tree of OUs under a management (payer) account. Features: consolidated billing (one bill, pooled volume discounts, shared Reserved Instance/Savings Plans), SCPs, centralized CloudTrail, tag policies, backup policies, delegated administrators for security services (GuardDuty, Security Hub, Config).</li>
+<li>Why multi-account? Blast-radius isolation, per-team/env billing, separate quotas, security boundaries. Typical: management, security/log-archive, shared-services/network, workload accounts per env (dev/stage/prod).</li>
+<li>Control Tower: opinionated landing zone setup (guardrails, account vending - Account Factory) on top of Organizations.</li>
+<li>SCPs: deny-list approach (FullAWSAccess + explicit denies, e.g. deny leaving the org, deny non-approved regions, deny disabling CloudTrail). Do not affect the management account or service-linked roles.</li>
+<li>Billing tools: Billing console, Cost Explorer, Budgets (alerts + actions), Cost and Usage Report (CUR/Data Exports - most granular), Cost Allocation Tags (must be activated), Cost Anomaly Detection, Compute Optimizer, Trusted Advisor (checks vary by support plan).</li>
+<li>Free tier types: 12-month free (new accounts historically), always-free (e.g. Lambda 1M requests/mo, DynamoDB 25GB), trials. AWS changed free tier for new accounts in 2025 to a credit-based model - check current docs.</li>
+<li>Support plans: Basic (free), Developer, Business, Enterprise On-Ramp, Enterprise. Differences: response times, TAM, full Trusted Advisor checks.</li>
+</ul>
+<hr />
+<h2 id="5-core-pricing-mental-model">5. Core pricing mental model</h2>
+<p>Compute (time/capacity), storage (GB-month), requests, data transfer. Data IN is free; data OUT to internet is charged; cross-AZ and cross-region transfer charged; same-AZ private IP traffic free. Always ask "what is the meter?"</p>
+<hr />
+<h2 id="6-architecture-example-multi-account-landing-zone">6. Architecture example: multi-account landing zone</h2>
+<div class="highlight"><pre><span></span><code> Management account (billing, Orgs, SCPs only)
+   |-- OU Security: log-archive acct (CloudTrail, Config -&gt; S3), audit acct (GuardDuty/SecurityHub admin)
+   |-- OU Infrastructure: network acct (Transit Gateway), shared-services
+   |-- OU Workloads/Prod: app-a-prod, app-b-prod
+   |-- OU Workloads/NonProd: app-a-dev, app-a-stage
+   |-- OU Sandbox: dev experiments w/ strict budgets + SCP region deny
+ Humans -&gt; IAM Identity Center -&gt; permission set -&gt; role in target account
+ CI/CD  -&gt; GitHub OIDC -&gt; AssumeRoleWithWebIdentity -&gt; deploy role
+</code></pre></div>
+
+<h2 id="7-boto3-snippets-illustrative-need-credentials-to-run">7. boto3 snippets (illustrative; need credentials to run)</h2>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">boto3</span>
+<span class="n">sts</span> <span class="o">=</span> <span class="n">boto3</span><span class="o">.</span><span class="n">client</span><span class="p">(</span><span class="s2">"sts"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">sts</span><span class="o">.</span><span class="n">get_caller_identity</span><span class="p">()[</span><span class="s2">"Arn"</span><span class="p">])</span>          <span class="c1"># who am I?</span>
+
+<span class="c1"># assume a role in another account</span>
+<span class="n">creds</span> <span class="o">=</span> <span class="n">sts</span><span class="o">.</span><span class="n">assume_role</span><span class="p">(</span>
+    <span class="n">RoleArn</span><span class="o">=</span><span class="s2">"arn:aws:iam::222222222222:role/ReadOnly"</span><span class="p">,</span>
+    <span class="n">RoleSessionName</span><span class="o">=</span><span class="s2">"study-session"</span><span class="p">,</span>
+    <span class="n">DurationSeconds</span><span class="o">=</span><span class="mi">3600</span><span class="p">,</span>
+<span class="p">)[</span><span class="s2">"Credentials"</span><span class="p">]</span>
+<span class="n">s3</span> <span class="o">=</span> <span class="n">boto3</span><span class="o">.</span><span class="n">client</span><span class="p">(</span><span class="s2">"s3"</span><span class="p">,</span>
+    <span class="n">aws_access_key_id</span><span class="o">=</span><span class="n">creds</span><span class="p">[</span><span class="s2">"AccessKeyId"</span><span class="p">],</span>
+    <span class="n">aws_secret_access_key</span><span class="o">=</span><span class="n">creds</span><span class="p">[</span><span class="s2">"SecretAccessKey"</span><span class="p">],</span>
+    <span class="n">aws_session_token</span><span class="o">=</span><span class="n">creds</span><span class="p">[</span><span class="s2">"SessionToken"</span><span class="p">])</span>
+</code></pre></div>
+
+<p>Simulate a policy decision: <code>iam.simulate_principal_policy(...)</code> or the IAM Policy Simulator in the console.</p>
+</article><div class="pager"><a class="prev" href="../../07-aws/README.html">← AWS: Overview</a><a class="next" href="../../07-aws/week-01-core-iam/interview-qa.html">Week 1 · Core ideas and IAM: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

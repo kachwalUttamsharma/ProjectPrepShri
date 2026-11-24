@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 3: Orchestration, dbt and reliable loads | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="14-data-engineering/week-03-orchestration-dbt/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../14-data-engineering/week-03-orchestration-dbt/lesson.html">Week 3 · Orchestration and dbt</a> / <span>Lesson</span></nav><button id="mark-done" data-id="14-data-engineering/week-03-orchestration-dbt/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-3-orchestration-dbt-and-reliable-loads">Week 3: Orchestration, dbt and reliable loads</h1>
+<p>Airflow/dbt snippets are illustrative and <strong>not run here</strong>. The exercises use stdlib + sqlite3 to practise the underlying ideas.</p>
+<h2 id="1-batch-etl-vs-elt">1. Batch ETL vs ELT</h2>
+<ul>
+<li><strong>ETL</strong>: transform before loading (on a separate engine). <strong>ELT</strong>: load raw data into the warehouse/lake, transform there with SQL (dbt). ELT dominates with cheap storage and scalable warehouses; it keeps raw data for replays.</li>
+<li>Layers (medallion/staging): raw/bronze -&gt; cleaned/staging/silver -&gt; marts/gold.</li>
+<li>An <strong>orchestrator</strong> schedules, orders, retries and observes jobs; it should not do the heavy compute itself (it triggers Spark/dbt/warehouse SQL).</li>
+</ul>
+<h2 id="2-airflow-essentials">2. Airflow essentials</h2>
+<ul>
+<li><strong>DAG</strong>: directed acyclic graph of <strong>tasks</strong> with a schedule. <strong>Operator</strong> = task template (Bash, Python, SQL, provider operators); a task is an operator instance; a <strong>task instance</strong> is a task for one DAG run.</li>
+<li>Components: scheduler (parses DAG files, creates runs, queues tasks), executor (Local, Celery, Kubernetes; decides where tasks run), workers, metadata DB, webserver/UI, triggerer (deferrable operators).</li>
+<li><strong>Logical date / data interval</strong>: a daily run labelled <code>2024-05-01</code> processes data of <code>[2024-05-01, 2024-05-02)</code> and starts <em>after</em> that interval ends. Use <code>data_interval_start/end</code> (templated <code>{{ data_interval_start }}</code>, <code>{{ ds }}</code>) never <code>datetime.now()</code> inside tasks. Airflow 2.2+ naming; "execution_date" is legacy (check current docs).</li>
+<li><strong>catchup</strong>: if True, scheduler creates a run for every missed interval since <code>start_date</code>. <strong>Backfill</strong> = rerun a historical range (<code>airflow dags backfill</code>, or clear tasks/trigger runs; behaviour changed in Airflow 3, check current docs).</li>
+<li><strong>Retries / retry_delay / exponential backoff</strong>, <code>execution_timeout</code>, <strong>SLAs</strong> (deprecated/reworked in recent versions, check current docs; many teams alert via callbacks/Deadline alerts instead), trigger rules (<code>all_success</code> default, <code>all_done</code>, <code>one_failed</code>).</li>
+<li><strong>XCom</strong>: small metadata between tasks (stored in the metadata DB). Never pass dataframes; pass paths/ids. The TaskFlow API (<code>@task</code>) wraps this.</li>
+<li><strong>Sensors</strong>: wait for a condition (file, partition, upstream DAG). Use <code>mode="reschedule"</code> or deferrable operators so they do not hog worker slots.</li>
+<li>Pools and concurrency limits protect downstream systems. Datasets/assets (data-aware scheduling) trigger DAGs when upstream data updates (naming changed in Airflow 3, check current docs).</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="c1"># not run here: Airflow 2.x style</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timedelta</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">airflow.decorators</span><span class="w"> </span><span class="kn">import</span> <span class="n">dag</span><span class="p">,</span> <span class="n">task</span>
+
+<span class="nd">@dag</span><span class="p">(</span><span class="n">schedule</span><span class="o">=</span><span class="s2">"@daily"</span><span class="p">,</span> <span class="n">start_date</span><span class="o">=</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2024</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">catchup</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+     <span class="n">default_args</span><span class="o">=</span><span class="p">{</span><span class="s2">"retries"</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">"retry_delay"</span><span class="p">:</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">minutes</span><span class="o">=</span><span class="mi">5</span><span class="p">)})</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">sales_pipeline</span><span class="p">():</span>
+    <span class="nd">@task</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">extract</span><span class="p">(</span><span class="n">data_interval_start</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">data_interval_end</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="c1"># idempotent: write to a path keyed by the interval, overwrite if it exists</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">"s3://lake/raw/sales/ds=</span><span class="si">{</span><span class="n">data_interval_start</span><span class="si">:</span><span class="s2">%Y-%m-%d</span><span class="si">}</span><span class="s2">/"</span>
+
+    <span class="nd">@task</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">load</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="o">...</span>  <span class="c1"># MERGE/partition overwrite, not blind INSERT</span>
+
+    <span class="n">load</span><span class="p">(</span><span class="n">extract</span><span class="p">())</span>
+
+<span class="n">sales_pipeline</span><span class="p">()</span>
+</code></pre></div>
+
+<h3 id="pitfalls">Pitfalls</h3>
+<ul>
+<li>Non-idempotent tasks (append on retry -&gt; duplicates).</li>
+<li>Heavy top-level code in DAG files (scheduler re-parses constantly: no API/DB calls at import).</li>
+<li><code>datetime.now()</code>/<code>Variable.get</code> at parse time; dynamic <code>start_date</code>.</li>
+<li>Big XComs; tasks sharing local disk (workers differ).</li>
+<li>Too fine tasks (scheduler overhead, thousands of tiny tasks) or too coarse (one 4-hour task: retry redoes everything). Aim for tasks that are meaningful, restartable units.</li>
+<li>Sensors in poke mode eating slots; no pools; cross-DAG deps by time guessing instead of datasets/ExternalTaskSensor.</li>
+<li>Dynamic DAGs generated from config (loops, or dynamic task mapping <code>.expand()</code>): fine, but keep generation cheap and deterministic.</li>
+</ul>
+<h2 id="3-alternatives">3. Alternatives</h2>
+<ul>
+<li><strong>Dagster</strong>: asset-centric (declare data assets and their lineage), strong local dev/testing, IO managers.</li>
+<li><strong>Prefect</strong>: Python-first flows/tasks, dynamic by default, hybrid execution.</li>
+<li><strong>AWS Step Functions</strong>: managed state machines (JSON/ASL) for serverless workflows, retries/catch built in; not data-aware.</li>
+<li>Others: Mage, Kestra, cloud-native (Cloud Composer/MWAA are managed Airflow), Databricks Workflows.
+Trade-off axes: task-centric vs asset-centric, scheduling model, ops burden, ecosystem of operators, testing story.</li>
+</ul>
+<h2 id="4-dbt">4. dbt</h2>
+<ul>
+<li>A <strong>model</strong> is a <code>SELECT</code> in a <code>.sql</code> file; dbt wraps it in DDL per its <strong>materialization</strong>: <code>view</code>, <code>table</code>, <code>incremental</code>, <code>ephemeral</code> (CTE inlined), plus materialized views.</li>
+<li><code>{{ ref('model') }}</code> builds the dependency graph (DAG) and resolves schema names per environment; <code>{{ source('raw', 'orders') }}</code> declares external raw tables (with freshness checks).</li>
+<li><strong>Tests</strong>: generic (<code>unique</code>, <code>not_null</code>, <code>accepted_values</code>, <code>relationships</code>) in YAML, and singular SQL tests. <strong>Docs</strong>: <code>dbt docs generate</code> produces lineage and column docs from YAML.</li>
+<li><strong>Snapshots</strong>: SCD Type 2 history of mutable source rows (<code>check</code> or <code>timestamp</code> strategy).</li>
+<li><strong>Incremental models</strong> (not run here):</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="c1">-- models/fct_events.sql</span>
+<span class="err">{{</span><span class="w"> </span><span class="n">config</span><span class="p">(</span><span class="n">materialized</span><span class="o">=</span><span class="s1">'incremental'</span><span class="p">,</span><span class="w"> </span><span class="n">unique_key</span><span class="o">=</span><span class="s1">'event_id'</span><span class="p">,</span><span class="w"> </span><span class="n">incremental_strategy</span><span class="o">=</span><span class="s1">'merge'</span><span class="p">)</span><span class="w"> </span><span class="err">}}</span>
+<span class="k">select</span><span class="w"> </span><span class="n">event_id</span><span class="p">,</span><span class="w"> </span><span class="n">user_id</span><span class="p">,</span><span class="w"> </span><span class="n">event_ts</span><span class="p">,</span><span class="w"> </span><span class="n">payload</span>
+<span class="k">from</span><span class="w"> </span><span class="err">{{</span><span class="w"> </span><span class="k">ref</span><span class="p">(</span><span class="s1">'stg_events'</span><span class="p">)</span><span class="w"> </span><span class="err">}}</span>
+<span class="err">{</span><span class="o">%</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">is_incremental</span><span class="p">()</span><span class="w"> </span><span class="o">%</span><span class="err">}</span>
+<span class="k">where</span><span class="w"> </span><span class="n">event_ts</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="p">(</span><span class="k">select</span><span class="w"> </span><span class="k">max</span><span class="p">(</span><span class="n">event_ts</span><span class="p">)</span><span class="w"> </span><span class="k">from</span><span class="w"> </span><span class="err">{{</span><span class="w"> </span><span class="n">this</span><span class="w"> </span><span class="err">}}</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nb">interval</span><span class="w"> </span><span class="s1">'3 hours'</span><span class="w">  </span><span class="c1">-- lookback for late data</span>
+<span class="err">{</span><span class="o">%</span><span class="w"> </span><span class="n">endif</span><span class="w"> </span><span class="o">%</span><span class="err">}</span>
+</code></pre></div>
+
+<p>Strategies (<code>merge</code>, <code>delete+insert</code>, <code>insert_overwrite</code>, <code>append</code>; availability is adapter-specific, check current docs). <code>--full-refresh</code> rebuilds. Commands: <code>dbt run</code>, <code>test</code>, <code>build</code> (run+test in DAG order), <code>--select model+</code>, state-based <code>--select state:modified+</code>.</p>
+<ul>
+<li>Jinja macros, packages (dbt_utils), seeds (small CSVs), exposures; contracts and model versions in newer versions (check current docs).</li>
+</ul>
+<h2 id="5-incremental-loading-patterns">5. Incremental loading patterns</h2>
+<table>
+<thead>
+<tr>
+<th>Pattern</th>
+<th>How</th>
+<th>Catches deletes?</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Full refresh</td>
+<td>truncate + reload</td>
+<td>yes</td>
+<td>simple, costly at scale</td>
+</tr>
+<tr>
+<td>Watermark / high-water mark</td>
+<td><code>updated_at &gt; last</code></td>
+<td>no (unless soft deletes)</td>
+<td>needs reliable monotonic column; misses late updates with older timestamps; use lookback window</td>
+</tr>
+<tr>
+<td>CDC (log-based, e.g. Debezium)</td>
+<td>stream of insert/update/delete events</td>
+<td>yes</td>
+<td>ordering and schema changes matter; apply with merge</td>
+</tr>
+<tr>
+<td>Upsert / MERGE</td>
+<td>match on key, update or insert</td>
+<td>only if delete flag</td>
+<td>the load primitive for watermark/CDC</td>
+</tr>
+<tr>
+<td>Partition overwrite</td>
+<td>replace whole partition (day)</td>
+<td>per partition</td>
+<td>naturally idempotent, ideal for immutable-day facts</td>
+</tr>
+<tr>
+<td>Store the watermark in the same transaction as the data, or derive it from the target (<code>max(updated_at)</code>), never advance it first.</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="6-idempotency-and-exactly-once-effect">6. Idempotency and exactly-once effect</h2>
+<ul>
+<li><strong>Idempotent</strong>: running a task N times has the same effect as once. Needed because retries, backfills and manual reruns <em>will</em> happen.</li>
+<li>Recipes: deterministic output location keyed by the logical date (overwrite); MERGE on a business key; delete-then-insert for a partition inside a transaction; write to staging then atomic swap/rename; dedupe by <code>row_number() over (partition by key order by updated_at desc, ingested_at desc) = 1</code>.</li>
+<li>True exactly-once delivery is not possible in general; you build <strong>at-least-once delivery + idempotent processing = exactly-once effect</strong>.</li>
+<li>Avoid in tasks: <code>now()</code>, random values, appends without keys, side effects (emails) without guards.</li>
+</ul>
+<h2 id="7-backfills-late-data-retries-dlq">7. Backfills, late data, retries, DLQ</h2>
+<ul>
+<li>Backfill: re-run historical intervals using the logical date; code must not depend on "today". Parallelism limits; downstream consumers should be told.</li>
+<li><strong>Late data</strong>: events arrive after their interval was processed. Options: lookback window, reprocess the last N partitions every run, watermarks with allowed lateness (streaming), bi-temporal columns (event_time vs ingested_at), accept and reconcile periodically.</li>
+<li><strong>Retries</strong>: for transient errors, with backoff and jitter; do not retry deterministic failures forever. <strong>Dead-letter queue/table</strong>: bad records are diverted with the error and context so the batch continues; monitor its size, support replays.</li>
+<li>Observability: row-count and freshness checks, data-quality tests (dbt tests, Great Expectations/Soda), alerts on failure and on <em>absence</em> of success, lineage.</li>
+</ul>
+<h2 id="8-exercises-map">8. Exercises map</h2>
+<p>1 topological_order, 2 run_dag with retries, 3 ref() parsing + build order, 4 idempotent upsert, 5 watermark incremental load, 6 backfill intervals, 7 dedupe latest, 8 partition overwrite, 9 dead-letter handling.</p>
+</article><div class="pager"><a class="prev" href="../../14-data-engineering/week-02-spark/test_exercises.py.html">← Week 2 · Spark: Tests (code)</a><a class="next" href="../../14-data-engineering/week-03-orchestration-dbt/interview-qa.html">Week 3 · Orchestration and dbt: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

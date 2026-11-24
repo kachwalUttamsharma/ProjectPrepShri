@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SQL Week 3: CTEs, window functions, CASE, dates | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="06-sql/week-03-cte-window-case-dates/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../06-sql/week-03-cte-window-case-dates/lesson.html">Week 3 · CTEs, windows, CASE, dates</a> / <span>Lesson</span></nav><button id="mark-done" data-id="06-sql/week-03-cte-window-case-dates/lesson">Mark as done</button></div><article class="doc">
+<h1 id="sql-week-3-ctes-window-functions-case-dates">SQL Week 3: CTEs, window functions, CASE, dates</h1>
+<p>Goal: write readable multi-step queries, solve "per group" and "compare to neighbour row" problems with window functions, and handle dates.
+Budget: ~2.5 h reading + REPL, ~3 h exercises, ~1 h interview Q&amp;A. This is the most interview-heavy week.
+Run tests: <code>.venv/bin/pytest 06-sql/week-03-cte-window-case-dates -v</code>
+SQLite 3.25+ is needed for window functions, 3.8.3+ for CTEs (your install is 3.53).</p>
+<h2 id="0-data-see-schemapy">0. Data (see <code>schema.py</code>)</h2>
+<div class="highlight"><pre><span></span><code>employees(id, name, dept, salary, manager_id, hire_date)   Ava is the root; Ben=Cara tie; Fay=Gus tie
+sales(id, sale_date, region, amount)                       9 sales, Jan-Mar 2024, East/West
+tickets(id, opened_at, closed_at, priority)                closed_at NULL = still open
+</code></pre></div>
+
+<h2 id="1-ctes-with">1. CTEs (WITH)</h2>
+<p>A CTE gives a name to a subquery so the main query reads top to bottom.</p>
+<div class="highlight"><pre><span></span><code><span class="k">WITH</span><span class="w"> </span><span class="k">c</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="n">region</span><span class="p">,</span><span class="w"> </span><span class="k">SUM</span><span class="p">(</span><span class="n">amount</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">total</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">sales</span><span class="w"> </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">region</span><span class="p">)</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">region</span><span class="p">,</span><span class="w"> </span><span class="n">total</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="k">c</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">total</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="k">AVG</span><span class="p">(</span><span class="n">total</span><span class="p">)</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="k">c</span><span class="p">);</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>region | total
+East   | 850
+</code></pre></div>
+
+<ul>
+<li>Chain several: <code>WITH a AS (...), b AS (SELECT ... FROM a) SELECT ... FROM b</code>.</li>
+<li>Scope is a single statement. A CTE is not a table and is not stored.</li>
+<li>Postgres 12+ inlines non-recursive CTEs (before that they were optimisation fences; <code>MATERIALIZED</code>/<code>NOT MATERIALIZED</code> hints exist). MySQL 8+ supports CTEs.</li>
+<li>CTE vs subquery vs view vs temp table: CTE/subquery = same statement only; view = stored query definition; temp table = materialised, can be indexed, lives for the session.</li>
+</ul>
+<h2 id="2-recursive-ctes">2. Recursive CTEs</h2>
+<p>Two parts joined with <code>UNION ALL</code>: an <strong>anchor</strong> (non-recursive seed) and a <strong>recursive step</strong> that references the CTE itself. It repeats until the step returns no new rows.</p>
+<div class="highlight"><pre><span></span><code><span class="c1">-- Org chart with depth</span>
+<span class="k">WITH</span><span class="w"> </span><span class="k">RECURSIVE</span><span class="w"> </span><span class="n">s</span><span class="p">(</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="k">level</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">employees</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">manager_id</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NULL</span><span class="w">          </span><span class="c1">-- anchor</span>
+<span class="w">    </span><span class="k">UNION</span><span class="w"> </span><span class="k">ALL</span>
+<span class="w">    </span><span class="k">SELECT</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="k">level</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">employees</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">manager_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">id</span><span class="w">   </span><span class="c1">-- step</span>
+<span class="p">)</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="k">level</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="k">level</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>name | level
+Ava  | 0
+Ben  | 1
+Fay  | 1
+Jo   | 1
+Cara | 2
+Dan  | 2
+Gus  | 2
+Hana | 2
+Kim  | 2
+Eli  | 3
+Ian  | 3
+</code></pre></div>
+
+<p>Uses: hierarchies (down: join <code>e.manager_id = s.id</code>; up: join <code>e.id = c.manager_id</code>), bill of materials, graph reachability, <strong>generating series</strong> (numbers, and the same idea for consecutive dates) so gaps show up in reports:</p>
+<div class="highlight"><pre><span></span><code><span class="k">WITH</span><span class="w"> </span><span class="k">RECURSIVE</span><span class="w"> </span><span class="n">n</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">UNION</span><span class="w"> </span><span class="k">ALL</span><span class="w"> </span><span class="k">SELECT</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">5</span><span class="p">)</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">square</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">n</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>i | square
+1 | 1
+2 | 4
+3 | 9
+4 | 16
+5 | 25
+</code></pre></div>
+
+<p>Always include a termination condition. For cyclic graphs track visited ids (a path string) or use <code>UNION</code> (dedupes) so it stops. Postgres: <code>WITH RECURSIVE</code> is required; Postgres has <code>generate_series</code> for series; MySQL needs <code>cte_max_recursion_depth</code> (default 1000).</p>
+<h2 id="3-window-functions">3. Window functions</h2>
+<p>A window function computes a value for <strong>each row</strong> from a set of related rows (its window) <strong>without collapsing rows</strong> (unlike GROUP BY).</p>
+<div class="highlight"><pre><span></span><code><span class="k">function</span><span class="p">(...)</span><span class="w"> </span><span class="n">OVER</span><span class="w"> </span><span class="p">(</span><span class="n">PARTITION</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">cols</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">cols</span><span class="w">  </span><span class="n">frame</span><span class="p">)</span>
+</code></pre></div>
+
+<ul>
+<li><code>PARTITION BY</code>: restart per group (optional; omitted = whole result).</li>
+<li><code>ORDER BY</code>: ordering inside the partition (required for ranking, LAG/LEAD).</li>
+<li>frame: which rows around the current one are aggregated.</li>
+</ul>
+<p>They run after WHERE/GROUP BY/HAVING, so <strong>you cannot filter on them in the same SELECT's WHERE</strong>. Wrap in a subquery/CTE and filter outside. (Snowflake/BigQuery have <code>QUALIFY</code>; SQLite/Postgres/MySQL do not.)</p>
+<h3 id="31-aggregate-over-partition">3.1 Aggregate over partition</h3>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">region</span><span class="p">,</span><span class="w"> </span><span class="n">amount</span><span class="p">,</span><span class="w"> </span><span class="k">AVG</span><span class="p">(</span><span class="n">amount</span><span class="p">)</span><span class="w"> </span><span class="n">OVER</span><span class="w"> </span><span class="p">(</span><span class="n">PARTITION</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">region</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">region_avg</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">sales</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">4</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>id | region | amount | region_avg
+1  | East   | 100    | 125.0
+3  | East   | 150    | 125.0
+2  | West   | 200    | 160.0
+4  | West   | 120    | 160.0
+</code></pre></div>
+
+<p>Every row keeps its identity and also sees the group average (compare with the correlated subquery of week 2).</p>
+<h3 id="32-row_number-vs-rank-vs-dense_rank">3.2 ROW_NUMBER vs RANK vs DENSE_RANK</h3>
+<div class="highlight"><pre><span></span><code><span class="k">WITH</span><span class="w"> </span><span class="n">t</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">score</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="s1">'a'</span><span class="p">,</span><span class="w"> </span><span class="mi">90</span><span class="p">),</span><span class="w"> </span><span class="p">(</span><span class="s1">'b'</span><span class="p">,</span><span class="w"> </span><span class="mi">85</span><span class="p">),</span><span class="w"> </span><span class="p">(</span><span class="s1">'c'</span><span class="p">,</span><span class="w"> </span><span class="mi">85</span><span class="p">),</span><span class="w"> </span><span class="p">(</span><span class="s1">'d'</span><span class="p">,</span><span class="w"> </span><span class="mi">70</span><span class="p">))</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">score</span><span class="p">,</span>
+<span class="w">       </span><span class="n">ROW_NUMBER</span><span class="p">()</span><span class="w"> </span><span class="n">OVER</span><span class="w"> </span><span class="p">(</span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">score</span><span class="w"> </span><span class="k">DESC</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">rn</span><span class="p">,</span>
+<span class="w">       </span><span class="n">RANK</span><span class="p">()</span><span class="w">       </span><span class="n">OVER</span><span class="w"> </span><span class="p">(</span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">score</span><span class="w"> </span><span class="k">DESC</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">rnk</span><span class="p">,</span>
+<span class="w">       </span><span class="n">DENSE_RANK</span><span class="p">()</span><span class="w"> </span><span class="n">OVER</span><span class="w"> </span><span class="p">(</span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">score</span><span class="w"> </span><span class="k">DESC</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">drnk</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">t</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>name | score | rn | rnk | drnk
+a    | 90    | 1  | 1   | 1
+b    | 85    | 2  | 2   | 2
+c    | 85    | 3  | 2   | 2
+d    | 70    | 4  | 4   | 3
+</code></pre></div>
+
+<ul>
+<li><code>ROW_NUMBER</code>: unique 1..n; ties broken arbitrarily unless ORDER BY is made unique (add <code>, id</code>).</li>
+<li><code>RANK</code>: ties share a rank, then <strong>gaps</strong> (1,2,2,4).</li>
+<li><code>DENSE_RANK</code>: ties share a rank, <strong>no gaps</strong> (1,2,2,3).</li>
+<li>"Nth highest salary" -&gt; <code>DENSE_RANK() = N</code>. "Top N rows" -&gt; <code>ROW_NUMBER() &lt;= N</code>. "Top N including ties" -&gt; <code>RANK() &lt;= N</code>.</li>
+<li>Top-N per group pattern:</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">region</span><span class="p">,</span><span class="w"> </span><span class="n">amount</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="p">(</span>
+<span class="w">  </span><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">region</span><span class="p">,</span><span class="w"> </span><span class="n">amount</span><span class="p">,</span>
+<span class="w">         </span><span class="n">ROW_NUMBER</span><span class="p">()</span><span class="w"> </span><span class="n">OVER</span><span class="w"> </span><span class="p">(</span><span class="n">PARTITION</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">region</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">amount</span><span class="w"> </span><span class="k">DESC</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">rn</span>
+<span class="w">  </span><span class="k">FROM</span><span class="w"> </span><span class="n">sales</span>
+<span class="p">)</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">rn</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">region</span><span class="p">,</span><span class="w"> </span><span class="n">amount</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>id | region | amount
+5  | East   | 300
+7  | East   | 250
+8  | West   | 400
+2  | West   | 200
+</code></pre></div>
+
+<ul>
+<li><code>NTILE(n)</code> splits into n buckets; <code>PERCENT_RANK</code>, <code>CUME_DIST</code> give relative position.</li>
+</ul>
+<h3 id="33-lag-lead">3.3 LAG / LEAD</h3>
+<p>Value from a previous/next row in the window (default offset 1, optional default value <code>LAG(x, 1, 0)</code>):</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">sale_date</span><span class="p">,</span><span class="w"> </span><span class="n">amount</span><span class="p">,</span><span class="w"> </span><span class="n">LAG</span><span class="p">(</span><span class="n">amount</span><span class="p">)</span><span class="w"> </span><span class="n">OVER</span><span class="w"> </span><span class="p">(</span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">sale_date</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">prev</span><span class="p">,</span>
+<span class="w">       </span><span class="n">LEAD</span><span class="p">(</span><span class="n">amount</span><span class="p">)</span><span class="w"> </span><span class="n">OVER</span><span class="w"> </span><span class="p">(</span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">sale_date</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="k">next</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">sales</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">4</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>sale_date  | amount | prev | next
+2024-01-03 | 100    | NULL | 200
+2024-01-15 | 200    | 100  | 150
+2024-01-28 | 150    | 200  | 120
+2024-02-02 | 120    | 150  | NULL
+</code></pre></div>
+
+<p>Use for month-over-month change, time between events, "is this value higher than the previous one", and for <strong>gaps and islands</strong> (week 5). <code>FIRST_VALUE</code>, <code>LAST_VALUE</code>, <code>NTH_VALUE</code> read other rows in the frame.</p>
+<h3 id="34-running-totals-and-frames">3.4 Running totals and frames</h3>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">hire_date</span><span class="p">,</span><span class="w"> </span><span class="n">salary</span><span class="p">,</span><span class="w"> </span><span class="k">SUM</span><span class="p">(</span><span class="n">salary</span><span class="p">)</span><span class="w"> </span><span class="n">OVER</span><span class="w"> </span><span class="p">(</span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">hire_date</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">payroll_so_far</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">employees</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="mi">6</span><span class="p">);</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>name | hire_date  | salary | payroll_so_far
+Ava  | 2015-01-10 | 200000 | 200000
+Ben  | 2016-03-01 | 150000 | 350000
+Fay  | 2017-05-05 | 90000  | 440000
+Cara | 2018-06-15 | 150000 | 590000
+Dan  | 2019-09-01 | 120000 | 710000
+</code></pre></div>
+
+<p>Frames: <code>ROWS BETWEEN 2 PRECEDING AND CURRENT ROW</code> (3-row moving average), <code>ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING</code> (whole partition).
+<strong>Default frame trap:</strong> with <code>ORDER BY</code> and no frame the default is <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code>, which treats rows with equal ORDER BY values (peers) as one unit:</p>
+<div class="highlight"><pre><span></span><code><span class="k">WITH</span><span class="w"> </span><span class="n">t</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="mi">10</span><span class="p">),(</span><span class="mi">10</span><span class="p">),(</span><span class="mi">20</span><span class="p">))</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">v</span><span class="p">,</span><span class="w"> </span><span class="k">SUM</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="w"> </span><span class="n">OVER</span><span class="w"> </span><span class="p">(</span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">v</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">range_default</span><span class="p">,</span><span class="w"> </span><span class="k">SUM</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="w"> </span><span class="n">OVER</span><span class="w"> </span><span class="p">(</span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="k">ROWS</span><span class="w"> </span><span class="n">UNBOUNDED</span><span class="w"> </span><span class="n">PRECEDING</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">rows_frame</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">t</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>v  | range_default | rows_frame
+10 | 20            | 10
+10 | 20            | 20
+20 | 40            | 40
+</code></pre></div>
+
+<p>For a true row-by-row running total add a unique tie-breaker to ORDER BY or specify <code>ROWS</code>. Also, <code>LAST_VALUE</code> with the default frame returns the current row's value, not the partition's last: specify the full frame.</p>
+<h3 id="35-window-vs-group-by">3.5 Window vs GROUP BY</h3>
+<p>GROUP BY reduces to one row per group; windows keep all rows. Typical combo: aggregate in a CTE first, then window over the aggregated rows (<code>LAG(revenue) OVER (ORDER BY month)</code> on monthly totals).
+You may reuse a definition: <code>WINDOW w AS (PARTITION BY dept ORDER BY salary DESC)</code> then <code>OVER w</code>.</p>
+<h2 id="4-case">4. CASE</h2>
+<div class="highlight"><pre><span></span><code><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">salary</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">150000</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="s1">'High'</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">salary</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">90000</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="s1">'Mid'</span><span class="w"> </span><span class="k">ELSE</span><span class="w"> </span><span class="s1">'Low'</span><span class="w"> </span><span class="k">END</span><span class="w">   </span><span class="c1">-- searched</span>
+<span class="k">CASE</span><span class="w"> </span><span class="n">dept</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="s1">'Eng'</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="s1">'Sales'</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="k">ELSE</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">END</span><span class="w">                               </span><span class="c1">-- simple</span>
+</code></pre></div>
+
+<p>First matching WHEN wins, so order conditions from most to least specific. No ELSE gives NULL. Works in SELECT, WHERE, ORDER BY, and inside aggregates.
+<strong>Conditional aggregation / pivot:</strong></p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">strftime</span><span class="p">(</span><span class="s1">'%Y-%m'</span><span class="p">,</span><span class="w"> </span><span class="n">opened_at</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="k">month</span><span class="p">,</span>
+<span class="w">       </span><span class="k">SUM</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">priority</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'high'</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">ELSE</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">END</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">high</span><span class="p">,</span>
+<span class="w">       </span><span class="k">SUM</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">priority</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'low'</span><span class="w">  </span><span class="k">THEN</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">ELSE</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">END</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">low</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">tickets</span><span class="w"> </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>month   | high | low
+2024-03 | 2    | 1
+2024-04 | 1    | 1
+</code></pre></div>
+
+<p>Counting with a condition: <code>SUM(CASE WHEN cond THEN 1 ELSE 0 END)</code> or <code>COUNT(CASE WHEN cond THEN 1 END)</code> (COUNT ignores the NULLs from the missing ELSE). Postgres also has <code>FILTER (WHERE ...)</code>; the number of pivot columns must be known at query time (no dynamic pivot in plain SQL).</p>
+<h2 id="5-dates-and-times-sqlite-others-differ">5. Dates and times (SQLite; others differ)</h2>
+<p>SQLite stores dates as TEXT (<code>'YYYY-MM-DD'</code> or <code>'YYYY-MM-DD HH:MM:SS'</code>), REAL (Julian day) or INTEGER (unix time). ISO text sorts correctly. Main functions:</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="nb">date</span><span class="p">(</span><span class="s1">'2024-01-31'</span><span class="p">,</span><span class="s1">'+1 month'</span><span class="p">),</span><span class="w">                         </span><span class="c1">-- 2024-03-02 (Feb 31 overflows!)</span>
+<span class="w">       </span><span class="nb">date</span><span class="p">(</span><span class="s1">'2024-03-15'</span><span class="p">,</span><span class="s1">'start of month'</span><span class="p">),</span><span class="w">                   </span><span class="c1">-- 2024-03-01</span>
+<span class="w">       </span><span class="nb">date</span><span class="p">(</span><span class="s1">'2024-03-15'</span><span class="p">,</span><span class="s1">'start of month'</span><span class="p">,</span><span class="s1">'+1 month'</span><span class="p">,</span><span class="s1">'-1 day'</span><span class="p">),</span><span class="w"> </span><span class="c1">-- 2024-03-31 (month end)</span>
+<span class="w">       </span><span class="n">strftime</span><span class="p">(</span><span class="s1">'%w'</span><span class="p">,</span><span class="s1">'2024-03-15'</span><span class="p">),</span><span class="w">                           </span><span class="c1">-- 5 (0 = Sunday)</span>
+<span class="w">       </span><span class="n">strftime</span><span class="p">(</span><span class="s1">'%Y-%m'</span><span class="p">,</span><span class="s1">'2024-03-15'</span><span class="p">),</span><span class="w">                        </span><span class="c1">-- 2024-03</span>
+<span class="w">       </span><span class="n">julianday</span><span class="p">(</span><span class="s1">'2024-03-15'</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">julianday</span><span class="p">(</span><span class="s1">'2024-03-01'</span><span class="p">),</span><span class="w">     </span><span class="c1">-- 14.0 (days)</span>
+<span class="w">       </span><span class="n">strftime</span><span class="p">(</span><span class="s1">'%s'</span><span class="p">,</span><span class="s1">'2024-03-15 00:00:00'</span><span class="p">);</span><span class="w">                  </span><span class="c1">-- 1710460800 (unix seconds)</span>
+</code></pre></div>
+
+<ul>
+<li>Difference in days: <code>julianday(b) - julianday(a)</code>; hours: <code>* 24</code>. Cast if you want integers.</li>
+<li>Group by month: <code>strftime('%Y-%m', ts)</code>.</li>
+<li>Half-open ranges for timestamps: <code>ts &gt;= '2024-03-01' AND ts &lt; '2024-04-01'</code>.</li>
+<li><code>'now'</code> is UTC. Keep timestamps in UTC in storage; convert at the edge.</li>
+</ul>
+<p>Other engines (be ready to translate):
+| Task | SQLite | Postgres | MySQL |
+|---|---|---|---|
+| truncate to month | <code>date(d,'start of month')</code> | <code>date_trunc('month', d)</code> | <code>DATE_FORMAT(d,'%Y-%m-01')</code> |
+| add days | <code>date(d,'+7 day')</code> | <code>d + INTERVAL '7 day'</code> | <code>DATE_ADD(d, INTERVAL 7 DAY)</code> |
+| day difference | <code>julianday(b)-julianday(a)</code> | <code>b::date - a::date</code> | <code>DATEDIFF(b, a)</code> |
+| extract | <code>strftime('%Y', d)</code> | <code>EXTRACT(YEAR FROM d)</code> | <code>YEAR(d)</code> |
+| series | recursive CTE | <code>generate_series</code> | recursive CTE |
+Time zones (<code>timestamptz</code>), DST, leap years, and month-end arithmetic are classic edge cases to mention.</p>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ol>
+<li>Filtering on a window function in WHERE (error): wrap it in a subquery/CTE.</li>
+<li><code>RANK</code> when you wanted <code>DENSE_RANK</code> for "Nth highest" (gaps break N).</li>
+<li>Non-unique ORDER BY in <code>ROW_NUMBER</code> or running totals (nondeterministic; peer rows share the RANGE frame).</li>
+<li>Forgetting PARTITION BY (one big window).</li>
+<li><code>LAST_VALUE</code> with the default frame.</li>
+<li>Recursive CTE without a stopping condition.</li>
+<li>CASE branches in the wrong order; missing ELSE producing NULLs that break sums.</li>
+<li><code>date('2024-01-31','+1 month')</code> surprises; integer division when computing percentages (use <code>* 100.0</code>).</li>
+<li>Grouping by a datetime instead of a date/month.</li>
+<li>Using GROUP BY + self join where one window function would be simpler and faster.</li>
+</ol>
+<h2 id="how-interviewers-probe-this-topic">How interviewers probe this topic</h2>
+<ul>
+<li>"Second highest salary", "Nth highest", "top 3 per department including ties" -&gt; RANK family and ties.</li>
+<li>"Month-over-month growth", "difference from previous row" -&gt; LAG.</li>
+<li>"Running total / moving average / cumulative percentage" -&gt; frames.</li>
+<li>"What is the difference between ROW_NUMBER, RANK and DENSE_RANK?" with a tie example, then "which do you use for dedup" (ROW_NUMBER = 1).</li>
+<li>"Explain the order in which a query is evaluated; where do window functions run?"</li>
+<li>"Walk me through a recursive CTE" (anchor, step, termination) and "how would you prevent infinite loops on cyclic data?"</li>
+<li>"Pivot rows to columns" -&gt; CASE + aggregate.</li>
+<li>"Rewrite this correlated subquery with a window function" and "what are the trade-offs?"</li>
+<li>Dates: "users active in the last 7 days", "first day of the month", "orders per week" and "what about time zones/months with no data?" (calendar table + LEFT JOIN).</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<ol>
+<li>Run every example in the REPL.</li>
+<li>Fill in <code>exercises.py</code> (21 functions) until green.</li>
+<li>Do <code>interview-qa.md</code> aloud.</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../06-sql/week-02-joins-subqueries/schema.py.html">← Week 2 · Joins and subqueries: schema.py</a><a class="next" href="../../06-sql/week-03-cte-window-case-dates/interview-qa.html">Week 3 · CTEs, windows, CASE, dates: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

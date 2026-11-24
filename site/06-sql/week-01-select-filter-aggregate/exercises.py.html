@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="06-sql/week-01-select-filter-aggregate/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">Week 1 · SELECT, filter, aggregate</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="06-sql/week-01-select-filter-aggregate/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>06-sql/week-01-select-filter-aggregate/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 1 SQL exercises. Replace each `...` with `return "&lt;your SQL&gt;"`.</span>
+
+<span class="sd">Each function must RETURN a SQL string (a single SELECT statement).</span>
+<span class="sd">The tests run your SQL against the sample DB from schema.py and compare the</span>
+<span class="sd">result rows AND the column names/aliases. Read schema.py for the tables:</span>
+
+<span class="sd">  employees(id, name, dept, salary, hire_date, city, bonus)   -- NULLs exist!</span>
+<span class="sd">  orders(id, customer, amount, status, order_date)            -- amount can be NULL</span>
+
+<span class="sd">Row order only matters where the task says "ordered by".</span>
+<span class="sd">Tip: try your SQL in a REPL first:  db = make_db(); db.execute(sql).fetchall()</span>
+<span class="sd">"""</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">nyc_employees</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Employees who live in 'NYC'.</span>
+<span class="sd">    Columns: name, salary</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">high_earners</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Employees with salary &gt;= 90000, highest salary first; ties by name A-Z.</span>
+<span class="sd">    Columns: name, salary          (ordered by salary DESC, name ASC)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">top3_paid</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""The 3 best-paid employees (ties broken by name A-Z). NULL salaries must not appear.</span>
+<span class="sd">    Columns: name, salary          (ordered by salary DESC, name ASC)</span>
+<span class="sd">    Hint: ORDER BY ... LIMIT. Where do NULLs sort in SQLite? Filter them out.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">page_two</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Pagination: employees ordered by id, page size 4, return page 2 (ids 5-8).</span>
+<span class="sd">    Columns: id, name              (ordered by id)</span>
+<span class="sd">    Hint: LIMIT ... OFFSET ...</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">hired_2019_2020</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Employees hired between 2019-01-01 and 2020-12-31 inclusive (dates are ISO text).</span>
+<span class="sd">    Columns: name, hire_date       (ordered by hire_date ASC)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">names_ending_in_e</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Employees whose name ends with the letter 'e' (LIKE is case-insensitive for ASCII in SQLite).</span>
+<span class="sd">    Columns: name</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">no_bonus_recorded</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Employees whose bonus is NULL (unknown). A bonus of 0 does NOT count.</span>
+<span class="sd">    Columns: name</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">total_compensation</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Salary + bonus (treat a NULL bonus as 0) for employees that have a salary.</span>
+<span class="sd">    Columns: name, total_comp      (ordered by total_comp DESC, name ASC)</span>
+<span class="sd">    Hint: COALESCE</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">not_in_hr</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Employees who are NOT in the 'HR' department. Employees with NO department</span>
+<span class="sd">    (NULL) are also not in HR, so they must be included.</span>
+<span class="sd">    Columns: name</span>
+<span class="sd">    Hint: `dept &lt;&gt; 'HR'` alone silently drops NULL rows (NULL &lt;&gt; 'HR' is NULL).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">distinct_cities</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Each city where at least one employee lives, once; ignore NULL cities.</span>
+<span class="sd">    Columns: city</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">null_aware_counts</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""One row with: total rows, how many have a salary, how many have a bonus.</span>
+<span class="sd">    Columns: total_rows, salary_count, bonus_count</span>
+<span class="sd">    Hint: COUNT(*) counts rows, COUNT(col) skips NULLs.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">avg_salary_by_dept</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Per department (ignore employees with NULL dept): headcount (all rows in the</span>
+<span class="sd">    dept, even with NULL salary) and average salary rounded to 2 decimals</span>
+<span class="sd">    (AVG ignores NULL salaries).</span>
+<span class="sd">    Columns: dept, headcount, avg_salary</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">big_departments</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Departments with MORE than 2 employees (ignore NULL dept).</span>
+<span class="sd">    Columns: dept, headcount</span>
+<span class="sd">    Hint: HAVING, not WHERE, filters on aggregates.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">revenue_by_status</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""For every order status: number of orders and the SUM of amount (NULL amounts are skipped).</span>
+<span class="sd">    Columns: status, order_count, total_amount</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">monthly_shipped_revenue</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Revenue of *shipped* orders per month, labelled 'YYYY-MM'.</span>
+<span class="sd">    Columns: month, revenue        (ordered by month ASC)</span>
+<span class="sd">    Hint: substr(order_date, 1, 7) or strftime('%Y-%m', order_date)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">big_customers</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Customers whose total amount over NON-cancelled orders is &gt;= 240.</span>
+<span class="sd">    Columns: customer, total       (ordered by total DESC)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">distinct_city_count</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""How many different (non-NULL) cities do employees live in? One row.</span>
+<span class="sd">    Columns: cities</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">small_or_unknown_orders</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Orders whose amount is NOT greater than 100, including orders with an unknown (NULL) amount.</span>
+<span class="sd">    Columns: id</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../06-sql/week-01-select-filter-aggregate/interview-qa.html">← Week 1 · SELECT, filter, aggregate: Interview Q&amp;A</a><a class="next" href="../../06-sql/week-01-select-filter-aggregate/test_exercises.py.html">Week 1 · SELECT, filter, aggregate: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

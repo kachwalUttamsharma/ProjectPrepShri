@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="01-basics/week-04-lists-tuples/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../01-basics/week-01-first-steps/lesson.html">Python Basics</a> / <a href="../../01-basics/week-04-lists-tuples/lesson.html">Week 4 · Lists, tuples, strings</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="01-basics/week-04-lists-tuples/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>01-basics/week-04-lists-tuples/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 4 exercises. Replace each `...` with your code."""</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">second_largest</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the second largest DISTINCT value in a list, or None if there isn't one.</span>
+<span class="sd">    [3, 1, 4, 4] -&gt; 3; [2, 2] -&gt; None; [] -&gt; None.</span>
+<span class="sd">    Hint: set(nums) removes duplicates; sorted() orders them."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">rotate_left</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a NEW list rotated left by k positions. rotate_left([1,2,3,4,5], 2) -&gt; [3,4,5,1,2].</span>
+<span class="sd">    k may be larger than len(nums) or 0; empty list returns []. Hint: k % len(nums) and slicing."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">remove_duplicates</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a new list with duplicates removed, keeping the FIRST occurrence order.</span>
+<span class="sd">    [3, 1, 3, 2, 1] -&gt; [3, 1, 2]"""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">merge_sorted</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Merge two already-sorted lists into one sorted list WITHOUT using sorted()/sort().</span>
+<span class="sd">    [1, 4, 6], [2, 3, 7] -&gt; [1, 2, 3, 4, 6, 7]. Hint: two index variables, compare heads."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">swap_ends</span><span class="p">(</span><span class="n">t</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Given a tuple of length &gt;= 2, return a new tuple with first and last swapped.</span>
+<span class="sd">    (1, 2, 3, 4) -&gt; (4, 2, 3, 1). Hint: tuples are immutable, so build a new one."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">clean_and_split</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Strip the text, lowercase it, and return the list of words split on whitespace.</span>
+<span class="sd">    '  Hello   BIG World ' -&gt; ['hello', 'big', 'world']. Empty/blank -&gt; []."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">title_case_words</span><span class="p">(</span><span class="n">sentence</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Capitalize the first letter of each word, lowercase the rest, single spaces between.</span>
+<span class="sd">    'hELLO   wORLD' -&gt; 'Hello World'. Hint: split(), str.capitalize(), ' '.join()."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">is_anagram</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return True if a and b use the same letters (ignoring case and spaces).</span>
+<span class="sd">    'Listen', 'Silent' -&gt; True; 'abc', 'abd' -&gt; False. Hint: compare sorted letters."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">transpose</span><span class="p">(</span><span class="n">matrix</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the transpose of a rectangular list of lists (rows become columns).</span>
+<span class="sd">    [[1,2,3],[4,5,6]] -&gt; [[1,4],[2,5],[3,6]]. Empty matrix -&gt; []. Do not modify the input."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">safe_copy_and_append</span><span class="p">(</span><span class="n">nested</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a copy of `nested` (a list of lists) where `value` is appended to EACH inner list.</span>
+<span class="sd">    The original and its inner lists must NOT change.</span>
+<span class="sd">    Hint: build new inner lists (inner + [value]) instead of calling .append on the originals."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">spiral_order</span><span class="p">(</span><span class="n">matrix</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the elements of a rectangular matrix in clockwise spiral order.</span>
+<span class="sd">    [[1,2,3],[4,5,6],[7,8,9]] -&gt; [1,2,3,6,9,8,7,4,5]. Empty -&gt; [].</span>
+<span class="sd">    Hint: peel the top row, then rotate the rest (transpose + reverse), repeat."""</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../01-basics/week-04-lists-tuples/lesson.html">← Week 4 · Lists, tuples, strings: Lesson</a><a class="next" href="../../01-basics/week-04-lists-tuples/test_exercises.py.html">Week 4 · Lists, tuples, strings: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

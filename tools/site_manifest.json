@@ -1,0 +1,872 @@
+{
+ "title": "Python \u2192 Interview Ready Study Hub",
+ "tagline": "From first script to FDE and SWE interviews: roughly 12 months at 7-8 hours a week.",
+ "tracks": [
+  {
+   "folder": "01-basics",
+   "title": "Python Basics",
+   "description": "Core Python from first script to small projects: control flow, functions, data structures, files and errors, comprehensions and generators. Every week has exercises checked by tests.",
+   "hours": "~8 weeks \u00b7 7-8 hrs/wk",
+   "kind": "practice",
+   "order": 1,
+   "stage": "Foundations",
+   "weeks": [
+    {
+     "folder": "week-01-first-steps",
+     "title": "Week 1 \u00b7 First steps",
+     "blurb": "Running Python, variables, types and basic input and output."
+    },
+    {
+     "folder": "week-02-conditions-loops",
+     "title": "Week 2 \u00b7 Conditions and loops",
+     "blurb": "Booleans, comparisons, if/elif/else, for and while loops."
+    },
+    {
+     "folder": "week-03-functions",
+     "title": "Week 3 \u00b7 Functions",
+     "blurb": "Defining and calling functions, parameters, return values and scope."
+    },
+    {
+     "folder": "week-04-lists-tuples",
+     "title": "Week 4 \u00b7 Lists, tuples, strings",
+     "blurb": "Sequences in depth: indexing, slicing, methods and string handling."
+    },
+    {
+     "folder": "week-05-dicts-sets",
+     "title": "Week 5 \u00b7 Dictionaries and sets",
+     "blurb": "Hash-based collections, the workhorses of interview problems."
+    },
+    {
+     "folder": "week-06-files-errors-modules",
+     "title": "Week 6 \u00b7 Files, errors, modules",
+     "blurb": "Reading and writing files, exceptions, and organising code into modules."
+    },
+    {
+     "folder": "week-07-comprehensions-generators",
+     "title": "Week 7 \u00b7 Comprehensions and generators",
+     "blurb": "Comprehensions, lambda, iterators and generators."
+    },
+    {
+     "folder": "week-08-projects-review",
+     "title": "Week 8 \u00b7 Projects and review",
+     "blurb": "Two small projects plus a Stage 1 review of weeks 1-7."
+    }
+   ]
+  },
+  {
+   "folder": "02-oop",
+   "title": "Object-Oriented Python",
+   "description": "Classes, encapsulation, inheritance and polymorphism, composition and design patterns, ending with a parking-lot design project.",
+   "hours": "~5 weeks \u00b7 7-8 hrs/wk",
+   "kind": "practice",
+   "order": 2,
+   "stage": "Foundations",
+   "weeks": [
+    {
+     "folder": "week-01-classes-objects",
+     "title": "Week 1 \u00b7 Classes and objects",
+     "blurb": "Why classes, attributes, methods and object state."
+    },
+    {
+     "folder": "week-02-encapsulation-dunders",
+     "title": "Week 2 \u00b7 Encapsulation and dunders",
+     "blurb": "Conventions for privacy, properties and special methods."
+    },
+    {
+     "folder": "week-03-inheritance-polymorphism",
+     "title": "Week 3 \u00b7 Inheritance and polymorphism",
+     "blurb": "Inheritance and super(), abstract base classes and the MRO."
+    },
+    {
+     "folder": "week-04-design-patterns",
+     "title": "Week 4 \u00b7 Composition and design patterns",
+     "blurb": "Composition over inheritance, dataclasses, enums, protocols, SOLID and common patterns."
+    },
+    {
+     "folder": "week-05-project-parking-lot",
+     "title": "Week 5 \u00b7 Project: parking lot",
+     "blurb": "Design and build a classic LLD parking-lot system from a spec."
+    }
+   ]
+  },
+  {
+   "folder": "10-python-depth",
+   "title": "Python Depth",
+   "description": "The Python internals interviewers probe: closures and decorators, the data model and memory, concurrency, and testing and tooling.",
+   "hours": "~4 weeks \u00b7 7-8 hrs/wk",
+   "kind": "practice",
+   "order": 3,
+   "stage": "Foundations",
+   "weeks": [
+    {
+     "folder": "week-01-functions-deep-dive",
+     "title": "Week 1 \u00b7 Functions deep dive",
+     "blurb": "Closures, decorators, context managers, generators, functools and itertools."
+    },
+    {
+     "folder": "week-02-data-model-and-memory",
+     "title": "Week 2 \u00b7 Data model and memory",
+     "blurb": "Names and references, equality and hashing, memory and stdlib data structures."
+    },
+    {
+     "folder": "week-03-concurrency",
+     "title": "Week 3 \u00b7 Concurrency",
+     "blurb": "Threads, processes and asyncio, and when to use each."
+    },
+    {
+     "folder": "week-04-quality-and-tooling",
+     "title": "Week 4 \u00b7 Quality and tooling",
+     "blurb": "pytest, error handling, logging, packaging and measuring code."
+    }
+   ],
+   "root_files": [
+    {
+     "file": "rapid-fire.md",
+     "title": "Rapid-fire Q&A"
+    }
+   ]
+  },
+  {
+   "folder": "09-behavioral-career",
+   "title": "Behavioral and Career",
+   "description": "The non-coding parts of the loop: behavioral stories, FDE customer scenarios, interview process, resume and portfolio, communication, and the master schedule. Read the README and schedule first, then work through it alongside everything else.",
+   "hours": "~4 weeks core, then ongoing (1 hr/wk)",
+   "kind": "study",
+   "order": 4,
+   "stage": "Career",
+   "weeks": [
+    {
+     "file": "01-behavioral-fundamentals.md",
+     "title": "01 \u00b7 Behavioral fundamentals",
+     "blurb": "What interviewers assess and how to build a story bank."
+    },
+    {
+     "file": "02-fde-customer-scenarios.md",
+     "title": "02 \u00b7 FDE customer scenarios",
+     "blurb": "What a forward-deployed engineer does and how to handle customer cases."
+    },
+    {
+     "file": "03-interview-process-and-strategy.md",
+     "title": "03 \u00b7 Interview process and strategy",
+     "blurb": "Generic loop structure, preparation strategy and negotiation notes."
+    },
+    {
+     "file": "04-resume-and-portfolio.md",
+     "title": "04 \u00b7 Resume and portfolio",
+     "blurb": "Resume principles and presenting projects as evidence."
+    },
+    {
+     "file": "05-communication-in-technical-interviews.md",
+     "title": "05 \u00b7 Communication in technical interviews",
+     "blurb": "How to narrate your thinking while coding and designing."
+    },
+    {
+     "file": "06-master-study-schedule.md",
+     "title": "06 \u00b7 Master study schedule",
+     "blurb": "The roughly 12-month plan at 7-8 hrs per week."
+    }
+   ],
+   "root_files": [
+    {
+     "file": "README.md",
+     "title": "Overview"
+    }
+   ]
+  },
+  {
+   "folder": "03-dsa",
+   "title": "Data Structures and Algorithms",
+   "description": "Pattern-by-pattern interview prep from Big-O to dynamic programming, with timed problem sets and tests, ending in a mock-interview capstone.",
+   "hours": "~24 weeks \u00b7 7-8 hrs/wk (2-2.5 hrs/wk alongside other tracks)",
+   "kind": "practice",
+   "order": 5,
+   "stage": "Core engineering",
+   "weeks": [
+    {
+     "folder": "week-01-big-o-complexity",
+     "title": "Week 1 \u00b7 Big-O and complexity",
+     "blurb": "Analysing time and space cost."
+    },
+    {
+     "folder": "week-02-arrays-strings",
+     "title": "Week 2 \u00b7 Arrays and strings",
+     "blurb": "Array and string fundamentals and common techniques."
+    },
+    {
+     "folder": "week-03-hash-maps-sets",
+     "title": "Week 3 \u00b7 Hash maps and sets",
+     "blurb": "O(1) lookups and counting patterns."
+    },
+    {
+     "folder": "week-04-two-pointers",
+     "title": "Week 4 \u00b7 Two pointers",
+     "blurb": "Moving two indices to avoid O(n^2) pair checks."
+    },
+    {
+     "folder": "week-05-sliding-window",
+     "title": "Week 5 \u00b7 Sliding window",
+     "blurb": "Maintaining a window over a contiguous slice."
+    },
+    {
+     "folder": "week-06-prefix-sums-intervals",
+     "title": "Week 6 \u00b7 Prefix sums and intervals",
+     "blurb": "Prefix sums and interval problems."
+    },
+    {
+     "folder": "week-07-stacks",
+     "title": "Week 7 \u00b7 Stacks",
+     "blurb": "LIFO problems including monotonic stacks."
+    },
+    {
+     "folder": "week-08-queues-deque-monotonic-queue",
+     "title": "Week 8 \u00b7 Queues and deque",
+     "blurb": "FIFO queues, deque and the monotonic queue."
+    },
+    {
+     "folder": "week-09-linked-lists",
+     "title": "Week 9 \u00b7 Linked lists",
+     "blurb": "Pointer manipulation on singly linked lists."
+    },
+    {
+     "folder": "week-10-binary-search",
+     "title": "Week 10 \u00b7 Binary search",
+     "blurb": "Halving a search space, including search on the answer."
+    },
+    {
+     "folder": "week-11-recursion",
+     "title": "Week 11 \u00b7 Recursion",
+     "blurb": "Recursion and an introduction to backtracking."
+    },
+    {
+     "folder": "week-12-sorting-checkpoint",
+     "title": "Week 12 \u00b7 Sorting and checkpoint",
+     "blurb": "Sorting as a tool, plus a checkpoint review."
+    },
+    {
+     "folder": "week-13-binary-trees",
+     "title": "Week 13 \u00b7 Binary trees",
+     "blurb": "Tree traversals with DFS and BFS."
+    },
+    {
+     "folder": "week-14-bsts",
+     "title": "Week 14 \u00b7 Binary search trees",
+     "blurb": "The BST invariant and operations."
+    },
+    {
+     "folder": "week-15-heaps",
+     "title": "Week 15 \u00b7 Heaps",
+     "blurb": "Priority queues with heapq and top-K problems."
+    },
+    {
+     "folder": "week-16-tries",
+     "title": "Week 16 \u00b7 Tries",
+     "blurb": "Prefix trees for string sets."
+    },
+    {
+     "folder": "week-17-graphs-basics",
+     "title": "Week 17 \u00b7 Graph basics",
+     "blurb": "BFS, DFS, grids and adjacency lists."
+    },
+    {
+     "folder": "week-18-topo-sort-union-find",
+     "title": "Week 18 \u00b7 Topological sort and Union-Find",
+     "blurb": "Dependency ordering and connected components."
+    },
+    {
+     "folder": "week-19-shortest-paths",
+     "title": "Week 19 \u00b7 Shortest paths",
+     "blurb": "BFS, Dijkstra, 0-1 BFS and Bellman-Ford."
+    },
+    {
+     "folder": "week-20-backtracking",
+     "title": "Week 20 \u00b7 Backtracking",
+     "blurb": "Systematic search with pruning."
+    },
+    {
+     "folder": "week-21-dp-1d",
+     "title": "Week 21 \u00b7 1-D dynamic programming",
+     "blurb": "One-dimensional DP states."
+    },
+    {
+     "folder": "week-22-dp-2d",
+     "title": "Week 22 \u00b7 2-D dynamic programming",
+     "blurb": "Grids, strings and knapsack."
+    },
+    {
+     "folder": "week-23-greedy-bits",
+     "title": "Week 23 \u00b7 Greedy and bit manipulation",
+     "blurb": "Greedy algorithms and bit tricks."
+    },
+    {
+     "folder": "week-24-capstone",
+     "title": "Week 24 \u00b7 Capstone",
+     "blurb": "Mock interviews, cheat sheet, communication and prep checklist."
+    }
+   ]
+  },
+  {
+   "folder": "06-sql",
+   "title": "SQL",
+   "description": "Querying through Python and SQLite in five weeks (SELECT to window functions to schema design), plus a language-level track on DDL/DML, internals, concurrency and warehouses.",
+   "hours": "~5 weeks + 6 general parts \u00b7 7-8 hrs/wk",
+   "kind": "practice",
+   "order": 6,
+   "stage": "Core engineering",
+   "weeks": [
+    {
+     "folder": "week-01-select-filter-aggregate",
+     "title": "Week 1 \u00b7 SELECT, filter, aggregate",
+     "blurb": "Single-table queries, NULL handling, aggregates and GROUP BY."
+    },
+    {
+     "folder": "week-02-joins-subqueries",
+     "title": "Week 2 \u00b7 Joins and subqueries",
+     "blurb": "Combining tables, fan-out and NULL traps, JOIN vs IN vs EXISTS."
+    },
+    {
+     "folder": "week-03-cte-window-case-dates",
+     "title": "Week 3 \u00b7 CTEs, windows, CASE, dates",
+     "blurb": "Multi-step queries and window functions, the most interview-heavy week."
+    },
+    {
+     "folder": "week-04-schema-indexes-transactions",
+     "title": "Week 4 \u00b7 Schema, indexes, transactions",
+     "blurb": "Table design, indexing, transactions and isolation."
+    },
+    {
+     "folder": "week-05-interview-problem-set",
+     "title": "Week 5 \u00b7 Interview problem set",
+     "blurb": "26 classic SQL interview problems with a method and cheatsheet."
+    },
+    {
+     "folder": "general-sql",
+     "title": "General SQL",
+     "blurb": "SQL as a database language beyond the weekly exercises: DDL/DML, dialects, internals, concurrency and engines. Plain .sql files, no Python.",
+     "kind": "study",
+     "root_files": [
+      {
+       "file": "README.md",
+       "title": "Overview"
+      },
+      {
+       "file": "cheatsheet.md",
+       "title": "Cheatsheet"
+      },
+      {
+       "file": "rapid-fire.md",
+       "title": "Rapid-fire Q&A"
+      }
+     ],
+     "weeks": [
+      {
+       "folder": "01-language-map-ddl-dml",
+       "title": "Part 1 \u00b7 Language map, DDL and DML",
+       "blurb": "SQL sub-languages and dialects, and the statements that change schema and data."
+      },
+      {
+       "folder": "02-set-ops-functions-json",
+       "title": "Part 2 \u00b7 Set ops, functions, JSON",
+       "blurb": "Set operations, functions, pagination, lateral, pivot and JSON."
+      },
+      {
+       "folder": "03-objects-programmability",
+       "title": "Part 3 \u00b7 Objects and programmability",
+       "blurb": "Views, triggers, procedures, roles and other database objects."
+      },
+      {
+       "folder": "04-how-databases-work",
+       "title": "Part 4 \u00b7 How databases work",
+       "blurb": "Query planning, indexes and reading EXPLAIN."
+      },
+      {
+       "folder": "05-concurrency-reliability",
+       "title": "Part 5 \u00b7 Concurrency and reliability",
+       "blurb": "Isolation, locks, crash recovery and safe deploys."
+      },
+      {
+       "folder": "06-engines-warehouses-modeling",
+       "title": "Part 6 \u00b7 Engines, warehouses, modeling",
+       "blurb": "How major engines differ, analytics databases and data modeling."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "folder": "04-fastapi",
+   "title": "FastAPI",
+   "description": "Build and ship an HTTP API: endpoints, Pydantic validation, databases and dependency injection, integrations, auth, Docker, and a ticket API project.",
+   "hours": "~4 weeks \u00b7 7-8 hrs/wk",
+   "kind": "practice",
+   "order": 7,
+   "stage": "Core engineering",
+   "weeks": [
+    {
+     "folder": "week-01-first-endpoints",
+     "title": "Week 1 \u00b7 First endpoints",
+     "blurb": "HTTP basics, routes and the auto-generated docs."
+    },
+    {
+     "folder": "week-02-pydantic-validation",
+     "title": "Week 2 \u00b7 Pydantic and validation",
+     "blurb": "Models, response models and error handling for messy payloads."
+    },
+    {
+     "folder": "week-03-database-and-integrations",
+     "title": "Week 3 \u00b7 Database and integrations",
+     "blurb": "SQLModel, dependency injection, calling APIs and webhooks (heaviest week)."
+    },
+    {
+     "folder": "week-04-auth-deploy-project",
+     "title": "Week 4 \u00b7 Auth, deploy, project",
+     "blurb": "Config, auth, logging, Docker and the ticket API project."
+    }
+   ]
+  },
+  {
+   "folder": "12-cs-fundamentals",
+   "title": "CS Fundamentals",
+   "description": "Systems knowledge for interviews and customer debugging: networking, operating systems, Linux and shell, Git and CI/CD, containers and Kubernetes.",
+   "hours": "~5 weeks \u00b7 7-8 hrs/wk",
+   "kind": "study",
+   "order": 8,
+   "stage": "Core engineering",
+   "weeks": [
+    {
+     "folder": "week-01-networking",
+     "title": "Week 1 \u00b7 Networking",
+     "blurb": "OSI/TCP-IP, IP, TCP vs UDP, DNS, HTTP, TLS and debugging tools."
+    },
+    {
+     "folder": "week-02-operating-systems",
+     "title": "Week 2 \u00b7 Operating systems",
+     "blurb": "Processes, memory, concurrency and I/O."
+    },
+    {
+     "folder": "week-03-linux-shell",
+     "title": "Week 3 \u00b7 Linux and shell",
+     "blurb": "Filesystem, permissions, processes, text tools, ssh, systemd and bash."
+    },
+    {
+     "folder": "week-04-git-collaboration",
+     "title": "Week 4 \u00b7 Git, review and CI/CD",
+     "blurb": "Git workflows, code review and CI/CD pipelines."
+    },
+    {
+     "folder": "week-05-containers-orchestration",
+     "title": "Week 5 \u00b7 Containers and orchestration",
+     "blurb": "Linux primitives, Docker, Compose, Kubernetes and security."
+    }
+   ],
+   "root_files": [
+    {
+     "file": "README.md",
+     "title": "Overview"
+    },
+    {
+     "file": "rapid-fire.md",
+     "title": "Rapid-fire Q&A"
+    }
+   ]
+  },
+  {
+   "folder": "05-fde-projects",
+   "title": "FDE Projects",
+   "description": "Six hands-on forward-deployed-engineer projects, from LLM basics to a deployed messy-data demo. Tests run offline with no API key.",
+   "hours": "~6 projects \u00b7 ~2 hrs each, alongside other tracks",
+   "kind": "project",
+   "order": 9,
+   "stage": "Core engineering",
+   "weeks": [
+    {
+     "folder": "project-01-llm-basics",
+     "title": "Project 1 \u00b7 LLM basics",
+     "blurb": "Prompts, structured output, streaming and cost."
+    },
+    {
+     "folder": "project-02-ticket-triage",
+     "title": "Project 2 \u00b7 Ticket triage",
+     "blurb": "A support-ticket triage service."
+    },
+    {
+     "folder": "project-03-document-qa-rag",
+     "title": "Project 3 \u00b7 Document Q&A (RAG)",
+     "blurb": "Retrieval-augmented Q&A over a customer's messy files."
+    },
+    {
+     "folder": "project-04-tool-calling-agent",
+     "title": "Project 4 \u00b7 Tool-calling agent",
+     "blurb": "An agent that uses tools over a CRM."
+    },
+    {
+     "folder": "project-05-evaluation",
+     "title": "Project 5 \u00b7 Evaluation",
+     "blurb": "Measuring whether an LLM feature v2 is better than v1."
+    },
+    {
+     "folder": "project-06-capstone-messy-data-demo",
+     "title": "Project 6 \u00b7 Capstone",
+     "blurb": "From messy data to a deployed demo."
+    }
+   ]
+  },
+  {
+   "folder": "13-llm-ai-concepts",
+   "title": "LLM and AI Concepts",
+   "description": "Conceptual fluency for FDE and AI-engineering interviews: LLM fundamentals, RAG, agents, evaluation and production, and classic ML. Pairs with the FDE projects.",
+   "hours": "~5 weeks \u00b7 6-8 hrs/wk",
+   "kind": "study",
+   "order": 10,
+   "stage": "Core engineering",
+   "weeks": [
+    {
+     "folder": "week-01-llm-fundamentals",
+     "title": "Week 1 \u00b7 LLM fundamentals",
+     "blurb": "Tokens, transformers, training, sampling, hallucination and prompting."
+    },
+    {
+     "folder": "week-02-retrieval-rag",
+     "title": "Week 2 \u00b7 Retrieval and RAG",
+     "blurb": "Designing, debugging and defending RAG systems."
+    },
+    {
+     "folder": "week-03-agents-tool-use",
+     "title": "Week 3 \u00b7 Agents and tool use",
+     "blurb": "Function calling, agent loops, reliability and safety."
+    },
+    {
+     "folder": "week-04-evaluation-production",
+     "title": "Week 4 \u00b7 Evaluation and production",
+     "blurb": "Measuring, observing, optimising and securing LLM features."
+    },
+    {
+     "folder": "week-05-classic-ml-essentials",
+     "title": "Week 5 \u00b7 Classic ML essentials",
+     "blurb": "Supervised and unsupervised learning, error and evaluation basics."
+    }
+   ],
+   "root_files": [
+    {
+     "file": "README.md",
+     "title": "Overview"
+    },
+    {
+     "file": "rapid-fire.md",
+     "title": "Rapid-fire Q&A"
+    },
+    {
+     "file": "mock-interview.md",
+     "title": "Mock interview"
+    }
+   ]
+  },
+  {
+   "folder": "11-lld",
+   "title": "Low-Level Design",
+   "description": "Eight classic LLD interview problems, each with a talk-through lesson, exercises and deterministic tests.",
+   "hours": "~8 problems \u00b7 3-4 hrs each",
+   "kind": "practice",
+   "order": 11,
+   "stage": "Interview prep",
+   "weeks": [
+    {
+     "folder": "problem-01-lru-cache",
+     "title": "Problem 1 \u00b7 LRU cache",
+     "blurb": "Dict plus doubly linked list with O(1) operations."
+    },
+    {
+     "folder": "problem-02-rate-limiter",
+     "title": "Problem 2 \u00b7 Rate limiter",
+     "blurb": "Pluggable algorithms such as token bucket and sliding window."
+    },
+    {
+     "folder": "problem-03-elevator-system",
+     "title": "Problem 3 \u00b7 Elevator system",
+     "blurb": "State machine, stop ordering and dispatch policy."
+    },
+    {
+     "folder": "problem-04-vending-machine",
+     "title": "Problem 4 \u00b7 Vending machine",
+     "blurb": "The State pattern and correct money handling."
+    },
+    {
+     "folder": "problem-05-seat-booking",
+     "title": "Problem 5 \u00b7 Seat booking",
+     "blurb": "Holds and locks to avoid double-booking."
+    },
+    {
+     "folder": "problem-06-game-engine",
+     "title": "Problem 6 \u00b7 Game engine",
+     "blurb": "Board games such as NxN tic-tac-toe and chess-lite."
+    },
+    {
+     "folder": "problem-07-pubsub-notifications",
+     "title": "Problem 7 \u00b7 Pub-sub and notifications",
+     "blurb": "Observer, channel strategies, retries and dead letters."
+    },
+    {
+     "folder": "problem-08-expense-sharing",
+     "title": "Problem 8 \u00b7 Expense sharing",
+     "blurb": "Splitwise-style splits, ledger and debt simplification."
+    }
+   ],
+   "root_files": [
+    {
+     "file": "README.md",
+     "title": "Overview"
+    }
+   ]
+  },
+  {
+   "folder": "07-aws",
+   "title": "AWS",
+   "description": "Interview-level AWS fundamentals in six weeks of reading and spoken Q&A, with optional labs and an FDE-angle finale.",
+   "hours": "~6 weeks \u00b7 7-8 hrs/wk",
+   "kind": "study",
+   "order": 12,
+   "stage": "Interview prep",
+   "weeks": [
+    {
+     "folder": "week-01-core-iam",
+     "title": "Week 1 \u00b7 Core ideas and IAM",
+     "blurb": "Global infrastructure, shared responsibility, IAM, STS, Organizations, billing."
+    },
+    {
+     "folder": "week-02-compute",
+     "title": "Week 2 \u00b7 Compute",
+     "blurb": "EC2, Lambda, containers, Beanstalk, ELB and Auto Scaling."
+    },
+    {
+     "folder": "week-03-storage-databases",
+     "title": "Week 3 \u00b7 Storage and databases",
+     "blurb": "S3, block and file storage, RDS, DynamoDB, caches and warehouses."
+    },
+    {
+     "folder": "week-04-networking",
+     "title": "Week 4 \u00b7 Networking",
+     "blurb": "VPC, security groups, endpoints, Route 53, CloudFront and connectivity."
+    },
+    {
+     "folder": "week-05-integration-ops-security",
+     "title": "Week 5 \u00b7 Integration, ops, security",
+     "blurb": "Messaging, Step Functions, API Gateway, monitoring, IaC, KMS and WAF."
+    },
+    {
+     "folder": "week-06-architecture-fde",
+     "title": "Week 6 \u00b7 Architecture and FDE angle",
+     "blurb": "Well-Architected Framework, scenarios and a mock interview."
+    }
+   ],
+   "root_files": [
+    {
+     "file": "README.md",
+     "title": "Overview"
+    },
+    {
+     "file": "rapid-fire.md",
+     "title": "Rapid-fire Q&A"
+    }
+   ]
+  },
+  {
+   "folder": "08-system-design",
+   "title": "System Design",
+   "description": "High-level design for Google/Uber-level interviews: estimation, storage, messaging, distributed algorithms, operations, and eight full designs with a mock interview.",
+   "hours": "~6 weeks \u00b7 ~3 hrs/wk alongside DSA",
+   "kind": "study",
+   "order": 13,
+   "stage": "Interview prep",
+   "weeks": [
+    {
+     "folder": "week-01-fundamentals",
+     "title": "Week 1 \u00b7 Fundamentals",
+     "blurb": "Estimation, scalability, availability, load balancing and caching."
+    },
+    {
+     "folder": "week-02-data-storage",
+     "title": "Week 2 \u00b7 Data and storage",
+     "blurb": "Replication, sharding, SQL vs NoSQL and consistency."
+    },
+    {
+     "folder": "week-03-coordination-messaging",
+     "title": "Week 3 \u00b7 Coordination and messaging",
+     "blurb": "Queues, logs, delivery semantics and resilience patterns."
+    },
+    {
+     "folder": "week-04-distributed-algorithms",
+     "title": "Week 4 \u00b7 Distributed algorithms",
+     "blurb": "Consensus, time, coordination and probabilistic structures."
+    },
+    {
+     "folder": "week-05-architecture-operations",
+     "title": "Week 5 \u00b7 Architecture and operations",
+     "blurb": "Services, APIs, observability, deploys, multi-region, security, LLM systems."
+    },
+    {
+     "folder": "week-06-hld-designs",
+     "title": "Week 6 \u00b7 HLD designs",
+     "blurb": "Framework, eight full design walkthroughs and a mock interview.",
+     "files": [
+      {
+       "file": "framework.md",
+       "title": "Design framework"
+      },
+      {
+       "file": "01-url-shortener.md",
+       "title": "URL shortener"
+      },
+      {
+       "file": "02-rate-limiter.md",
+       "title": "Rate limiter"
+      },
+      {
+       "file": "03-news-feed.md",
+       "title": "News feed"
+      },
+      {
+       "file": "04-chat-system.md",
+       "title": "Chat system"
+      },
+      {
+       "file": "05-notification-service.md",
+       "title": "Notification service"
+      },
+      {
+       "file": "06-distributed-cache-kv-store.md",
+       "title": "Distributed cache and KV store"
+      },
+      {
+       "file": "07-ride-hailing-dispatch.md",
+       "title": "Ride-hailing dispatch"
+      },
+      {
+       "file": "08-enterprise-rag-platform.md",
+       "title": "Enterprise RAG platform"
+      },
+      {
+       "file": "mock-interview.md",
+       "title": "Mock interview"
+      }
+     ]
+    }
+   ],
+   "root_files": [
+    {
+     "file": "README.md",
+     "title": "Overview"
+    }
+   ]
+  },
+  {
+   "folder": "14-data-engineering",
+   "title": "Data Engineering",
+   "description": "Senior data engineer interview prep: dimensional modeling, Spark, Airflow and dbt, Kafka and streaming, lakehouse formats, data quality and governance, and pipeline design.",
+   "hours": "~7 weeks \u00b7 6-8 hrs/wk",
+   "kind": "practice",
+   "order": 14,
+   "stage": "Core engineering",
+   "weeks": [
+    {
+     "folder": "week-01-modeling-warehousing",
+     "title": "Week 1 \u00b7 Modeling and warehousing",
+     "blurb": "Star schemas, SCDs, Kimball vs Data Vault, warehouses and ELT."
+    },
+    {
+     "folder": "week-02-spark",
+     "title": "Week 2 \u00b7 Spark",
+     "blurb": "Execution model, shuffles, joins, skew and tuning."
+    },
+    {
+     "folder": "week-03-orchestration-dbt",
+     "title": "Week 3 \u00b7 Orchestration and dbt",
+     "blurb": "Airflow, idempotent and incremental loads, backfills, dbt."
+    },
+    {
+     "folder": "week-04-kafka-streaming",
+     "title": "Week 4 \u00b7 Kafka and streaming",
+     "blurb": "Logs, consumer groups, delivery semantics, windows and watermarks."
+    },
+    {
+     "folder": "week-05-lakehouse-formats",
+     "title": "Week 5 \u00b7 Lakehouse and formats",
+     "blurb": "Parquet, Delta, Iceberg, Hudi, partitioning and compaction."
+    },
+    {
+     "folder": "week-06-quality-governance",
+     "title": "Week 6 \u00b7 Quality and governance",
+     "blurb": "Data checks, contracts, observability, PII and erasure."
+    },
+    {
+     "folder": "week-07-pipeline-design",
+     "title": "Week 7 \u00b7 Pipeline design",
+     "blurb": "A design framework and eight data-platform walkthroughs.",
+     "files": [
+      {
+       "file": "designs/01-clickstream-analytics.md",
+       "title": "Clickstream analytics"
+      },
+      {
+       "file": "designs/02-cdc-to-lakehouse.md",
+       "title": "CDC to lakehouse"
+      },
+      {
+       "file": "designs/03-realtime-metrics-dashboard.md",
+       "title": "Real-time metrics dashboard"
+      },
+      {
+       "file": "designs/04-finance-batch-etl.md",
+       "title": "Finance batch ETL"
+      },
+      {
+       "file": "designs/05-feature-store.md",
+       "title": "Feature store"
+      },
+      {
+       "file": "designs/06-self-serve-ingestion-platform.md",
+       "title": "Self-serve ingestion platform"
+      },
+      {
+       "file": "designs/07-fraud-detection.md",
+       "title": "Fraud detection"
+      },
+      {
+       "file": "designs/08-gdpr-erasure.md",
+       "title": "GDPR erasure"
+      }
+     ]
+    }
+   ],
+   "root_files": [
+    {
+     "file": "README.md",
+     "title": "Overview"
+    },
+    {
+     "file": "rapid-fire.md",
+     "title": "Rapid-fire Q&A"
+    },
+    {
+     "file": "mock-interview.md",
+     "title": "Mock interview"
+    }
+   ]
+  }
+ ],
+ "recommended_order": [
+  "01-basics",
+  "02-oop",
+  "10-python-depth",
+  "09-behavioral-career",
+  "03-dsa",
+  "06-sql",
+  "14-data-engineering",
+  "04-fastapi",
+  "12-cs-fundamentals",
+  "05-fde-projects",
+  "13-llm-ai-concepts",
+  "11-lld",
+  "07-aws",
+  "08-system-design"
+ ],
+ "extra_pages": []
+}

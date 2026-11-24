@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Design 1: URL Shortener (bit.ly / tinyurl) | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="08-system-design/week-06-hld-designs/01-url-shortener" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../08-system-design/README.html">System Design</a> / <a href="../../08-system-design/week-06-hld-designs/framework.html">Week 6 · HLD designs</a> / <span>Design 1: URL Shortener (bit.ly / tinyurl)</span></nav><button id="mark-done" data-id="08-system-design/week-06-hld-designs/01-url-shortener">Mark as done</button></div><article class="doc">
+<h1 id="design-1-url-shortener-bitly-tinyurl">Design 1: URL Shortener (bit.ly / tinyurl)</h1>
+<p>Framework: see <a href="framework.html">framework.md</a>. Background: <a href="../week-01-fundamentals/lesson.html">caching</a>, <a href="../week-02-data-storage/lesson.html">sharding and replication</a>, <a href="../week-04-distributed-algorithms/lesson.html">distributed ID/coordination</a>.</p>
+<h2 id="1-clarify-requirements">1. Clarify requirements</h2>
+<p>Functional</p>
+<ul>
+<li>Create a short URL from a long URL (optional custom alias, optional expiry).</li>
+<li>Redirect short URL to the long URL.</li>
+<li>(Optional) basic click analytics, delete/disable link.</li>
+</ul>
+<p>Non-functional</p>
+<ul>
+<li>Very read-heavy (redirects &gt;&gt; creates), assume 100:1.</li>
+<li>Redirect latency p99 &lt; 50 ms from the service; high availability (links must keep working).</li>
+<li>Short codes unguessable enough or at least non-sequential if privacy matters; no collisions.</li>
+<li>Durability: a created link must not be lost.</li>
+<li>Out of scope: user accounts UI, malware scanning (mention only).</li>
+</ul>
+<h2 id="2-estimate">2. Estimate</h2>
+<ul>
+<li>100M new URLs/month. Writes: 100M / 2.5M s = ~40 writes/s average; peak ~100/s.</li>
+<li>Reads at 100:1: ~4,000 reads/s average; peak ~10K/s.</li>
+<li>Storage: 5 years x 12 x 100M = 6B records. At ~500 bytes each (long URL ~200 B, metadata) = ~3 TB; with 3x replication ~9 TB. Fits comfortably on a modest sharded cluster.</li>
+<li>Code length: base62 (a-zA-Z0-9) 7 chars = 62^7 = ~3.5 trillion combos, far more than 6B. 6 chars = 56.8B, also enough; 7 gives headroom.</li>
+<li>Cache: 20% of daily redirect traffic. 4K/s x 86,400 = ~350M reads/day; hot 20% unique URLs at 500 B = tens of GB. Fits a few Redis nodes.</li>
+<li>Bandwidth: redirects are tiny (a 301/302 with a Location header, ~500 B): 10K/s x 500 B = 5 MB/s.</li>
+</ul>
+<h2 id="3-api">3. API</h2>
+<div class="highlight"><pre><span></span><code>POST /v1/urls
+  body: { "long_url": "https://...", "custom_alias": "mylink"?, "expires_at": "..."? }
+  headers: Authorization, Idempotency-Key
+  201 -&gt; { "short_url": "https://sho.rt/aZ3k9Q1", "code": "aZ3k9Q1" }
+  409 if alias taken; 400 if invalid URL
+
+GET /{code}
+  301/302 -&gt; Location: long_url      404 if missing/expired
+
+DELETE /v1/urls/{code}               204
+GET /v1/urls/{code}/stats            (analytics, eventually consistent)
+</code></pre></div>
+
+<p>301 vs 302: 301 (permanent) lets browsers cache, reducing load but losing analytics and the ability to change/expire the target. 302 (temporary) keeps every click hitting you. Typical choice: 302 if analytics matter, 301 if not.</p>
+<h2 id="4-data-model">4. Data model</h2>
+<p>Access pattern: point lookup by code (read), insert (write). No joins, no range scans. A KV or wide-column store fits well.</p>
+<div class="highlight"><pre><span></span><code>urls(code PK, long_url, user_id, created_at, expires_at, is_active)
+users(user_id PK, ...)              -- optional
+clicks(code, ts, ...)               -- analytics, via Kafka, stored separately (e.g. columnar/OLAP)
+</code></pre></div>
+
+<p>DB choice: DynamoDB or Cassandra (partition by code, scales horizontally, simple); or sharded MySQL/Postgres if you prefer relational and 3 TB is fine. State that at 40 writes/s even a single Postgres primary suffices; sharding is for storage/read scale and availability, not write throughput.</p>
+<h2 id="5-high-level-diagram">5. High-level diagram</h2>
+<div class="highlight"><pre><span></span><code> Client
+   |
+   v
+ [CDN / edge cache] (optional for hot redirects)
+   |
+ [Load balancer L7]
+   |
+ +-----------------+        +--------------------+
+ | Redirect service|-------&gt;| Redis cache        |
+ | (stateless)     |  miss  | code -&gt; long_url   |
+ +-----------------+        +--------------------+
+   |        \                         |
+   |         \ miss                   v
+   |          +------------------&gt; [KV/DB, sharded by code, 3 replicas]
+   |                                  ^
+ +-----------------+                  |
+ | Create service  |---- write -------+
+ | (stateless)     |---- allocate code ---&gt; [Code generator / ID service]
+ +-----------------+
+   |
+   +-- click events --&gt; [Kafka] --&gt; analytics workers --&gt; [OLAP store]
+</code></pre></div>
+
+<p>Read path: LB -&gt; redirect service -&gt; cache lookup -&gt; on miss read DB, populate cache (cache-aside) -&gt; 302.
+Write path: validate URL -&gt; get unique code -&gt; insert with condition "code does not exist" -&gt; return.</p>
+<h2 id="6-deep-dives">6. Deep dives</h2>
+<h3 id="a-generating-unique-codes">a) Generating unique codes</h3>
+<p>Option 1: Hash the long URL (MD5/SHA-256), take first 7 base62 chars.</p>
+<ul>
+<li>Pros: same URL maps to same code (dedupe), no coordination.</li>
+<li>Cons: collisions (birthday paradox); must check DB and re-hash with a salt on collision; two users shortening the same URL share a code, which is a problem for per-user analytics/expiry.</li>
+</ul>
+<p>Option 2: Counter + base62 encoding.</p>
+<ul>
+<li>A global counter (single DB sequence, or ZooKeeper/etcd range allocation) gives unique integers; encode in base62. No collisions.</li>
+<li>Con: sequential codes are guessable (enumeration). Fix: pass the counter through a reversible shuffle or format-preserving permutation, or add random bits.</li>
+<li>Scale: each app server leases a range (e.g. 1M IDs) from a coordinator (etcd/ZooKeeper/DB row), and then allocates locally with no per-request coordination. If the server crashes, the unused range is just skipped (gaps are fine).</li>
+</ul>
+<p>Option 3: Pre-generated key service (KGS).</p>
+<ul>
+<li>A separate service pre-generates random unused codes into a table with "used/unused" state; app servers fetch batches into memory. Fast, collision-free, and non-guessable. Need to mark keys used atomically and handle server crash (lost keys are acceptable given the huge key space).</li>
+</ul>
+<p>Recommendation: range-leased counter with a bijective shuffle, or KGS. State the tradeoff of guessability versus simplicity.</p>
+<p>Custom alias: conditional insert (<code>IF NOT EXISTS</code>, DynamoDB <code>attribute_not_exists(code)</code>) so uniqueness is enforced by the DB, not by app-level check-then-insert (race).</p>
+<h3 id="b-read-scaling-and-caching">b) Read scaling and caching</h3>
+<ul>
+<li>Cache-aside with Redis, LRU eviction, TTL aligned with link expiry. Traffic is Zipf-like: a few links are very hot. Expect &gt;90% hit rate.</li>
+<li>Hot link (viral) on one cache shard: replicate hot keys across nodes, or add a small in-process local cache (LRU, tiny TTL) in each redirect server. CDN can also cache the redirect for a few seconds.</li>
+<li>Negative caching: cache 404s briefly to stop attackers scanning random codes from hammering the DB. A bloom filter of existing codes in front of the DB is another option.</li>
+</ul>
+<h3 id="c-expiry-and-deletion">c) Expiry and deletion</h3>
+<ul>
+<li>Lazy expiry on read (check expires_at), plus a background sweeper. DynamoDB TTL / Cassandra TTL do this natively.</li>
+<li>Must also invalidate the cache on delete/disable (delete key; short TTL as a safety net).</li>
+</ul>
+<h3 id="d-analytics-without-slowing-redirects">d) Analytics without slowing redirects</h3>
+<ul>
+<li>Redirect service publishes a click event to Kafka asynchronously (fire-and-forget, or batched). Consumers aggregate into an OLAP store. Redirect latency is not affected. Accept some loss or duplicates (counts are approximate), or use idempotent event IDs.</li>
+</ul>
+<h2 id="7-bottlenecks-and-failure-modes">7. Bottlenecks and failure modes</h2>
+<ul>
+<li>Cache outage: DB gets full read traffic (4-10K/s is still OK for a replicated KV, but verify). Use multiple cache nodes with consistent hashing, request coalescing to prevent a stampede.</li>
+<li>ID service as SPOF: mitigated by range leasing (servers continue running on their local range) and a replicated coordinator.</li>
+<li>Hot partition if the DB shards on a sequential code: use hashed partition keys.</li>
+<li>Abuse: spam/phishing links, rate limit creators per user/IP (<a href="02-rate-limiter.html">rate limiter design</a>), URL blocklists.</li>
+<li>Region failure: multi-region read replicas; writes go to a home region or use multi-leader/global tables with unique-code namespaces per region (prefix bits) to avoid collisions.</li>
+</ul>
+<h2 id="8-tradeoffs">8. Tradeoffs</h2>
+<ul>
+<li>Hash vs counter vs KGS: dedupe/simplicity versus guessability and coordination.</li>
+<li>301 vs 302: lower load versus analytics and control.</li>
+<li>NoSQL vs SQL: horizontal scale and simple lookups versus flexible queries (e.g. "all links by user" needs a secondary index in DynamoDB/Cassandra).</li>
+<li>Consistency: create then immediate read should work (read-your-writes). Use primary reads or cache write-through on create; analytics is eventually consistent.</li>
+</ul>
+<h2 id="9-what-to-say-out-loud">9. What to say out loud</h2>
+<ul>
+<li>"This is a read-heavy key-value lookup problem; the interesting parts are unique code generation and the cache."</li>
+<li>"At 40 writes/s, write throughput is not the problem. Storage is a few TB, so I would shard for capacity and availability rather than throughput."</li>
+<li>"I will enforce uniqueness in the database with a conditional write, not check-then-insert."</li>
+<li>"I would pick 302 to retain analytics, and mention 301 as an option if we want to offload traffic."</li>
+</ul>
+<h2 id="10-follow-up-questions-to-practice">10. Follow-up questions to practice</h2>
+<ol>
+<li>How do you avoid sequential, guessable codes? (shuffle/KGS/random)</li>
+<li>What if two users shorten the same URL? (separate rows vs dedupe, tradeoffs)</li>
+<li>How would you support 100x traffic? (more cache, CDN, replicas, regional deployments)</li>
+<li>How do you do per-link click counts accurately? (Kafka + stream aggregation, or sharded counters in Redis)</li>
+<li>How would you implement link expiry at scale? (TTL, lazy + sweeper)</li>
+<li>How do you survive a regional outage? (multi-region replication, DNS failover, code namespace per region)</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../08-system-design/week-06-hld-designs/framework.html">← Week 6 · HLD designs: Design framework</a><a class="next" href="../../08-system-design/week-06-hld-designs/02-rate-limiter.html">Week 6 · HLD designs: Rate limiter →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

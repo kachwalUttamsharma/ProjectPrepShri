@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>test_exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="01-basics/week-06-files-errors-modules/test_exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../01-basics/week-01-first-steps/lesson.html">Python Basics</a> / <a href="../../01-basics/week-06-files-errors-modules/lesson.html">Week 6 · Files, errors, modules</a> / <span>Tests (code)</span></nav><button id="mark-done" data-id="01-basics/week-06-files-errors-modules/test_exercises.py">Mark as done</button></div><article class="doc">
+<h1>test_exercises.py</h1><p class="code-path"><code>01-basics/week-06-files-errors-modules/test_exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_write_and_read_lines</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">):</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">tmp_path</span> <span class="o">/</span> <span class="s2">"a.txt"</span>
+    <span class="n">write_lines</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="p">[</span><span class="s2">"one"</span><span class="p">,</span> <span class="s2">"two"</span><span class="p">,</span> <span class="s2">"three"</span><span class="p">])</span>
+    <span class="k">assert</span> <span class="n">p</span><span class="o">.</span><span class="n">read_text</span><span class="p">()</span> <span class="o">==</span> <span class="s2">"one</span><span class="se">\n</span><span class="s2">two</span><span class="se">\n</span><span class="s2">three</span><span class="se">\n</span><span class="s2">"</span>
+    <span class="k">assert</span> <span class="n">read_lines</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"one"</span><span class="p">,</span> <span class="s2">"two"</span><span class="p">,</span> <span class="s2">"three"</span><span class="p">]</span>
+    <span class="n">write_lines</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="p">[</span><span class="s2">"x"</span><span class="p">])</span>  <span class="c1"># overwrites</span>
+    <span class="k">assert</span> <span class="n">read_lines</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"x"</span><span class="p">]</span>
+    <span class="n">write_lines</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">),</span> <span class="p">[])</span>  <span class="c1"># str path works</span>
+    <span class="k">assert</span> <span class="n">read_lines</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_read_lines_without_trailing_newline</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">):</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">tmp_path</span> <span class="o">/</span> <span class="s2">"b.txt"</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="s2">"a</span><span class="se">\n</span><span class="s2">b"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">read_lines</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_count_lines</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">):</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">tmp_path</span> <span class="o">/</span> <span class="s2">"c.txt"</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">count_lines</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="s2">"a</span><span class="se">\n</span><span class="s2">b</span><span class="se">\n</span><span class="s2">c</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">count_lines</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_append_line</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">):</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">tmp_path</span> <span class="o">/</span> <span class="s2">"d.txt"</span>
+    <span class="n">append_line</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="s2">"first"</span><span class="p">)</span>  <span class="c1"># creates the file</span>
+    <span class="n">append_line</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="s2">"second"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">p</span><span class="o">.</span><span class="n">read_text</span><span class="p">()</span> <span class="o">==</span> <span class="s2">"first</span><span class="se">\n</span><span class="s2">second</span><span class="se">\n</span><span class="s2">"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_longest_line</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">):</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">tmp_path</span> <span class="o">/</span> <span class="s2">"e.txt"</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="s2">"hi</span><span class="se">\n</span><span class="s2">hello</span><span class="se">\n</span><span class="s2">world</span><span class="se">\n</span><span class="s2">yo</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">longest_line</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"hello"</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">longest_line</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_safe_int</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">safe_int</span><span class="p">(</span><span class="s2">"42"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">42</span>
+    <span class="k">assert</span> <span class="n">safe_int</span><span class="p">(</span><span class="s2">"-7"</span><span class="p">)</span> <span class="o">==</span> <span class="o">-</span><span class="mi">7</span>
+    <span class="k">assert</span> <span class="n">safe_int</span><span class="p">(</span><span class="s2">"x"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">safe_int</span><span class="p">(</span><span class="s2">"3.5"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">safe_int</span><span class="p">(</span><span class="s2">""</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span> <span class="o">==</span> <span class="mi">5</span>
+    <span class="k">assert</span> <span class="n">safe_int</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_safe_divide</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">safe_divide</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">5</span>
+    <span class="k">assert</span> <span class="n">safe_divide</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span> <span class="o">==</span> <span class="mf">0.25</span>
+    <span class="k">assert</span> <span class="n">safe_divide</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_validate_age</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">validate_age</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">validate_age</span><span class="p">(</span><span class="mi">30</span><span class="p">)</span> <span class="o">==</span> <span class="mi">30</span>
+    <span class="k">assert</span> <span class="n">validate_age</span><span class="p">(</span><span class="mi">150</span><span class="p">)</span> <span class="o">==</span> <span class="mi">150</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">validate_age</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">validate_age</span><span class="p">(</span><span class="mi">151</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">TypeError</span><span class="p">):</span>
+        <span class="n">validate_age</span><span class="p">(</span><span class="s2">"30"</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">TypeError</span><span class="p">):</span>
+        <span class="n">validate_age</span><span class="p">(</span><span class="mf">3.5</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">TypeError</span><span class="p">):</span>
+        <span class="n">validate_age</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_read_or_default</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">):</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">tmp_path</span> <span class="o">/</span> <span class="s2">"f.txt"</span>
+    <span class="k">assert</span> <span class="n">read_or_default</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">==</span> <span class="s2">""</span>
+    <span class="k">assert</span> <span class="n">read_or_default</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="s2">"none"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"none"</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="s2">"hello"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">read_or_default</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="s2">"none"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"hello"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_save_and_load_json</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">):</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">tmp_path</span> <span class="o">/</span> <span class="s2">"g.json"</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"Sam"</span><span class="p">,</span> <span class="s2">"scores"</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span> <span class="s2">"ok"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s2">"none"</span><span class="p">:</span> <span class="kc">None</span><span class="p">}</span>
+    <span class="n">save_json</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">read_text</span><span class="p">())</span> <span class="o">==</span> <span class="n">data</span>
+    <span class="k">assert</span> <span class="n">load_json</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">==</span> <span class="n">data</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_load_json_missing_and_invalid</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">load_json</span><span class="p">(</span><span class="n">tmp_path</span> <span class="o">/</span> <span class="s2">"missing.json"</span><span class="p">)</span> <span class="o">==</span> <span class="p">{}</span>
+    <span class="n">bad</span> <span class="o">=</span> <span class="n">tmp_path</span> <span class="o">/</span> <span class="s2">"bad.json"</span>
+    <span class="n">bad</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="s2">"{not json"</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">"invalid json"</span><span class="p">):</span>
+        <span class="n">load_json</span><span class="p">(</span><span class="n">bad</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_count_files_by_extension</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">):</span>
+    <span class="p">(</span><span class="n">tmp_path</span> <span class="o">/</span> <span class="s2">"a.txt"</span><span class="p">)</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span>
+    <span class="p">(</span><span class="n">tmp_path</span> <span class="o">/</span> <span class="s2">"b.TXT"</span><span class="p">)</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span>
+    <span class="p">(</span><span class="n">tmp_path</span> <span class="o">/</span> <span class="s2">"c.py"</span><span class="p">)</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span>
+    <span class="p">(</span><span class="n">tmp_path</span> <span class="o">/</span> <span class="s2">"README"</span><span class="p">)</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span>
+    <span class="n">sub</span> <span class="o">=</span> <span class="n">tmp_path</span> <span class="o">/</span> <span class="s2">"sub"</span>
+    <span class="n">sub</span><span class="o">.</span><span class="n">mkdir</span><span class="p">()</span>
+    <span class="p">(</span><span class="n">sub</span> <span class="o">/</span> <span class="s2">"d.py"</span><span class="p">)</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">count_files_by_extension</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span><span class="s2">".txt"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">".py"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">""</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+    <span class="n">empty</span> <span class="o">=</span> <span class="n">tmp_path</span> <span class="o">/</span> <span class="s2">"empty"</span>
+    <span class="n">empty</span><span class="o">.</span><span class="n">mkdir</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">count_files_by_extension</span><span class="p">(</span><span class="n">empty</span><span class="p">)</span> <span class="o">==</span> <span class="p">{}</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../01-basics/week-06-files-errors-modules/exercises.py.html">← Week 6 · Files, errors, modules: Exercises (code)</a><a class="next" href="../../01-basics/week-07-comprehensions-generators/lesson.html">Week 7 · Comprehensions and generators: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

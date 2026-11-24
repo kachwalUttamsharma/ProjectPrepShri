@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SQL Week 2: Joins and subqueries | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="06-sql/week-02-joins-subqueries/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../06-sql/week-02-joins-subqueries/lesson.html">Week 2 · Joins and subqueries</a> / <span>Lesson</span></nav><button id="mark-done" data-id="06-sql/week-02-joins-subqueries/lesson">Mark as done</button></div><article class="doc">
+<h1 id="sql-week-2-joins-and-subqueries">SQL Week 2: Joins and subqueries</h1>
+<p>Goal: combine tables correctly, spot fan-out and NULL traps, and pick between JOIN / IN / EXISTS.
+Budget: ~2 h reading + REPL, ~3 h exercises, ~1 h interview Q&amp;A.
+Run tests: <code>.venv/bin/pytest 06-sql/week-02-joins-subqueries -v</code></p>
+<h2 id="0-the-data-see-schemapy">0. The data (see <code>schema.py</code>)</h2>
+<div class="highlight"><pre><span></span><code>departments(id, name, location)      Engineering, Sales, HR, Legal (Legal is empty)
+employees(id, name, dept_id, manager_id, salary)   Ian has dept_id NULL; Ava (CEO) has manager_id NULL
+projects(id, name, dept_id)
+assignments(emp_id, project_id, hours)             Fay, Gus, Hana have no assignment
+customers(id, name, country)         Hooli and Stark never ordered
+orders(id, customer_id, order_date, total)
+</code></pre></div>
+
+<p>Foreign key = a column that points at another table's primary key (<code>employees.dept_id -&gt; departments.id</code>). A join matches rows on that relationship.</p>
+<h2 id="1-inner-join-only-matching-rows">1. INNER JOIN: only matching rows</h2>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">name</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">project</span><span class="p">,</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">name</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">department</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">projects</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">departments</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">dept_id</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>project | department
+Atlas   | Engineering
+Beacon  | Engineering
+Compass | Sales
+</code></pre></div>
+
+<p>Delta (dept_id NULL) vanished: NULL never equals anything, so no match. <code>JOIN</code> = <code>INNER JOIN</code>. Use table aliases (<code>e</code>, <code>d</code>) and qualify every column.</p>
+<h2 id="2-left-join-keep-every-left-row">2. LEFT JOIN: keep every left row</h2>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">name</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">project</span><span class="p">,</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">name</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">department</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">projects</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">departments</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">dept_id</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>project | department
+Atlas   | Engineering
+Beacon  | Engineering
+Compass | Sales
+Delta   | NULL
+</code></pre></div>
+
+<p>Unmatched left rows get NULLs for all right columns. <code>RIGHT JOIN</code> is the mirror (SQLite supports it since 3.39; MySQL/Postgres always have). Most people just swap the table order and write LEFT. <code>FULL OUTER JOIN</code> keeps unmatched rows from both sides (SQLite &gt;= 3.39, Postgres yes, MySQL no).</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">name</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">employee</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">employees</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="k">RIGHT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">departments</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">dept_id</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">);</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>name  | employee
+HR    | Gus
+HR    | Hana
+Legal | NULL
+</code></pre></div>
+
+<h3 id="on-vs-where-in-outer-joins-very-common-interview-trap">ON vs WHERE in outer joins (very common interview trap)</h3>
+<div class="highlight"><pre><span></span><code><span class="c1">-- filter in ON: departments are kept, employees are matched only if rich</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">name</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">departments</span><span class="w"> </span><span class="n">d</span>
+<span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">employees</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">dept_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">salary</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">100000</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">);</span>
+<span class="c1">-- Sales | NULL</span>
+<span class="c1">-- HR    | NULL</span>
+
+<span class="c1">-- same condition in WHERE: NULL-extended rows fail it, so the LEFT JOIN degrades to an INNER JOIN</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">name</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">departments</span><span class="w"> </span><span class="n">d</span>
+<span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">employees</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">dept_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">id</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">salary</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">100000</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">);</span>
+<span class="c1">-- Engineering | Ava / Ben / Cara / Jo      (Sales is gone)</span>
+</code></pre></div>
+
+<p>Rule: conditions on the <strong>right</strong> table of a LEFT JOIN belong in <code>ON</code> if you want to keep unmatched left rows.</p>
+<h2 id="3-anti-join-rows-with-no-match">3. Anti-join: "rows with no match"</h2>
+<p>Three equivalent ways:</p>
+<div class="highlight"><pre><span></span><code><span class="c1">-- departments with no project.  (a) LEFT JOIN ... IS NULL</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">name</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">departments</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">projects</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">dept_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NULL</span><span class="p">;</span>
+<span class="c1">-- (b) NOT EXISTS   (preferred: NULL-safe, clear intent)</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">departments</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">projects</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">dept_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">id</span><span class="p">);</span>
+<span class="c1">-- (c) NOT IN   (dangerous with NULLs)</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">departments</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="n">dept_id</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">projects</span><span class="p">);</span>
+</code></pre></div>
+
+<p>(a) and (b) return HR and Legal. (c) returns <strong>nothing</strong>, because project Delta has <code>dept_id</code> NULL: that is the trap below in action. In (a) test a column that is NOT NULL in the right table (its primary key).</p>
+<p><strong>NOT IN trap:</strong> <code>SELECT name FROM employees WHERE id NOT IN (SELECT manager_id FROM employees)</code> returns <strong>zero rows</strong> because Ava's <code>manager_id</code> is NULL. Adding <code>WHERE manager_id IS NOT NULL</code> inside the subquery (or using NOT EXISTS) gives Cara, Eli, Fay, Hana, Ian, Jo (the non-managers).</p>
+<h2 id="4-semi-join-rows-that-have-a-match">4. Semi-join: "rows that have a match"</h2>
+<p><code>EXISTS</code> / <code>IN</code> keep left rows that have at least one match <strong>without duplicating</strong> them:</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">departments</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">projects</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">dept_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">id</span><span class="p">);</span>
+<span class="c1">-- Engineering, Sales</span>
+</code></pre></div>
+
+<p>A plain JOIN would return Engineering once per project (fan-out). That's why "find X who have at least one Y" is a semi-join, not a join + DISTINCT.</p>
+<h2 id="5-self-join">5. Self-join</h2>
+<p>Join a table to itself using two aliases: hierarchy, comparing rows with each other.</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">name</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">employee</span><span class="p">,</span><span class="w"> </span><span class="n">m</span><span class="p">.</span><span class="n">name</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">manager</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">employees</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">employees</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">m</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">manager_id</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">3</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>employee | manager
+Ava      | NULL
+Ben      | Ava
+Cara     | Ben
+</code></pre></div>
+
+<p>Self-joins also compare rows with each other. To list each unordered pair once, join on the shared attribute plus an inequality on the key (<code>a.id &lt; b.id</code>): it removes self-pairs and mirrored (B,A) copies. To compare a row with its related row, put the comparison in <code>WHERE</code> after joining on the key.</p>
+<h2 id="6-cross-join-every-combination">6. CROSS JOIN: every combination</h2>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="k">size</span><span class="p">,</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="n">color</span>
+<span class="k">FROM</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="s1">'S'</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="k">size</span><span class="w"> </span><span class="k">UNION</span><span class="w"> </span><span class="k">ALL</span><span class="w"> </span><span class="k">SELECT</span><span class="w"> </span><span class="s1">'M'</span><span class="p">)</span><span class="w"> </span><span class="n">s</span>
+<span class="k">CROSS</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="s1">'red'</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">color</span><span class="w"> </span><span class="k">UNION</span><span class="w"> </span><span class="k">ALL</span><span class="w"> </span><span class="k">SELECT</span><span class="w"> </span><span class="s1">'blue'</span><span class="p">)</span><span class="w"> </span><span class="k">c</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>size | color
+S    | red
+S    | blue
+M    | red
+M    | blue
+</code></pre></div>
+
+<p>n x m rows. Use deliberately for report skeletons / calendar x entity grids, then LEFT JOIN the facts onto it so missing combinations show 0. Accidental cross joins (forgetting the ON clause, or <code>FROM a, b</code> with a forgotten WHERE) are a classic performance bug.</p>
+<h2 id="7-joins-with-aggregation-fan-out-and-count">7. Joins with aggregation: fan-out and COUNT</h2>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">name</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">department</span><span class="p">,</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">wrong</span><span class="p">,</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="n">p</span><span class="p">.</span><span class="n">id</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">right_</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">departments</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">projects</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">dept_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">name</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>department  | wrong | right_
+Engineering | 2     | 2
+Sales       | 1     | 1
+HR          | 1     | 0
+Legal       | 1     | 0
+</code></pre></div>
+
+<p><code>COUNT(*)</code> counts the NULL-extended row for HR and Legal. Count a column of the optional table.</p>
+<p><strong>Fan-out (join multiplication):</strong> joining a "one" row to two different "many" tables multiplies rows. Customer Acme has 3 orders; joining 2 other rows to it yields 6 rows and <code>SUM(o.total)</code> becomes 1000 instead of 500. Fix: aggregate each many-side separately in a subquery/CTE first, then join the results.</p>
+<h2 id="8-subqueries">8. Subqueries</h2>
+<p>A subquery is a SELECT nested in another statement. Four places:</p>
+<ol>
+<li><strong>Scalar subquery</strong> (1 row, 1 column) used as a value:
+   <code>SELECT id, total FROM orders WHERE total = (SELECT MAX(total) FROM orders)</code> (order 5, total 400). Returning 2+ rows is an error in most DBs (SQLite silently takes the first).</li>
+<li><strong>IN / NOT IN</strong> (a column of values): <code>WHERE id IN (SELECT emp_id FROM assignments ...)</code>.</li>
+<li><strong>EXISTS / NOT EXISTS</strong> (does any row exist?): boolean, the selected columns do not matter (<code>SELECT 1</code>).</li>
+<li><strong>Derived table</strong> in FROM: <code>SELECT ... FROM (SELECT dept_id, AVG(salary) a FROM employees GROUP BY dept_id) t JOIN ...</code> (needs an alias).</li>
+</ol>
+<h3 id="correlated-subqueries">Correlated subqueries</h3>
+<p>A subquery that references the outer row; conceptually re-evaluated per outer row.</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">customer_id</span><span class="p">,</span><span class="w"> </span><span class="n">total</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="n">o</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">total</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="k">AVG</span><span class="p">(</span><span class="n">total</span><span class="p">)</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">x</span><span class="p">.</span><span class="n">customer_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="n">customer_id</span><span class="p">);</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>id | customer_id | total
+1  | 1           | 250.0
+3  | 2           | 300.0
+5  | 3           | 400.0
+</code></pre></div>
+
+<p>If the correlation column were NULL for some row, <code>x.customer_id = NULL</code> would match nothing, the AVG would be NULL, and <code>total &gt; NULL</code> is not true: that row silently drops out.
+Optimizers often decorrelate these, but on a big table a window function (week 3: <code>AVG(total) OVER (PARTITION BY customer_id)</code>) or a join to a pre-aggregated derived table is usually better.</p>
+<h3 id="in-vs-exists-vs-join">IN vs EXISTS vs JOIN</h3>
+<ul>
+<li>Semantically the same for positive checks; modern optimizers (Postgres, MySQL 8, SQLite) usually plan them alike.</li>
+<li><code>EXISTS</code> can stop at the first match and is NULL-safe in the negative form. Prefer <code>NOT EXISTS</code> over <code>NOT IN</code>.</li>
+<li><code>JOIN</code> can duplicate rows; use it when you need columns from the other table.</li>
+<li><code>IN</code> with a literal list or a small subquery reads well.</li>
+</ul>
+<h2 id="9-set-operators-brief">9. Set operators (brief)</h2>
+<p><code>UNION</code> (dedupes), <code>UNION ALL</code> (keeps duplicates, faster), <code>INTERSECT</code>, <code>EXCEPT</code> (Oracle: <code>MINUS</code>). Both queries must return the same number of compatible columns. <code>EXCEPT</code> is another way to write an anti-join on whole rows.</p>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ol>
+<li>Forgetting the <code>ON</code> condition (accidental cross join).</li>
+<li>Filtering the right table in <code>WHERE</code> after a LEFT JOIN (kills the unmatched rows).</li>
+<li><code>COUNT(*)</code> after a LEFT JOIN instead of <code>COUNT(right.col)</code>.</li>
+<li><code>NOT IN</code> when the subquery column can be NULL.</li>
+<li>Join fan-out inflating <code>SUM</code>/<code>COUNT</code>; fixing it with <code>DISTINCT</code> instead of fixing the join.</li>
+<li>Ambiguous column names (<code>id</code> in both tables): always prefix with the alias.</li>
+<li>Joining on a nullable column and expecting NULLs to match.</li>
+<li>Scalar subquery returning multiple rows.</li>
+<li><code>SELECT *</code> over a join returns duplicate column names; downstream code (e.g. a dict row factory) silently overwrites one.</li>
+</ol>
+<h2 id="how-interviewers-probe-this-topic">How interviewers probe this topic</h2>
+<ul>
+<li>"Customers with no orders" in three ways, then "which do you prefer and why?" (NOT EXISTS; NOT IN NULL trap).</li>
+<li>"Employees who earn more than their manager" / "manager names" (self-join).</li>
+<li>"Departments with their headcount including empty ones" (LEFT JOIN + COUNT(col)).</li>
+<li>"Explain the difference between INNER, LEFT, RIGHT, FULL, CROSS" with Venn-diagram-free reasoning about rows.</li>
+<li>"What is the difference between <code>ON</code> and <code>WHERE</code> in a LEFT JOIN?"</li>
+<li>"What happens to row counts when you join two one-to-many tables?" (fan-out).</li>
+<li>"Correlated vs uncorrelated subquery? When would you rewrite it?" (window functions / join to aggregate).</li>
+<li>"How many rows come out of a join of table A (n rows) and B (m rows)?" Answer by relationship: between 0 and n*m depending on the key; 1:N never loses left rows in LEFT JOIN, never fewer than n.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<ol>
+<li>Run each example above in the REPL (use <code>schema.make_db()</code>).</li>
+<li>Fill in <code>exercises.py</code> (21 functions) until the tests pass.</li>
+<li>Do <code>interview-qa.md</code> aloud.</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../06-sql/week-01-select-filter-aggregate/schema.py.html">← Week 1 · SELECT, filter, aggregate: schema.py</a><a class="next" href="../../06-sql/week-02-joins-subqueries/interview-qa.html">Week 2 · Joins and subqueries: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

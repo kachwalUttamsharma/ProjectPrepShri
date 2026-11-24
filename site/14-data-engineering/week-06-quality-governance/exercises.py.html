@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="14-data-engineering/week-06-quality-governance/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../14-data-engineering/week-06-quality-governance/lesson.html">Week 6 · Quality and governance</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="14-data-engineering/week-06-quality-governance/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>14-data-engineering/week-06-quality-governance/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 6 exercises: data quality and governance, stdlib + sqlite3.</span>
+
+<span class="sd">Replace each `...` with your code. Run the tests with:</span>
+<span class="sd">    ../../.venv/bin/pytest -q</span>
+<span class="sd">Rows are lists of dicts, e.g. [{"id": 1, "email": "a@x.com"}, ...].</span>
+<span class="sd">"""</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sqlite3</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">namedtuple</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timedelta</span>  <span class="c1"># noqa: F401  (handy for freshness)</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">statistics</span>  <span class="c1"># noqa: F401  (handy for volume anomaly)</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>  <span class="c1"># noqa: F401  (handy for PSI)</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">re</span>  <span class="c1"># noqa: F401  (handy for masking)</span>
+
+<span class="c1"># Result of one data-quality check: provided for you.</span>
+<span class="c1">#   name: str, passed: bool, details: dict</span>
+<span class="n">CheckResult</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s2">"CheckResult"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"name"</span><span class="p">,</span> <span class="s2">"passed"</span><span class="p">,</span> <span class="s2">"details"</span><span class="p">])</span>
+
+
+<span class="c1"># Exercise 1a ------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">check_not_null</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="n">column</span><span class="p">,</span> <span class="n">max_null_ratio</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Completeness check.</span>
+
+<span class="sd">    A value is "null" if it is None or a str that is empty/whitespace-only.</span>
+<span class="sd">    A missing key counts as null too (use row.get).</span>
+<span class="sd">    Return CheckResult(name=f"not_null:{column}", passed=null_ratio &lt;=</span>
+<span class="sd">    max_null_ratio, details={"null_count": n, "total": len(rows),</span>
+<span class="sd">    "null_ratio": ratio}). Empty `rows` -&gt; passed True, ratio 0.0.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 1b ------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">check_range</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="n">column</span><span class="p">,</span> <span class="n">min_value</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">max_value</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Validity check: values must lie in [min_value, max_value] (inclusive;</span>
+<span class="sd">    a bound of None is not enforced). None values are skipped (completeness</span>
+<span class="sd">    is a different check).</span>
+<span class="sd">    Return CheckResult(name=f"range:{column}", passed=no violations,</span>
+<span class="sd">    details={"violations": [row indexes that are out of range]}).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 1c ------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">run_checks</span><span class="p">(</span><span class="n">checks</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Run a list of zero-arg callables, each returning a CheckResult.</span>
+
+<span class="sd">    A check that RAISES must not crash the run: record it as a failed result</span>
+<span class="sd">    with name=getattr(check, "__name__", "unknown") and</span>
+<span class="sd">    details={"error": str(exc)}.</span>
+<span class="sd">    Return {"passed": all passed, "results": [CheckResult...] in order,</span>
+<span class="sd">    "failed": [names of failed checks]}.</span>
+<span class="sd">    Hint: functools.partial / lambda is how callers bind rows and columns.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 2 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">find_duplicate_keys</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="n">key_columns</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Uniqueness check on a (composite) key.</span>
+
+<span class="sd">    Return {key_tuple: [row indexes]} containing ONLY keys that occur more</span>
+<span class="sd">    than once. key_tuple is a tuple of the values of key_columns, in order.</span>
+<span class="sd">    &gt;&gt;&gt; find_duplicate_keys([{"id": 1}, {"id": 2}, {"id": 1}], ["id"])</span>
+<span class="sd">    {(1,): [0, 2]}</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 3 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">check_schema_compat</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">,</span> <span class="n">mode</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Schema evolution compatibility (Avro-like, simplified).</span>
+
+<span class="sd">    A schema is {field_name: {"type": "int"|"string"|..., "default": &lt;opt&gt;}}.</span>
+<span class="sd">    A field WITHOUT a "default" key is required (no default).</span>
+<span class="sd">    Modes:</span>
+<span class="sd">      "backward": consumers using `new` must read data written with `old`.</span>
+<span class="sd">          Violations: a field added in new without a default;</span>
+<span class="sd">                      a field whose type changed.</span>
+<span class="sd">      "forward": consumers using `old` must read data written with `new`.</span>
+<span class="sd">          Violations: a field removed in new that had no default in old;</span>
+<span class="sd">                      a field whose type changed.</span>
+<span class="sd">      "full": both sets of rules.</span>
+<span class="sd">    Return a sorted list of human-readable violation strings, each containing</span>
+<span class="sd">    the offending field name. [] means compatible. Unknown mode -&gt; ValueError.</span>
+<span class="sd">    Hint: compare set(old) and set(new); "default" in spec checks presence</span>
+<span class="sd">    (a default of None still counts as a default).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 4 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">check_freshness</span><span class="p">(</span><span class="n">last_updated</span><span class="p">,</span> <span class="n">now</span><span class="p">,</span> <span class="n">max_age</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Timeliness check. `last_updated` and `now` are datetimes, `max_age` a</span>
+<span class="sd">    timedelta. Passed iff now - last_updated &lt;= max_age.</span>
+<span class="sd">    A last_updated of None means the table never loaded: failed.</span>
+<span class="sd">    Return CheckResult(name="freshness", passed, details={"age_seconds":</span>
+<span class="sd">    float or None, "max_age_seconds": float}).</span>
+<span class="sd">    A future last_updated (clock skew) has negative age and passes.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 5 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">detect_volume_anomaly</span><span class="p">(</span><span class="n">history</span><span class="p">,</span> <span class="n">today</span><span class="p">,</span> <span class="n">threshold</span><span class="o">=</span><span class="mf">3.5</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Detect an abnormal daily row count with a robust (median/MAD) score.</span>
+
+<span class="sd">    modified_z = 0.6745 * (today - median) / MAD, where MAD is the median of</span>
+<span class="sd">    |x - median| over `history`. Anomaly iff |modified_z| &gt; threshold.</span>
+<span class="sd">    Edge cases: MAD == 0 -&gt; anomaly iff today != median.</span>
+<span class="sd">    Fewer than 3 history points -&gt; return False (not enough evidence).</span>
+<span class="sd">    Return a bool. (Median/MAD beats mean/stdev because past outages in the</span>
+<span class="sd">    history don't inflate the baseline.)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 6 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">find_orphans</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="n">child_table</span><span class="p">,</span> <span class="n">child_col</span><span class="p">,</span> <span class="n">parent_table</span><span class="p">,</span> <span class="n">parent_col</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Referential integrity via SQL.</span>
+
+<span class="sd">    Return a sorted list of DISTINCT non-NULL values of child_table.child_col</span>
+<span class="sd">    that have no matching parent_table.parent_col. Use a single SQL query</span>
+<span class="sd">    (LEFT JOIN ... IS NULL or NOT EXISTS), not a Python loop over rows.</span>
+<span class="sd">    Table/column names are trusted identifiers here (in production validate</span>
+<span class="sd">    them against a whitelist: identifiers cannot be bound as parameters).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 7a ------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">mask_email</span><span class="p">(</span><span class="n">email</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Mask an email for non-privileged users: keep the first character of the</span>
+<span class="sd">    local part and the whole domain, replace the remaining local-part chars</span>
+<span class="sd">    with '*'.</span>
+<span class="sd">    "alice@example.com" -&gt; "a****@example.com"</span>
+<span class="sd">    "b@x.org" -&gt; "b@x.org" (single char: nothing to mask)</span>
+<span class="sd">    A value without exactly one '@' -&gt; "***".</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 7b ------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">mask_phone</span><span class="p">(</span><span class="n">phone</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Replace every digit with '*' EXCEPT the last 4 digits; keep all other</span>
+<span class="sd">    characters (+, spaces, dashes, parentheses) as they are.</span>
+<span class="sd">    "+1 (415) 555-0134" -&gt; "+* (***) ***-0134"</span>
+<span class="sd">    Fewer than 4 digits: leave unchanged.</span>
+<span class="sd">    Hint: count digits first, then rebuild char by char (or re.sub with a</span>
+<span class="sd">    function).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 8 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">reconcile_tables</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="n">table_a</span><span class="p">,</span> <span class="n">table_b</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">columns</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Reconcile two tables (e.g. source vs warehouse copy) after a load or</span>
+<span class="sd">    backfill.</span>
+
+<span class="sd">    Compare on `key` plus the `columns` list. Return a dict:</span>
+<span class="sd">      "count_a", "count_b": row counts</span>
+<span class="sd">      "only_in_a", "only_in_b": sorted lists of keys present on one side only</span>
+<span class="sd">      "mismatched": sorted list of keys present in both whose `columns`</span>
+<span class="sd">          values differ</span>
+<span class="sd">      "checksum_match": True iff both tables have the same multiset of rows</span>
+<span class="sd">          over [key] + columns (an order-independent checksum, e.g. sum of</span>
+<span class="sd">          per-row hash ints, or compare sorted rows)</span>
+<span class="sd">      "ok": True iff no only_in_*, no mismatches and counts equal</span>
+<span class="sd">    Table/column names are trusted identifiers. Keys are unique.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 9 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">population_stability_index</span><span class="p">(</span><span class="n">expected</span><span class="p">,</span> <span class="n">actual</span><span class="p">,</span> <span class="n">bins</span><span class="o">=</span><span class="mi">5</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Distribution drift: PSI between a baseline sample and a new sample.</span>
+
+<span class="sd">    1. Build `bins` equal-width bins over [min(expected), max(expected)];</span>
+<span class="sd">       values of `actual` outside that range are clamped into the first/last</span>
+<span class="sd">       bin.</span>
+<span class="sd">    2. e_i, a_i = share of each sample in bin i; replace any share of 0 by</span>
+<span class="sd">       1e-4 (avoid log(0)).</span>
+<span class="sd">    3. PSI = sum((a_i - e_i) * ln(a_i / e_i)).</span>
+<span class="sd">    Rule of thumb: &lt;0.1 stable, 0.1-0.25 moderate drift, &gt;0.25 major.</span>
+<span class="sd">    If all `expected` values are equal, use a single bin (PSI then 0.0 unless</span>
+<span class="sd">    you choose otherwise: return 0.0).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 10 ------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">erase_subject</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="n">table</span><span class="p">,</span> <span class="n">id_column</span><span class="p">,</span> <span class="n">subject_id</span><span class="p">,</span> <span class="n">pii_columns</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Right-to-erasure by anonymization.</span>
+
+<span class="sd">    UPDATE every row of `table` where id_column = subject_id, setting each of</span>
+<span class="sd">    pii_columns to NULL (keep the row and non-PII columns so aggregates and</span>
+<span class="sd">    foreign keys survive). Use a bound parameter for subject_id.</span>
+<span class="sd">    Return the number of rows updated. Commit the change.</span>
+<span class="sd">    Raise ValueError if pii_columns is empty.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../14-data-engineering/week-06-quality-governance/cheatsheet.html">← Week 6 · Quality and governance: Cheatsheet</a><a class="next" href="../../14-data-engineering/week-06-quality-governance/test_exercises.py.html">Week 6 · Quality and governance: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

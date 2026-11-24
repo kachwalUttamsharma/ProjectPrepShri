@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="10-python-depth/week-02-data-model-and-memory/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../10-python-depth/week-01-functions-deep-dive/lesson.html">Python Depth</a> / <a href="../../10-python-depth/week-02-data-model-and-memory/lesson.html">Week 2 · Data model and memory</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="10-python-depth/week-02-data-model-and-memory/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>10-python-depth/week-02-data-model-and-memory/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 2 (python-depth) exercises: data model and memory.</span>
+
+<span class="sd">Replace each `...` with your code. Run from this folder:</span>
+<span class="sd">    ../../.venv/bin/pytest -q</span>
+<span class="sd">"""</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">copy</span><span class="o">,</span><span class="w"> </span><span class="nn">gc</span><span class="o">,</span><span class="w"> </span><span class="nn">weakref</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">Counter</span><span class="p">,</span> <span class="n">defaultdict</span><span class="p">,</span> <span class="n">deque</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">IntEnum</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Generic</span><span class="p">,</span> <span class="n">TypeVar</span>
+
+<span class="n">T</span> <span class="o">=</span> <span class="n">TypeVar</span><span class="p">(</span><span class="s2">"T"</span><span class="p">)</span>
+
+
+<span class="c1"># Exercise 1 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">copy_pair</span><span class="p">(</span><span class="n">nested</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return (shallow_copy, deep_copy) of `nested`.</span>
+<span class="sd">    Hint: the copy module. The shallow copy shares inner objects with the</span>
+<span class="sd">    original; the deep copy shares nothing."""</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 2 -------------------------------------------------------------</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Money</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Immutable value object.</span>
+<span class="sd">    - __init__(amount, currency); read-only properties `amount` and `currency`</span>
+<span class="sd">      (assigning to them must raise AttributeError).</span>
+<span class="sd">    - Equal when both fields are equal; NOT equal to non-Money (return</span>
+<span class="sd">      NotImplemented from __eq__ for foreign types).</span>
+<span class="sd">    - Hashable, consistent with __eq__ (equal objects -&gt; equal hashes), so it</span>
+<span class="sd">      works in sets and as a dict key.</span>
+<span class="sd">    - A helpful __repr__.</span>
+<span class="sd">    Hint: hash a tuple of the fields. Store fields in underscore attributes."""</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 3 -------------------------------------------------------------</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SlottedPoint</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Point with x and y that uses __slots__ (no per-instance __dict__,</span>
+<span class="sd">    and assigning any other attribute raises AttributeError)."""</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 4 -------------------------------------------------------------</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Positive</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Data descriptor that only accepts values &gt; 0 (else ValueError).</span>
+<span class="sd">    Implement __set_name__, __get__ and __set__. Store the value on the</span>
+<span class="sd">    *instance* (e.g. under '_' + name), never on the descriptor itself.</span>
+<span class="sd">    __get__ with obj None (class access) should return the descriptor."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Item</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Provided. Works once Positive works."""</span>
+    <span class="n">price</span> <span class="o">=</span> <span class="n">Positive</span><span class="p">()</span>
+    <span class="n">qty</span> <span class="o">=</span> <span class="n">Positive</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">price</span><span class="p">,</span> <span class="n">qty</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">price</span> <span class="o">=</span> <span class="n">price</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">qty</span> <span class="o">=</span> <span class="n">qty</span>
+
+
+<span class="c1"># Exercise 5 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">top_words</span><span class="p">(</span><span class="n">text</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the n most common words (lowercased, split on whitespace) as a</span>
+<span class="sd">    list of (word, count). Ties broken alphabetically.</span>
+<span class="sd">    Hint: Counter, then sorted with key=(-count, word)."""</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 6 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">group_by</span><span class="p">(</span><span class="n">items</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Group items into {key(item): [items...]} preserving order. Return a</span>
+<span class="sd">    plain dict (not a defaultdict). Hint: defaultdict(list), then dict()."""</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 7 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">last_n</span><span class="p">(</span><span class="n">iterable</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a list of the last n items of any iterable (even a generator)</span>
+<span class="sd">    using O(n) memory. Hint: deque(maxlen=n)."""</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 8 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">sort_employees</span><span class="p">(</span><span class="n">rows</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""rows: list of dicts with name, dept, salary. Return a NEW list sorted</span>
+<span class="sd">    by dept ascending, then salary descending, then name ascending. Do not</span>
+<span class="sd">    mutate the input.</span>
+<span class="sd">    Hint: sort stability. Either sort several times, last key first, or use a</span>
+<span class="sd">    single key with a negated salary."""</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 9 -------------------------------------------------------------</span>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Task</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Make this a frozen, orderable dataclass with fields:</span>
+<span class="sd">    priority: int, title: str (excluded from comparisons), tags: tuple = ().</span>
+<span class="sd">    Hint: @dataclass(order=True, frozen=True) and field(compare=False).</span>
+<span class="sd">    Frozen + eq gives a generated __hash__."""</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 10 ------------------------------------------------------------</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Priority</span><span class="p">(</span><span class="n">IntEnum</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LOW=1, MEDIUM=2, HIGH=3."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">parse_priority</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""'  high ' -&gt; Priority.HIGH (case/space insensitive). Unknown names</span>
+<span class="sd">    raise ValueError. Hint: Priority[name] raises KeyError; translate it</span>
+<span class="sd">    (`raise ... from None`)."""</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 11 ------------------------------------------------------------</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Stack</span><span class="p">(</span><span class="n">Generic</span><span class="p">[</span><span class="n">T</span><span class="p">]):</span>
+<span class="w">    </span><span class="sd">"""Generic stack: push(item), pop() (IndexError when empty), peek(),</span>
+<span class="sd">    len(stack)."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">describe</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Type narrowing. None -&gt; 'nothing'; bool -&gt; 'bool'; int -&gt; 'int:7';</span>
+<span class="sd">    str -&gt; 'str:hi'; list -&gt; 'list of 3'; anything else -&gt; 'other'.</span>
+<span class="sd">    Gotcha: bool is a subclass of int, so check it first."""</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 12 ------------------------------------------------------------</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">_Node</span><span class="p">:</span>
+    <span class="k">pass</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">cycle_collected</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Make two _Node objects that reference each other (a.other = b,</span>
+<span class="sd">    b.other = a), keep a weakref.ref to one, delete both names, call</span>
+<span class="sd">    gc.collect(), and return True if the weakref is now dead. Shows that</span>
+<span class="sd">    refcounting alone cannot free cycles and the cyclic GC can."""</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../10-python-depth/week-02-data-model-and-memory/interview-qa.html">← Week 2 · Data model and memory: Interview Q&amp;A</a><a class="next" href="../../10-python-depth/week-02-data-model-and-memory/test_exercises.py.html">Week 2 · Data model and memory: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

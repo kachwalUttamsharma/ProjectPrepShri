@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 2: Retrieval and RAG | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="13-llm-ai-concepts/week-02-retrieval-rag/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../13-llm-ai-concepts/README.html">LLM and AI Concepts</a> / <a href="../../13-llm-ai-concepts/week-02-retrieval-rag/lesson.html">Week 2 · Retrieval and RAG</a> / <span>Lesson</span></nav><button id="mark-done" data-id="13-llm-ai-concepts/week-02-retrieval-rag/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-2-retrieval-and-rag">Week 2: Retrieval and RAG</h1>
+<p>Goal: design, debug, and defend a RAG system, and know when not to use one. Hands-on companion: <code>05-fde-projects/project-03-document-qa-rag</code>.</p>
+<hr />
+<h2 id="1-why-rag">1. Why RAG</h2>
+<p>LLMs do not know your private, fresh, or long-tail data, and they hallucinate. RAG (retrieval-augmented generation) retrieves relevant passages at query time and puts them in the prompt so the model answers from them.</p>
+<div class="highlight"><pre><span></span><code> INDEXING (offline)                              QUERYING (online)
+ docs -&gt; parse -&gt; clean -&gt; chunk                 user question
+      -&gt; embed each chunk -&gt; vector index           -&gt; (rewrite) -&gt; embed
+      + metadata (source, page, ACL, date)          -&gt; retrieve top-k (vector + keyword)
+      + keyword index (BM25)                        -&gt; (rerank) -&gt; top-n
+                                                    -&gt; build prompt: instructions + chunks + question
+                                                    -&gt; LLM -&gt; answer + citations
+                                                    -&gt; (verify / log / feedback)
+</code></pre></div>
+
+<p>Benefits: fresh data without retraining, source attribution, access control per document, cheaper than fine-tuning for knowledge. Weakness: answer quality is capped by retrieval quality; garbage in, confident garbage out.</p>
+<hr />
+<h2 id="2-embeddings">2. Embeddings</h2>
+<p>An embedding model maps text to a dense vector (hundreds to a few thousand dimensions) such that semantically similar texts are close.</p>
+<div class="highlight"><pre><span></span><code> "reset my password"      -&gt; [0.12, -0.40, ...]
+ "I forgot my login"      -&gt; [0.10, -0.38, ...]   (close)
+ "quarterly revenue chart"-&gt; [-0.55, 0.21, ...]   (far)
+</code></pre></div>
+
+<p>Notes:</p>
+<ul>
+<li>Query and document embeddings must come from the same model (and version). Changing the model means re-embedding everything.</li>
+<li>Embedding models have a max input length; text beyond it is truncated.</li>
+<li>Domain gap: general embedding models can be weak on jargon, part numbers, code, or other languages. Evaluate on your data; consider domain-tuned or multilingual models (check current docs).</li>
+<li>Dimensionality affects storage and speed; some models support truncated/Matryoshka embeddings. Quantization (int8/binary) shrinks the index.</li>
+<li>Embeddings are not a privacy boundary: they can leak information about the text; treat the vector store as sensitive as the source.</li>
+</ul>
+<h2 id="3-similarity-metrics">3. Similarity metrics</h2>
+<ul>
+<li>Cosine similarity: angle between vectors; ignores magnitude. Most common for text.</li>
+<li>Dot product: equals cosine if vectors are normalized; some models are trained for dot product.</li>
+<li>Euclidean (L2): straight-line distance; equals a monotonic function of cosine on normalized vectors.
+Use the metric the embedding model recommends. Normalize if using dot/cosine.</li>
+</ul>
+<p>Runnable toy (no API key): bag-of-words "embeddings" show the mechanics of retrieval.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">math</span><span class="o">,</span><span class="w"> </span><span class="nn">re</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">Counter</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">vec</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">Counter</span><span class="p">(</span><span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s2">"[a-z]+"</span><span class="p">,</span> <span class="n">text</span><span class="o">.</span><span class="n">lower</span><span class="p">()))</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">cosine</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+    <span class="n">dot</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">*</span> <span class="n">b</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">a</span><span class="p">)</span>
+    <span class="n">na</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">v</span> <span class="o">*</span> <span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">a</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+    <span class="n">nb</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">v</span> <span class="o">*</span> <span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">b</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+    <span class="k">return</span> <span class="n">dot</span> <span class="o">/</span> <span class="p">(</span><span class="n">na</span> <span class="o">*</span> <span class="n">nb</span><span class="p">)</span> <span class="k">if</span> <span class="n">na</span> <span class="ow">and</span> <span class="n">nb</span> <span class="k">else</span> <span class="mf">0.0</span>
+
+<span class="n">docs</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"d1"</span><span class="p">:</span> <span class="s2">"How to reset your password from the login page"</span><span class="p">,</span>
+    <span class="s2">"d2"</span><span class="p">:</span> <span class="s2">"Quarterly revenue report for finance team"</span><span class="p">,</span>
+    <span class="s2">"d3"</span><span class="p">:</span> <span class="s2">"Password policy: minimum length and rotation"</span><span class="p">,</span>
+<span class="p">}</span>
+<span class="n">q</span> <span class="o">=</span> <span class="n">vec</span><span class="p">(</span><span class="s2">"forgot password reset"</span><span class="p">)</span>
+<span class="n">ranked</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">docs</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="n">cosine</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">vec</span><span class="p">(</span><span class="n">docs</span><span class="p">[</span><span class="n">d</span><span class="p">])),</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">ranked</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Real embeddings capture synonyms ("forgot" vs "lost") that bag-of-words misses; that is the point of dense retrieval.</p>
+<hr />
+<h2 id="4-vector-databases-and-ann">4. Vector databases and ANN</h2>
+<p>Exact nearest-neighbor search compares the query with every vector: O(N * d). Fine up to roughly hundreds of thousands of vectors (a numpy matrix multiply). Beyond that you use Approximate Nearest Neighbor (ANN) indexes, trading a little recall for large speedups.</p>
+<h3 id="41-hnsw-hierarchical-navigable-small-world">4.1 HNSW (Hierarchical Navigable Small World)</h3>
+<p>A multi-layer graph. Top layers are sparse "highways", bottom layer contains all points. Search starts at the top, greedily walks toward the query, drops a layer, repeats.</p>
+<div class="highlight"><pre><span></span><code> Layer 2:   A ------------- F
+ Layer 1:   A --- C ------- F --- H
+ Layer 0:   A-B-C-D-E-F-G-H-I-J   (all nodes, local neighbors)
+ query: enter at A, greedy hop toward closest neighbors, descend
+</code></pre></div>
+
+<p>Knobs: M (links per node), efConstruction (build quality), efSearch (query-time breadth: higher = better recall, slower). Pros: high recall, low latency, incremental inserts. Cons: memory hungry (graph plus vectors in RAM), slow-ish build, deletes are awkward.</p>
+<h3 id="42-ivf-inverted-file">4.2 IVF (Inverted File)</h3>
+<p>Cluster vectors (k-means) into nlist cells with centroids. At query time, find the nprobe closest centroids and scan only those cells.
+Knobs: nlist, nprobe. Pros: smaller memory than HNSW, easy to combine with compression (PQ: product quantization, IVF-PQ). Cons: needs training on representative data; recall drops if the query lies near a cell boundary and nprobe is small; reindexing as data drifts.</p>
+<h3 id="43-others">4.3 Others</h3>
+<p>Flat (exact), PQ/scalar quantization (compress), DiskANN-style (SSD-based for huge corpora). Metadata filtering: pre-filter vs post-filter matters. Post-filtering after top-k can return too few results; good systems filter during traversal. Test filtered recall.</p>
+<h3 id="44-choosing-a-store">4.4 Choosing a store</h3>
+<ul>
+<li>pgvector (inside Postgres): one system, transactional, SQL joins and ACL filters; fine into millions of vectors; simplest for many FDE deployments.</li>
+<li>Dedicated vector DBs / search engines (managed or self-hosted): scale, hybrid search features, ops convenience.</li>
+<li>In-memory libraries (FAISS and similar): prototypes, batch, embedded use.
+Decision factors: scale, filtering needs, hybrid search, ops burden, existing stack, data residency, cost. Do not state a "best" vendor; compare on needs and say check current docs.</li>
+</ul>
+<p>Metrics: recall@k versus exact search, p95 latency, QPS, memory, build time, update/delete cost.</p>
+<hr />
+<h2 id="5-chunking">5. Chunking</h2>
+<p>Chunking decides what a retrievable unit is. It is often the highest-leverage lever.</p>
+<p>Tradeoff: small chunks = precise matching, but lose context; big chunks = more context, but diluted embeddings and more tokens in the prompt.</p>
+<p>Strategies:</p>
+<ul>
+<li>Fixed size with overlap (e.g. a few hundred tokens, 10 to 20 percent overlap): baseline, simple.</li>
+<li>Structure-aware: split by headings, paragraphs, sentences, code functions, table rows. Usually better than blind fixed size.</li>
+<li>Semantic chunking: split where embedding similarity between adjacent sentences drops.</li>
+<li>Hierarchical / parent-child: embed small chunks for matching, return the larger parent section for context ("small to big").</li>
+<li>Add context: prepend document title/section path to each chunk; or LLM-generated chunk summaries/context blurbs (contextual retrieval) at index-time cost.</li>
+<li>Tables, PDFs, scans: parsing quality dominates; check OCR, column order, headers repeated, footers noise. Keep tables as structured text or per-row with headers.</li>
+<li>Metadata: source, page, section, date, author, version, ACL groups, language.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">chunk</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">200</span><span class="p">,</span> <span class="n">overlap</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">40</span><span class="p">):</span>
+    <span class="n">words</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+    <span class="n">step</span> <span class="o">=</span> <span class="n">size</span> <span class="o">-</span> <span class="n">overlap</span>
+    <span class="k">return</span> <span class="p">[</span><span class="s2">" "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">words</span><span class="p">[</span><span class="n">i</span><span class="p">:</span><span class="n">i</span> <span class="o">+</span> <span class="n">size</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">words</span><span class="p">)</span> <span class="o">-</span> <span class="n">overlap</span><span class="p">),</span> <span class="n">step</span><span class="p">)]</span>
+
+<span class="n">doc</span> <span class="o">=</span> <span class="s2">"word "</span> <span class="o">*</span> <span class="mi">500</span>
+<span class="n">parts</span> <span class="o">=</span> <span class="n">chunk</span><span class="p">(</span><span class="n">doc</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span> <span class="n">overlap</span><span class="o">=</span><span class="mi">40</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">parts</span><span class="p">),</span> <span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">split</span><span class="p">())</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">])</span>
+</code></pre></div>
+
+<p>Always eval chunking choices with a retrieval test set rather than argue from taste.</p>
+<hr />
+<h2 id="6-hybrid-search-bm25-plus-vectors">6. Hybrid search (BM25 plus vectors)</h2>
+<ul>
+<li>Dense (vector) search: semantic matching, handles paraphrase. Weak on exact tokens: IDs, SKUs, error codes, names, acronyms.</li>
+<li>Sparse / lexical (BM25): exact term matching with TF-IDF-style weighting and length normalization. Weak on synonyms.</li>
+<li>Hybrid: run both, merge. Common merge: Reciprocal Rank Fusion (RRF): score(d) = sum over rankers of 1 / (k + rank_i(d)), k about 60. Needs no score calibration between systems.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">rrf</span><span class="p">(</span><span class="n">rankings</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">60</span><span class="p">):</span>
+    <span class="n">scores</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">ranking</span> <span class="ow">in</span> <span class="n">rankings</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">rank</span><span class="p">,</span> <span class="n">doc</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ranking</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+            <span class="n">scores</span><span class="p">[</span><span class="n">doc</span><span class="p">]</span> <span class="o">=</span> <span class="n">scores</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">doc</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span> <span class="o">+</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="n">k</span> <span class="o">+</span> <span class="n">rank</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">scores</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">scores</span><span class="o">.</span><span class="n">get</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<span class="n">bm25</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"d3"</span><span class="p">,</span> <span class="s2">"d1"</span><span class="p">,</span> <span class="s2">"d7"</span><span class="p">]</span>
+<span class="n">dense</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"d1"</span><span class="p">,</span> <span class="s2">"d5"</span><span class="p">,</span> <span class="s2">"d3"</span><span class="p">]</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">rrf</span><span class="p">([</span><span class="n">bm25</span><span class="p">,</span> <span class="n">dense</span><span class="p">]))</span>     <span class="c1"># d1 and d3 float up</span>
+</code></pre></div>
+
+<p>Rule: if users search by identifiers or exact phrases, lexical must be in the mix.</p>
+<h2 id="7-reranking">7. Reranking</h2>
+<p>Two-stage retrieval: a fast first stage (bi-encoder: query and doc embedded independently) gets top 50 to 200 candidates; a cross-encoder reranker reads (query, doc) pairs jointly and scores precisely; keep top 3 to 10. Costs latency and compute; usually a big precision gain. Alternatives: LLM-as-reranker (slower, pricier), MMR (maximal marginal relevance) to diversify and avoid near-duplicates. Tune how many candidates you rerank against latency budget.</p>
+<h2 id="8-query-rewriting-and-understanding">8. Query rewriting and understanding</h2>
+<ul>
+<li>Conversational rewrite: turn "what about the premium plan?" into a standalone query using chat history.</li>
+<li>Expansion / multi-query: generate several paraphrases, retrieve for each, merge (RRF).</li>
+<li>HyDE: have the LLM write a hypothetical answer, embed that, retrieve with it.</li>
+<li>Decomposition: split multi-part questions into sub-queries.</li>
+<li>Routing: decide which index/tool (docs vs SQL vs none) or whether retrieval is needed at all.</li>
+<li>Metadata extraction: "invoices from March for Acme" becomes a filter plus a text query.
+Cost: extra LLM call and latency; add only if retrieval evals show a gain.</li>
+</ul>
+<h2 id="9-generation-grounding-and-citations">9. Generation, grounding and citations</h2>
+<p>Prompt pattern:</p>
+<div class="highlight"><pre><span></span><code>Answer using ONLY the sources below. If they do not contain the answer, say
+"I could not find this in the provided documents."
+Cite sources as [id] after each claim.
+
+&lt;source id="1" title="Refund policy" page="3"&gt; ... &lt;/source&gt;
+&lt;source id="2" ...&gt; ... &lt;/source&gt;
+
+Question: ...
+</code></pre></div>
+
+<p>Citation practices: give chunks stable IDs; ask for quoted spans; verify programmatically that cited IDs exist and quoted text appears in the chunk; render links back to the source page. Faithfulness check: does every claim have support? Handle conflicting sources (prefer newest/authoritative, or surface the conflict). Order chunks sensibly; limit total context. Enforce ACLs at retrieval time (filter by the user's permissions), never after generation.</p>
+<h2 id="10-rag-failure-modes-and-debugging">10. RAG failure modes and debugging</h2>
+<p>Debug by stage. Always log: query, rewritten query, retrieved chunk IDs with scores, final prompt, answer.</p>
+<div class="highlight"><pre><span></span><code> Wrong answer?
+   |-- Was the right chunk in the corpus?             no -&gt; ingestion/parsing/coverage problem
+   |-- Was it retrieved in top-k?                     no -&gt; retrieval problem (chunking, embeddings, hybrid, query rewrite, filters)
+   |-- Was it ranked high enough to reach the prompt? no -&gt; reranking / k / context budget
+   |-- Was it in the prompt but ignored/misread?      yes -&gt; generation problem (prompt, model, lost-in-the-middle, conflicting chunks)
+   |-- Was the answer correct but unsupported?        -&gt; faithfulness / citation problem
+</code></pre></div>
+
+<p>Common failures and fixes:
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Right doc never found | Bad parsing (PDF columns/tables), chunk too big/small, exact-token query | Fix parser; structure-aware chunking; add BM25 hybrid |
+| Retrieves near-duplicates | Overlapping/duplicated docs, versions | Dedup, MMR, version metadata |
+| Outdated answer | Stale index, multiple versions | Incremental reindex, date/version filters, deletions propagate |
+| Answer ignores context | Too much noise, middle-of-context loss | Rerank, fewer chunks, stronger instruction, reorder |
+| Hallucinated when no answer | No abstention path | "Say not found", similarity threshold, eval with unanswerables |
+| Multi-hop questions fail | Single retrieval pass | Decomposition, iterative/agentic retrieval |
+| Wrong user sees restricted doc | ACL not enforced at retrieval | Metadata filter by user groups in query |
+| Good in demo, bad in prod | Test set unrepresentative | Collect real queries, build golden set |
+| Slow | Many calls, big k, big model | Cache, smaller rerank pool, stream, parallelize |
+| Table/number errors | Chunk splits table | Table-aware parsing, return full table, code tools |</p>
+<p>Retrieval metrics: recall@k (is a relevant chunk in top-k), MRR, nDCG, hit rate. Generation metrics: faithfulness/groundedness, answer relevance, correctness vs reference, citation accuracy. Measure retrieval and generation separately (Week 4).</p>
+<h2 id="11-rag-vs-fine-tuning-vs-long-context">11. RAG vs fine-tuning vs long context</h2>
+<table>
+<thead>
+<tr>
+<th>Need</th>
+<th>Best first choice</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Private/fresh/changing facts, citations, per-user ACL</td>
+<td>RAG</td>
+<td>Update by reindex; auditable sources</td>
+</tr>
+<tr>
+<td>Consistent style, format, domain behavior, small-model distillation</td>
+<td>Fine-tuning</td>
+<td>Changes behavior, not knowledge store</td>
+</tr>
+<tr>
+<td>One or a few documents that fit, ad hoc analysis</td>
+<td>Long context (maybe with prompt caching)</td>
+<td>No infra; but cost per call and recall at length</td>
+</tr>
+<tr>
+<td>Huge corpus (millions of pages)</td>
+<td>RAG</td>
+<td>Cannot fit in context</td>
+</tr>
+<tr>
+<td>Needs reasoning over a whole document (summaries, cross-references)</td>
+<td>Long context or hierarchical summarization</td>
+<td>Chunks lose global structure</td>
+</tr>
+<tr>
+<td>Structured data (tables, DB)</td>
+<td>Text-to-SQL / tool calls</td>
+<td>Retrieval over embeddings is wrong tool</td>
+</tr>
+</tbody>
+</table>
+<p>Combine them: fine-tuned model plus RAG; long context plus retrieval to pre-select. Say the decision criteria: data volatility, volume, latency/cost per query, need for citations/ACLs, behavior vs knowledge, team capacity.</p>
+<h2 id="12-production-concerns-preview-of-week-4">12. Production concerns (preview of Week 4)</h2>
+<p>Incremental ingestion and deletes, idempotent pipelines, versioned indexes (blue/green reindex when changing embeddings or chunking), PII handling, per-tenant isolation (separate index or mandatory filter), caching, monitoring recall proxies (empty-result rate, thumbs-down, "not found" rate), cost of embedding refreshes.</p>
+<h2 id="13-how-interviewers-probe">13. How interviewers probe</h2>
+<ul>
+<li>"Walk me through RAG end to end, and where does it break?" (Use the debugging tree.)</li>
+<li>"Why hybrid search?" (exact identifiers, acronyms; RRF.)</li>
+<li>"HNSW vs IVF?" (graph vs clusters; memory, recall, updates, tuning knobs.)</li>
+<li>"How do you choose chunk size?" (Eval-driven; structure-aware; parent-child.)</li>
+<li>"How do you evaluate retrieval without labels?" (Synthetic questions from chunks, then human review; LLM-labeled relevance; real query logs.)</li>
+<li>"RAG or fine-tuning?" (Knowledge vs behavior.)</li>
+<li>"How do you enforce document permissions?" (Filter at retrieval with user claims.)</li>
+</ul>
+<h2 id="self-check">Self-check</h2>
+<ol>
+<li>Draw the indexing and query pipelines and name one log per stage.</li>
+<li>Write RRF from memory.</li>
+<li>Explain efSearch and nprobe in one sentence each.</li>
+<li>Given a bad answer, list the 4 questions in the debugging tree.</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../13-llm-ai-concepts/week-01-llm-fundamentals/cheatsheet.html">← Week 1 · LLM fundamentals: Cheatsheet</a><a class="next" href="../../13-llm-ai-concepts/week-02-retrieval-rag/interview-qa.html">Week 2 · Retrieval and RAG: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

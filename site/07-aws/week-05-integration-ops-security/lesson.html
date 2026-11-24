@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 5 - Integration, Ops and Security | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="07-aws/week-05-integration-ops-security/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../07-aws/README.html">AWS</a> / <a href="../../07-aws/week-05-integration-ops-security/lesson.html">Week 5 · Integration, ops, security</a> / <span>Lesson</span></nav><button id="mark-done" data-id="07-aws/week-05-integration-ops-security/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-5-integration-ops-and-security">Week 5 - Integration, Ops and Security</h1>
+<hr />
+<h2 id="1-messaging-and-integration">1. Messaging and integration</h2>
+<h3 id="sqs-simple-queue-service">SQS (Simple Queue Service)</h3>
+<p>Fully managed pull-based queue; decouples producers/consumers; absorbs bursts.
+| | Standard | FIFO |
+|---|---|---|
+| Throughput | Nearly unlimited | 300 msg/s per API action (3,000 with batching); high-throughput mode much higher (check docs) |
+| Delivery | At-least-once (duplicates possible) | Exactly-once processing (5-min dedup window) |
+| Ordering | Best-effort | Strict per MessageGroupId |
+| Name | any | must end in <code>.fifo</code> |
+- Message size up to 256 KB (extended to 1 MiB in 2025; check docs; larger -&gt; S3 pointer / Extended Client). Retention 60 s - 14 days (default 4 days). <strong>Visibility timeout</strong> default 30 s (max 12 h): message hidden while a consumer works; if not deleted, it reappears. <strong>Long polling</strong> (WaitTimeSeconds up to 20) reduces cost/empty receives. Delay queues up to 15 min. Batch up to 10 messages.
+- <strong>DLQ:</strong> after <code>maxReceiveCount</code> failed receives message moves to a dead-letter queue (same type); set alarm on DLQ depth; redrive back after fix.
+- Pricing: per request (64 KB chunks), first 1M/month free.
+- Use: work queues, buffering before DB, decoupling microservices, Lambda triggers. Not: pub/sub fan-out (SNS), replay/streaming ordering at scale (Kinesis/Kafka), complex routing (EventBridge).
+- Gotchas: consumers must be idempotent; visibility timeout &lt; processing time causes duplicates; FIFO hot message group limits throughput; Lambda visibility timeout &gt;= 6x function timeout.</p>
+<h3 id="sns-simple-notification-service">SNS (Simple Notification Service)</h3>
+<p>Pub/sub topics; push to SQS, Lambda, HTTP(S), email, SMS, mobile push, Firehose. Message filtering policies per subscription. <strong>Fan-out pattern:</strong> SNS topic -&gt; multiple SQS queues. FIFO topics (with SQS FIFO). Delivery retries + DLQ per subscription. No persistence/replay (unless via Firehose/archive for FIFO). Pricing per publish + deliveries.</p>
+<h3 id="eventbridge">EventBridge</h3>
+<p>Serverless event bus: routes events from AWS services, SaaS partners, and your apps to targets via rules with content-based pattern matching. Features: schema registry, archive &amp; replay, Scheduler (cron/rate one-off schedules at scale), Pipes (source -&gt; filter/enrich -&gt; target, point-to-point), cross-account/region buses, API destinations (call HTTP APIs with auth, rate limiting). Latency ~sub-second (not for ultra-low latency). Prefer EventBridge for event-driven architectures with routing; SNS for simple high-throughput fan-out; SQS for buffering.</p>
+<h3 id="kinesis-family">Kinesis family</h3>
+<ul>
+<li><strong>Kinesis Data Streams (KDS):</strong> ordered, replayable stream partitioned by shard/partition key. Per shard: write 1 MB/s or 1,000 records/s; read 2 MB/s shared (or enhanced fan-out 2 MB/s per consumer). Retention 24 h (default) to 365 days. Modes: provisioned vs on-demand. Record max 1 MB. Consumers: Lambda, KCL apps. Use for real-time analytics, log/clickstream ingestion, multiple consumers reading same data, replay.</li>
+<li><strong>Firehose:</strong> managed delivery to S3, Redshift, OpenSearch, Splunk, HTTP; buffering (near real-time, seconds-minutes), optional Lambda transform, Parquet conversion. No replay/consumer management.</li>
+<li>Managed Service for Apache Flink: stream processing. MSK: managed Kafka (alternative if team uses Kafka).</li>
+<li>SQS vs Kinesis: SQS = message is consumed and deleted, per-message ack, no ordering at scale, many competing consumers; Kinesis = retained log, ordered per shard, multiple independent consumers, replay.</li>
+</ul>
+<h3 id="step-functions">Step Functions</h3>
+<p>Serverless workflow orchestration (state machines in Amazon States Language / visual Workflow Studio). States: Task, Choice, Parallel, Map (inline/distributed), Wait, Pass, Succeed/Fail. Built-in retry/catch, 200+ service integrations (optimized SDK integrations), callback pattern (<code>.waitForTaskToken</code>).
+| | Standard | Express |
+|---|---|---|
+| Duration | up to 1 year | up to 5 min |
+| Semantics | exactly-once workflow execution | at-least-once (async) / at-most-once (sync) |
+| Pricing | per state transition | per request + duration/memory |
+| Use | long-running, human approval, audit | high-volume event processing, short APIs |
+Use for: multi-step ETL, order processing sagas, ML/LLM pipelines, replacing Lambda-calls-Lambda chains. Not: simple one-step logic or ultra-low latency. Payload limit 256 KB per state (pass S3 pointers). History limit 25,000 events per Standard execution.
+Alternatives: Airflow (MWAA), Temporal, SWF (legacy).</p>
+<h3 id="api-gateway">API Gateway</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>REST API</th>
+<th>HTTP API</th>
+<th>WebSocket</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Features</td>
+<td>API keys, usage plans, request validation, caching, WAF, per-method throttling, private APIs, canary</td>
+<td>cheaper (~70% less), lower latency, JWT authorizers, OIDC, simpler</td>
+<td>two-way persistent connections</td>
+</tr>
+<tr>
+<td>- Timeout: 29 s default integration timeout (REST can be raised for regional APIs with quota request; check docs); payload 10 MB. Default account throttle 10,000 rps, burst 5,000 (check docs).</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>- Auth: IAM (SigV4), Cognito authorizer, Lambda authorizer (custom), JWT (HTTP API), API keys (NOT security, only metering), mTLS.</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>- Alternatives: ALB (cheaper at high volume, path routing to Lambda/containers), AppSync (GraphQL), Lambda function URLs. Edge-optimized vs regional vs private endpoints.</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>- Gotchas: CORS config, 29 s limit for long LLM calls (use streaming via response streaming or WebSockets/ALB/SSE through ALB instead), costs at high rps, stage variables, throttling 429s.</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="2-observability-and-governance">2. Observability and governance</h2>
+<h3 id="cloudwatch">CloudWatch</h3>
+<ul>
+<li><strong>Metrics:</strong> namespace/dimensions; EC2 basic 5-min vs detailed 1-min; custom metrics (standard 1-min, high-res down to 1 s); retention rolls up (1s data 3h, 1 min 15 d, 5 min 63 d, 1 h 455 d).</li>
+<li><strong>Alarms:</strong> metric/composite/anomaly detection; actions to SNS, Auto Scaling, EC2.</li>
+<li><strong>Logs:</strong> log groups/streams, retention policy (default never expire - set it), Logs Insights query language, metric filters, subscription filters, Embedded Metric Format; pricing per GB ingested + stored (ingestion is the big cost).</li>
+<li>Dashboards, Synthetics (canaries), RUM, Container Insights, Lambda Insights, Application Signals, X-Ray (distributed tracing; or OpenTelemetry/ADOT), CloudWatch Agent for memory/disk (not in default EC2 metrics).</li>
+<li>Gotcha: EC2 memory and disk metrics are NOT default; log retention forever; alarm "INSUFFICIENT_DATA".</li>
+</ul>
+<h3 id="cloudtrail">CloudTrail</h3>
+<p>Records API calls (who/what/when/where). Management events on by default; 90-day Event history free; create a <strong>trail</strong> to S3 (and CloudWatch Logs) for long-term, multi-region/org trail; data events (S3 object-level, Lambda invoke, DynamoDB) and Insights events cost extra; log file validation; CloudTrail Lake for SQL queries. Use for audit, forensics, "who deleted this?". Not for performance monitoring.</p>
+<h3 id="aws-config">AWS Config</h3>
+<p>Records resource configuration history and evaluates compliance with rules (managed/custom), conformance packs, auto-remediation via SSM. Question it answers: "what did this security group look like last week, and is it compliant?" CloudTrail = who did API; Config = what state/compliance; CloudWatch = metrics/logs.</p>
+<h3 id="others">Others</h3>
+<p>GuardDuty (threat detection from CloudTrail/VPC flow/DNS logs), Security Hub (aggregated findings), Inspector (vuln scanning), Macie (S3 PII), Detective, Trusted Advisor, Systems Manager (Session Manager, Parameter Store, Patch Manager, Run Command), Health Dashboard.</p>
+<h3 id="infrastructure-as-code">Infrastructure as Code</h3>
+<ul>
+<li><strong>CloudFormation:</strong> AWS-native declarative JSON/YAML; stacks, change sets (preview), drift detection, StackSets (multi-account/region), rollback on failure, nested stacks, custom resources, DeletionPolicy/UpdateReplacePolicy (avoid data loss). Free; pay for resources. Stack limit 500 resources (check docs).</li>
+<li><strong>CDK:</strong> define infra in Python/TypeScript/Java etc.; synthesizes to CloudFormation; high-level constructs (L1/L2/L3); <code>cdk bootstrap</code>, <code>cdk diff</code>, <code>cdk deploy</code>. Good for developer-heavy teams.</li>
+<li><strong>Terraform (HashiCorp/OpenTofu):</strong> multi-cloud HCL, state file (remote backend S3 + DynamoDB/lock), plan/apply, huge provider ecosystem; you manage state. Choose when multi-cloud or org standard. SAM: serverless shorthand over CloudFormation.</li>
+<li>Pulumi alternative. Console "click-ops" = drift risk.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="c1"># CDK (Python) illustrative</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">aws_cdk</span><span class="w"> </span><span class="kn">import</span> <span class="n">Stack</span><span class="p">,</span> <span class="n">aws_s3</span> <span class="k">as</span> <span class="n">s3</span><span class="p">,</span> <span class="n">RemovalPolicy</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Demo</span><span class="p">(</span><span class="n">Stack</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scope</span><span class="p">,</span> <span class="nb">id</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">scope</span><span class="p">,</span> <span class="nb">id</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">)</span>
+        <span class="n">s3</span><span class="o">.</span><span class="n">Bucket</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">"Data"</span><span class="p">,</span> <span class="n">versioned</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">encryption</span><span class="o">=</span><span class="n">s3</span><span class="o">.</span><span class="n">BucketEncryption</span><span class="o">.</span><span class="n">S3_MANAGED</span><span class="p">,</span>
+                  <span class="n">block_public_access</span><span class="o">=</span><span class="n">s3</span><span class="o">.</span><span class="n">BlockPublicAccess</span><span class="o">.</span><span class="n">BLOCK_ALL</span><span class="p">,</span> <span class="n">removal_policy</span><span class="o">=</span><span class="n">RemovalPolicy</span><span class="o">.</span><span class="n">RETAIN</span><span class="p">)</span>
+</code></pre></div>
+
+<hr />
+<h2 id="3-security-services">3. Security services</h2>
+<h3 id="kms-key-management-service">KMS (Key Management Service)</h3>
+<ul>
+<li>Managed keys in HSMs (FIPS 140-3 validated; check docs). Key types: AWS owned (invisible), AWS managed (<code>aws/s3</code>, free, auto-rotated yearly), customer managed (CMK; $1/key/month + API requests; you control key policy, rotation (automatic annual by default, configurable), disable/delete with 7-30 day waiting period). Symmetric (AES-256-GCM) vs asymmetric (RSA/ECC, sign/verify); HMAC keys; multi-region keys; imported key material.</li>
+<li><strong>Envelope encryption:</strong> KMS <code>Encrypt</code> only handles up to 4 KB directly. For data, call <code>GenerateDataKey</code> -&gt; get plaintext data key + encrypted data key; encrypt data locally with plaintext key, discard it, store encrypted key alongside data; to decrypt call KMS <code>Decrypt</code> on the encrypted data key.</li>
+</ul>
+<div class="highlight"><pre><span></span><code> GenerateDataKey -&gt; [plaintext DEK, encrypted DEK(by CMK)]
+ encrypt(data, plaintext DEK) -&gt; ciphertext ; store ciphertext + encrypted DEK ; wipe plaintext DEK
+</code></pre></div>
+
+<ul>
+<li>Access = key policy (primary; required) + IAM policy (only if key policy allows) + grants. Cross-account use requires both key policy and IAM in caller. Quotas: request rate limits per region (shared; check docs) - S3 Bucket Keys reduce calls. Encryption context for extra AAD and audit.</li>
+<li>Keys are regional; deleting a key makes data unrecoverable.</li>
+</ul>
+<h3 id="secrets-manager-vs-ssm-parameter-store">Secrets Manager vs SSM Parameter Store</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Secrets Manager</th>
+<th>Parameter Store</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cost</td>
+<td>~$0.40/secret/month + API calls</td>
+<td>Standard free; Advanced (paid)</td>
+</tr>
+<tr>
+<td>Rotation</td>
+<td>built-in (Lambda) for RDS etc.</td>
+<td>none built in</td>
+</tr>
+<tr>
+<td>Size</td>
+<td>64 KB</td>
+<td>4 KB standard / 8 KB advanced</td>
+</tr>
+<tr>
+<td>Cross-region replication</td>
+<td>yes</td>
+<td>no</td>
+</tr>
+<tr>
+<td>Use</td>
+<td>DB creds, API keys needing rotation</td>
+<td>config, feature flags, non-rotating secrets</td>
+</tr>
+<tr>
+<td>Access via IAM; encrypt with KMS; inject into ECS tasks (<code>secrets</code> -&gt; env var) or Lambda via extension/SDK caching. Never put secrets in code, env var plaintext in IaC, or container images.</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="cognito">Cognito</h3>
+<ul>
+<li><strong>User Pools:</strong> user directory + auth (sign-up/in, MFA, social/SAML/OIDC federation, hosted UI), issues JWTs (ID, access, refresh). Use to authenticate app users to API Gateway/ALB.</li>
+<li><strong>Identity Pools (federated identities):</strong> exchange tokens (from user pool/Google/etc.) for temporary AWS credentials (STS) to access S3/DynamoDB directly from client.</li>
+<li>Alternatives: Auth0/Okta/Clerk, Keycloak. Gotcha: user pool attribute schemas immutable-ish; migration lock-in.</li>
+</ul>
+<h3 id="waf-and-shield">WAF and Shield</h3>
+<ul>
+<li><strong>WAF:</strong> L7 web ACL on CloudFront, ALB, API Gateway REST, AppSync, Cognito, App Runner; rules: managed rule groups (OWASP-like, bot control), rate-based rules, IP sets, geo match, regex, custom; count vs block modes; logs to S3/CloudWatch/Firehose; priced per ACL + rule + request.</li>
+<li><strong>Shield Standard:</strong> free automatic L3/L4 DDoS protection for all. <strong>Shield Advanced:</strong> ~$3,000/month (1-yr commitment, check docs), L7 DDoS protections with WAF, DRT support, cost protection for scaling charges.</li>
+<li>Also: Network Firewall, Firewall Manager, Security Groups, GuardDuty.</li>
+</ul>
+<hr />
+<h2 id="4-architecture-example-order-pipeline">4. Architecture example: order pipeline</h2>
+<div class="highlight"><pre><span></span><code> Client -&gt; API Gateway (HTTP API, Cognito JWT) -&gt; Lambda "create order" -&gt; DynamoDB
+                                                   \-&gt; EventBridge "OrderCreated"
+ EventBridge rules -&gt; SQS(payment) -&gt; worker (DLQ)      -&gt; SNS -&gt; email
+                  \-&gt; Step Functions (fulfilment saga: reserve stock -&gt; charge -&gt; ship, retries/catch)
+ Observability: CloudWatch logs/metrics/alarms, X-Ray; Audit: CloudTrail -&gt; S3 (org trail) ; Compliance: Config
+ Secrets: Secrets Manager (payment API key) ; Encryption: KMS CMK on DDB/SQS/S3
+</code></pre></div>
+
+<h2 id="5-boto3-illustrations">5. boto3 illustrations</h2>
+<div class="highlight"><pre><span></span><code><span class="n">sqs</span> <span class="o">=</span> <span class="n">boto3</span><span class="o">.</span><span class="n">client</span><span class="p">(</span><span class="s2">"sqs"</span><span class="p">)</span>
+<span class="n">sqs</span><span class="o">.</span><span class="n">send_message</span><span class="p">(</span><span class="n">QueueUrl</span><span class="o">=</span><span class="n">url</span><span class="p">,</span> <span class="n">MessageBody</span><span class="o">=</span><span class="s2">"</span><span class="si">{}</span><span class="s2">"</span><span class="p">,</span> <span class="n">MessageGroupId</span><span class="o">=</span><span class="s2">"cust-1"</span><span class="p">,</span> <span class="n">MessageDeduplicationId</span><span class="o">=</span><span class="s2">"evt-123"</span><span class="p">)</span>  <span class="c1"># FIFO</span>
+<span class="n">msgs</span> <span class="o">=</span> <span class="n">sqs</span><span class="o">.</span><span class="n">receive_message</span><span class="p">(</span><span class="n">QueueUrl</span><span class="o">=</span><span class="n">url</span><span class="p">,</span> <span class="n">MaxNumberOfMessages</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">WaitTimeSeconds</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"Messages"</span><span class="p">,</span> <span class="p">[])</span>
+<span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">msgs</span><span class="p">:</span>
+    <span class="o">...</span>  <span class="c1"># process idempotently</span>
+    <span class="n">sqs</span><span class="o">.</span><span class="n">delete_message</span><span class="p">(</span><span class="n">QueueUrl</span><span class="o">=</span><span class="n">url</span><span class="p">,</span> <span class="n">ReceiptHandle</span><span class="o">=</span><span class="n">m</span><span class="p">[</span><span class="s2">"ReceiptHandle"</span><span class="p">])</span>
+
+<span class="n">sm</span> <span class="o">=</span> <span class="n">boto3</span><span class="o">.</span><span class="n">client</span><span class="p">(</span><span class="s2">"secretsmanager"</span><span class="p">)</span>
+<span class="n">pw</span> <span class="o">=</span> <span class="n">sm</span><span class="o">.</span><span class="n">get_secret_value</span><span class="p">(</span><span class="n">SecretId</span><span class="o">=</span><span class="s2">"prod/db"</span><span class="p">)[</span><span class="s2">"SecretString"</span><span class="p">]</span>
+</code></pre></div>
+</article><div class="pager"><a class="prev" href="../../07-aws/week-04-networking/labs.html">← Week 4 · Networking: Labs</a><a class="next" href="../../07-aws/week-05-integration-ops-security/interview-qa.html">Week 5 · Integration, ops, security: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

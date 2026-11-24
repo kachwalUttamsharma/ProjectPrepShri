@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 2 (Python depth): Data model and memory | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="10-python-depth/week-02-data-model-and-memory/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../10-python-depth/week-01-functions-deep-dive/lesson.html">Python Depth</a> / <a href="../../10-python-depth/week-02-data-model-and-memory/lesson.html">Week 2 · Data model and memory</a> / <span>Lesson</span></nav><button id="mark-done" data-id="10-python-depth/week-02-data-model-and-memory/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-2-python-depth-data-model-and-memory">Week 2 (Python depth): Data model and memory</h1>
+<p>Goal: explain what Python does with objects, names, equality, hashing and memory, and use the standard-library data structures idiomatically. Budget ~8 hours: lesson + experiments (3h), exercises (4h), interview-qa (1h).</p>
+<h2 id="1-names-objects-references">1. Names, objects, references</h2>
+<p>A variable is a <strong>name bound to an object</strong>; assignment never copies.</p>
+<div class="highlight"><pre><span></span><code><span class="n">a</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">];</span> <span class="n">b</span> <span class="o">=</span> <span class="n">a</span><span class="p">;</span> <span class="n">b</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>   <span class="c1"># a is [1, 2, 3]: same object</span>
+<span class="n">a</span> <span class="ow">is</span> <span class="n">b</span>          <span class="c1"># identity (same object)</span>
+<span class="n">a</span> <span class="o">==</span> <span class="n">b</span>          <span class="c1"># equality (same value, via __eq__)</span>
+<span class="nb">id</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>           <span class="c1"># identity number (CPython: memory address)</span>
+</code></pre></div>
+
+<p>Use <code>is</code> only for singletons (<code>None</code>, <code>True</code>, <code>False</code>). Small ints and some strings are interned by CPython; never rely on <code>x is 256</code>.</p>
+<p>Arguments are passed "by assignment" (call by object reference): mutating a parameter affects the caller's object; rebinding it does not.</p>
+<p>Mutable: list, dict, set, bytearray, most classes. Immutable: int, float, str, tuple, frozenset, bytes. A tuple holding a list is immutable in shape but its list can change.</p>
+<h2 id="2-copying">2. Copying</h2>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">copy</span>
+<span class="n">b</span> <span class="o">=</span> <span class="n">a</span><span class="p">[:]</span>  <span class="o">/</span>  <span class="nb">list</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>  <span class="o">/</span>  <span class="n">a</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>   <span class="c1"># shallow: new outer, shared inner</span>
+<span class="n">c</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>                 <span class="c1"># recursive; handles cycles via memo</span>
+</code></pre></div>
+
+<p><code>[[0]*3]*3</code> makes three references to ONE row: use <code>[[0]*3 for _ in range(3)]</code>. Customise with <code>__copy__</code>/<code>__deepcopy__</code>.</p>
+<h2 id="3-hashing-and-equality">3. Hashing and equality</h2>
+<p>Dict keys and set members must be hashable: <code>hash(x)</code> stable for life, and <strong>equal objects must have equal hashes</strong>. Defining <code>__eq__</code> without <code>__hash__</code> sets <code>__hash__ = None</code> (unhashable). Mutable builtins (list, dict, set) are unhashable. Hash tables give O(1) average lookup; worst case O(n) with collisions.</p>
+<p>Comparison: return <code>NotImplemented</code> (not False) from <code>__eq__</code>/<code>__lt__</code> for foreign types so Python tries the reflected operation. <code>functools.total_ordering</code> fills in the rest from <code>__eq__</code> plus one ordering.</p>
+<h2 id="4-dict-internals-and-ordering">4. Dict internals and ordering</h2>
+<p>Since 3.7 dicts preserve insertion order (guaranteed). CPython uses a compact layout: a sparse index table plus a dense entries array. Resizing happens when ~2/3 full, so insertion is amortised O(1). Mutating a dict while iterating raises <code>RuntimeError</code>. Updating an existing key keeps its original position; deleting and re-adding moves it to the end. <code>d | other</code> merges (3.9+).</p>
+<h2 id="5-sorting">5. Sorting</h2>
+<p><code>sorted()</code> / <code>list.sort()</code> use Timsort: O(n log n), O(n) on nearly sorted data, and <strong>stable</strong> (equal keys keep input order). Use stability for multi-key sorts: sort by the least significant key first. <code>key=</code> is computed once per element. <code>reverse=True</code> preserves stability. <code>sorted</code> returns a new list; <code>.sort()</code> returns <code>None</code>.</p>
+<h2 id="6-__slots__-and-descriptors">6. <code>__slots__</code> and descriptors</h2>
+<p><code>__slots__ = ("x", "y")</code> replaces the per-instance <code>__dict__</code> with fixed slots: less memory, faster attribute access, no dynamic attributes. Gotchas: inheritance needs slots on each class to keep the benefit; no weak references unless <code>"__weakref__"</code> is listed.</p>
+<p>A <strong>descriptor</strong> is an object with <code>__get__</code>, <code>__set__</code> and/or <code>__delete__</code> stored on a class. It powers <code>property</code>, methods (functions are non-data descriptors), <code>classmethod</code>, <code>staticmethod</code>, and <code>__slots__</code>. Data descriptors (define <code>__set__</code>) take priority over instance <code>__dict__</code>; non-data ones do not. <code>__set_name__(self, owner, name)</code> tells the descriptor its attribute name. Rule of thumb: attribute lookup = data descriptor on type, then instance dict, then non-data descriptor/class attribute.</p>
+<h2 id="7-memory-management">7. Memory management</h2>
+<p>CPython frees most objects by <strong>reference counting</strong>: when the count hits zero, the object is freed immediately (deterministic, which is why <code>with</code> and <code>__del__</code> mostly behave predictably). Refcounting can't free <strong>cycles</strong> (a &lt;-&gt; b), so a generational cyclic <strong>garbage collector</strong> (<code>gc</code>) finds unreachable cycles. <code>weakref</code> references don't increase the count (caches, observers). <code>sys.getrefcount(x)</code> is always one higher than expected (the call's own argument). Other implementations (PyPy) don't use refcounting, so don't depend on timing. In free-threaded builds (3.13+ optional) refcounting is adapted, but the semantics you rely on stay the same.</p>
+<h2 id="8-collections">8. collections</h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Counter</code></td>
+<td>multiset counts, <code>.most_common(n)</code>, arithmetic between counters</td>
+</tr>
+<tr>
+<td><code>defaultdict(factory)</code></td>
+<td>auto-create missing values (<code>list</code>, <code>int</code>, <code>set</code>)</td>
+</tr>
+<tr>
+<td><code>deque(maxlen=)</code></td>
+<td>O(1) both ends, ring buffer, BFS queues (list.pop(0) is O(n))</td>
+</tr>
+<tr>
+<td><code>OrderedDict</code></td>
+<td><code>move_to_end</code>, <code>popitem(last=False)</code> (LRU caches); order-sensitive equality</td>
+</tr>
+<tr>
+<td><code>namedtuple</code></td>
+<td>lightweight immutable record, tuple-compatible</td>
+</tr>
+<tr>
+<td><code>ChainMap</code></td>
+<td>layered lookups (config overrides)</td>
+</tr>
+<tr>
+<td>Note <code>defaultdict</code> creates keys on read: <code>d[k]</code> inserts; <code>k in d</code> doesn't.</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="9-dataclasses">9. dataclasses</h2>
+<div class="highlight"><pre><span></span><code><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">P</span><span class="p">:</span>
+    <span class="n">x</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">y</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">tags</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>   <span class="c1"># never a bare mutable default</span>
+</code></pre></div>
+
+<p>Generates <code>__init__</code>, <code>__repr__</code>, <code>__eq__</code> (and <code>__hash__</code> when frozen+eq, <code>__lt__</code> etc. with <code>order=True</code>). <code>field(compare=False)</code>, <code>__post_init__</code> for validation, <code>kw_only=True</code>, <code>dataclasses.replace</code>, <code>asdict</code>. Compare with <code>namedtuple</code> (tuple semantics), <code>TypedDict</code> (typing only, runtime is a dict), and Pydantic (runtime validation, what FastAPI uses).</p>
+<h2 id="10-typing-essentials">10. typing essentials</h2>
+<p>Hints are not enforced at runtime; a checker (mypy/pyright) uses them.</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">first</span><span class="p">(</span><span class="n">xs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">T</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">T</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span> <span class="o">...</span>         <span class="c1"># Optional[T] == T | None</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Stack</span><span class="p">[</span><span class="n">T</span><span class="p">]:</span> <span class="o">...</span>                              <span class="c1"># 3.12+ syntax; or Generic[T] with TypeVar</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Closeable</span><span class="p">(</span><span class="n">Protocol</span><span class="p">):</span>                       <span class="c1"># structural typing ("duck typing" for checkers)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span> <span class="o">...</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">User</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span> <span class="nb">id</span><span class="p">:</span> <span class="nb">int</span><span class="p">;</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>        <span class="c1"># dict with known keys</span>
+</code></pre></div>
+
+<p><strong>Narrowing</strong>: <code>isinstance</code>, <code>is None</code>, truthiness, <code>match</code> narrow a union inside a branch. <code>Literal</code>, <code>Final</code>, <code>Callable[[int], str]</code>, <code>Any</code> (opt-out), <code>TypeGuard</code>. Python 3.14 evaluates annotations lazily (PEP 649), so forward references mostly just work.</p>
+<h2 id="11-enum">11. enum</h2>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Color</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span> <span class="n">RED</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">Color</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="n">Color</span><span class="p">[</span><span class="s2">"RED"</span><span class="p">],</span> <span class="n">Color</span><span class="o">.</span><span class="n">RED</span><span class="o">.</span><span class="n">name</span><span class="o">/.</span><span class="n">value</span>
+<span class="n">IntEnum</span>   <span class="c1"># compares equal to ints; StrEnum for strings; Flag for bitmasks; auto()</span>
+</code></pre></div>
+
+<p>Members are singletons: compare with <code>is</code>. Iteration order = definition order. Lookup by an unknown value raises <code>ValueError</code>, by name <code>KeyError</code>.</p>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li>Mutable default arguments / <code>[[]] * n</code> aliasing.</li>
+<li>Defining <code>__eq__</code> and forgetting hash consistency; mutating an object after using it as a dict key.</li>
+<li>Using <code>is</code> for value comparison; <code>is</code> vs <code>==</code> with strings/ints.</li>
+<li>Expecting <code>copy.copy</code> to isolate nested data.</li>
+<li>Sorting with <code>cmp</code>-style thinking: use <code>key=</code> (or <code>functools.cmp_to_key</code>).</li>
+<li>Asserting on <code>__del__</code> timing or <code>sys.getrefcount</code> values in tests.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, run <code>../../.venv/bin/pytest -q</code>, then answer <code>interview-qa.md</code> aloud without peeking.</p>
+</article><div class="pager"><a class="prev" href="../../10-python-depth/week-01-functions-deep-dive/test_exercises.py.html">← Week 1 · Functions deep dive: Tests (code)</a><a class="next" href="../../10-python-depth/week-02-data-model-and-memory/interview-qa.html">Week 2 · Data model and memory: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

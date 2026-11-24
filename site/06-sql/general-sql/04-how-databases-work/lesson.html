@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Part 04: How databases work | Study Hub</title><link rel="stylesheet" href="../../../assets/style.css"><link rel="stylesheet" href="../../../assets/pygments.css"></head>
+<body data-root="../../../" data-page-id="06-sql/general-sql/04-how-databases-work/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../../index.html">Home</a> / <a href="../../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../../06-sql/general-sql/README.html">General SQL</a> / <a href="../../../06-sql/general-sql/04-how-databases-work/lesson.html">Part 4 · How databases work</a> / <span>Lesson</span></nav><button id="mark-done" data-id="06-sql/general-sql/04-how-databases-work/lesson">Mark as done</button></div><article class="doc">
+<h1 id="part-04-how-databases-work">Part 04: How databases work</h1>
+<p>Goal: know what happens between <code>SELECT</code> and rows coming back, so you can read a plan, pick an index, and explain slow queries.
+Prerequisite: index basics and the SQLite plan introduction in <a href="../../week-04-schema-indexes-transactions/lesson.html">week-04 lesson</a> (sections "Indexes" and "Reading plans"). This part goes deeper and covers Postgres/MySQL.</p>
+<p>Legend: snippets marked <strong>(run)</strong> were executed here against <code>setup.sql</code> with SQLite 3.54. Snippets marked <strong>(not run here, verify)</strong> are Postgres/MySQL, where <code>psql</code>/<code>mysql</code> were not installed; plan output shown for them is <strong>illustrative</strong> and your numbers/format will differ. Version-dependent facts: check current docs.</p>
+<p>Setup: <code>sqlite3 :memory:</code> then <code>.read setup.sql</code> (500 customers, 5000 orders, 15000 items, no secondary indexes).</p>
+<h2 id="1-storage-pages-and-files">1. Storage: pages and files</h2>
+<p>Databases do not read single rows from disk. Data lives in fixed-size <strong>pages</strong> (blocks): Postgres 8 KB by default, InnoDB 16 KB by default, SQLite 4 KB by default (check current docs; configurable). A page holds many rows. A query's cost is mostly "how many pages must I touch, and are they in memory".</p>
+<ul>
+<li><strong>Buffer pool / shared buffers</strong>: RAM cache of pages. A cache hit costs microseconds; a miss costs a disk read (SSD ~100 us, spinning disk ~ms).</li>
+<li><strong>Heap vs clustered</strong>: Postgres stores rows in an unordered <strong>heap</strong>; every index (including the PK) points to a heap location (TID). InnoDB (MySQL) stores the table <em>as</em> the primary-key B-tree (<strong>clustered index</strong>); secondary indexes store the PK value, so a secondary lookup does a second descent through the PK tree. SQL Server can choose one clustered index per table. SQLite stores rowid tables as a B-tree keyed by rowid.</li>
+<li>Consequence: wide random PKs (random UUID v4) in a clustered engine cause page splits and poor locality; time-ordered keys (UUIDv7, bigint sequences) insert at the right edge.</li>
+</ul>
+<h2 id="2-b-tree-vs-lsm">2. B-tree vs LSM</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>B-tree (Postgres, MySQL InnoDB, SQLite, SQL Server, Oracle)</th>
+<th>LSM tree (RocksDB, Cassandra, ScyllaDB, LevelDB; MySQL via MyRocks)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Write path</td>
+<td>Find page, modify in place (after WAL write); may split pages</td>
+<td>Append to memtable + WAL, flush as immutable sorted files (SSTables)</td>
+</tr>
+<tr>
+<td>Read path</td>
+<td>Descend tree: O(log n) page reads, usually 3-4 levels</td>
+<td>Check memtable, then several levels; bloom filters skip files</td>
+</tr>
+<tr>
+<td>Write amplification</td>
+<td>Moderate (page rewrites, WAL)</td>
+<td>Compaction rewrites data repeatedly</td>
+</tr>
+<tr>
+<td>Read amplification</td>
+<td>Low</td>
+<td>Higher (multiple files)</td>
+</tr>
+<tr>
+<td>Range scans</td>
+<td>Excellent (leaf pages linked, sorted)</td>
+<td>Good, merge across files</td>
+</tr>
+<tr>
+<td>Strength</td>
+<td>Read-heavy and mixed OLTP, predictable latency</td>
+<td>Very high write throughput, ingest, time-series</td>
+</tr>
+<tr>
+<td>A B-tree with fan-out of hundreds means 3-4 page reads find a row among hundreds of millions.</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="3-wal-write-ahead-log-and-durability">3. WAL (write-ahead log) and durability</h2>
+<p>Rule: <strong>log the change before changing the data page</strong>. On COMMIT the database fsyncs the WAL (sequential, cheap) rather than all dirty data pages (random, expensive). Dirty pages are written later by a background writer/checkpoint.</p>
+<ul>
+<li>Crash recovery: replay WAL from the last checkpoint (redo), roll back uncommitted work.</li>
+<li>Names: Postgres WAL; InnoDB redo log (plus undo log for rollback/MVCC) and binlog at the server layer; SQLite WAL mode (<code>PRAGMA journal_mode=WAL</code>) or rollback journal; SQL Server transaction log.</li>
+<li>The WAL is also the basis for replication and point-in-time recovery (see part 05).</li>
+<li>Durability knobs trade safety for speed: Postgres <code>synchronous_commit</code>, InnoDB <code>innodb_flush_log_at_trx_commit</code>, SQLite <code>PRAGMA synchronous</code>. Check current docs for defaults.</li>
+</ul>
+<h2 id="4-mvcc-multi-version-concurrency-control">4. MVCC (multi-version concurrency control)</h2>
+<p>Readers should not block writers. Each row has versions; a transaction sees a <strong>snapshot</strong> of versions committed before it (or its statement) started.</p>
+<ul>
+<li><strong>Postgres</strong>: an UPDATE writes a <em>new row version</em> into the heap and marks the old one dead (xmin/xmax transaction ids). Dead versions pile up until <strong>VACUUM</strong> reclaims them (autovacuum). Symptoms of neglect: table/index bloat, slow scans. Long-running transactions hold back cleanup.</li>
+<li><strong>MySQL InnoDB</strong>: updates change the row in place; old versions are rebuilt from the <strong>undo log</strong>. A very long transaction makes the undo/history list grow.</li>
+<li><strong>SQLite</strong>: single writer at a time; WAL mode lets readers proceed during a write.</li>
+<li>Writers still block writers on the same row (row locks). Isolation details: part 05.
+Experiment <strong>(run)</strong> - snapshot reading in SQLite needs two connections, so try it in two terminals with a file DB and <code>PRAGMA journal_mode=WAL;</code>.</li>
+</ul>
+<h2 id="5-what-the-planner-does">5. What the planner does</h2>
+<p>Pipeline: parse -&gt; rewrite (views expanded) -&gt; <strong>plan/optimize</strong> -&gt; execute. The optimizer is <strong>cost-based</strong>: it enumerates plans (access paths, join order, join algorithm), estimates cost from <strong>statistics</strong>, and picks the cheapest estimate.</p>
+<ul>
+<li><strong>Statistics</strong>: row counts, distinct counts, value histograms, most-common values, correlation. Postgres: <code>ANALYZE</code> (autovacuum runs it), view <code>pg_stats</code>, <code>default_statistics_target</code>, extended stats via <code>CREATE STATISTICS</code> for correlated columns. MySQL: <code>ANALYZE TABLE</code>, persistent stats, optional histograms (8.0+; check current docs). SQLite: <code>ANALYZE</code> fills <code>sqlite_stat1</code>.</li>
+<li><strong>Selectivity</strong>: fraction of rows a predicate matches. Low selectivity (matches most rows) -&gt; scanning beats an index. The planner can pick a sequential scan on purpose even when an index exists.</li>
+<li>Bad plans usually come from bad estimates: stale stats, correlated columns, skewed values, functions/casts hiding columns, parameters (generic plans; check current docs on <code>plan_cache_mode</code>).</li>
+<li>Hints exist in MySQL (<code>USE INDEX</code>, optimizer hints) and SQL Server; Postgres core has none (extensions like pg_hint_plan). Prefer fixing stats/indexes first.</li>
+</ul>
+<h2 id="6-reading-explain">6. Reading EXPLAIN</h2>
+<h3 id="sqlite-run">SQLite (run)</h3>
+<div class="highlight"><pre><span></span><code>sqlite&gt; EXPLAIN QUERY PLAN SELECT * FROM orders WHERE customer_id = 42;
+`--SCAN orders
+sqlite&gt; CREATE INDEX idx_orders_customer ON orders(customer_id);
+sqlite&gt; EXPLAIN QUERY PLAN SELECT * FROM orders WHERE customer_id = 42;
+`--SEARCH orders USING INDEX idx_orders_customer (customer_id=?)
+</code></pre></div>
+
+<p>Vocabulary: <code>SCAN</code> = read whole table (or whole index); <code>SEARCH ... (col=?)</code> = B-tree lookup; <code>COVERING INDEX</code> = answered from the index alone; <code>USE TEMP B-TREE FOR ORDER BY</code> = an explicit sort.</p>
+<h3 id="postgres-not-run-here-verify-illustrative-output">Postgres (not run here, verify; illustrative output)</h3>
+<p><code>EXPLAIN</code> shows the chosen plan with estimates only. <code>EXPLAIN (ANALYZE, BUFFERS)</code> <strong>executes the query</strong> (wrap writes in a transaction you roll back) and adds actuals.</p>
+<div class="highlight"><pre><span></span><code><span class="k">EXPLAIN</span><span class="w"> </span><span class="p">(</span><span class="k">ANALYZE</span><span class="p">,</span><span class="w"> </span><span class="n">BUFFERS</span><span class="p">)</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">customer_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">42</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>-- illustrative, not run here
+Index Scan using idx_orders_customer on orders  (cost=0.28..12.5 rows=10 width=40)
+                                                (actual time=0.03..0.05 rows=10 loops=1)
+  Index Cond: (customer_id = 42)
+  Buffers: shared hit=4
+Planning Time: 0.1 ms
+Execution Time: 0.08 ms
+</code></pre></div>
+
+<p>How to read:</p>
+<ul>
+<li>Read the tree <strong>inside-out</strong>: the most indented node runs first and feeds its parent.</li>
+<li><code>cost=startup..total</code> is in arbitrary planner units, not milliseconds. <code>rows</code> is the <em>estimate</em>; <code>actual rows</code> is reality. <strong>A large gap between them (10x+) is the first thing to look for</strong>: it means stale or insufficient stats.</li>
+<li><code>loops=N</code>: actual time and rows are <strong>per loop</strong>; multiply for totals (key for nested loops).</li>
+<li>Node types: <code>Seq Scan</code>, <code>Index Scan</code>, <code>Index Only Scan</code> (needs visibility map; vacuum helps), <code>Bitmap Heap Scan</code> + <code>Bitmap Index Scan</code> (many matches, sort heap visits), <code>Nested Loop</code>, <code>Hash Join</code>, <code>Merge Join</code>, <code>Sort</code>, <code>HashAggregate</code>, <code>Gather</code> (parallel).</li>
+<li><code>Rows Removed by Filter: 99000</code> on a Seq Scan means a lot of wasted reads -&gt; index candidate.</li>
+<li><code>Buffers: shared hit</code> (cache) vs <code>read</code> (disk). <code>Sort Method: external merge Disk:</code> means <code>work_mem</code> too small for that sort.</li>
+</ul>
+<h3 id="mysql-not-run-here-verify-illustrative-output">MySQL (not run here, verify; illustrative output)</h3>
+<div class="highlight"><pre><span></span><code><span class="k">EXPLAIN</span><span class="w"> </span><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">customer_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">42</span><span class="p">;</span>
+<span class="k">EXPLAIN</span><span class="w"> </span><span class="k">ANALYZE</span><span class="w"> </span><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">customer_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">42</span><span class="p">;</span><span class="w">   </span><span class="c1">-- 8.0.18+, executes; check current docs</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>-- illustrative, not run here
++----+-------------+--------+------+---------------------+---------------------+---------+-------+------+-------+
+| id | select_type | table  | type | possible_keys       | key                 | key_len | ref   | rows | Extra |
+| 1  | SIMPLE      | orders | ref  | idx_orders_customer | idx_orders_customer | 4       | const | 10   | NULL  |
+</code></pre></div>
+
+<p>Key columns: <code>type</code> from best to worst: <code>system/const</code> &gt; <code>eq_ref</code> &gt; <code>ref</code> &gt; <code>range</code> &gt; <code>index</code> (full index scan) &gt; <code>ALL</code> (full table scan). <code>key</code> = index actually chosen; <code>rows</code> = estimate; <code>Extra</code>: <code>Using index</code> (covering), <code>Using filesort</code> (explicit sort, may not touch disk despite the name), <code>Using temporary</code>, <code>Using where</code>, <code>Using index condition</code>. <code>EXPLAIN FORMAT=TREE</code> / <code>EXPLAIN ANALYZE</code> give a tree like Postgres.</p>
+<h2 id="7-index-types">7. Index types</h2>
+<p>(Index basics: week-04.) Beyond a plain B-tree:
+| Type | Where | Good for | Notes |
+|---|---|---|---|
+| B-tree | all | <code>=</code>, ranges, <code>ORDER BY</code>, prefix <code>LIKE 'abc%'</code> | default everywhere |
+| Hash | Postgres (<code>USING hash</code>), MySQL MEMORY/NDB, InnoDB adaptive hash (internal) | equality only | no range/sort; crash-safe in Postgres since 10 |
+| GIN | Postgres | many keys per row: JSONB <code>@&gt;</code>, arrays, full text <code>tsvector</code>, trigram <code>pg_trgm</code> for <code>LIKE '%x%'</code> | slower writes, fast contains-queries |
+| GiST / SP-GiST | Postgres | geometry (PostGIS), ranges, nearest-neighbour, exclusion constraints | |
+| BRIN | Postgres | huge naturally-ordered tables (timestamps in append-only logs) | tiny, coarse |
+| Full-text / Spatial | MySQL <code>FULLTEXT</code>, <code>SPATIAL</code> | text search, geo | |
+| Composite | all | multi-column predicates | <strong>leftmost-prefix rule</strong>: <code>(a,b,c)</code> serves <code>a</code>, <code>a,b</code>, <code>a,b,c</code>; not <code>b</code> alone. Equality columns first, then range, order matches <code>ORDER BY</code> |
+| Covering | Postgres <code>INCLUDE (cols)</code>; SQL Server <code>INCLUDE</code>; MySQL/SQLite: put columns in the key | avoid table visits | |
+| Partial (filtered) | Postgres, SQLite, SQL Server; <strong>not MySQL</strong> | index only the rows you query (<code>WHERE status='pending'</code>) | small and fast |
+| Functional / expression | Postgres, SQLite, MySQL 8.0.13+ | <code>WHERE lower(email)=...</code> | query expression must match exactly |
+| Unique | all | enforce + lookup | |</p>
+<p>Verified in SQLite <strong>(run)</strong>:</p>
+<div class="highlight"><pre><span></span><code>-- covering: composite index contains everything the query needs
+CREATE INDEX idx_orders_cust_total ON orders(customer_id, total_cents);
+EXPLAIN QUERY PLAN SELECT SUM(total_cents) FROM orders WHERE customer_id = 42;
+`--SEARCH orders USING COVERING INDEX idx_orders_cust_total (customer_id=?)
+
+-- functional index
+EXPLAIN QUERY PLAN SELECT * FROM customers WHERE lower(email) = 'user7@example.com';
+`--SCAN customers
+CREATE INDEX idx_cust_lower_email ON customers(lower(email));
+`--SEARCH customers USING INDEX idx_cust_lower_email (&lt;expr&gt;=?)
+
+-- partial index (on a fresh DB with only this index)
+CREATE INDEX ip ON orders(created_at) WHERE status='pending';
+EXPLAIN QUERY PLAN SELECT id FROM orders WHERE status='pending' AND created_at &gt; '2024-12-01';
+`--SEARCH orders USING COVERING INDEX ip (created_at&gt;?)
+
+-- ORDER BY ... LIMIT served by index order: no sort
+before:  |--SCAN orders
+         `--USE TEMP B-TREE FOR ORDER BY
+after CREATE INDEX i1 ON orders(created_at):
+         `--SCAN orders USING COVERING INDEX i1
+</code></pre></div>
+
+<p>Leading-wildcard <code>LIKE '%99@example.com'</code> cannot use a B-tree (it scans). In Postgres use <code>pg_trgm</code> + GIN; in MySQL use FULLTEXT or reverse-string tricks.</p>
+<p>Index costs: every index slows INSERT/UPDATE/DELETE, uses disk/RAM, and may be unused. Find unused ones (<code>pg_stat_user_indexes.idx_scan</code>, MySQL <code>sys.schema_unused_indexes</code>; not run here, verify).</p>
+<h2 id="8-join-algorithms">8. Join algorithms</h2>
+<table>
+<thead>
+<tr>
+<th>Algorithm</th>
+<th>How</th>
+<th>Best when</th>
+<th>Needs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Nested loop</td>
+<td>for each outer row, probe inner</td>
+<td>outer small, inner indexed on join key</td>
+<td>index on inner join column</td>
+</tr>
+<tr>
+<td>Hash join</td>
+<td>build hash table on smaller input, probe with the other</td>
+<td>large unsorted inputs, equality joins</td>
+<td>memory (<code>work_mem</code> / <code>join_buffer_size</code>)</td>
+</tr>
+<tr>
+<td>Merge (sort-merge) join</td>
+<td>sort both on key, walk together</td>
+<td>both inputs already sorted (index order) or huge; also handles ranges</td>
+<td>sort or ordered indexes</td>
+</tr>
+<tr>
+<td>Postgres has all three. MySQL used nested loop (with block-nested-loop) historically and added hash join in 8.0.18 (check current docs); no merge join. SQLite uses nested loops (sometimes with an automatic index or Bloom filter).</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>SQLite <strong>(run)</strong> - join with no index on <code>orders.customer_id</code>, then with it:</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code>|--SCAN o
+|--BLOOM FILTER ON c (id=?)
+`--SEARCH c USING INTEGER PRIMARY KEY (rowid=?)
+-- after CREATE INDEX io ON orders(customer_id):
+|--SCAN c
+`--SEARCH o USING INDEX io (customer_id=?)
+</code></pre></div>
+
+<p>Notice the planner flipped join order: it starts from the filtered table (<code>c.country='US'</code>) and probes the indexed side. Join order is the planner's decision, not the order you wrote (for inner joins).</p>
+<h2 id="9-n1-queries">9. N+1 queries</h2>
+<p>Pattern: 1 query fetches N parents, then N queries fetch children one by one (typical ORM lazy loading).</p>
+<div class="highlight"><pre><span></span><code><span class="n">orders</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT id FROM orders WHERE customer_id=42"</span><span class="p">)</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>   <span class="c1"># 1</span>
+<span class="k">for</span> <span class="p">(</span><span class="n">oid</span><span class="p">,)</span> <span class="ow">in</span> <span class="n">orders</span><span class="p">:</span>
+    <span class="n">db</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT * FROM order_items WHERE order_id=?"</span><span class="p">,</span> <span class="p">(</span><span class="n">oid</span><span class="p">,))</span>             <span class="c1"># N</span>
+</code></pre></div>
+
+<p>Each query is fast, yet network round trips (~0.2-2 ms each) dominate: 10,000 parents = 10,000 trips. Fixes:</p>
+<ol>
+<li><strong>JOIN</strong> (one query, aggregate or flatten): <code>SELECT o.id, COUNT(i.id) FROM orders o LEFT JOIN order_items i ON i.order_id=o.id WHERE o.customer_id=42 GROUP BY o.id;</code></li>
+<li><strong>Batch</strong>: <code>WHERE order_id IN (...)</code> / <code>= ANY(array)</code> (2 queries total; ORM "eager/select-in loading").</li>
+<li>Ensure an index on the FK (<code>order_items.order_id</code>) - databases other than MySQL InnoDB do not create FK indexes automatically (InnoDB does).
+Detect: query logs showing identical statements differing only in a parameter; ORM query counters; <code>pg_stat_statements</code> with huge <code>calls</code>.</li>
+</ol>
+<h2 id="10-common-slow-query-fixes-checklist">10. Common slow-query fixes (checklist)</h2>
+<ol>
+<li><code>EXPLAIN</code> first; compare estimated vs actual rows.</li>
+<li><strong>Sargable predicates</strong>: don't wrap the column. <code>WHERE date(created_at)='2024-06-01'</code> -&gt; <code>WHERE created_at &gt;= '2024-06-01' AND created_at &lt; '2024-06-02'</code>. <code>WHERE col+1=5</code> -&gt; <code>col=4</code>. Implicit casts (comparing varchar column to number) can disable indexes.</li>
+<li>Add/adjust composite index to match filter + sort (equality cols, then range, then order).</li>
+<li>Select only needed columns; enable covering indexes.</li>
+<li><code>OFFSET 100000</code> is O(offset): use <strong>keyset pagination</strong> (<code>WHERE (created_at,id) &lt; (?,?) ORDER BY created_at DESC,id DESC LIMIT 10</code>; row-value syntax works in SQLite, Postgres, MySQL).</li>
+<li><code>SELECT COUNT(*)</code> on huge tables is a scan (MVCC); use estimates or counters when exact is not needed.</li>
+<li><code>OR</code> across different columns and <code>NOT IN</code> with NULLs hurt; use <code>UNION ALL</code> / <code>NOT EXISTS</code>.</li>
+<li>Correlated subqueries -&gt; joins or window functions (planners often, not always, decorrelate).</li>
+<li>Refresh stats (<code>ANALYZE</code>), vacuum/bloat, enough memory (<code>work_mem</code>, buffer pool).</li>
+<li>Stop N+1; batch writes (multi-row INSERT, <code>COPY</code>/<code>LOAD DATA</code>) and wrap in one transaction.</li>
+<li>Find the real offenders first: Postgres <code>pg_stat_statements</code>, MySQL slow query log / <code>performance_schema</code>, <code>auto_explain</code> (check current docs).</li>
+<li>Still slow: denormalise, materialized view, cache, partition, or read replica (parts 03, 05, 06).</li>
+</ol>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li>Adding an index for every column "just in case".</li>
+<li>Trusting <code>EXPLAIN</code> without <code>ANALYZE</code> on estimates that are wrong.</li>
+<li>Reading <code>EXPLAIN ANALYZE</code> of an <code>UPDATE</code>/<code>DELETE</code> and forgetting it really ran.</li>
+<li>Assuming a seq scan is always bad (small tables, or low-selectivity predicates, it is right).</li>
+<li>Testing on tiny data: plans change with row counts.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p><code>practice.sql</code> after <code>.read setup.sql</code>. Solutions are kept outside the repo; attempt first, then compare with your own plan output.</p>
+</article><div class="pager"><a class="prev" href="../../../06-sql/general-sql/03-objects-programmability/practice.sql.html">← Part 3 · Objects and programmability: practice.sql (code)</a><a class="next" href="../../../06-sql/general-sql/04-how-databases-work/interview-qa.html">Part 4 · How databases work: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../../assets/data.js"></script><script src="../../../assets/app.js"></script></body></html>

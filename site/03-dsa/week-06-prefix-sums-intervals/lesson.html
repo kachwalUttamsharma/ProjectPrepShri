@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 6: Prefix sums and intervals | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-06-prefix-sums-intervals/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-06-prefix-sums-intervals/lesson.html">Week 6 · Prefix sums and intervals</a> / <span>Lesson</span></nav><button id="mark-done" data-id="03-dsa/week-06-prefix-sums-intervals/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-6-prefix-sums-and-intervals">Week 6: Prefix sums and intervals</h1>
+<h2 id="part-a-prefix-sums">Part A: Prefix sums</h2>
+<h3 id="1-the-idea">1. The idea</h3>
+<p>Pay O(n) once to precompute <code>prefix[i] = nums[0] + ... + nums[i-1]</code> (with <code>prefix[0] = 0</code>).
+Then any range sum is O(1):</p>
+<div class="highlight"><pre><span></span><code>sum(nums[l..r]) = prefix[r + 1] - prefix[l]
+</code></pre></div>
+
+<p>The leading 0 removes the "if l == 0" special case. Always use length n + 1.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">itertools</span><span class="w"> </span><span class="kn">import</span> <span class="n">accumulate</span>
+<span class="n">prefix</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="o">*</span><span class="n">accumulate</span><span class="p">(</span><span class="n">nums</span><span class="p">)]</span>
+</code></pre></div>
+
+<h3 id="2-recognise-it">2. Recognise it</h3>
+<ul>
+<li>Many range-sum queries on a static array.</li>
+<li>"Number of / longest subarray with sum = k" where values can be <strong>negative</strong> (sliding window
+  fails, because extending the window does not move the sum in one direction).</li>
+<li>"Everything except me" (product / sum of others) and "balance point" problems.</li>
+<li>Equal counts of two things (map 0 -&gt; -1, then look for sum 0).</li>
+</ul>
+<h3 id="3-prefix-sum-hash-map-the-key-interview-pattern">3. Prefix sum + hash map (the key interview pattern)</h3>
+<p><code>sum(i..j) == k</code>  &lt;=&gt;  <code>prefix[j+1] - prefix[i] == k</code>  &lt;=&gt;  <code>prefix[i] == prefix[j+1] - k</code>.
+While scanning, keep a dict of how often each prefix value has appeared:</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">count_subarrays</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+    <span class="n">seen</span> <span class="o">=</span> <span class="p">{</span><span class="mi">0</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>           <span class="c1"># empty prefix, forgetting this loses subarrays starting at index 0</span>
+    <span class="n">cur</span> <span class="o">=</span> <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">nums</span><span class="p">:</span>
+        <span class="n">cur</span> <span class="o">+=</span> <span class="n">x</span>
+        <span class="n">count</span> <span class="o">+=</span> <span class="n">seen</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">cur</span> <span class="o">-</span> <span class="n">k</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>   <span class="c1"># look up BEFORE inserting cur</span>
+        <span class="n">seen</span><span class="p">[</span><span class="n">cur</span><span class="p">]</span> <span class="o">=</span> <span class="n">seen</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">cur</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">count</span>
+</code></pre></div>
+
+<p>For the LONGEST such subarray store the FIRST index of each prefix instead of a count.</p>
+<h3 id="4-other-variants">4. Other variants</h3>
+<ul>
+<li><strong>Prefix/suffix products</strong> (<code>product_except_self</code>): result[i] = prefix_product[i] * suffix_product[i+1].
+  No division, so zeros are fine.</li>
+<li><strong>Difference array</strong> (<code>range_addition</code>): to add <code>inc</code> to <code>[s, e]</code> do <code>diff[s] += inc;
+  diff[e+1] -= inc</code>; one prefix sum at the end applies all updates. O(n + q) instead of O(n*q).
+  Inverse of prefix sum: prefix sum of the difference array gives the original.</li>
+<li><strong>2D prefix sums</strong>: <code>P[i][j]</code> sum of the rectangle from the origin; query by
+  inclusion-exclusion (4 lookups). Same idea.</li>
+</ul>
+<h2 id="part-b-intervals">Part B: Intervals</h2>
+<h3 id="5-core-move-sort-first">5. Core move: SORT first</h3>
+<p>Nearly every interval problem becomes a single sweep after sorting. Decide what to sort by:</p>
+<ul>
+<li><strong>Sort by start</strong> for merging, inserting, rooms: you look at the previous result's end.</li>
+<li><strong>Sort by end</strong> for the greedy "keep as many non-overlapping as possible"
+  (<code>erase_overlap_intervals</code>): finishing earliest leaves the most room. Sorting by start here
+  is a classic wrong answer.</li>
+</ul>
+<p>Two intervals <code>[a, b]</code>, <code>[c, d]</code> overlap iff <code>max(a, c) &lt;= min(b, d)</code> (closed intervals). For
+half-open <code>[a, b)</code> use <code>&lt;</code>. Ask the interviewer whether touching endpoints count as overlap.</p>
+<h3 id="6-templates">6. Templates</h3>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">merge</span><span class="p">(</span><span class="n">intervals</span><span class="p">):</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">intervals</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">res</span> <span class="ow">and</span> <span class="n">s</span> <span class="o">&lt;=</span> <span class="n">res</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]:</span>
+            <span class="n">res</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">res</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span> <span class="n">e</span><span class="p">)</span>   <span class="c1"># max: the new one may be contained</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">res</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">s</span><span class="p">,</span> <span class="n">e</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">res</span>
+</code></pre></div>
+
+<p>Meeting rooms (count concurrent): sweep with sorted starts and sorted ends, or a min-heap of end
+times (<code>heapq</code>; pop the earliest end if it is &lt;= the new start).
+Intersection of two sorted lists: two pointers, <code>lo = max(starts)</code>, <code>hi = min(ends)</code>; advance
+the pointer whose interval ends first.</p>
+<h3 id="7-complexity">7. Complexity</h3>
+<table>
+<thead>
+<tr>
+<th>Technique</th>
+<th>Time</th>
+<th>Space</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Build prefix / query</td>
+<td>O(n) / O(1)</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>Prefix + hash map count</td>
+<td>O(n)</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>Difference array</td>
+<td>O(n + q)</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>Sort + sweep intervals</td>
+<td>O(n log n)</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>Two sorted interval lists</td>
+<td>O(m + n)</td>
+<td>O(1) extra</td>
+</tr>
+</tbody>
+</table>
+<h3 id="8-common-mistakes">8. Common mistakes</h3>
+<ul>
+<li>Off-by-one with the prefix array: it has n + 1 entries, query is <code>prefix[r+1] - prefix[l]</code>.</li>
+<li>Forgetting <code>{0: 1}</code> in the hash-map version, or inserting the current prefix BEFORE looking
+  up (counts the empty subarray when k = 0).</li>
+<li>Using a sliding window for sums with negatives.</li>
+<li>Merge: writing <code>res[-1][1] = e</code> instead of <code>max(...)</code> when the new interval is contained.</li>
+<li>Mutating the input intervals while merging (copy if the caller reuses them).</li>
+<li>Wrong sort key for the greedy removal problem.</li>
+<li>Treating touching intervals inconsistently across problems; read the statement.</li>
+</ul>
+<h3 id="9-interview-tips">9. Interview tips</h3>
+<ul>
+<li>Say "I will precompute prefix sums so each query is O(1)" and mention extra O(n) memory.</li>
+<li>For subarray-sum counting, explain the identity prefix[j] - prefix[i] = k out loud.</li>
+<li>Updates + queries interleaved? Prefix sums are static: mention Fenwick tree / segment tree
+  as the follow-up (point update O(log n)).</li>
+<li>For intervals, draw them on a number line; list edge cases: empty, one interval, fully
+  nested, identical, touching, unsorted input.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run <code>pytest -q</code> in this folder. ~2 hrs on the templates (derive the
+prefix-sum identities by hand), ~5 hrs on problems.</p>
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-05-sliding-window/test_exercises.py.html">← Week 5 · Sliding window: Tests (code)</a><a class="next" href="../../03-dsa/week-06-prefix-sums-intervals/exercises.py.html">Week 6 · Prefix sums and intervals: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Spark cheatsheet | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="14-data-engineering/week-02-spark/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../14-data-engineering/week-02-spark/lesson.html">Week 2 · Spark</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="14-data-engineering/week-02-spark/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="spark-cheatsheet">Spark cheatsheet</h1>
+<p><strong>Architecture</strong>: driver (plan, schedule) -&gt; cluster manager (YARN/K8s/standalone) -&gt; executors (tasks, cache, shuffle files). 1 task = 1 partition on 1 core.</p>
+<p><strong>Lazy</strong>: transformations build a plan; actions (<code>count</code>, <code>collect</code>, <code>write</code>, <code>show</code>) run a job. Unused branches never run.</p>
+<p><strong>Narrow</strong> (no shuffle): map, filter, select, withColumn, union, coalesce, mapPartitions.
+<strong>Wide</strong> (shuffle): groupBy, join, distinct, orderBy, repartition, window with partitionBy.
+Stages = shuffle boundaries + 1. Tasks per stage = partitions.</p>
+<p><strong>Partitions</strong>: shuffle partitions <code>spark.sql.shuffle.partitions</code> (200 default). Target 100-200 MB each, 2-4x cores. <code>repartition</code> = shuffle, up or down. <code>coalesce</code> = no shuffle, down only.</p>
+<p><strong>Joins</strong>: broadcast (small side &lt; threshold, no shuffle) &gt; sort-merge (default large/large) &gt; shuffle hash. Hint with <code>broadcast(df)</code>. Verify with <code>explain()</code>.</p>
+<p><strong>Skew</strong>: UI shows few straggler tasks. Fix: AQE skew join, broadcast, isolate hot/null keys, salt (N salts big side, replicate small x N), two-phase aggregation.</p>
+<p><strong>Cache</strong>: <code>cache()</code> = MEMORY_AND_DISK for DataFrames; only for reused data; <code>unpersist()</code>. Lazy: first action fills it.</p>
+<p><strong>Catalyst</strong> optimizes (pushdown, pruning); <strong>Tungsten</strong> executes (binary format, codegen). Prefer DataFrame/SQL over RDD.</p>
+<p><strong>UDF</strong>: built-in &gt; pandas UDF (Arrow) &gt; Python UDF (row at a time, opaque).</p>
+<p><strong>OOM</strong>: driver (collect/toPandas/big broadcast) vs executor (skew, few partitions, overhead too small). Spill = degraded but alive.</p>
+<p><strong>Small files</strong>: coalesce before write, compaction, AQE, avoid high-cardinality partitionBy.</p>
+<p><strong>Config knobs</strong> (check current docs): <code>spark.sql.adaptive.enabled</code>, <code>spark.sql.adaptive.skewJoin.enabled</code>, <code>spark.sql.autoBroadcastJoinThreshold</code>, <code>spark.sql.files.maxPartitionBytes</code>, <code>spark.executor.memoryOverhead</code>.</p>
+<p><strong>Debug loop</strong>: slow stage -&gt; task min/median/max -&gt; skew? spill? shuffle read? -&gt; SQL tab plan -&gt; fix.</p>
+</article><div class="pager"><a class="prev" href="../../14-data-engineering/week-02-spark/interview-qa.html">← Week 2 · Spark: Interview Q&amp;A</a><a class="next" href="../../14-data-engineering/week-02-spark/exercises.py.html">Week 2 · Spark: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

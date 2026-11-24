@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 3 interview Q&amp;A: concurrency | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="10-python-depth/week-03-concurrency/interview-qa" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../10-python-depth/week-01-functions-deep-dive/lesson.html">Python Depth</a> / <a href="../../10-python-depth/week-03-concurrency/lesson.html">Week 3 · Concurrency</a> / <span>Interview Q&amp;A</span></nav><button id="mark-done" data-id="10-python-depth/week-03-concurrency/interview-qa">Mark as done</button></div><article class="doc">
+<h1 id="week-3-interview-qa-concurrency">Week 3 interview Q&amp;A: concurrency</h1>
+<p><strong>1. What is the GIL and why does it exist?</strong>
+A mutex in CPython so only one thread runs Python bytecode at a time. It protects the interpreter's internals, mainly reference counting, and makes single-threaded code and C extensions simple and fast. It limits CPU parallelism in threads, not I/O concurrency.</p>
+<p><strong>2. Do threads help in Python?</strong>
+Yes for I/O-bound work: the GIL is released while blocked on I/O and in many C extensions (numpy, hashlib, zlib). No for CPU-bound pure-Python code; use processes. Free-threaded builds (3.13+, experimental) remove this limit.</p>
+<p><strong>3. Threading vs multiprocessing vs asyncio: when each?</strong>
+CPU-bound -&gt; multiprocessing (true parallelism, costs: startup, pickling, memory). I/O-bound with async-capable libs and many connections -&gt; asyncio (cheap, single thread, explicit await points). I/O-bound with blocking libs -&gt; threads.</p>
+<p><strong>4. Does the GIL make my code thread-safe?</strong>
+No. Individual bytecodes are atomic, but <code>x += 1</code> or check-then-act spans several, so threads can interleave. Use locks, queues, or immutable data.</p>
+<p><strong>5. What is a race condition? Give an example and a fix.</strong>
+Outcome depends on scheduling. Two threads doing <code>counter += 1</code> (load, add, store) can lose updates. Fix: <code>with lock:</code> around the read-modify-write, or funnel updates through a single thread/queue.</p>
+<p><strong>6. What is a deadlock and how do you avoid it?</strong>
+Threads each hold a lock the other needs. Avoid with a global lock ordering, holding as few locks as possible, <code>acquire(timeout=...)</code>, or avoiding shared locks via message passing. <code>Lock</code> re-acquired by the same thread also deadlocks; use <code>RLock</code> if needed.</p>
+<p><strong>7. Lock vs RLock vs Semaphore vs Event vs Condition?</strong>
+Lock: mutual exclusion, one holder. RLock: reentrant for the owning thread. Semaphore: up to N holders (limit concurrency). Event: boolean flag threads wait on (<code>set</code>/<code>wait</code>). Condition: wait until a predicate becomes true, with a lock.</p>
+<p><strong>8. How does the queue module help?</strong>
+<code>queue.Queue</code> is thread-safe and blocking, enabling producer/consumer without explicit locks. <code>maxsize</code> gives backpressure, <code>task_done</code>/<code>join</code> track completion, sentinels (<code>None</code>) signal shutdown. <code>PriorityQueue</code> and <code>LifoQueue</code> variants exist.</p>
+<p><strong>9. Explain concurrent.futures.</strong>
+High-level executors (<code>ThreadPoolExecutor</code>, <code>ProcessPoolExecutor</code>) with <code>submit</code> -&gt; <code>Future</code> and <code>map</code>. <code>Future.result()</code> blocks and re-raises worker exceptions. <code>as_completed</code> yields futures as they finish; <code>map</code> preserves input order. Same API lets you swap threads for processes.</p>
+<p><strong>10. What is the asyncio event loop?</strong>
+A single-threaded scheduler that runs ready callbacks/coroutines and uses OS I/O multiplexing (epoll/kqueue) to wake coroutines when sockets are ready. Coroutines yield control only at <code>await</code>, so it is cooperative multitasking.</p>
+<p><strong>11. Coroutine vs Task vs Future?</strong>
+Coroutine: object from calling <code>async def</code>; inert until awaited. Task: wraps a coroutine and schedules it on the loop immediately (<code>create_task</code>). Future: low-level placeholder for a result set later; Task is a Future subclass.</p>
+<p><strong>12. What does <code>await</code> do? What happens if I forget it?</strong>
+It suspends the current coroutine until the awaitable completes, letting the loop run others. Forgetting it yields a coroutine object that never runs (RuntimeWarning: never awaited), and you use the object instead of the result.</p>
+<p><strong>13. gather vs TaskGroup vs wait?</strong>
+<code>gather</code> returns ordered results; on first exception it propagates but doesn't cancel the siblings (unless you cancel it). <code>TaskGroup</code> (3.11+) is structured: on failure it cancels siblings and raises an <code>ExceptionGroup</code>; the scope doesn't exit until all tasks finish. <code>asyncio.wait</code> gives (done, pending) sets with <code>FIRST_COMPLETED</code> etc. for finer control.</p>
+<p><strong>14. How do cancellation and timeouts work?</strong>
+<code>task.cancel()</code> throws <code>CancelledError</code> into the coroutine at its next await; <code>finally</code>/<code>async with</code> cleanup runs. You should await the task afterwards. <code>wait_for</code>/<code>asyncio.timeout</code> cancel the inner work and raise <code>TimeoutError</code>. Never swallow <code>CancelledError</code>; re-raise it. It derives from <code>BaseException</code>, so <code>except Exception</code> won't catch it.</p>
+<p><strong>15. A service calls 10 000 URLs; how do you do it safely?</strong>
+Use an <code>asyncio.Semaphore</code> (or a bounded worker pool on an <code>asyncio.Queue</code>) to cap in-flight requests, a shared <code>httpx.AsyncClient</code> with connection limits, timeouts on each call, retries with backoff and jitter, and <code>return_exceptions=True</code> or per-task error handling so one failure doesn't lose everything.</p>
+<p><strong>16. What happens if you call blocking code in a coroutine?</strong>
+The event loop thread is blocked, so no other coroutine, timer, or request is serviced: latency spikes for everyone. Offload with <code>asyncio.to_thread</code> / <code>run_in_executor</code> (threads for blocking I/O, a process pool for CPU), or use an async library.</p>
+<p><strong>17. How do async context managers and async generators differ from sync ones?</strong>
+Async CMs use <code>__aenter__</code>/<code>__aexit__</code> (awaitable), used with <code>async with</code>, e.g. DB connections and locks. Async generators use <code>async def</code> with <code>yield</code>, consumed by <code>async for</code>; they let you await between items (streaming responses, paginated APIs). Clean up with <code>aclose()</code> or <code>async with aclosing(...)</code>.</p>
+<p><strong>18. How does FastAPI handle <code>def</code> vs <code>async def</code> endpoints?</strong>
+<code>async def</code> runs directly on the event loop; blocking inside it stalls the server. <code>def</code> is dispatched to a threadpool (default ~40 threads), so blocking calls are fine but limited by pool size. Choose by the libraries you call. Scale CPU via multiple uvicorn/gunicorn worker processes.</p>
+<p><strong>19. asyncio.Lock vs threading.Lock?</strong>
+<code>asyncio.Lock</code> is awaited, not thread-safe, only for coroutines in one loop; it suspends the coroutine, not the thread. <code>threading.Lock</code> blocks the thread, and blocking the loop thread with it freezes the loop. Often you don't need a lock in asyncio at all: without an <code>await</code> in a critical section there is no interleaving.</p>
+<p><strong>20. How do you share data between processes, and what are the pitfalls?</strong>
+Via pickling over pipes/queues (<code>multiprocessing.Queue</code>), shared memory (<code>shared_memory</code>, <code>Value</code>/<code>Array</code>), or a manager/external store (Redis, DB). Pitfalls: arguments and results must be picklable, big payloads are expensive to copy, <code>spawn</code> start method (macOS/Windows default) re-imports the module so guard with <code>if __name__ == "__main__":</code>, and <code>fork</code> with threads can deadlock.</p>
+</article><div class="pager"><a class="prev" href="../../10-python-depth/week-03-concurrency/lesson.html">← Week 3 · Concurrency: Lesson</a><a class="next" href="../../10-python-depth/week-03-concurrency/exercises.py.html">Week 3 · Concurrency: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

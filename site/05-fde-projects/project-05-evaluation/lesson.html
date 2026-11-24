@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Project 5: Evaluating an LLM feature (is v2 actually better?) | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="05-fde-projects/project-05-evaluation/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../05-fde-projects/project-01-llm-basics/lesson.html">FDE Projects</a> / <a href="../../05-fde-projects/project-05-evaluation/lesson.html">Project 5 · Evaluation</a> / <span>Lesson</span></nav><button id="mark-done" data-id="05-fde-projects/project-05-evaluation/lesson">Mark as done</button></div><article class="doc">
+<h1 id="project-5-evaluating-an-llm-feature-is-v2-actually-better">Project 5: Evaluating an LLM feature (is v2 actually better?)</h1>
+<p>Budget: ~2 hours. No network, no API key needed for the tests.</p>
+<h2 id="customer-scenario">Customer scenario</h2>
+<blockquote>
+<p>"Our support team uses your ticket classifier. Last week someone tweaked the prompt and 'it feels worse.' Another person says the new one is great. Can you tell us, with numbers, which prompt we should ship?"</p>
+</blockquote>
+<p>The customer has 12 labelled tickets in a spreadsheet exported as JSONL. Your job is to build a tiny evaluation harness: run each prompt version over the same test set, score it, find out <em>what</em> fails, and compare the versions.</p>
+<h2 id="spec-what-you-build-in-exercisespy">Spec (what you build in <code>exercises.py</code>)</h2>
+<ul>
+<li>Test set: a JSONL file, one object per line: <code>{"id": "t1", "input": "...", "expected": "billing"}</code>.</li>
+<li>A <em>prompt template</em> is a string containing <code>{input}</code>.</li>
+<li><code>llm</code> is any callable <code>llm(prompt: str) -&gt; str</code>. Tests inject a deterministic fake.</li>
+<li>A <em>result</em> is a dict: <code>{"id", "input", "expected", "predicted"}</code>.</li>
+<li>Metrics: accuracy, per-class precision / recall / F1, confusion matrix.</li>
+<li>Failure analysis: list failures, rank the most common (expected -&gt; predicted) mistakes.</li>
+<li>Regression comparison: which cases were fixed, which regressed, and a ship / hold verdict.</li>
+<li>A plain-English report a non-engineer can read.</li>
+</ul>
+<h2 id="concepts">Concepts</h2>
+<ul>
+<li><strong>Accuracy</strong>: share of cases correct. Misleading when classes are imbalanced (95% "other" -&gt; a model that always says "other" scores 95%).</li>
+<li><strong>Precision of class X</strong>: of the tickets we <em>called</em> X, how many really were X? (Cost of false alarms.)</li>
+<li><strong>Recall of class X</strong>: of the tickets that <em>are</em> X, how many did we find? (Cost of misses.)</li>
+<li><strong>F1</strong>: harmonic mean of precision and recall.</li>
+<li><strong>Confusion matrix</strong>: rows = truth, columns = prediction. Shows <em>which</em> classes get mixed up.</li>
+<li><strong>Regression</strong>: a case v1 got right that v2 gets wrong. Averages hide these; always list them.</li>
+<li>A test set is a contract with the customer: it must come from <em>their</em> real data.</li>
+</ul>
+<h2 id="how-an-fde-would-approach-it">How an FDE would approach it</h2>
+<ol>
+<li>Get 30-100 real, labelled examples from the customer before touching the prompt. Ask who labels them and whether labelers agree.</li>
+<li>Freeze the test set. Never tune the prompt on the same cases you report on (keep a separate dev set).</li>
+<li>Run every prompt version through the same harness, on the same cases, with temperature 0.</li>
+<li>Lead with the business meaning: "v2 fixes 3 billing tickets but breaks 2 urgent outage tickets. Missing an outage costs more than misrouting a billing question, so I recommend holding v2."</li>
+<li>Pick the metric by cost of error: missing urgent tickets -&gt; optimise recall on "urgent"; flooding agents with false alarms -&gt; precision.</li>
+<li>Show 2-3 concrete failing examples, not only numbers. Non-engineers trust examples.</li>
+<li>State the limits: "12 cases is a smoke test, not proof. One case is 8 points of accuracy."</li>
+</ol>
+<h2 id="optional-manual-step-real-anthropic-sdk">Optional manual step: real Anthropic SDK</h2>
+<p>Not run by tests. Needs <code>ANTHROPIC_API_KEY</code> in your environment.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">anthropic</span>
+<span class="n">client</span> <span class="o">=</span> <span class="n">anthropic</span><span class="o">.</span><span class="n">Anthropic</span><span class="p">()</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">real_llm</span><span class="p">(</span><span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">messages</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">=</span><span class="s2">"claude-sonnet-5-5"</span><span class="p">,</span>
+        <span class="n">max_tokens</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+        <span class="n">temperature</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="n">messages</span><span class="o">=</span><span class="p">[{</span><span class="s2">"role"</span><span class="p">:</span> <span class="s2">"user"</span><span class="p">,</span> <span class="s2">"content"</span><span class="p">:</span> <span class="n">prompt</span><span class="p">}],</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">msg</span><span class="o">.</span><span class="n">content</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+<span class="n">cases</span> <span class="o">=</span> <span class="n">load_test_set</span><span class="p">(</span><span class="s2">"my_cases.jsonl"</span><span class="p">)</span>
+<span class="n">results</span> <span class="o">=</span> <span class="n">run_prompt</span><span class="p">(</span><span class="n">real_llm</span><span class="p">,</span> <span class="s2">"Classify into billing/technical/other: </span><span class="si">{input}</span><span class="se">\n</span><span class="s2">Answer with one word."</span><span class="p">,</span> <span class="n">cases</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">format_report</span><span class="p">(</span><span class="s2">"v1"</span><span class="p">,</span> <span class="n">results</span><span class="p">))</span>
+</code></pre></div>
+
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li>Comparing accuracy on different test sets or different sample sizes.</li>
+<li>Not normalising model output (<code>"Billing."</code> vs <code>"billing"</code>) and then blaming the model.</li>
+<li>Dividing by zero when a class never appears (precision/recall must return 0.0).</li>
+<li>Reporting only the average; hiding regressions.</li>
+<li>Tuning on the test set (overfitting) and then presenting the score as if it were unseen.</li>
+<li>One LLM error crashing the whole run: record it as a failed case instead.</li>
+<li>Declaring a winner from a 1-case difference.</li>
+</ul>
+<h2 id="demo-tips">Demo tips</h2>
+<ul>
+<li>Show the confusion matrix as a small table, then say one sentence about it.</li>
+<li>Have a "regressions" slide: the first thing a skeptical customer asks is "what got worse?"</li>
+<li>Keep the run reproducible: one command, same output every time.</li>
+<li>Be upfront about the sample size before they ask.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run <code>.venv/bin/pytest 05-fde-projects/project-05-evaluation</code> (from the repo root) or <code>pytest -q</code> from this folder.</p>
+</article><div class="pager"><a class="prev" href="../../05-fde-projects/project-04-tool-calling-agent/test_exercises.py.html">← Project 4 · Tool-calling agent: Tests (code)</a><a class="next" href="../../05-fde-projects/project-05-evaluation/exercises.py.html">Project 5 · Evaluation: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

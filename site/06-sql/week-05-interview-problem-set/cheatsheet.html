@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SQL cheat sheet (SQLite flavoured, notes for Postgres/MySQL) | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="06-sql/week-05-interview-problem-set/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../06-sql/week-05-interview-problem-set/lesson.html">Week 5 · Interview problem set</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="06-sql/week-05-interview-problem-set/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="sql-cheat-sheet-sqlite-flavoured-notes-for-postgresmysql">SQL cheat sheet (SQLite flavoured, notes for Postgres/MySQL)</h1>
+<h2 id="logical-order-of-execution">Logical order of execution</h2>
+<p>FROM / JOIN -&gt; WHERE -&gt; GROUP BY -&gt; HAVING -&gt; window functions -&gt; SELECT -&gt; DISTINCT -&gt; ORDER BY -&gt; LIMIT.
+Consequence: you cannot use window functions or (in standard SQL) select aliases in <code>WHERE</code>; use a subquery or CTE.</p>
+<h2 id="null-rules">NULL rules</h2>
+<ul>
+<li>Any comparison with NULL is unknown: <code>x = NULL</code> never true. Use <code>IS NULL</code>, <code>IS NOT NULL</code>.</li>
+<li>Null-safe equality: <code>IS</code> / <code>IS NOT</code> (SQLite), <code>IS NOT DISTINCT FROM</code> (Postgres), <code>&lt;=&gt;</code> (MySQL).</li>
+<li><code>COUNT(*)</code> counts rows, <code>COUNT(col)</code> skips NULLs. <code>SUM</code>, <code>AVG</code>, <code>MIN</code>, <code>MAX</code> skip NULLs.</li>
+<li><code>COALESCE(a, b, 0)</code>, <code>NULLIF(a, 0)</code> (turns 0 into NULL, avoids divide by zero).</li>
+<li><code>NOT IN (subquery with NULL)</code> returns nothing. Prefer <code>NOT EXISTS</code>.</li>
+<li>NULLs group together in <code>GROUP BY</code> and <code>DISTINCT</code>.</li>
+</ul>
+<h2 id="joins">Joins</h2>
+<table>
+<thead>
+<tr>
+<th>Join</th>
+<th>Keeps</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>INNER</td>
+<td>matching pairs only</td>
+</tr>
+<tr>
+<td>LEFT</td>
+<td>all left rows, NULLs for no match</td>
+</tr>
+<tr>
+<td>RIGHT / FULL</td>
+<td>SQLite 3.39+, otherwise swap tables or UNION</td>
+</tr>
+<tr>
+<td>CROSS</td>
+<td>every pair</td>
+</tr>
+<tr>
+<td>Self</td>
+<td>same table under two aliases</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>Anti-join: <code>LEFT JOIN ... WHERE right.key IS NULL</code> or <code>NOT EXISTS</code>.</li>
+<li>Semi-join: <code>EXISTS</code> or <code>IN</code> (no duplicates from the right side).</li>
+<li>Filter on the right table of a LEFT JOIN belongs in <code>ON</code>, not <code>WHERE</code>.</li>
+<li>Fan-out: joining a one-to-many then summing a parent column inflates it. Aggregate first, then join.</li>
+</ul>
+<h2 id="aggregation">Aggregation</h2>
+<p><code>GROUP BY</code> columns must cover every non-aggregated select column. <code>HAVING</code> filters groups, <code>WHERE</code> filters rows. Conditional aggregation: <code>SUM(CASE WHEN cond THEN x ELSE 0 END)</code>. <code>COUNT(DISTINCT x)</code>.</p>
+<h2 id="set-operations">Set operations</h2>
+<p><code>UNION</code> (dedupes) vs <code>UNION ALL</code> (faster, keeps all), <code>INTERSECT</code>, <code>EXCEPT</code>. Columns must match in count and type.</p>
+<h2 id="subqueries-and-ctes">Subqueries and CTEs</h2>
+<ul>
+<li>Scalar: one value. Correlated: references the outer row, runs per row logically.</li>
+<li><code>WITH name AS (...)</code> for readability. <code>WITH RECURSIVE t AS (anchor UNION ALL step)</code> needs a stop condition.</li>
+</ul>
+<h2 id="window-functions">Window functions</h2>
+<p><code>fn() OVER (PARTITION BY a ORDER BY b ROWS BETWEEN x AND y)</code></p>
+<ul>
+<li>Ranking: <code>ROW_NUMBER</code>, <code>RANK</code> (gaps after ties), <code>DENSE_RANK</code>, <code>NTILE(n)</code>.</li>
+<li>Offsets: <code>LAG(x, n, default)</code>, <code>LEAD</code>, <code>FIRST_VALUE</code>, <code>LAST_VALUE</code> (mind the frame).</li>
+<li>Aggregates over windows: <code>SUM</code>, <code>AVG</code>, <code>COUNT</code>, <code>MIN</code>, <code>MAX</code>.</li>
+<li>Default frame with <code>ORDER BY</code> is <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> (ties are peers). Use <code>ROWS</code> for physical rows.</li>
+</ul>
+<h2 id="pattern-templates">Pattern templates</h2>
+<p>Replace the placeholders <code>t</code>, <code>grp</code>, <code>val</code>, <code>ts</code>, <code>id</code>.</p>
+<ul>
+<li>Nth highest value: rank distinct values with <code>DENSE_RANK() OVER (ORDER BY val DESC)</code>, filter rank = N.</li>
+<li>Duplicates: <code>SELECT cols, COUNT(*) FROM t GROUP BY cols HAVING COUNT(*) &gt; 1</code>.</li>
+<li>Keep one per duplicate group: choose a survivor (<code>MIN(id)</code>) and delete rows not in the survivor set.</li>
+<li>Top N per group: <code>ROW_NUMBER() OVER (PARTITION BY grp ORDER BY val DESC)</code> in a subquery, filter <code>rn &lt;= N</code>.</li>
+<li>Islands: <code>val - ROW_NUMBER() OVER (ORDER BY val)</code> gives a constant per consecutive run; group on it.</li>
+<li>Gaps: <code>LEAD(val) OVER (ORDER BY val) - val &gt; 1</code>.</li>
+<li>Sessions: <code>LAG(ts)</code> gap, flag when gap &gt; timeout or NULL, running <code>SUM(flag)</code> is the session number.</li>
+<li>Running total: <code>SUM(val) OVER (ORDER BY ts ROWS UNBOUNDED PRECEDING)</code>.</li>
+<li>Period over period: aggregate per period, then <code>LAG</code> over the aggregated rows, guard with <code>NULLIF</code>.</li>
+<li>Percent of total: <code>val * 100.0 / SUM(val) OVER ()</code>.</li>
+<li>Pivot: one <code>SUM(CASE WHEN key = 'x' THEN val END)</code> per output column.</li>
+<li>Division ("every"): <code>GROUP BY entity HAVING COUNT(DISTINCT y) = (SELECT COUNT(DISTINCT y) FROM ys)</code>.</li>
+<li>Median: row number plus group count, keep the middle one or two rows, average.</li>
+<li>Anti-join: <code>WHERE NOT EXISTS (SELECT 1 FROM other o WHERE o.k = t.k)</code>.</li>
+<li>Conditional upsert (SQLite/Postgres): <code>INSERT ... ON CONFLICT(key) DO UPDATE SET ...</code>.</li>
+</ul>
+<h2 id="dates-sqlite">Dates (SQLite)</h2>
+<p><code>date('now')</code>, <code>date(d, '+1 month')</code>, <code>strftime('%Y-%m', d)</code>, <code>julianday(a) - julianday(b)</code> for day difference. Store ISO <code>YYYY-MM-DD</code> text so comparisons and sorting work. Postgres: <code>date_trunc</code>, <code>age</code>, interval arithmetic. MySQL: <code>DATE_ADD</code>, <code>DATEDIFF</code>.</p>
+<h2 id="schema-and-constraints">Schema and constraints</h2>
+<p><code>PRIMARY KEY</code>, <code>UNIQUE</code>, <code>NOT NULL</code>, <code>CHECK</code>, <code>FOREIGN KEY ... ON DELETE CASCADE</code>. SQLite needs <code>PRAGMA foreign_keys = ON</code> per connection. Normalize to remove redundancy (1NF atomic, 2NF no partial dependency, 3NF no transitive dependency); denormalize deliberately for read speed.</p>
+<h2 id="indexes">Indexes</h2>
+<ul>
+<li>B-tree helps equality, range, <code>ORDER BY</code>, and joins on the indexed columns.</li>
+<li>Composite index: leftmost-prefix rule; equality columns first, then range or sort column.</li>
+<li>Covering index: contains every column the query needs, so no table lookup.</li>
+<li>Not usable when you wrap the column in a function, use a leading wildcard <code>LIKE '%x'</code>, or compare with mismatched types.</li>
+<li>Every index slows writes and uses space.</li>
+<li>Check with <code>EXPLAIN QUERY PLAN</code>: <code>SEARCH ... USING INDEX</code> is good, <code>SCAN</code> on a big table is a warning.</li>
+</ul>
+<h2 id="transactions-and-isolation">Transactions and isolation</h2>
+<ul>
+<li>ACID: atomic, consistent, isolated, durable.</li>
+<li>Isolation levels: read uncommitted, read committed, repeatable read, serializable. Anomalies: dirty read, non-repeatable read, phantom read, write skew.</li>
+<li>Postgres default is read committed (MVCC). MySQL InnoDB default is repeatable read. SQLite is serializable with a single writer.</li>
+<li>Deadlock: two transactions wait on each other; avoid with a consistent lock order and short transactions; retry on failure.</li>
+<li>Optimistic locking: version column, <code>UPDATE ... WHERE id = ? AND version = ?</code>, check rows affected.</li>
+</ul>
+<h2 id="sql-vs-nosql-oltp-vs-olap">SQL vs NoSQL, OLTP vs OLAP</h2>
+<ul>
+<li>SQL: strong schema, joins, transactions. NoSQL: flexible schema, horizontal scale, often eventual consistency, access patterns known up front.</li>
+<li>OLTP: many small reads and writes, row stores, normalized. OLAP: large scans and aggregates, column stores, denormalized star schemas.</li>
+</ul>
+<h2 id="interview-checklist">Interview checklist</h2>
+<ol>
+<li>Clarify grain, ties, NULLs, duplicates, empty groups.</li>
+<li>Build in CTEs and name steps.</li>
+<li>Check fan-out after each join.</li>
+<li>Alias everything, qualify columns.</li>
+<li>Guard division, use <code>100.0</code> for percentages.</li>
+<li>State the index you would add and the complexity.</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../06-sql/week-05-interview-problem-set/interview-qa.html">← Week 5 · Interview problem set: Interview Q&amp;A</a><a class="next" href="../../06-sql/week-05-interview-problem-set/exercises.py.html">Week 5 · Interview problem set: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

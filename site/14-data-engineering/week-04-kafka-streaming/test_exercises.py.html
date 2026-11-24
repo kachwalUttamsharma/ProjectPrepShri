@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>test_exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="14-data-engineering/week-04-kafka-streaming/test_exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../14-data-engineering/week-04-kafka-streaming/lesson.html">Week 4 · Kafka and streaming</a> / <span>Tests (code)</span></nav><button id="mark-done" data-id="14-data-engineering/week-04-kafka-streaming/test_exercises.py">Mark as done</button></div><article class="doc">
+<h1>test_exercises.py</h1><p class="code-path"><code>14-data-engineering/week-04-kafka-streaming/test_exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+
+
+<span class="c1"># 1</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_partition_deterministic_and_in_range</span><span class="p">():</span>
+    <span class="n">seen</span> <span class="o">=</span> <span class="p">{</span><span class="n">partition_for_key</span><span class="p">(</span><span class="sa">f</span><span class="s2">"user-</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">200</span><span class="p">)}</span>
+    <span class="k">assert</span> <span class="n">seen</span> <span class="o">&lt;=</span> <span class="nb">set</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">6</span><span class="p">))</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">seen</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">3</span>  <span class="c1"># keys spread out</span>
+    <span class="k">assert</span> <span class="n">partition_for_key</span><span class="p">(</span><span class="s2">"abc"</span><span class="p">,</span> <span class="mi">8</span><span class="p">)</span> <span class="o">==</span> <span class="n">partition_for_key</span><span class="p">(</span><span class="s2">"abc"</span><span class="p">,</span> <span class="mi">8</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_partition_str_bytes_same</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">partition_for_key</span><span class="p">(</span><span class="s2">"k1"</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span> <span class="o">==</span> <span class="n">partition_for_key</span><span class="p">(</span><span class="sa">b</span><span class="s2">"k1"</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_partition_known_value</span><span class="p">():</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">zlib</span>
+    <span class="k">assert</span> <span class="n">partition_for_key</span><span class="p">(</span><span class="s2">"order-42"</span><span class="p">,</span> <span class="mi">7</span><span class="p">)</span> <span class="o">==</span> <span class="n">zlib</span><span class="o">.</span><span class="n">crc32</span><span class="p">(</span><span class="sa">b</span><span class="s2">"order-42"</span><span class="p">)</span> <span class="o">%</span> <span class="mi">7</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_partition_bad_count</span><span class="p">():</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">partition_for_key</span><span class="p">(</span><span class="s2">"x"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+
+<span class="c1"># 2</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_range_assignment</span><span class="p">():</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">assign_partitions</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">7</span><span class="p">),</span> <span class="p">[</span><span class="s2">"c"</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">],</span> <span class="s2">"range"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">r</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">:</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="s2">"b"</span><span class="p">:</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="s2">"c"</span><span class="p">:</span> <span class="p">[</span><span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">]}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_round_robin_assignment</span><span class="p">():</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">assign_partitions</span><span class="p">([</span><span class="mi">4</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="p">[</span><span class="s2">"b"</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">],</span> <span class="s2">"round_robin"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">r</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">:</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="s2">"b"</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">]}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_more_consumers_than_partitions_idle</span><span class="p">():</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">assign_partitions</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">])</span>
+    <span class="k">assert</span> <span class="n">r</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">:</span> <span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s2">"b"</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s2">"c"</span><span class="p">:</span> <span class="p">[]}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_assign_edge_cases</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">assign_partitions</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="p">[])</span> <span class="o">==</span> <span class="p">{}</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">assign_partitions</span><span class="p">([</span><span class="mi">0</span><span class="p">],</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">],</span> <span class="s2">"sticky"</span><span class="p">)</span>
+    <span class="n">all_p</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">assign_partitions</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">),</span> <span class="nb">list</span><span class="p">(</span><span class="s2">"abc"</span><span class="p">))</span><span class="o">.</span><span class="n">values</span><span class="p">(),</span> <span class="p">[]))</span>
+    <span class="k">assert</span> <span class="n">all_p</span> <span class="o">==</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">))</span>
+
+
+<span class="c1"># 3</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_tumbling</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">tumbling_window</span><span class="p">(</span><span class="mi">125</span><span class="p">,</span> <span class="mi">60</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="mi">120</span><span class="p">,</span> <span class="mi">180</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">tumbling_window</span><span class="p">(</span><span class="mi">120</span><span class="p">,</span> <span class="mi">60</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="mi">120</span><span class="p">,</span> <span class="mi">180</span><span class="p">)</span>  <span class="c1"># start inclusive</span>
+    <span class="k">assert</span> <span class="n">tumbling_window</span><span class="p">(</span><span class="mi">179</span><span class="p">,</span> <span class="mi">60</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="mi">120</span><span class="p">,</span> <span class="mi">180</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">tumbling_window</span><span class="p">(</span><span class="mi">180</span><span class="p">,</span> <span class="mi">60</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="mi">180</span><span class="p">,</span> <span class="mi">240</span><span class="p">)</span>  <span class="c1"># end exclusive</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_sliding</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">sliding_windows</span><span class="p">(</span><span class="mi">25</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span> <span class="o">==</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">30</span><span class="p">),</span> <span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">40</span><span class="p">),</span> <span class="p">(</span><span class="mi">20</span><span class="p">,</span> <span class="mi">50</span><span class="p">)]</span>
+    <span class="k">assert</span> <span class="n">sliding_windows</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span> <span class="o">==</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">30</span><span class="p">)]</span>  <span class="c1"># no negative starts</span>
+    <span class="k">assert</span> <span class="n">sliding_windows</span><span class="p">(</span><span class="mi">30</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span> <span class="o">==</span> <span class="p">[(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">40</span><span class="p">),</span> <span class="p">(</span><span class="mi">20</span><span class="p">,</span> <span class="mi">50</span><span class="p">),</span> <span class="p">(</span><span class="mi">30</span><span class="p">,</span> <span class="mi">60</span><span class="p">)]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_sliding_hopping_gap</span><span class="p">():</span>
+    <span class="c1"># slide &gt; size: some events fall in no window</span>
+    <span class="k">assert</span> <span class="n">sliding_windows</span><span class="p">(</span><span class="mi">15</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="n">sliding_windows</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span> <span class="o">==</span> <span class="p">[(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">15</span><span class="p">)]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_sessions</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">session_windows</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">30</span><span class="p">],</span> <span class="n">gap</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span> <span class="o">==</span> <span class="p">[(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="mi">30</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">1</span><span class="p">)]</span>
+    <span class="k">assert</span> <span class="n">session_windows</span><span class="p">([</span><span class="mi">30</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">10</span><span class="p">],</span> <span class="n">gap</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span> <span class="o">==</span> <span class="p">[(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="mi">30</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">1</span><span class="p">)]</span>
+    <span class="k">assert</span> <span class="n">session_windows</span><span class="p">([],</span> <span class="mi">5</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_session_gap_boundary</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">session_windows</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">5</span><span class="p">],</span> <span class="n">gap</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span> <span class="o">==</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">2</span><span class="p">)]</span>   <span class="c1"># exactly gap: same session</span>
+    <span class="k">assert</span> <span class="n">session_windows</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">6</span><span class="p">],</span> <span class="n">gap</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span> <span class="o">==</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="mi">6</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">1</span><span class="p">)]</span>
+
+
+<span class="c1"># 4</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_watermark_initial</span><span class="p">():</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="n">WatermarkWindower</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">w</span><span class="o">.</span><span class="n">watermark</span> <span class="o">==</span> <span class="nb">float</span><span class="p">(</span><span class="s2">"-inf"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_window_closes_when_watermark_passes</span><span class="p">():</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="n">WatermarkWindower</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">w</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="n">w</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="mi">9</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>       <span class="c1"># wm 4</span>
+    <span class="k">assert</span> <span class="n">w</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="mi">14</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>      <span class="c1"># wm 9 &lt; 10</span>
+    <span class="n">closed</span> <span class="o">=</span> <span class="n">w</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="mi">15</span><span class="p">,</span> <span class="s2">"d"</span><span class="p">)</span>          <span class="c1"># wm 10 -&gt; closes [0,10)</span>
+    <span class="k">assert</span> <span class="n">closed</span> <span class="o">==</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">])]</span>
+    <span class="k">assert</span> <span class="n">w</span><span class="o">.</span><span class="n">watermark</span> <span class="o">==</span> <span class="mi">10</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_out_of_order_within_delay_is_accepted</span><span class="p">():</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="n">WatermarkWindower</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
+    <span class="n">w</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="s2">"x"</span><span class="p">)</span>                   <span class="c1"># wm 7</span>
+    <span class="k">assert</span> <span class="n">w</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="s2">"late-ish"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>  <span class="c1"># window [0,10) still open</span>
+    <span class="k">assert</span> <span class="n">w</span><span class="o">.</span><span class="n">late</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="n">closed</span> <span class="o">=</span> <span class="n">w</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="mi">20</span><span class="p">,</span> <span class="s2">"y"</span><span class="p">)</span>          <span class="c1"># wm 15 closes only [0,10)</span>
+    <span class="k">assert</span> <span class="n">closed</span> <span class="o">==</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="p">[</span><span class="s2">"late-ish"</span><span class="p">])]</span>
+    <span class="k">assert</span> <span class="n">w</span><span class="o">.</span><span class="n">open</span>  <span class="c1"># window [20,30) at least remains</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_late_event_dropped_to_side_output</span><span class="p">():</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="n">WatermarkWindower</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">w</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">)</span>
+    <span class="n">w</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="mi">25</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">)</span>                   <span class="c1"># wm 25 closes [0,10), [..]</span>
+    <span class="k">assert</span> <span class="n">w</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="s2">"too-late"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="n">w</span><span class="o">.</span><span class="n">late</span> <span class="o">==</span> <span class="p">[(</span><span class="mi">7</span><span class="p">,</span> <span class="s2">"too-late"</span><span class="p">)]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_multiple_windows_close_sorted</span><span class="p">():</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="n">WatermarkWindower</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">w</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">)</span>
+    <span class="n">w</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="mi">11</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">)</span>                   <span class="c1"># wm 11 closes [0,10)</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">w</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="mi">35</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">)</span>             <span class="c1"># wm 35 closes [10,20)</span>
+    <span class="k">assert</span> <span class="n">out</span> <span class="o">==</span> <span class="p">[(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="p">[</span><span class="s2">"b"</span><span class="p">])]</span>
+    <span class="k">assert</span> <span class="n">w</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span> <span class="o">==</span> <span class="p">[(</span><span class="mi">30</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span> <span class="p">[</span><span class="s2">"c"</span><span class="p">])]</span>
+    <span class="k">assert</span> <span class="n">w</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_closed_window_gets_late_event_exactly_at_boundary</span><span class="p">():</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="n">WatermarkWindower</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">w</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">)</span>                   <span class="c1"># wm 10, window [0,10) end == wm -&gt; closed/late</span>
+    <span class="k">assert</span> <span class="n">w</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="mi">9</span><span class="p">,</span> <span class="s2">"z"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="n">w</span><span class="o">.</span><span class="n">late</span> <span class="o">==</span> <span class="p">[(</span><span class="mi">9</span><span class="p">,</span> <span class="s2">"z"</span><span class="p">)]</span>
+
+
+<span class="c1"># 5</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_log_append_and_read</span><span class="p">():</span>
+    <span class="n">log</span> <span class="o">=</span> <span class="n">InMemoryLog</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">log</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"k"</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">)]</span> <span class="o">==</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">log</span><span class="o">.</span><span class="n">end_offset</span><span class="p">()</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">r</span><span class="o">.</span><span class="n">value</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">log</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">1</span><span class="p">)]</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">r</span><span class="o">.</span><span class="n">offset</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">log</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">)]</span> <span class="o">==</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">log</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="n">log</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">0</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">Record</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">"k"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_poll_advances_position_not_committed</span><span class="p">():</span>
+    <span class="n">log</span> <span class="o">=</span> <span class="n">InMemoryLog</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">):</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">r</span><span class="o">.</span><span class="n">value</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">log</span><span class="o">.</span><span class="n">poll</span><span class="p">(</span><span class="s2">"g"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)]</span> <span class="o">==</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">r</span><span class="o">.</span><span class="n">value</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">log</span><span class="o">.</span><span class="n">poll</span><span class="p">(</span><span class="s2">"g"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)]</span> <span class="o">==</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">log</span><span class="o">.</span><span class="n">committed</span><span class="p">(</span><span class="s2">"g"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_crash_replays_uncommitted</span><span class="p">():</span>
+    <span class="n">log</span> <span class="o">=</span> <span class="n">InMemoryLog</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">):</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+    <span class="n">log</span><span class="o">.</span><span class="n">poll</span><span class="p">(</span><span class="s2">"g"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">log</span><span class="o">.</span><span class="n">commit</span><span class="p">(</span><span class="s2">"g"</span><span class="p">)</span>
+    <span class="n">log</span><span class="o">.</span><span class="n">poll</span><span class="p">(</span><span class="s2">"g"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>             <span class="c1"># processed 2,3 but crash before commit</span>
+    <span class="n">log</span><span class="o">.</span><span class="n">restart</span><span class="p">(</span><span class="s2">"g"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">r</span><span class="o">.</span><span class="n">value</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">log</span><span class="o">.</span><span class="n">poll</span><span class="p">(</span><span class="s2">"g"</span><span class="p">)]</span> <span class="o">==</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">log</span><span class="o">.</span><span class="n">committed</span><span class="p">(</span><span class="s2">"g"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_groups_independent_and_seek_replay</span><span class="p">():</span>
+    <span class="n">log</span> <span class="o">=</span> <span class="n">InMemoryLog</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">log</span><span class="o">.</span><span class="n">poll</span><span class="p">(</span><span class="s2">"a"</span><span class="p">))</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">log</span><span class="o">.</span><span class="n">poll</span><span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">log</span><span class="o">.</span><span class="n">poll</span><span class="p">(</span><span class="s2">"a"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="n">log</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">log</span><span class="o">.</span><span class="n">poll</span><span class="p">(</span><span class="s2">"a"</span><span class="p">))</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="n">log</span><span class="o">.</span><span class="n">committed</span><span class="p">(</span><span class="s2">"zzz"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_new_data_visible_to_existing_consumer</span><span class="p">():</span>
+    <span class="n">log</span> <span class="o">=</span> <span class="n">InMemoryLog</span><span class="p">()</span>
+    <span class="n">log</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="s2">"x"</span><span class="p">)</span>
+    <span class="n">log</span><span class="o">.</span><span class="n">poll</span><span class="p">(</span><span class="s2">"g"</span><span class="p">)</span>
+    <span class="n">log</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="s2">"y"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">r</span><span class="o">.</span><span class="n">value</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">log</span><span class="o">.</span><span class="n">poll</span><span class="p">(</span><span class="s2">"g"</span><span class="p">)]</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"y"</span><span class="p">]</span>
+
+
+<span class="c1"># 6</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_dedupe_basic</span><span class="p">():</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">Deduper</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">d</span><span class="o">.</span><span class="n">is_duplicate</span><span class="p">(</span><span class="s2">"a"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="n">d</span><span class="o">.</span><span class="n">is_duplicate</span><span class="p">(</span><span class="s2">"a"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span>
+    <span class="k">assert</span> <span class="n">d</span><span class="o">.</span><span class="n">is_duplicate</span><span class="p">(</span><span class="s2">"b"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_dedupe_capacity_evicts_lru</span><span class="p">():</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">Deduper</span><span class="p">(</span><span class="n">capacity</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">d</span><span class="o">.</span><span class="n">is_duplicate</span><span class="p">(</span><span class="s2">"a"</span><span class="p">)</span>
+    <span class="n">d</span><span class="o">.</span><span class="n">is_duplicate</span><span class="p">(</span><span class="s2">"b"</span><span class="p">)</span>
+    <span class="n">d</span><span class="o">.</span><span class="n">is_duplicate</span><span class="p">(</span><span class="s2">"a"</span><span class="p">)</span>          <span class="c1"># refresh a; b is now least recent</span>
+    <span class="n">d</span><span class="o">.</span><span class="n">is_duplicate</span><span class="p">(</span><span class="s2">"c"</span><span class="p">)</span>          <span class="c1"># evicts b</span>
+    <span class="k">assert</span> <span class="n">d</span><span class="o">.</span><span class="n">is_duplicate</span><span class="p">(</span><span class="s2">"a"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span>
+    <span class="k">assert</span> <span class="n">d</span><span class="o">.</span><span class="n">is_duplicate</span><span class="p">(</span><span class="s2">"b"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>   <span class="c1"># forgotten -&gt; looks new</span>
+
+
+<span class="c1"># 7</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_lag_basic</span><span class="p">():</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">consumer_lag</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span> <span class="mi">5</span><span class="p">},</span> <span class="p">{</span><span class="mi">0</span><span class="p">:</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span> <span class="mi">5</span><span class="p">})</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="p">[</span><span class="s2">"per_partition"</span><span class="p">]</span> <span class="o">==</span> <span class="p">{</span><span class="mi">0</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="p">[</span><span class="s2">"total"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span> <span class="ow">and</span> <span class="n">r</span><span class="p">[</span><span class="s2">"max"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span> <span class="ow">and</span> <span class="n">r</span><span class="p">[</span><span class="s2">"max_partition"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_lag_missing_and_negative</span><span class="p">():</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">consumer_lag</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">2</span><span class="p">:</span> <span class="mi">5</span><span class="p">},</span> <span class="p">{</span><span class="mi">0</span><span class="p">:</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">2</span><span class="p">:</span> <span class="mi">9</span><span class="p">})</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="p">[</span><span class="s2">"per_partition"</span><span class="p">]</span> <span class="o">==</span> <span class="p">{</span><span class="mi">0</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">2</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="p">[</span><span class="s2">"total"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">8</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="p">[</span><span class="s2">"max_partition"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_lag_ties_and_empty</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">consumer_lag</span><span class="p">({</span><span class="mi">3</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span> <span class="mi">4</span><span class="p">},</span> <span class="p">{})[</span><span class="s2">"max_partition"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">consumer_lag</span><span class="p">({},</span> <span class="p">{})</span>
+    <span class="k">assert</span> <span class="n">e</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"per_partition"</span><span class="p">:</span> <span class="p">{},</span> <span class="s2">"total"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">"max"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">"max_partition"</span><span class="p">:</span> <span class="kc">None</span><span class="p">}</span>
+
+
+<span class="c1"># 8</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_compact_keeps_latest</span><span class="p">():</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">compact_log</span><span class="p">([(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">3</span><span class="p">)])</span>
+    <span class="k">assert</span> <span class="n">out</span> <span class="o">==</span> <span class="p">[</span><span class="n">Record</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">Record</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">,</span> <span class="mi">3</span><span class="p">)]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_compact_tombstone_deletes</span><span class="p">():</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">compact_log</span><span class="p">([(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span> <span class="p">(</span><span class="s2">"c"</span><span class="p">,</span> <span class="mi">3</span><span class="p">)])</span>
+    <span class="k">assert</span> <span class="n">out</span> <span class="o">==</span> <span class="p">[</span><span class="n">Record</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">Record</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">,</span> <span class="mi">3</span><span class="p">)]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_compact_resurrect_after_tombstone</span><span class="p">():</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">compact_log</span><span class="p">([(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span> <span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">5</span><span class="p">)])</span>
+    <span class="k">assert</span> <span class="n">out</span> <span class="o">==</span> <span class="p">[</span><span class="n">Record</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">,</span> <span class="mi">5</span><span class="p">)]</span>
+    <span class="k">assert</span> <span class="n">compact_log</span><span class="p">([])</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="c1"># 9</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_dlq_all_ok</span><span class="p">():</span>
+    <span class="n">res</span><span class="p">,</span> <span class="n">dead</span> <span class="o">=</span> <span class="n">process_with_dlq</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="k">lambda</span> <span class="n">m</span><span class="p">:</span> <span class="n">m</span> <span class="o">*</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">res</span> <span class="o">==</span> <span class="p">[(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">)]</span> <span class="ow">and</span> <span class="n">dead</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_dlq_retries_then_succeeds</span><span class="p">():</span>
+    <span class="n">calls</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"n"</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">flaky</span><span class="p">(</span><span class="n">m</span><span class="p">):</span>
+        <span class="n">calls</span><span class="p">[</span><span class="s2">"n"</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">calls</span><span class="p">[</span><span class="s2">"n"</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"transient"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s2">"ok"</span>
+
+    <span class="n">res</span><span class="p">,</span> <span class="n">dead</span> <span class="o">=</span> <span class="n">process_with_dlq</span><span class="p">([</span><span class="s2">"x"</span><span class="p">],</span> <span class="n">flaky</span><span class="p">,</span> <span class="n">max_attempts</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">res</span> <span class="o">==</span> <span class="p">[(</span><span class="s2">"x"</span><span class="p">,</span> <span class="s2">"ok"</span><span class="p">)]</span> <span class="ow">and</span> <span class="n">dead</span> <span class="o">==</span> <span class="p">[]</span> <span class="ow">and</span> <span class="n">calls</span><span class="p">[</span><span class="s2">"n"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_dlq_poison_message_parked_batch_continues</span><span class="p">():</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">h</span><span class="p">(</span><span class="n">m</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">m</span> <span class="o">==</span> <span class="s2">"bad"</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"boom"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">m</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
+
+    <span class="n">res</span><span class="p">,</span> <span class="n">dead</span> <span class="o">=</span> <span class="n">process_with_dlq</span><span class="p">([</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"bad"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">],</span> <span class="n">h</span><span class="p">,</span> <span class="n">max_attempts</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">res</span> <span class="o">==</span> <span class="p">[(</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"A"</span><span class="p">),</span> <span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="s2">"B"</span><span class="p">)]</span>
+    <span class="k">assert</span> <span class="n">dead</span> <span class="o">==</span> <span class="p">[{</span><span class="s2">"message"</span><span class="p">:</span> <span class="s2">"bad"</span><span class="p">,</span> <span class="s2">"error"</span><span class="p">:</span> <span class="s2">"boom"</span><span class="p">,</span> <span class="s2">"attempts"</span><span class="p">:</span> <span class="mi">2</span><span class="p">}]</span>
+
+
+<span class="c1"># 10</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_partitions_needed</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">partitions_needed</span><span class="p">(</span><span class="mi">100</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span> <span class="o">==</span> <span class="mi">10</span>
+    <span class="k">assert</span> <span class="n">partitions_needed</span><span class="p">(</span><span class="mi">100</span><span class="p">,</span> <span class="mi">50</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span> <span class="o">==</span> <span class="mi">10</span>   <span class="c1"># consumer-bound</span>
+    <span class="k">assert</span> <span class="n">partitions_needed</span><span class="p">(</span><span class="mi">105</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span> <span class="o">==</span> <span class="mi">11</span>  <span class="c1"># round up</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_partitions_headroom_and_float_noise</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">partitions_needed</span><span class="p">(</span><span class="mi">100</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="n">headroom</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">20</span>
+    <span class="k">assert</span> <span class="n">partitions_needed</span><span class="p">(</span><span class="mf">0.3</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="n">partitions_needed</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1000</span><span class="p">,</span> <span class="mi">1000</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_partitions_bad_args</span><span class="p">():</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">partitions_needed</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">partitions_needed</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../14-data-engineering/week-04-kafka-streaming/exercises.py.html">← Week 4 · Kafka and streaming: Exercises (code)</a><a class="next" href="../../14-data-engineering/week-05-lakehouse-formats/lesson.html">Week 5 · Lakehouse and formats: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

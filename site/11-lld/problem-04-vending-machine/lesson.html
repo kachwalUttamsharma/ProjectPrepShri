@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Problem 04: Vending machine (State pattern) | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="11-lld/problem-04-vending-machine/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../11-lld/README.html">Low-Level Design</a> / <a href="../../11-lld/problem-04-vending-machine/lesson.html">Problem 4 · Vending machine</a> / <span>Lesson</span></nav><button id="mark-done" data-id="11-lld/problem-04-vending-machine/lesson">Mark as done</button></div><article class="doc">
+<h1 id="problem-04-vending-machine-state-pattern">Problem 04: Vending machine (State pattern)</h1>
+<p>The textbook State-pattern problem. Interviewers want to see that you replace <code>if state == ...</code> ladders with polymorphism, and that money handling is correct (atomic sales, exact change). Budget: ~3 hours (sketch 30m, inventory 30m, states 1.5h, change-making + review 1h). Interview budget: 35-45 minutes.</p>
+<h2 id="1-requirements-questions-to-ask">1. Requirements: questions to ask</h2>
+<ul>
+<li>What can the user do? (insert coins, select a slot, cancel for refund, collect product.)</li>
+<li>Cash only, or cards / mobile? (Assume cash, denominations as an enum; payment is an extension point.)</li>
+<li>Does the machine give change? From what float? What if it cannot? (Assume yes, from its own stock plus the coins just inserted; if it cannot, the sale is refused, nothing changes.)</li>
+<li>Slot model: one product per slot code with a quantity? Can prices differ per slot?</li>
+<li>Maintenance / out-of-service mode? Restocking? Who refills coins?</li>
+<li>Does an inserted coin ever get rejected (bad coin)? Timeouts that auto-refund?</li>
+<li>Concurrency: one user at a time (physical machine). Mention a lock if there is a remote/IoT interface.</li>
+</ul>
+<h2 id="2-entities">2. Entities</h2>
+<table>
+<thead>
+<tr>
+<th>Entity</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Coin</code></td>
+<td>Enum with value in cents. Money as <code>int</code> cents, never floats.</td>
+</tr>
+<tr>
+<td><code>Product</code></td>
+<td>Immutable name + price.</td>
+</tr>
+<tr>
+<td><code>Inventory</code></td>
+<td>Slot code -&gt; (product, quantity). Knows nothing about money.</td>
+</tr>
+<tr>
+<td><code>State</code> + 4 concrete states</td>
+<td>Behaviour for each event in each situation.</td>
+</tr>
+<tr>
+<td><code>VendingMachine</code></td>
+<td>Context: owns balance, coin stock, inventory, current state; delegates events to the state.</td>
+</tr>
+<tr>
+<td><code>DispenseResult</code></td>
+<td>What the user physically receives.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="3-class-diagram">3. Class diagram</h2>
+<div class="highlight"><pre><span></span><code> VendingMachine ------------------------&gt; Inventory
+   state: State  (delegates events)         slots: code -&gt; (Product, qty)
+   balance, coin_stock
+   insert_coin / select_product
+   dispense / cancel
+          |
+          v
+   &lt;&lt;abstract&gt;&gt; State
+   insert_coin(m, coin)   select_product(m, code)
+   dispense(m)            cancel(m)
+     ^        ^            ^             ^
+     |        |            |             |
+ IdleState HasMoneyState DispensingState OutOfServiceState
+</code></pre></div>
+
+<pre class="mermaid">stateDiagram-v2
+    [*] --&gt; Idle
+    Idle --&gt; HasMoney: insert_coin
+    HasMoney --&gt; HasMoney: insert_coin / failed select
+    HasMoney --&gt; Idle: cancel (refund)
+    HasMoney --&gt; Dispensing: select_product ok
+    Dispensing --&gt; Idle: dispense
+    Idle --&gt; OutOfService: set_out_of_service
+    OutOfService --&gt; Idle: restore</pre>
+<h2 id="4-patterns-and-why">4. Patterns and why</h2>
+<ul>
+<li><strong>State</strong>: four events x four situations. Without it every method is an <code>if self.state == ...</code> ladder, and adding a state (Maintenance, CardPayment) edits every method (OCP violation). With it, a new state is a new class; illegal events are explicit (<code>InvalidOperationError</code>) instead of silently ignored.</li>
+<li><strong>Context/delegation</strong>: <code>VendingMachine</code> keeps data and forwards events, so states stay stateless and can even be shared singletons.</li>
+<li><strong>Dependency inversion for the inventory</strong>: the machine takes an <code>Inventory</code> object, so you can test with a fake and later back it with a database.</li>
+<li>Possible extra: <strong>Strategy</strong> for change-making (greedy vs DP) and for payment (cash/card).</li>
+</ul>
+<h2 id="5-spec-summary">5. Spec summary</h2>
+<p>Read the docstrings in <code>exercises.py</code>; they are the contract. Key rules:</p>
+<ul>
+<li><code>select_product</code> validates in a fixed order (unknown, sold out, insufficient funds, cannot make change) and a failure changes <strong>nothing</strong> (atomicity).</li>
+<li>On success the money moves into the coin stock, the change leaves it, the inventory decrements, balance becomes 0, state becomes <code>dispensing</code>; <code>dispense()</code> hands over <code>DispenseResult</code> and returns to idle.</li>
+<li><code>cancel()</code> refunds the exact coins inserted, largest first, so a refund can never fail.</li>
+<li>Greedy change with limited stock; coins available = stock + coins inserted this transaction.</li>
+</ul>
+<h2 id="6-extensibility-follow-ups-interviewers-ask">6. Extensibility follow-ups interviewers ask</h2>
+<ul>
+<li><strong>Card / mobile payment</strong>: introduce a <code>PaymentMethod</code> abstraction; the machine no longer cares whether balance came from coins. HasMoney becomes "HasCredit".</li>
+<li><strong>Optimal change-making</strong>: swap greedy for DP over limited coin counts (see Q&amp;A).</li>
+<li><strong>Restocking and cash collection</strong>: admin API on inventory/coin stock, guarded by an <code>Admin</code> role or a Maintenance state.</li>
+<li><strong>Timeouts</strong>: HasMoney with a deadline and injected clock; auto-cancel after N seconds.</li>
+<li><strong>Combos / discounts</strong>: pricing strategy between product price and charged amount.</li>
+<li><strong>Telemetry</strong>: observers for low stock, jammed dispenser (see problem 07).</li>
+<li><strong>Multiple machines</strong>: a fleet service reading each machine's inventory; machine stays single-user, no locking inside.</li>
+</ul>
+<h2 id="7-what-to-say-out-loud">7. What to say out loud</h2>
+<ol>
+<li>"Cash vending machine: insert coins, select a slot, collect product plus change, or cancel. I'll keep money as int cents."</li>
+<li>"The behaviour depends on what situation the machine is in, so this is a State pattern: Idle, HasMoney, Dispensing, OutOfService."</li>
+<li>"The machine is the context and delegates each event; illegal events raise a specific error."</li>
+<li>"A sale is atomic: I validate everything first and only then mutate stock, inventory and balance."</li>
+<li>"Change comes from the stock plus the coins just inserted; if I can't make exact change I refuse and keep the user's money intact."</li>
+<li>"Greedy change-making is correct for canonical coin systems with unlimited coins; with limited stock it can fail where DP would succeed. I'd note that and switch if asked."</li>
+</ol>
+<h2 id="8-common-mistakes">8. Common mistakes</h2>
+<ul>
+<li>Floats for money.</li>
+<li><code>if/elif</code> on a string or enum state in every method instead of polymorphism.</li>
+<li>Mutating inventory or stock <strong>before</strong> discovering change can't be made, so a failed sale leaks product or coins.</li>
+<li>Forgetting that the inserted coins can be used as change (rejecting sales that are perfectly possible).</li>
+<li>States holding data: the sale details belong to the machine (context), so states are reusable.</li>
+<li>Letting <code>cancel</code> do change-making that can fail. Refund the physical coins.</li>
+<li>Not covering all events in all states (what does <code>dispense</code> do while idle?).</li>
+</ul>
+<h2 id="9-follow-up-qa">9. Follow-up Q&amp;A</h2>
+<p><strong>Q: Why State instead of an enum and a switch?</strong> Each state's behaviour is one class; adding or changing a state doesn't touch the others (OCP), and the compiler/ABC forces you to answer "what does event X do here?".</p>
+<p><strong>Q: Who triggers transitions: the machine or the states?</strong> Both approaches exist. Here states trigger them (<code>machine._set_state(...)</code>), keeping the transition table next to the behaviour. If transitions get complex, a table-driven machine is an alternative.</p>
+<p><strong>Q: When does greedy change-making fail?</strong> Stock {QUARTER:1, DIME:3}, change 30: greedy takes the quarter and is stuck at 5; DP finds 3 dimes. Greedy is also wrong for non-canonical systems (coins 1, 3, 4 and amount 6).</p>
+<p><strong>Q: How would you do DP change-making?</strong> Bounded coin-change: <code>dp[amount] = fewest coins</code> over denominations with counts, O(amount/gcd x denominations x counts). Amounts are tiny, so cost is irrelevant; put it behind a <code>ChangeStrategy</code>.</p>
+<p><strong>Q: Should states be singletons?</strong> If they hold no data, yes or at least cheap to share (Flyweight). Mention it, don't over-engineer.</p>
+<p><strong>Q: Thread safety?</strong> A physical machine has one user, but with a remote API, a single lock around each event keeps the check-then-mutate in <code>select_product</code> atomic.</p>
+<p><strong>Q: What if the dispenser jams after we took payment?</strong> Add a <code>Dispensing -&gt; Fault</code> transition that refunds, plus logging/alerts. The State pattern makes that a new class, not a rewrite.</p>
+<p><strong>Q: Where would you validate that a price is positive?</strong> In <code>Product.__post_init__</code> (fail at construction), not inside the machine.</p>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run
+<code>.venv/bin/pytest 11-lld/problem-04-vending-machine -v</code>
+Then draw the state diagram from memory and list which events are legal in each state.</p>
+</article><div class="pager"><a class="prev" href="../../11-lld/problem-03-elevator-system/test_exercises.py.html">← Problem 3 · Elevator system: Tests (code)</a><a class="next" href="../../11-lld/problem-04-vending-machine/exercises.py.html">Problem 4 · Vending machine: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

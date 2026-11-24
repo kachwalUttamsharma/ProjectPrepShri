@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Design 5: ML Feature Store (Offline + Online) | Study Hub</title><link rel="stylesheet" href="../../../assets/style.css"><link rel="stylesheet" href="../../../assets/pygments.css"></head>
+<body data-root="../../../" data-page-id="14-data-engineering/week-07-pipeline-design/designs/05-feature-store" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../../index.html">Home</a> / <a href="../../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../../14-data-engineering/week-07-pipeline-design/designs/01-clickstream-analytics.html">Week 7 · Pipeline design</a> / <a href="../../../14-data-engineering/week-07-pipeline-design/designs/01-clickstream-analytics.html">Designs</a> / <span>Design 5: ML Feature Store (Offline + Online)</span></nav><button id="mark-done" data-id="14-data-engineering/week-07-pipeline-design/designs/05-feature-store">Mark as done</button></div><article class="doc">
+<h1 id="design-5-ml-feature-store-offline-online">Design 5: ML Feature Store (Offline + Online)</h1>
+<p>Prompt: "Design a feature platform that lets ML teams define features once, train on historical data with point-in-time correctness, and serve the same features online at under 10 ms."</p>
+<h2 id="requirements">Requirements</h2>
+<p>Functional</p>
+<ul>
+<li>Feature definitions (entity, source, transformation, freshness) registered in a catalog and versioned.</li>
+<li>Offline: build training sets by joining features to labeled events as of each event time (no leakage).</li>
+<li>Online: low-latency lookup of the latest feature values by entity key for real-time models.</li>
+<li>Support batch features (daily aggregates), streaming features (last 5 min counts), and request-time features (computed in the request).</li>
+<li>Monitoring: freshness, drift, train/serve skew.</li>
+</ul>
+<p>Non-functional</p>
+<ul>
+<li>Online p99 read under 10 ms at 20K QPS (each request fetches about 50 features across 3 entities).</li>
+<li>Online freshness: batch features within 1 h of computation; streaming features within seconds.</li>
+<li>Offline training sets: 100M labeled rows x 200 features generated in under an hour.</li>
+<li>Governance: ownership, PII tags, access control, lineage to models.</li>
+<li>Out of scope: model training/serving itself, embeddings/vector search (mention as extension).</li>
+</ul>
+<h2 id="capacity-estimates">Capacity estimates</h2>
+<ul>
+<li>Entities: 200M users, 5M items. Feature vector per user about 200 features x 8 bytes = 1.6 KB; 200M x 1.6 KB = 320 GB; with item features about 330 GB; Redis-like store with replication 2 = about 700 GB RAM, which is costly; DynamoDB/Cassandra-like store is cheaper on disk. Restrict online to active users (30-day active, say 40M -&gt; 64 GB).</li>
+<li>Online read throughput: 20K QPS x 3 key lookups = 60K reads/s, easy for a sharded KV store.</li>
+<li>Streaming updates: 50K events/s -&gt; feature updates at similar rates.</li>
+<li>Offline: feature history snapshots daily: 200M x 1.6 KB = 320 GB/day uncompressed; columnar and compression about 60-100 GB/day, 30-100 TB/year; use change-only storage (write only if value changed) or event-timestamped tables to reduce.</li>
+</ul>
+<h2 id="architecture">Architecture</h2>
+<pre class="mermaid">flowchart TB
+  subgraph Definitions
+    REG[Feature registry / catalog: defs, owners, versions, SLAs]
+  end
+  subgraph Batch
+    LAKE[(Lakehouse: events, dims)] --&gt; SB[Spark / SQL batch feature jobs]
+    SB --&gt; OFF[(Offline store: feature tables w/ event_ts + created_ts)]
+  end
+  subgraph Stream
+    K[(Kafka events)] --&gt; FL[Flink / Spark streaming feature jobs]
+    FL --&gt; ON
+    FL --&gt; OFF
+  end
+  OFF --&gt;|materialize latest per key| MAT[Materialization job]
+  MAT --&gt; ON[(Online store: Redis / DynamoDB / Cassandra)]
+  OFF --&gt; PIT[Point-in-time join service]
+  LABELS[(Labels with event_ts)] --&gt; PIT
+  PIT --&gt; TRAIN[Training set -&gt; model training]
+  MODEL[Model service] --&gt;|get_features entity keys| ON
+  REQ[Request-time features] --&gt; MODEL
+  MON[Monitoring: freshness, null rate, drift, skew] -.-&gt; ON
+  MON -.-&gt; OFF
+  REG -.-&gt; SB
+  REG -.-&gt; FL</pre>
+<h2 id="data-model">Data model</h2>
+<p>Registry: <code>feature_view(name, version, entity, features[name,dtype], source, transform_ref, ttl, owner, tags[pii], schedule/trigger)</code>.</p>
+<p>Offline table (per feature view): <code>entity_id, feature columns..., event_ts (when value became true), created_ts (when computed)</code>. Keep history rows; this is what makes point-in-time joins possible.</p>
+<p>Online key: <code>{feature_view}:{entity_id}</code> -&gt; map of features + <code>event_ts</code>; TTL per view. Alternatively one hash per entity with all views (fewer round trips, larger write amplification).</p>
+<h2 id="step-by-step-flow">Step-by-step flow</h2>
+<ol>
+<li>Author defines a feature view in code (for example Feast style, or an in-house SDK; check current docs of the tool you choose) with transformation SQL/Spark, entity, TTL, and freshness expectations. CI validates and registers.</li>
+<li>Batch job computes features from silver tables for a date partition and writes to the offline store with <code>event_ts</code> = the time the value is valid from.</li>
+<li>Streaming jobs compute windowed features (counts in last 5 min), writing to the online store directly and to offline via the same code path or a sink, so offline history exists for training.</li>
+<li>Materialization: after each batch run, copy latest value per entity to the online store (bulk load, idempotent upserts, version stamp). Alert if lag exceeds SLA.</li>
+<li>Training set: for each label row <code>(entity, label_ts)</code>, join the latest feature row with <code>event_ts &lt;= label_ts</code> (and optionally <code>created_ts &lt;= label_ts</code> to avoid using values computed later than known), using an as-of join. Output is snapshotted and versioned with the feature view versions, giving reproducible training data.</li>
+<li>Serving: model service calls <code>get_online_features(keys, feature_list)</code>; a client library batches lookups, handles defaults for missing values, and logs the served feature vector to Kafka/lake.</li>
+<li>Skew monitoring: compare logged served features to the offline recomputation for the same entity/time; alert on distribution drift.</li>
+</ol>
+<h2 id="failure-modes">Failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Failure</th>
+<th>Handling</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Label leakage (using future data)</td>
+<td>As-of joins only; tests that assert no feature has <code>event_ts &gt; label_ts</code></td>
+</tr>
+<tr>
+<td>Train/serve skew (different code paths)</td>
+<td>One definition feeding both; log served features and compare; avoid reimplementing in the service</td>
+</tr>
+<tr>
+<td>Stale online features (job failed)</td>
+<td>Freshness metric per view; TTL expiry to defaults; model falls back; page the owner</td>
+</tr>
+<tr>
+<td>Online store hot key or node loss</td>
+<td>Replication, client retries with hedged reads, key hashing, capacity headroom</td>
+</tr>
+<tr>
+<td>Missing values for new entities</td>
+<td>Defaults plus "is_missing" indicators; cold-start features</td>
+</tr>
+<tr>
+<td>Backfill changes history</td>
+<td>New feature version, never mutate old values; training sets pin versions</td>
+</tr>
+<tr>
+<td>Cost blow-up in online store</td>
+<td>Only materialize needed features for active entities; TTL</td>
+</tr>
+<tr>
+<td>PII in features</td>
+<td>Tag in registry, restrict access, hash/bucket, deletion hooks (design 8)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="trade-offs">Trade-offs</h2>
+<ul>
+<li>Build vs buy (Feast, Tecton, SageMaker/Vertex/Databricks feature stores, check current docs): buying speeds adoption; building fits unusual needs but needs a team.</li>
+<li>Redis (fastest, memory cost) vs DynamoDB/Cassandra (cheaper, single-digit ms): choose by latency budget and size.</li>
+<li>Streaming features give freshness but double the engineering; use only where lift justifies it.</li>
+<li>Store history for every feature (exact PIT) vs snapshots only (cheaper, coarser PIT). Daily snapshots cause up to 1-day leakage or staleness mismatches for fast-changing features.</li>
+<li>Precompute vs request-time compute: request-time features avoid staleness but add latency and skew risk.</li>
+</ul>
+<h2 id="follow-up-questions">Follow-up questions</h2>
+<ol>
+<li>Explain a point-in-time join and implement it in SQL. (as-of join with <code>max(event_ts) &lt;= label_ts</code>, or window function plus filter)</li>
+<li>How do you detect training/serving skew? (log served vectors, compare distributions, replay the same request offline)</li>
+<li>How do you add a new feature that needs 2 years of history? (backfill job to offline store with correct event_ts, then materialize)</li>
+<li>How do you manage feature versions when a definition changes? (new version, parallel run, model pinned to version, deprecate)</li>
+<li>How would you serve embeddings or very large features? (separate vector store; keep feature store for scalar/small vectors)</li>
+<li>How do you control access to sensitive features? (tags, view-level ACLs, audit of reads)</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../../14-data-engineering/week-07-pipeline-design/designs/04-finance-batch-etl.html">← Design 4: Batch ETL for Daily Finance Reporting with Strong Reconciliation</a><a class="next" href="../../../14-data-engineering/week-07-pipeline-design/designs/06-self-serve-ingestion-platform.html">Design 6: Self-Serve Data Lake Ingestion Platform for Many Heterogeneous Sources →</a></div></main><aside id="toc"></aside></div>
+<script src="../../../assets/data.js"></script><script src="../../../assets/app.js"></script></body></html>

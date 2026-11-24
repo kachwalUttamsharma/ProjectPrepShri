@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Part 02: Set operations, functions, pagination, lateral, pivot, JSON | Study Hub</title><link rel="stylesheet" href="../../../assets/style.css"><link rel="stylesheet" href="../../../assets/pygments.css"></head>
+<body data-root="../../../" data-page-id="06-sql/general-sql/02-set-ops-functions-json/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../../index.html">Home</a> / <a href="../../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../../06-sql/general-sql/README.html">General SQL</a> / <a href="../../../06-sql/general-sql/02-set-ops-functions-json/lesson.html">Part 2 · Set ops, functions, JSON</a> / <span>Lesson</span></nav><button id="mark-done" data-id="06-sql/general-sql/02-set-ops-functions-json/lesson">Mark as done</button></div><article class="doc">
+<h1 id="part-02-set-operations-functions-pagination-lateral-pivot-json">Part 02: Set operations, functions, pagination, lateral, pivot, JSON</h1>
+<p>Goal: combine result sets, use the dialect function zoo without panic, handle NULLs on purpose, paginate correctly, and read/write JSON from SQL.</p>
+<p>Prerequisites: SELECT/WHERE/GROUP BY and NULL logic in <a href="../../week-01-select-filter-aggregate/lesson.html">week-01 lesson</a>; joins/subqueries in week-02; CTEs, window functions, CASE, dates in <a href="../../week-03-cte-window-case-dates/lesson.html">week-03 lesson</a>. This part does not repeat them.</p>
+<p>Setup: <code>sqlite3 :memory: ".read setup.sql"</code> (or <code>sqlite3 part02.db &lt; setup.sql</code>), then <code>.headers on</code> and <code>.mode column</code>.
+All outputs below marked "Output" were produced by SQLite 3.54 in this repo. Snippets marked <strong>(not run here, verify)</strong> are Postgres/MySQL/SQL Server code that could not be executed in this environment (no <code>psql</code>/<code>mysql</code>). Version-dependent facts: check current docs.</p>
+<p>Tables: <code>customers_2023</code>, <code>customers_2024</code> (id, name, email; Cy has NULL email), <code>products</code> (messy names, NULL discounts and notes), <code>sales</code>, <code>events</code> (JSON text payloads).</p>
+<hr />
+<h2 id="1-set-operations">1. Set operations</h2>
+<p>Set operators stack the results of two SELECTs vertically. Rules: same number of columns, compatible types, column names come from the first query, and <code>ORDER BY</code> goes once at the very end.</p>
+<table>
+<thead>
+<tr>
+<th>Operator</th>
+<th>Result</th>
+<th>Duplicates</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>UNION</code></td>
+<td>rows in A or B</td>
+<td>removed (needs sort/hash, slower)</td>
+</tr>
+<tr>
+<td><code>UNION ALL</code></td>
+<td>A followed by B</td>
+<td>kept (fast, no dedup)</td>
+</tr>
+<tr>
+<td><code>INTERSECT</code></td>
+<td>rows in both</td>
+<td>removed</td>
+</tr>
+<tr>
+<td><code>EXCEPT</code></td>
+<td>rows in A not in B</td>
+<td>removed</td>
+</tr>
+</tbody>
+</table>
+<p>Dialect notes: Oracle calls EXCEPT <code>MINUS</code>. MySQL gained <code>INTERSECT</code> and <code>EXCEPT</code> only in 8.0.31 (check current docs). <code>INTERSECT ALL</code> / <code>EXCEPT ALL</code> exist in Postgres but not SQLite or SQL Server. Precedence: standard SQL makes INTERSECT bind tighter than UNION/EXCEPT; use parentheses to be safe (SQLite evaluates compound selects left to right, so parentheses-free mixes differ between engines).</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">email</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">customers_2023</span>
+<span class="k">UNION</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">email</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">customers_2024</span>
+<span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">name</span><span class="p">;</span>
+</code></pre></div>
+
+<p>Output:</p>
+<div class="highlight"><pre><span></span><code>name    email
+----  ---------
+Ann   ann@x.com
+Bob   bob@x.com
+Cy
+Di    di@x.com
+Eve   eve@x.com
+Fay   fay@x.com
+</code></pre></div>
+
+<p>Bob and Cy appear once. Note: set operators treat NULLs as equal to each other (two NULLs are "not distinct"), unlike <code>=</code>. That is why Cy collapsed even though <code>NULL = NULL</code> is not true.</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">customers_2023</span><span class="w"> </span><span class="k">UNION</span><span class="w"> </span><span class="k">ALL</span><span class="w"> </span><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">customers_2024</span><span class="p">);</span><span class="w">   </span><span class="c1">-- 8</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">customers_2023</span><span class="w"> </span><span class="k">INTERSECT</span><span class="w"> </span><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">customers_2024</span><span class="p">;</span><span class="w">                    </span><span class="c1">-- 2 Bob, 3 Cy</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">customers_2023</span><span class="w"> </span><span class="k">EXCEPT</span><span class="w">    </span><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">customers_2024</span><span class="p">;</span><span class="w">                    </span><span class="c1">-- 1 Ann, 4 Di</span>
+</code></pre></div>
+
+<p>Use <code>UNION ALL</code> by default; use <code>UNION</code> only when you need dedup. Reaching for UNION "just in case" costs a sort or hash over the whole result.</p>
+<p>Alternatives: <code>INTERSECT</code> ~ <code>WHERE EXISTS</code>/inner join; <code>EXCEPT</code> ~ <code>NOT EXISTS</code>/anti-join (see week-02). Set operators compare entire rows with NULL-equal semantics, which is the main behavioural difference from <code>NOT IN</code> (which breaks on NULLs, see week-01).</p>
+<hr />
+<h2 id="2-functions-by-dialect">2. Functions by dialect</h2>
+<p>You will not memorise these; know the categories and look up spelling. Table of the common ones:</p>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>SQLite</th>
+<th>PostgreSQL</th>
+<th>MySQL</th>
+<th>SQL Server</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Concatenate</td>
+<td><code>a \|\| b</code></td>
+<td><code>a \|\| b</code>, <code>concat()</code></td>
+<td><code>CONCAT(a,b)</code> (<code>\|\|</code> is OR unless <code>PIPES_AS_CONCAT</code>)</td>
+<td><code>a + b</code>, <code>CONCAT()</code></td>
+</tr>
+<tr>
+<td>Substring</td>
+<td><code>substr(s,i,n)</code></td>
+<td><code>substr</code>, <code>substring(s from i for n)</code></td>
+<td><code>SUBSTRING(s,i,n)</code></td>
+<td><code>SUBSTRING(s,i,n)</code></td>
+</tr>
+<tr>
+<td>Position</td>
+<td><code>instr(s,x)</code></td>
+<td><code>strpos(s,x)</code>, <code>position(x in s)</code></td>
+<td><code>LOCATE(x,s)</code>, <code>INSTR(s,x)</code></td>
+<td><code>CHARINDEX(x,s)</code></td>
+</tr>
+<tr>
+<td>Length</td>
+<td><code>length</code></td>
+<td><code>length</code>, <code>char_length</code></td>
+<td><code>CHAR_LENGTH</code> (<code>LENGTH</code> = bytes)</td>
+<td><code>LEN</code> (ignores trailing spaces)</td>
+</tr>
+<tr>
+<td>Trim</td>
+<td><code>trim</code>, <code>ltrim</code>, <code>rtrim</code></td>
+<td>same</td>
+<td>same</td>
+<td><code>TRIM</code> (2017+), <code>LTRIM</code>, <code>RTRIM</code></td>
+</tr>
+<tr>
+<td>Current time</td>
+<td><code>datetime('now')</code></td>
+<td><code>now()</code>, <code>CURRENT_TIMESTAMP</code></td>
+<td><code>NOW()</code></td>
+<td><code>GETDATE()</code>, <code>SYSDATETIME()</code></td>
+</tr>
+<tr>
+<td>Truncate to month</td>
+<td><code>date(d,'start of month')</code></td>
+<td><code>date_trunc('month', d)</code></td>
+<td><code>DATE_FORMAT(d,'%Y-%m-01')</code></td>
+<td><code>DATETRUNC</code> (new; check docs) or <code>DATEFROMPARTS</code></td>
+</tr>
+<tr>
+<td>Format</td>
+<td><code>strftime('%Y-%m', d)</code></td>
+<td><code>to_char(d,'YYYY-MM')</code></td>
+<td><code>DATE_FORMAT(d,'%Y-%m')</code></td>
+<td><code>FORMAT(d,'yyyy-MM')</code></td>
+</tr>
+<tr>
+<td>Add interval</td>
+<td><code>date(d,'+1 month')</code></td>
+<td><code>d + INTERVAL '1 month'</code></td>
+<td><code>d + INTERVAL 1 MONTH</code></td>
+<td><code>DATEADD(month,1,d)</code></td>
+</tr>
+<tr>
+<td>Difference</td>
+<td><code>julianday(a)-julianday(b)</code></td>
+<td><code>a - b</code> (dates give integer days)</td>
+<td><code>DATEDIFF(a,b)</code> (days)</td>
+<td><code>DATEDIFF(day,b,a)</code> (note arg order)</td>
+</tr>
+<tr>
+<td>Extract part</td>
+<td><code>strftime('%m',d)</code></td>
+<td><code>EXTRACT(month FROM d)</code></td>
+<td><code>EXTRACT</code>, <code>MONTH(d)</code></td>
+<td><code>DATEPART</code>, <code>MONTH(d)</code></td>
+</tr>
+<tr>
+<td>Cast</td>
+<td><code>CAST(x AS INTEGER)</code></td>
+<td><code>CAST</code> or <code>x::int</code></td>
+<td><code>CAST</code>, <code>CONVERT</code></td>
+<td><code>CAST</code>, <code>CONVERT</code>, <code>TRY_CAST</code></td>
+</tr>
+<tr>
+<td>Limit rows</td>
+<td><code>LIMIT n</code></td>
+<td><code>LIMIT n</code> / <code>FETCH FIRST n ROWS ONLY</code></td>
+<td><code>LIMIT n</code></td>
+<td><code>TOP n</code> / <code>OFFSET..FETCH</code></td>
+</tr>
+<tr>
+<td>Conditional</td>
+<td><code>CASE</code>, <code>iif</code></td>
+<td><code>CASE</code></td>
+<td><code>CASE</code>, <code>IF()</code></td>
+<td><code>CASE</code>, <code>IIF</code></td>
+</tr>
+</tbody>
+</table>
+<p>Only the SQLite column was run here; the others are <strong>(not run here, verify)</strong> against the docs for your version.</p>
+<h3 id="strings-sqlite-run">Strings (SQLite, run)</h3>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="s1">'['</span><span class="o">||</span><span class="k">TRIM</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="o">||</span><span class="s1">']'</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">t</span><span class="p">,</span><span class="w"> </span><span class="k">UPPER</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="w"> </span><span class="n">u</span><span class="p">,</span><span class="w"> </span><span class="k">LENGTH</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="w"> </span><span class="n">len</span><span class="p">,</span>
+<span class="w">       </span><span class="n">SUBSTR</span><span class="p">(</span><span class="k">TRIM</span><span class="p">(</span><span class="n">name</span><span class="p">),</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">)</span><span class="w"> </span><span class="n">s3</span><span class="p">,</span><span class="w"> </span><span class="n">INSTR</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="s1">'g'</span><span class="p">)</span><span class="w"> </span><span class="n">pos</span><span class="p">,</span><span class="w"> </span><span class="k">REPLACE</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="s1">'e'</span><span class="p">,</span><span class="s1">'E'</span><span class="p">)</span><span class="w"> </span><span class="n">r</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">products</span><span class="p">;</span>
+</code></pre></div>
+
+<p>Output:</p>
+<div class="highlight"><pre><span></span><code>      t             u       len  s3   pos       r
+-------------  -----------  ---  ---  ---  -----------
+[Widget]         WIDGET       9  Wid    6    WidgEt
+[Gadget]       GADGET         6  Gad    4  GadgEt
+[Doohickey]    DOOHICKEY      9  Doo    0  DoohickEy
+[Thingamajig]  THINGAMAJIG   11  Thi    5  Thingamajig
+[Whatsit]      WHATSIT        7  Wha    0  Whatsit
+</code></pre></div>
+
+<p><code>INSTR</code> returns 0 when not found (1-based positions). Traps: SQL strings are 1-indexed; <code>||</code> with a NULL yields NULL in standard SQL (Postgres <code>concat()</code> and MySQL <code>CONCAT_WS</code> treat NULL differently, check docs); <code>LIKE</code> case sensitivity differs (SQLite: ASCII case-insensitive by default, Postgres: case-sensitive, use <code>ILIKE</code>; MySQL depends on collation).</p>
+<h3 id="dates-sqlite-run">Dates (SQLite, run)</h3>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">sold_on</span><span class="p">,</span><span class="w"> </span><span class="n">strftime</span><span class="p">(</span><span class="s1">'%Y-%m'</span><span class="p">,</span><span class="n">sold_on</span><span class="p">)</span><span class="w"> </span><span class="n">ym</span><span class="p">,</span><span class="w"> </span><span class="nb">date</span><span class="p">(</span><span class="n">sold_on</span><span class="p">,</span><span class="s1">'start of month'</span><span class="p">)</span><span class="w"> </span><span class="n">som</span><span class="p">,</span>
+<span class="w">       </span><span class="nb">date</span><span class="p">(</span><span class="n">sold_on</span><span class="p">,</span><span class="s1">'+1 month'</span><span class="p">)</span><span class="w"> </span><span class="n">nxt</span><span class="p">,</span>
+<span class="w">       </span><span class="k">CAST</span><span class="p">(</span><span class="n">julianday</span><span class="p">(</span><span class="s1">'2024-04-10'</span><span class="p">)</span><span class="o">-</span><span class="n">julianday</span><span class="p">(</span><span class="n">sold_on</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="nb">INT</span><span class="p">)</span><span class="w"> </span><span class="n">days_ago</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">sales</span><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">3</span><span class="p">;</span>
+</code></pre></div>
+
+<p>Output:</p>
+<div class="highlight"><pre><span></span><code> sold_on      ym        som         nxt      days_ago
+----------  -------  ----------  ----------  --------
+2024-01-05  2024-01  2024-01-01  2024-02-05        96
+2024-01-20  2024-01  2024-01-01  2024-02-20        81
+2024-01-25  2024-01  2024-01-01  2024-02-25        76
+</code></pre></div>
+
+<p>SQLite has no date type: dates are TEXT/REAL/INTEGER, and ISO-8601 text sorts correctly. Postgres/MySQL/SQL Server have real <code>DATE</code>/<code>TIMESTAMP</code> types. Also remember time zones: Postgres <code>timestamptz</code> stores UTC and renders in session zone; MySQL <code>TIMESTAMP</code> converts, <code>DATETIME</code> does not. Month end idiom: <code>date(d,'start of month','+1 month','-1 day')</code>; Postgres: <code>(date_trunc('month', d) + INTERVAL '1 month - 1 day')::date</code> <strong>(not run here, verify)</strong>; SQL Server: <code>EOMONTH(d)</code>; MySQL: <code>LAST_DAY(d)</code>.</p>
+<h3 id="numbers-sqlite-run">Numbers (SQLite, run)</h3>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="mi">7</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">7</span><span class="o">/</span><span class="mi">2</span><span class="p">.</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">7</span><span class="o">%</span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="n">ROUND</span><span class="p">(</span><span class="mi">2</span><span class="p">.</span><span class="mi">5</span><span class="p">),</span><span class="w"> </span><span class="n">ROUND</span><span class="p">(</span><span class="mi">3</span><span class="p">.</span><span class="mi">14159</span><span class="p">,</span><span class="mi">2</span><span class="p">),</span><span class="w"> </span><span class="k">ABS</span><span class="p">(</span><span class="o">-</span><span class="mi">4</span><span class="p">),</span><span class="w"> </span><span class="k">CAST</span><span class="p">(</span><span class="s1">'12'</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">);</span>
+</code></pre></div>
+
+<p>Output:</p>
+<div class="highlight"><pre><span></span><code>7/2  7/2.0  7%3  ROUND(2.5)  ROUND(3.14159,2)  ABS(-4)  CAST('12' AS INTEGER)
+---  -----  ---  ----------  ----------------  -------  ---------------------
+  3    3.5    1         3.0              3.14        4                     12
+</code></pre></div>
+
+<p><code>7/2</code> is 3 in SQLite, Postgres and SQL Server (integer division); MySQL's <code>/</code> returns a decimal 3.5000 and <code>DIV</code> is integer division. <code>ROUND(2.5)</code>: SQLite rounds half away from zero (3.0); Postgres <code>round(numeric)</code> does too but <code>round(double precision)</code> uses banker-like round-half-even on many platforms; check docs. Never use floating point for money: use <code>NUMERIC</code>/<code>DECIMAL</code> or integer cents.</p>
+<hr />
+<h2 id="3-null-safe-operations-coalesce-nullif">3. NULL-safe operations, COALESCE, NULLIF</h2>
+<p>NULL basics are in week-01. What matters here is the comparison toolbox:</p>
+<table>
+<thead>
+<tr>
+<th>Need</th>
+<th>Standard</th>
+<th>SQLite</th>
+<th>Postgres</th>
+<th>MySQL</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>NULL-safe equal</td>
+<td><code>a IS NOT DISTINCT FROM b</code></td>
+<td><code>a IS b</code></td>
+<td><code>IS NOT DISTINCT FROM</code></td>
+<td><code>a &lt;=&gt; b</code></td>
+</tr>
+<tr>
+<td>NULL-safe not equal</td>
+<td><code>a IS DISTINCT FROM b</code></td>
+<td><code>a IS NOT b</code></td>
+<td><code>IS DISTINCT FROM</code></td>
+<td><code>NOT (a &lt;=&gt; b)</code></td>
+</tr>
+</tbody>
+</table>
+<p>SQLite 3.39+ also supports <code>IS [NOT] DISTINCT FROM</code> (check current docs for your build). SQL Server 2022 added <code>IS [NOT] DISTINCT FROM</code> as well; older versions need <code>(a = b OR (a IS NULL AND b IS NULL))</code>.</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">NULL</span><span class="p">;</span><span class="w">                       </span><span class="c1">-- no rows</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="s1">'is'</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NULL</span><span class="p">;</span><span class="w">              </span><span class="c1">-- is</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">customers_2023</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">customers_2024</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="n">email</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="n">b</span><span class="p">.</span><span class="n">email</span><span class="p">;</span>
+</code></pre></div>
+
+<p>Output of the join: <code>2|2</code> and <code>3|3</code> (Cy matches Cy only because of the NULL-safe <code>IS</code>; with <code>=</code> row 3 would vanish).</p>
+<p><code>COALESCE(a,b,c)</code> returns the first non-NULL (standard; also <code>IFNULL</code>/<code>NVL</code>/<code>ISNULL</code> in vendor dialects, which take only two args). <code>NULLIF(a,b)</code> returns NULL if a = b else a: classic use is converting sentinel values to NULL, and avoiding division by zero with <code>x / NULLIF(y,0)</code>.</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">price</span><span class="p">,</span><span class="w"> </span><span class="n">discount</span><span class="p">,</span>
+<span class="w">       </span><span class="k">COALESCE</span><span class="p">(</span><span class="n">discount</span><span class="p">,</span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">d</span><span class="p">,</span>
+<span class="w">       </span><span class="n">ROUND</span><span class="p">(</span><span class="n">price</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="k">COALESCE</span><span class="p">(</span><span class="n">discount</span><span class="p">,</span><span class="mi">0</span><span class="p">)),</span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="k">final</span><span class="p">,</span>
+<span class="w">       </span><span class="k">NULLIF</span><span class="p">(</span><span class="n">note</span><span class="p">,</span><span class="s1">''</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">note2</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">products</span><span class="p">;</span>
+</code></pre></div>
+
+<p>Output:</p>
+<div class="highlight"><pre><span></span><code>id  price  discount   d    final  note2
+--  -----  --------  ----  -----  -----
+ 1   9.99               0   9.99  basic
+ 2   24.5       0.1   0.1  22.05
+ 3    5.0       0.0   0.0    5.0
+ 4  12.75      0.25  0.25   9.56  sale
+ 5    7.2               0    7.2
+</code></pre></div>
+
+<p>(Blank cells are NULL.) Pitfall: <code>COALESCE</code> in an aggregate: <code>AVG(COALESCE(x,0))</code> is not <code>AVG(x)</code>: it counts the NULL rows as zeros. Decide which you mean.</p>
+<hr />
+<h2 id="4-pagination-offset-vs-keyset">4. Pagination: OFFSET vs keyset</h2>
+<h3 id="offset">OFFSET</h3>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">sold_on</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">sales</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="k">OFFSET</span><span class="w"> </span><span class="mi">3</span><span class="p">;</span><span class="w">   </span><span class="c1">-- page 2, size 3</span>
+</code></pre></div>
+
+<p>Output: rows with id 4, 5, 6.
+Dialects: <code>LIMIT n OFFSET m</code> (Postgres, MySQL, SQLite); standard <code>OFFSET m ROWS FETCH NEXT n ROWS ONLY</code> (Postgres, SQL Server 2012+, Oracle 12c+; SQL Server requires an ORDER BY). Problems:</p>
+<ol>
+<li>Cost grows with depth: the database still produces and discards the first <code>m</code> rows. Page 10,000 is slow.</li>
+<li>Unstable under writes: an insert/delete on an earlier page shifts rows, so users see duplicates or skip rows.</li>
+<li>Without a deterministic ORDER BY (add a unique tiebreaker like <code>id</code>), pages can overlap.</li>
+</ol>
+<h3 id="keyset-aka-seek-cursor-pagination">Keyset (a.k.a. seek, cursor) pagination</h3>
+<p>Remember the last row's sort key and ask for "rows after it".</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">sold_on</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">sales</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">6</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">3</span><span class="p">;</span>
+</code></pre></div>
+
+<p>Output: ids 7, 8, 9. For a non-unique sort column, use a row-value comparison with a unique tiebreaker:</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">sold_on</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">sales</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="p">(</span><span class="n">sold_on</span><span class="p">,</span><span class="w"> </span><span class="n">id</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="p">(</span><span class="s1">'2024-02-20'</span><span class="p">,</span><span class="w"> </span><span class="mi">6</span><span class="p">)</span>
+<span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">sold_on</span><span class="p">,</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">3</span><span class="p">;</span>
+</code></pre></div>
+
+<p>Output: ids 7, 8, 9 (sold_on 2024-03-01, 03-09, 03-15). Row-value comparison works in SQLite 3.15+, Postgres, MySQL (index use may be poor in older MySQL, check docs); SQL Server lacks it, so expand: <code>sold_on &gt; @s OR (sold_on = @s AND id &gt; @id)</code>.
+With an index on <code>(sold_on, id)</code> this is an index range seek: constant cost per page. Trade-offs: no "jump to page 50", needs a stable total order, descending/mixed order needs care, and NULLs in the sort key complicate the comparison. Good for infinite scroll and APIs; OFFSET is acceptable for small admin tables. Index background: <a href="../../week-04-schema-indexes-transactions/lesson.html">week-04</a> section 4.</p>
+<hr />
+<h2 id="5-lateral-cross-apply">5. LATERAL / CROSS APPLY</h2>
+<p>A normal subquery in FROM cannot reference columns of earlier FROM items. A <strong>lateral</strong> subquery can, and runs once per outer row: "for each row, run this correlated query and join its rows". The canonical use is top-N-per-group.</p>
+<table>
+<thead>
+<tr>
+<th>Dialect</th>
+<th>Syntax</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PostgreSQL, MySQL 8.0.14+ (check docs), Oracle 12c+</td>
+<td><code>... CROSS JOIN LATERAL (subquery) x</code> / <code>LEFT JOIN LATERAL (...) x ON TRUE</code></td>
+</tr>
+<tr>
+<td>SQL Server, Oracle</td>
+<td><code>CROSS APPLY (subquery) x</code> / <code>OUTER APPLY</code></td>
+</tr>
+<tr>
+<td>SQLite</td>
+<td>not supported: use window functions</td>
+</tr>
+</tbody>
+</table>
+<p>Latest 2 sales per product with LATERAL <strong>(not run here, verify)</strong>:</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">sale_id</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">sold_on</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">products</span><span class="w"> </span><span class="n">p</span>
+<span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="k">LATERAL</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">sold_on</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">sales</span>
+<span class="w">    </span><span class="k">WHERE</span><span class="w"> </span><span class="n">product_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">id</span>
+<span class="w">    </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">sold_on</span><span class="w"> </span><span class="k">DESC</span><span class="p">,</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="k">DESC</span>
+<span class="w">    </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">2</span>
+<span class="p">)</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="k">TRUE</span><span class="p">;</span>
+</code></pre></div>
+
+<p>SQL Server version <strong>(not run here, verify)</strong>: <code>CROSS APPLY (SELECT TOP 2 id, sold_on FROM sales WHERE product_id = p.id ORDER BY sold_on DESC, id DESC) s</code>.</p>
+<p>Portable alternative (week-03 windows), run on SQLite:</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="p">(</span>
+<span class="w">  </span><span class="k">SELECT</span><span class="w"> </span><span class="n">product_id</span><span class="p">,</span><span class="w"> </span><span class="n">sold_on</span><span class="p">,</span><span class="w"> </span><span class="n">qty</span><span class="p">,</span>
+<span class="w">         </span><span class="n">ROW_NUMBER</span><span class="p">()</span><span class="w"> </span><span class="n">OVER</span><span class="w"> </span><span class="p">(</span><span class="n">PARTITION</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">product_id</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">sold_on</span><span class="w"> </span><span class="k">DESC</span><span class="p">)</span><span class="w"> </span><span class="n">rn</span>
+<span class="w">  </span><span class="k">FROM</span><span class="w"> </span><span class="n">sales</span><span class="p">)</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">rn</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">product_id</span><span class="p">;</span>
+</code></pre></div>
+
+<p>Output:</p>
+<div class="highlight"><pre><span></span><code>product_id   sold_on    qty  rn
+----------  ----------  ---  --
+         1  2024-04-02    1   1
+         2  2024-03-30    2   1
+         3  2024-03-09    1   1
+         4  2024-03-15    3   1
+         5  2024-03-31    6   1
+</code></pre></div>
+
+<p>LATERAL wins when the per-row subquery can use an index to stop early (top-N with <code>LIMIT</code>) and when you call a set-returning function per row (<code>LATERAL unnest(...)</code>, <code>json_each</code>). The window version scans every row first. <code>LEFT JOIN LATERAL ... ON TRUE</code> / <code>OUTER APPLY</code> keeps outer rows with no matches.</p>
+<hr />
+<h2 id="6-pivot-and-unpivot-idioms">6. Pivot and unpivot idioms</h2>
+<p>Pivot = rows to columns. Portable idiom: conditional aggregation (works everywhere).</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">category</span><span class="p">,</span>
+<span class="w">  </span><span class="k">SUM</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">region</span><span class="o">=</span><span class="s1">'N'</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">qty</span><span class="w"> </span><span class="k">ELSE</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">END</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">north</span><span class="p">,</span>
+<span class="w">  </span><span class="k">SUM</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">region</span><span class="o">=</span><span class="s1">'S'</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">qty</span><span class="w"> </span><span class="k">ELSE</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">END</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">south</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">sales</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">products</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">product_id</span>
+<span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">category</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+</code></pre></div>
+
+<p>Output:</p>
+<div class="highlight"><pre><span></span><code>category  north  south
+--------  -----  -----
+garden        6      0
+tools        13      5
+toys          1     15
+</code></pre></div>
+
+<p>Limits: the column list is fixed at write time. Dynamic columns need dynamic SQL (build the string, then execute) in every dialect. Native alternatives: SQL Server and Oracle have <code>PIVOT</code>/<code>UNPIVOT</code> operators; Postgres has <code>crosstab()</code> in the <code>tablefunc</code> extension and <code>FILTER</code>: <code>SUM(qty) FILTER (WHERE region='N')</code> <strong>(not run here, verify)</strong>; MySQL has neither (use CASE); Snowflake/BigQuery have <code>PIVOT</code>/<code>UNPIVOT</code> (check docs).</p>
+<p>Unpivot = columns to rows. Portable idiom: <code>UNION ALL</code> one SELECT per column:</p>
+<div class="highlight"><pre><span></span><code><span class="k">WITH</span><span class="w"> </span><span class="n">t</span><span class="p">(</span><span class="n">category</span><span class="p">,</span><span class="n">north</span><span class="p">,</span><span class="n">south</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="s1">'garden'</span><span class="p">,</span><span class="mi">6</span><span class="p">,</span><span class="mi">0</span><span class="p">),(</span><span class="s1">'tools'</span><span class="p">,</span><span class="mi">13</span><span class="p">,</span><span class="mi">5</span><span class="p">),(</span><span class="s1">'toys'</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">15</span><span class="p">))</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">category</span><span class="p">,</span><span class="s1">'north'</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">region</span><span class="p">,</span><span class="w"> </span><span class="n">north</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">qty</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">t</span>
+<span class="k">UNION</span><span class="w"> </span><span class="k">ALL</span><span class="w"> </span><span class="k">SELECT</span><span class="w"> </span><span class="n">category</span><span class="p">,</span><span class="s1">'south'</span><span class="p">,</span><span class="n">south</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">;</span>
+</code></pre></div>
+
+<p>Output:</p>
+<div class="highlight"><pre><span></span><code>category  region  qty
+--------  ------  ---
+garden    north     6
+garden    south     0
+tools     north    13
+tools     south     5
+toys      north     1
+toys      south    15
+</code></pre></div>
+
+<p>Postgres alternative: <code>CROSS JOIN LATERAL (VALUES ('north', t.north), ('south', t.south)) v(region, qty)</code>; SQL Server: <code>CROSS APPLY (VALUES (...)) v(...)</code> <strong>(not run here, verify)</strong>. If you find yourself unpivoting often, the table is probably modelled wrong (repeating columns, see normalization in week-04).</p>
+<hr />
+<h2 id="7-json-in-sql">7. JSON in SQL</h2>
+<p>Relational databases now store semi-structured data, but JSON is not a free pass: you lose type checks, foreign keys and easy indexing. Rule of thumb: columns for anything you filter, join or constrain on; JSON for sparse, vendor-defined or rarely queried attributes.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>SQLite (json1)</th>
+<th>PostgreSQL</th>
+<th>MySQL</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Types</td>
+<td>none; TEXT (3.45+ also has JSONB-like binary internally, check docs)</td>
+<td><code>json</code> (text, preserves formatting), <code>jsonb</code> (binary, indexable; prefer it)</td>
+<td><code>JSON</code> (binary, validated)</td>
+</tr>
+<tr>
+<td>Get as JSON</td>
+<td><code>-&gt;</code></td>
+<td><code>-&gt;</code></td>
+<td><code>-&gt;</code> (alias for <code>JSON_EXTRACT</code>)</td>
+</tr>
+<tr>
+<td>Get as text</td>
+<td><code>-&gt;&gt;</code></td>
+<td><code>-&gt;&gt;</code></td>
+<td><code>-&gt;&gt;</code> (unquotes)</td>
+</tr>
+<tr>
+<td>Path</td>
+<td><code>'$.a.b[0]'</code></td>
+<td><code>payload-&gt;'a'-&gt;'b'</code>, or <code>#&gt;'{a,b}'</code>, or <code>jsonb_path_query</code></td>
+<td><code>'$.a.b[0]'</code></td>
+</tr>
+<tr>
+<td>Expand array</td>
+<td><code>json_each</code>, <code>json_tree</code></td>
+<td><code>jsonb_array_elements</code>, <code>jsonb_each</code></td>
+<td><code>JSON_TABLE</code> (8.0+)</td>
+</tr>
+<tr>
+<td>Build</td>
+<td><code>json_object</code>, <code>json_array</code>, <code>json_group_array</code></td>
+<td><code>jsonb_build_object</code>, <code>jsonb_agg</code></td>
+<td><code>JSON_OBJECT</code>, <code>JSON_ARRAYAGG</code></td>
+</tr>
+<tr>
+<td>Modify</td>
+<td><code>json_set</code>, <code>json_insert</code>, <code>json_remove</code></td>
+<td><code>jsonb_set</code>, <code>\|\|</code>, <code>-</code></td>
+<td><code>JSON_SET</code>, <code>JSON_REMOVE</code></td>
+</tr>
+<tr>
+<td>Contains</td>
+<td>(use <code>json_each</code>)</td>
+<td><code>@&gt;</code>, <code>?</code></td>
+<td><code>JSON_CONTAINS</code>, <code>MEMBER OF</code></td>
+</tr>
+<tr>
+<td>Index</td>
+<td>expression index on <code>json_extract(...)</code></td>
+<td>GIN on the column (<code>jsonb_path_ops</code>), btree on expression</td>
+<td>functional index or generated column + index</td>
+</tr>
+</tbody>
+</table>
+<h3 id="sqlite-run">SQLite (run)</h3>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">json_extract</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span><span class="s1">'$.user'</span><span class="p">)</span><span class="w"> </span><span class="n">u</span><span class="p">,</span><span class="w"> </span><span class="n">payload</span><span class="o">-&gt;&gt;</span><span class="s1">'$.meta.ip'</span><span class="w"> </span><span class="n">ip</span><span class="p">,</span><span class="w"> </span><span class="n">payload</span><span class="o">-&gt;</span><span class="s1">'$.meta.tags'</span><span class="w"> </span><span class="n">tags</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">events</span><span class="p">;</span>
+</code></pre></div>
+
+<p>Output:</p>
+<div class="highlight"><pre><span></span><code>id   u     ip         tags
+--  ---  -------  -------------
+ 1  ann  1.1.1.1  ["web","mfa"]
+ 2  bob  2.2.2.2  ["mobile"]
+ 3  ann  1.1.1.1  []
+ 4  cy
+</code></pre></div>
+
+<p><code>-&gt;</code> returns JSON text; <code>-&gt;&gt;</code> returns a SQL value. Missing paths and JSON <code>null</code> both become SQL NULL (row 4), which hides the difference between "key absent" and "key is null": use <code>json_type(payload,'$.meta')</code> (returns <code>'null'</code> for JSON null, SQL NULL if absent).</p>
+<p>Filter on a JSON field:</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">json_extract</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span><span class="s1">'$.amount'</span><span class="p">)</span><span class="w"> </span><span class="n">amt</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">events</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">json_extract</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span><span class="s1">'$.action'</span><span class="p">)</span><span class="o">=</span><span class="s1">'buy'</span><span class="p">;</span>
+</code></pre></div>
+
+<p>Output: <code>2|19.5</code> and <code>3|5</code>.</p>
+<p>Expand an array into rows:</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">j</span><span class="p">.</span><span class="n">value</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">tag</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="n">e</span><span class="p">,</span><span class="w"> </span><span class="n">json_each</span><span class="p">(</span><span class="n">e</span><span class="p">.</span><span class="n">payload</span><span class="p">,</span><span class="s1">'$.meta.tags'</span><span class="p">)</span><span class="w"> </span><span class="n">j</span><span class="p">;</span>
+</code></pre></div>
+
+<p>Output: <code>1|web</code>, <code>1|mfa</code>, <code>2|mobile</code> (row 3 has an empty array and row 4 has null meta, so they produce no rows; use <code>LEFT JOIN</code> form to keep them).</p>
+<p>Build JSON:</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">json_object</span><span class="p">(</span><span class="s1">'a'</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="s1">'b'</span><span class="p">,</span><span class="n">json_array</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">))</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">o</span><span class="p">;</span><span class="w">               </span><span class="c1">-- {"a":1,"b":[1,2,3]}</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">json_group_array</span><span class="p">(</span><span class="k">DISTINCT</span><span class="w"> </span><span class="n">json_extract</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span><span class="s1">'$.user'</span><span class="p">))</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">events</span><span class="p">;</span><span class="w">  </span><span class="c1">-- ["ann","bob","cy"]</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">json_set</span><span class="p">(</span><span class="s1">'{"a":1}'</span><span class="p">,</span><span class="s1">'$.b'</span><span class="p">,</span><span class="mi">2</span><span class="p">);</span><span class="w">                                  </span><span class="c1">-- {"a":1,"b":2}</span>
+</code></pre></div>
+
+<h3 id="postgresql-not-run-here-verify">PostgreSQL <strong>(not run here, verify)</strong></h3>
+<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="p">(</span><span class="n">id</span><span class="w"> </span><span class="n">bigserial</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span><span class="w"> </span><span class="n">payload</span><span class="w"> </span><span class="n">jsonb</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">);</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">payload</span><span class="o">-&gt;&gt;</span><span class="s1">'user'</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">usr</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">payload</span><span class="o">-&gt;&gt;</span><span class="s1">'amount'</span><span class="p">)::</span><span class="nb">numeric</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">amt</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">payload</span><span class="w"> </span><span class="o">@&gt;</span><span class="w"> </span><span class="s1">'{"action":"buy"}'</span><span class="p">;</span><span class="w">          </span><span class="c1">-- containment, can use a GIN index</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="n">tag</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="n">e</span><span class="p">,</span><span class="w"> </span><span class="n">jsonb_array_elements_text</span><span class="p">(</span><span class="n">e</span><span class="p">.</span><span class="n">payload</span><span class="o">-&gt;</span><span class="s1">'meta'</span><span class="o">-&gt;</span><span class="s1">'tags'</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">t</span><span class="p">(</span><span class="n">tag</span><span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">events_payload_gin</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="k">USING</span><span class="w"> </span><span class="n">gin</span><span class="w"> </span><span class="p">(</span><span class="n">payload</span><span class="w"> </span><span class="n">jsonb_path_ops</span><span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">events_user_idx</span><span class="w">    </span><span class="k">ON</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="p">((</span><span class="n">payload</span><span class="o">-&gt;&gt;</span><span class="s1">'user'</span><span class="p">));</span><span class="w">   </span><span class="c1">-- btree on one key</span>
+<span class="k">UPDATE</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">payload</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">jsonb_set</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span><span class="w"> </span><span class="s1">'{meta,ip}'</span><span class="p">,</span><span class="w"> </span><span class="s1">'"9.9.9.9"'</span><span class="p">)</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+</code></pre></div>
+
+<p>Careful: <code>payload-&gt;'user'</code> gives jsonb (quoted), <code>-&gt;&gt;</code> gives text. <code>json</code> keeps duplicates and key order; <code>jsonb</code> dedupes and reorders. SQL/JSON path (<code>jsonb_path_query</code>, <code>@?</code>) arrives in 12+, <code>JSON_TABLE</code> and more SQL/JSON in newer versions (check current docs).</p>
+<h3 id="mysql-not-run-here-verify">MySQL <strong>(not run here, verify)</strong></h3>
+<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="p">(</span><span class="n">id</span><span class="w"> </span><span class="nb">BIGINT</span><span class="w"> </span><span class="n">AUTO_INCREMENT</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span><span class="w"> </span><span class="n">payload</span><span class="w"> </span><span class="n">JSON</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">);</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">payload</span><span class="o">-&gt;&gt;</span><span class="s1">'$.user'</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">usr</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">JSON_EXTRACT</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span><span class="s1">'$.action'</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'buy'</span><span class="p">;</span>
+<span class="c1">-- JSON cannot be indexed directly; index a generated column:</span>
+<span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="k">ADD</span><span class="w"> </span><span class="k">COLUMN</span><span class="w"> </span><span class="n">usr</span><span class="w"> </span><span class="nb">VARCHAR</span><span class="p">(</span><span class="mi">50</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span><span class="n">payload</span><span class="o">-&gt;&gt;</span><span class="s1">'$.user'</span><span class="p">)</span><span class="w"> </span><span class="n">STORED</span><span class="p">,</span><span class="w"> </span><span class="k">ADD</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="p">(</span><span class="n">usr</span><span class="p">);</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">jt</span><span class="p">.</span><span class="n">tag</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">events</span><span class="p">,</span><span class="w"> </span><span class="n">JSON_TABLE</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span><span class="s1">'$.meta.tags[*]'</span><span class="w"> </span><span class="n">COLUMNS</span><span class="w"> </span><span class="p">(</span><span class="n">tag</span><span class="w"> </span><span class="nb">VARCHAR</span><span class="p">(</span><span class="mi">20</span><span class="p">)</span><span class="w"> </span><span class="n">PATH</span><span class="w"> </span><span class="s1">'$'</span><span class="p">))</span><span class="w"> </span><span class="n">jt</span><span class="p">;</span>
+</code></pre></div>
+
+<p>Note <code>-&gt;</code> in MySQL returns a quoted JSON value, so comparing <code>payload-&gt;'$.user' = 'ann'</code> fails; use <code>-&gt;&gt;</code>. Newer versions allow functional indexes and multi-valued indexes (check docs).</p>
+<h3 id="sql-server">SQL Server</h3>
+<p>No native JSON type in older versions (JSON stored in <code>NVARCHAR</code>, queried with <code>JSON_VALUE</code>, <code>JSON_QUERY</code>, <code>OPENJSON</code>); a native <code>json</code> type is newer (check current docs). Warehouses: Snowflake <code>VARIANT</code> with <code>col:path::type</code> and <code>FLATTEN</code>; BigQuery <code>JSON</code> with <code>JSON_VALUE</code>; check docs.</p>
+<p>When not to use JSON: when you need referential integrity, when the same keys appear on every row (make them columns), or when you aggregate on a key constantly (add a generated/typed column).</p>
+<hr />
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li>Using <code>UNION</code> where <code>UNION ALL</code> was meant (silent row loss and slowness).</li>
+<li><code>ORDER BY</code> inside the first branch of a UNION, or trusting sort order of a subquery.</li>
+<li>Mismatched column order between UNION branches: matching is by position, not name.</li>
+<li><code>NOT IN (subquery)</code> with a NULL in the list returns nothing: use <code>NOT EXISTS</code> or <code>EXCEPT</code>.</li>
+<li>Paginating without a unique tiebreaker in ORDER BY.</li>
+<li>Comparing <code>JSON -&gt;</code> output to a plain string (works in SQLite <code>-&gt;&gt;</code>, not MySQL <code>-&gt;</code>).</li>
+<li>Assuming <code>/</code>, <code>ROUND</code>, <code>LIKE</code> and string concat behave identically across engines.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<ol>
+<li>Create the DB and work through <a href="practice.sql.html">practice.sql</a> (21 tasks); reference solutions are deliberately not in the repo.</li>
+<li>Rewrite two practice answers for Postgres or MySQL in comments, using the table above and docs.</li>
+<li>Do <a href="interview-qa.html">interview-qa.md</a> aloud.</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../../06-sql/general-sql/01-language-map-ddl-dml/practice.sql.html">← Part 1 · Language map, DDL and DML: practice.sql (code)</a><a class="next" href="../../../06-sql/general-sql/02-set-ops-functions-json/interview-qa.html">Part 2 · Set ops, functions, JSON: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../../assets/data.js"></script><script src="../../../assets/app.js"></script></body></html>

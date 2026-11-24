@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Project 2: Support-ticket triage service | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="05-fde-projects/project-02-ticket-triage/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../05-fde-projects/project-01-llm-basics/lesson.html">FDE Projects</a> / <a href="../../05-fde-projects/project-02-ticket-triage/lesson.html">Project 2 · Ticket triage</a> / <span>Lesson</span></nav><button id="mark-done" data-id="05-fde-projects/project-02-ticket-triage/lesson">Mark as done</button></div><article class="doc">
+<h1 id="project-2-support-ticket-triage-service">Project 2: Support-ticket triage service</h1>
+<p>Budget: ~2 hours. Plan: read + sketch the pipeline (15 min), pure functions (45 min), pipeline + API (45 min), demo rehearsal (15 min).</p>
+<h2 id="the-customer-scenario">The customer scenario</h2>
+<blockquote>
+<p>"Northwind Software gets ~400 support emails a day. Two people read every one, tag it, and forward it to billing, engineering, product or the identity team. Enterprise customers complain when their tickets sit. Can an LLM do the first pass? We need something our helpdesk tool can call over HTTP by Friday."</p>
+</blockquote>
+<p>Your job: a small FastAPI service that takes a ticket and returns category, priority and owning team. It must never be down because the LLM was down.</p>
+<h2 id="spec">Spec</h2>
+<ul>
+<li><code>POST /triage</code> body <code>{subject, body?, customer_tier: "standard"|"enterprise"}</code> returns <code>{category, priority, team, reason, source}</code>.</li>
+<li><code>GET /health</code> returns <code>{"status": "ok"}</code>.</li>
+<li>Categories: billing, account, bug, feature_request, other. Priorities: low, medium, high, urgent.</li>
+<li>The LLM picks category + priority + a short reason. <strong>Code</strong> picks the team and applies escalation (enterprise +1 level, capped at urgent). Urgent always goes to <code>oncall</code>.</li>
+<li>If the LLM errors, times out, or returns garbage, fall back to keyword rules and mark <code>source: "rules"</code>.</li>
+<li>Empty subject -&gt; 422 (Pydantic does this for you).</li>
+</ul>
+<h2 id="concepts">Concepts</h2>
+<ul>
+<li><strong>Dependency injection</strong>: <code>create_app(llm)</code> takes any <code>llm(prompt) -&gt; str</code>. Tests pass a <code>FakeLLM</code>; production passes a wrapper around the Anthropic SDK. This is also how you swap vendors.</li>
+<li><strong>Validate model output like user input</strong>: the LLM is an untrusted client. Parse, check enums, reject.</li>
+<li><strong>Graceful degradation</strong>: a dumb rules path beats a 500 error. Report which path was used.</li>
+<li><strong>Keep business rules in code</strong>: routing and escalation are policy the customer can read, test and change. Do not bury them in a prompt.</li>
+<li><strong>App factory</strong>: no globals, so each test builds its own app.</li>
+<li>Whole-word matching: <code>"down"</code> must not match <code>"download"</code>; use <code>\b</code> in regex.</li>
+</ul>
+<h2 id="how-an-fde-would-approach-it">How an FDE would approach it</h2>
+<ol>
+<li>Ask for 20 real (anonymised) tickets and who they were routed to. This becomes your test set (Project 5).</li>
+<li>Ship the rules baseline first. Now you have something to beat and a fallback.</li>
+<li>Add the LLM for what rules can't do, keeping the output a tiny JSON schema.</li>
+<li>Agree with the customer what "wrong" costs: a mis-routed feature request is cheap, a missed outage is not. That is why urgent keywords can be checked in code even when the LLM says "low" (a good stretch goal).</li>
+<li>Return <code>reason</code> and <code>source</code> so humans can audit and trust it.</li>
+</ol>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li>Trusting <code>json.loads(reply)</code> on the raw reply (models add prose or ```json fences).</li>
+<li>Letting the LLM choose the team name; it will invent one.</li>
+<li>Catching only <code>ValueError</code>: network errors are different exceptions. Catch <code>Exception</code> at the boundary.</li>
+<li>Substring matching (<code>"down" in "download"</code>).</li>
+<li>Module-level global <code>llm</code> in the app, so tests leak into each other.</li>
+<li>Priority arithmetic on strings; use <code>PRIORITY_ORDER.index</code>.</li>
+</ul>
+<h2 id="demo-tips">Demo tips</h2>
+<ul>
+<li>Open <code>/docs</code> (FastAPI's Swagger UI) and triage live tickets from the customer's own inbox.</li>
+<li>Show a failure on purpose: unplug the key and show <code>source: "rules"</code> still answers.</li>
+<li>Show the enterprise escalation with the same ticket in both tiers.</li>
+<li>Say out loud: "the model suggests, our code decides."</li>
+</ul>
+<h2 id="optional-manual-step-real-claude-needs-anthropic_api_key-not-used-by-tests">Optional manual step: real Claude (needs ANTHROPIC_API_KEY; not used by tests)</h2>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">anthropic</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_app</span>
+
+<span class="n">client</span> <span class="o">=</span> <span class="n">anthropic</span><span class="o">.</span><span class="n">Anthropic</span><span class="p">()</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">claude_llm</span><span class="p">(</span><span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">messages</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">=</span><span class="s2">"claude-sonnet-5-5"</span><span class="p">,</span>
+        <span class="n">max_tokens</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span>
+        <span class="n">messages</span><span class="o">=</span><span class="p">[{</span><span class="s2">"role"</span><span class="p">:</span> <span class="s2">"user"</span><span class="p">,</span> <span class="s2">"content"</span><span class="p">:</span> <span class="n">prompt</span><span class="p">}],</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">msg</span><span class="o">.</span><span class="n">content</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">create_app</span><span class="p">(</span><span class="n">claude_llm</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Save as <code>serve.py</code> (outside the tests) and run <code>.venv/bin/fastapi dev serve.py</code> or <code>.venv/bin/uvicorn serve:app</code>.</p>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run <code>.venv/bin/pytest 05-fde-projects/project-02-ticket-triage -q</code>.</p>
+</article><div class="pager"><a class="prev" href="../../05-fde-projects/project-01-llm-basics/test_exercises.py.html">← Project 1 · LLM basics: Tests (code)</a><a class="next" href="../../05-fde-projects/project-02-ticket-triage/exercises.py.html">Project 2 · Ticket triage: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

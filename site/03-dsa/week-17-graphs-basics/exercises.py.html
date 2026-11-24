@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-17-graphs-basics/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-17-graphs-basics/lesson.html">Week 17 · Graph basics</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="03-dsa/week-17-graphs-basics/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>03-dsa/week-17-graphs-basics/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 17 exercises: Graph basics (BFS/DFS, grids, adjacency lists).</span>
+
+<span class="sd">Replace each `...` with your code. Problems are ordered easy -&gt; hard.</span>
+<span class="sd">Grids are lists of lists; edges are lists of [u, v] pairs (undirected unless stated).</span>
+<span class="sd">"""</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">defaultdict</span><span class="p">,</span> <span class="n">deque</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Node</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Graph node used by clone_graph (already implemented, do not edit)."""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">neighbors</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">val</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">neighbors</span> <span class="o">=</span> <span class="n">neighbors</span> <span class="k">if</span> <span class="n">neighbors</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">[]</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">valid_path</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">edges</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">destination</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 1971. Is there a path from source to destination?</span>
+
+<span class="sd">    Nodes are 0..n-1, edges are undirected.</span>
+
+<span class="sd">    Examples:</span>
+<span class="sd">        n=3, edges=[[0,1],[1,2],[2,0]], source=0, destination=2 -&gt; True</span>
+<span class="sd">        n=6, edges=[[0,1],[0,2],[3,5],[5,4],[4,3]], source=0, destination=5 -&gt; False</span>
+<span class="sd">        n=1, edges=[], source=0, destination=0 -&gt; True</span>
+
+<span class="sd">    Expected: O(V + E) time and space.</span>
+<span class="sd">    Hint: build an adjacency list (defaultdict(list)), BFS/DFS from source with</span>
+<span class="sd">    a visited set. source == destination is trivially True.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">flood_fill</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">sr</span><span class="p">,</span> <span class="n">sc</span><span class="p">,</span> <span class="n">color</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 733. Paint-bucket fill.</span>
+
+<span class="sd">    Starting at (sr, sc), recolor the 4-directionally connected region that has</span>
+<span class="sd">    the same original color as image[sr][sc] to `color`. Return the image</span>
+<span class="sd">    (modifying in place is fine).</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        image=[[1,1,1],[1,1,0],[1,0,1]], sr=1, sc=1, color=2</span>
+<span class="sd">        -&gt; [[2,2,2],[2,2,0],[2,0,1]]</span>
+
+<span class="sd">    Expected: O(R * C) time.</span>
+<span class="sd">    Hint: if the original color already equals `color`, return immediately</span>
+<span class="sd">    (otherwise you loop forever / recurse infinitely). Painting doubles as the</span>
+<span class="sd">    visited marker.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">num_islands</span><span class="p">(</span><span class="n">grid</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 200. Count islands in a grid of "1" (land) and "0" (water) strings.</span>
+
+<span class="sd">    An island is a maximal group of land cells connected 4-directionally.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        [["1","1","0","0"],</span>
+<span class="sd">         ["1","1","0","0"],</span>
+<span class="sd">         ["0","0","1","0"],</span>
+<span class="sd">         ["0","0","0","1"]] -&gt; 3</span>
+
+<span class="sd">    Expected: O(R * C) time. Empty grid -&gt; 0.</span>
+<span class="sd">    Hint: scan cells; each unvisited land cell starts a new island, then</span>
+<span class="sd">    flood it (DFS/BFS) so it is counted once. Prefer an iterative stack/queue</span>
+<span class="sd">    to avoid recursion-limit trouble on a 300x300 all-land grid.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">max_area_of_island</span><span class="p">(</span><span class="n">grid</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 695. Largest island area in a grid of 1 (land) / 0 (water) ints.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        [[0,1,1],[0,1,0],[1,0,0]] -&gt; 3</span>
+<span class="sd">        [[0,0,0]] -&gt; 0</span>
+
+<span class="sd">    Expected: O(R * C) time.</span>
+<span class="sd">    Hint: same traversal as num_islands, but return/count the size of each flood.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">valid_tree</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">edges</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 261. Do the undirected edges on nodes 0..n-1 form a valid tree?</span>
+
+<span class="sd">    A tree is connected and has no cycles.</span>
+
+<span class="sd">    Examples:</span>
+<span class="sd">        n=5, edges=[[0,1],[0,2],[0,3],[1,4]] -&gt; True</span>
+<span class="sd">        n=5, edges=[[0,1],[1,2],[2,3],[1,3],[1,4]] -&gt; False  (cycle)</span>
+<span class="sd">        n=4, edges=[[0,1],[2,3]] -&gt; False  (disconnected)</span>
+<span class="sd">        n=1, edges=[] -&gt; True</span>
+
+<span class="sd">    Expected: O(V + E).</span>
+<span class="sd">    Hint: a graph on n nodes is a tree iff it has exactly n - 1 edges AND is</span>
+<span class="sd">    connected. Check the edge count first (cheap), then traverse from node 0</span>
+<span class="sd">    and confirm you reach n nodes.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">clone_graph</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 133. Deep-copy a connected undirected graph.</span>
+
+<span class="sd">    `node` is a Node (with .val and .neighbors) or None. Return the clone of</span>
+<span class="sd">    the same node. The copy must share NO Node objects with the original.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        1 -- 2</span>
+<span class="sd">        |    |      adjacency [[2,4],[1,3],[2,4],[1,3]] -&gt; an identical, independent graph</span>
+<span class="sd">        4 -- 3</span>
+
+<span class="sd">    Expected: O(V + E) time and space.</span>
+<span class="sd">    Hint: dict old_node -&gt; new_node doubles as the visited set. Create the</span>
+<span class="sd">    clone BEFORE exploring neighbors so cycles terminate.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">oranges_rotting</span><span class="p">(</span><span class="n">grid</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 994. Rotting oranges (multi-source BFS).</span>
+
+<span class="sd">    0 = empty, 1 = fresh orange, 2 = rotten orange. Each minute every fresh</span>
+<span class="sd">    orange 4-adjacent to a rotten one becomes rotten. Return the minutes until</span>
+<span class="sd">    no fresh orange remains, or -1 if impossible. No fresh oranges -&gt; 0.</span>
+
+<span class="sd">    Examples:</span>
+<span class="sd">        [[2,1,1],[1,1,0],[0,1,1]] -&gt; 4</span>
+<span class="sd">        [[2,1,1],[0,1,1],[1,0,1]] -&gt; -1</span>
+<span class="sd">        [[0,2]] -&gt; 0</span>
+
+<span class="sd">    Expected: O(R * C).</span>
+<span class="sd">    Hint: put ALL rotten oranges in the queue at once, process BFS level by</span>
+<span class="sd">    level (one level = one minute), and count remaining fresh oranges.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">shortest_path_binary_matrix</span><span class="p">(</span><span class="n">grid</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 1091. Shortest clear path in a binary matrix (8 directions).</span>
+
+<span class="sd">    grid[i][j] is 0 (open) or 1 (blocked). Return the number of cells on the</span>
+<span class="sd">    shortest path from (0,0) to (n-1,n-1) moving in 8 directions through open</span>
+<span class="sd">    cells, or -1 if none exists.</span>
+
+<span class="sd">    Examples:</span>
+<span class="sd">        [[0,1],[1,0]] -&gt; 2</span>
+<span class="sd">        [[0,0,0],[1,1,0],[1,1,0]] -&gt; 4</span>
+<span class="sd">        [[1,0,0],[1,1,0],[1,1,0]] -&gt; -1</span>
+<span class="sd">        [[0]] -&gt; 1</span>
+
+<span class="sd">    Expected: O(n^2).</span>
+<span class="sd">    Hint: BFS gives shortest paths in unweighted graphs. Mark cells visited</span>
+<span class="sd">    when you ENQUEUE them. Check the start cell is open.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">pacific_atlantic</span><span class="p">(</span><span class="n">heights</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 417. Pacific Atlantic water flow.</span>
+
+<span class="sd">    heights[r][c] is a cell's height. Water flows from a cell to a 4-adjacent</span>
+<span class="sd">    cell with height &lt;= its own. The Pacific touches the top and left edges,</span>
+<span class="sd">    the Atlantic touches the bottom and right edges. Return all [r, c] from</span>
+<span class="sd">    which water can reach BOTH oceans (any order).</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        [[1,2,2,3,5],</span>
+<span class="sd">         [3,2,3,4,4],</span>
+<span class="sd">         [2,4,5,3,1],</span>
+<span class="sd">         [6,7,1,4,5],</span>
+<span class="sd">         [5,1,1,2,4]]</span>
+<span class="sd">        -&gt; [[0,4],[1,3],[1,4],[2,2],[3,0],[3,1],[4,0]]</span>
+
+<span class="sd">    Expected: O(R * C).</span>
+<span class="sd">    Hint: do NOT simulate flow from every cell. Run a reverse search from each</span>
+<span class="sd">    ocean's border cells, moving to neighbors with height &gt;= current, and</span>
+<span class="sd">    intersect the two reachable sets.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">ladder_length</span><span class="p">(</span><span class="n">begin_word</span><span class="p">,</span> <span class="n">end_word</span><span class="p">,</span> <span class="n">word_list</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 127. Word ladder.</span>
+
+<span class="sd">    Transform begin_word into end_word changing one letter at a time; every</span>
+<span class="sd">    intermediate word must be in word_list (begin_word need not be). Return the</span>
+<span class="sd">    number of WORDS in the shortest sequence (including both ends), or 0 if</span>
+<span class="sd">    impossible.</span>
+
+<span class="sd">    Examples:</span>
+<span class="sd">        "hit", "cog", ["hot","dot","dog","lot","log","cog"] -&gt; 5</span>
+<span class="sd">        "hit", "cog", ["hot","dot","dog","lot","log"] -&gt; 0   (cog not in list)</span>
+<span class="sd">        "a", "c", ["a","b","c"] -&gt; 2</span>
+
+<span class="sd">    Expected: O(N * L^2) with wildcard buckets, N words of length L.</span>
+<span class="sd">    Hint: model words as graph nodes. To find neighbors fast, bucket words by</span>
+<span class="sd">    patterns like "h*t". BFS from begin_word. Bidirectional BFS is a nice follow-up.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-17-graphs-basics/lesson.html">← Week 17 · Graph basics: Lesson</a><a class="next" href="../../03-dsa/week-17-graphs-basics/test_exercises.py.html">Week 17 · Graph basics: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

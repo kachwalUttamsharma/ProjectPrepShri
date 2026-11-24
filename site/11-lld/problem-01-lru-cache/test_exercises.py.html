@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>test_exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="11-lld/problem-01-lru-cache/test_exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../11-lld/README.html">Low-Level Design</a> / <a href="../../11-lld/problem-01-lru-cache/lesson.html">Problem 1 · LRU cache</a> / <span>Tests (code)</span></nav><button id="mark-done" data-id="11-lld/problem-01-lru-cache/test_exercises.py">Mark as done</button></div><article class="doc">
+<h1>test_exercises.py</h1><p class="code-path"><code>11-lld/problem-01-lru-cache/test_exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">FakeClock</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">now</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">now</span> <span class="o">=</span> <span class="n">now</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">now</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">advance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">seconds</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">now</span> <span class="o">+=</span> <span class="n">seconds</span>
+
+
+<span class="c1"># ---- doubly linked list</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">keys_of</span><span class="p">(</span><span class="n">dll</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">n</span><span class="o">.</span><span class="n">key</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">dll</span><span class="o">.</span><span class="n">nodes</span><span class="p">()]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_dll_empty</span><span class="p">():</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">DoublyLinkedList</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">d</span><span class="o">.</span><span class="n">pop_back</span><span class="p">()</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="k">assert</span> <span class="n">d</span><span class="o">.</span><span class="n">head</span><span class="o">.</span><span class="n">next</span> <span class="ow">is</span> <span class="n">d</span><span class="o">.</span><span class="n">tail</span> <span class="ow">and</span> <span class="n">d</span><span class="o">.</span><span class="n">tail</span><span class="o">.</span><span class="n">prev</span> <span class="ow">is</span> <span class="n">d</span><span class="o">.</span><span class="n">head</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_dll_add_front_order</span><span class="p">():</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">DoublyLinkedList</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="s2">"abc"</span><span class="p">:</span>
+        <span class="n">d</span><span class="o">.</span><span class="n">add_front</span><span class="p">(</span><span class="n">Node</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="k">assert</span> <span class="n">keys_of</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"c"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_dll_remove_middle_and_pointers</span><span class="p">():</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">DoublyLinkedList</span><span class="p">()</span>
+    <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="n">Node</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">Node</span><span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">Node</span><span class="p">(</span><span class="s2">"c"</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">):</span>
+        <span class="n">d</span><span class="o">.</span><span class="n">add_front</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+    <span class="n">d</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">keys_of</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"c"</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">b</span><span class="o">.</span><span class="n">prev</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">b</span><span class="o">.</span><span class="n">next</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">next</span> <span class="ow">is</span> <span class="n">a</span> <span class="ow">and</span> <span class="n">a</span><span class="o">.</span><span class="n">prev</span> <span class="ow">is</span> <span class="n">c</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_dll_move_to_front</span><span class="p">():</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">DoublyLinkedList</span><span class="p">()</span>
+    <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="n">Node</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">Node</span><span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">Node</span><span class="p">(</span><span class="s2">"c"</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">):</span>
+        <span class="n">d</span><span class="o">.</span><span class="n">add_front</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+    <span class="n">d</span><span class="o">.</span><span class="n">move_to_front</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">keys_of</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">]</span>
+    <span class="n">d</span><span class="o">.</span><span class="n">move_to_front</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">keys_of</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_dll_pop_back</span><span class="p">():</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">DoublyLinkedList</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="s2">"abc"</span><span class="p">:</span>
+        <span class="n">d</span><span class="o">.</span><span class="n">add_front</span><span class="p">(</span><span class="n">Node</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="k">assert</span> <span class="n">d</span><span class="o">.</span><span class="n">pop_back</span><span class="p">()</span><span class="o">.</span><span class="n">key</span> <span class="o">==</span> <span class="s2">"a"</span>
+    <span class="k">assert</span> <span class="n">d</span><span class="o">.</span><span class="n">pop_back</span><span class="p">()</span><span class="o">.</span><span class="n">key</span> <span class="o">==</span> <span class="s2">"b"</span>
+    <span class="k">assert</span> <span class="n">d</span><span class="o">.</span><span class="n">pop_back</span><span class="p">()</span><span class="o">.</span><span class="n">key</span> <span class="o">==</span> <span class="s2">"c"</span>
+    <span class="k">assert</span> <span class="n">d</span><span class="o">.</span><span class="n">pop_back</span><span class="p">()</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+
+
+<span class="c1"># ---- construction</span>
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">parametrize</span><span class="p">(</span><span class="s2">"cap"</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mf">1.5</span><span class="p">,</span> <span class="s2">"3"</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">True</span><span class="p">])</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_bad_capacity</span><span class="p">(</span><span class="n">cap</span><span class="p">):</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">LRUCache</span><span class="p">(</span><span class="n">cap</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_bad_ttl</span><span class="p">():</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">LRUCache</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">ttl</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">LRUCache</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">ttl</span><span class="o">=-</span><span class="mi">5</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_capacity_attribute</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">LRUCache</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span><span class="o">.</span><span class="n">capacity</span> <span class="o">==</span> <span class="mi">4</span>
+
+
+<span class="c1"># ---- core behaviour</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_get_missing_returns_default</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">LRUCache</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"x"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"x"</span><span class="p">,</span> <span class="mi">42</span><span class="p">)</span> <span class="o">==</span> <span class="mi">42</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_put_get</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">LRUCache</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"a"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"b"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_evicts_least_recently_used</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">LRUCache</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"c"</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="s2">"a"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">c</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"c"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_get_refreshes_recency</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">LRUCache</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"a"</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"c"</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="s2">"b"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">c</span> <span class="ow">and</span> <span class="s2">"a"</span> <span class="ow">in</span> <span class="n">c</span> <span class="ow">and</span> <span class="s2">"c"</span> <span class="ow">in</span> <span class="n">c</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_update_existing_refreshes_and_does_not_evict</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">LRUCache</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"a"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">10</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"c"</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="s2">"b"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">c</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_falsy_values_are_stored</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">LRUCache</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"d"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="s2">"d"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="k">assert</span> <span class="s2">"b"</span> <span class="ow">in</span> <span class="n">c</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_capacity_one</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">LRUCache</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"b"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"a"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_keys_order_mru_to_lru</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">LRUCache</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="s2">"abc"</span><span class="p">:</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"a"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_peek_and_contains_do_not_change_recency</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">LRUCache</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">peek</span><span class="p">(</span><span class="s2">"a"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="s2">"a"</span> <span class="ow">in</span> <span class="n">c</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">peek</span><span class="p">(</span><span class="s2">"zzz"</span><span class="p">,</span> <span class="s2">"d"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"d"</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"b"</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">]</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"c"</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="s2">"a"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">c</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_delete</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">LRUCache</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s2">"a"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s2">"a"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s2">"never"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">c</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"b"</span><span class="p">]</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"x"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"y"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_clear</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">LRUCache</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">c</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"b"</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_unhashable_key_raises_typeerror</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">LRUCache</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">TypeError</span><span class="p">):</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">([</span><span class="mi">1</span><span class="p">],</span> <span class="mi">1</span><span class="p">)</span>
+
+
+<span class="c1"># ---- eviction callback</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_on_evict_called_for_capacity_eviction_only</span><span class="p">():</span>
+    <span class="n">seen</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">LRUCache</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">on_evict</span><span class="o">=</span><span class="k">lambda</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">seen</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)))</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>        <span class="c1"># update: no eviction</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s2">"b"</span><span class="p">)</span>        <span class="c1"># delete: no callback</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"c"</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"d"</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>        <span class="c1"># evicts a</span>
+    <span class="k">assert</span> <span class="n">seen</span> <span class="o">==</span> <span class="p">[(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">5</span><span class="p">)]</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">seen</span> <span class="o">==</span> <span class="p">[(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">5</span><span class="p">)]</span>
+
+
+<span class="c1"># ---- ttl</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_ttl_expires_on_get</span><span class="p">():</span>
+    <span class="n">clock</span> <span class="o">=</span> <span class="n">FakeClock</span><span class="p">()</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">LRUCache</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">ttl</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">clock</span><span class="o">=</span><span class="n">clock</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mf">9.9</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"a"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mf">0.1</span><span class="p">)</span>  <span class="c1"># now == expires_at -&gt; expired</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"gone"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"gone"</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_get_does_not_extend_ttl</span><span class="p">():</span>
+    <span class="n">clock</span> <span class="o">=</span> <span class="n">FakeClock</span><span class="p">()</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">LRUCache</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">ttl</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">clock</span><span class="o">=</span><span class="n">clock</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">6</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"a"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="s2">"a"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">c</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_put_refreshes_ttl</span><span class="p">():</span>
+    <span class="n">clock</span> <span class="o">=</span> <span class="n">FakeClock</span><span class="p">()</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">LRUCache</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">ttl</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">clock</span><span class="o">=</span><span class="n">clock</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">8</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">8</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"a"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_expired_entries_purged_before_evicting_live_ones</span><span class="p">():</span>
+    <span class="n">clock</span> <span class="o">=</span> <span class="n">FakeClock</span><span class="p">()</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">LRUCache</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">ttl</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">clock</span><span class="o">=</span><span class="n">clock</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"old"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"new"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">6</span><span class="p">)</span>       <span class="c1"># "old" expired, "new" alive</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"new"</span><span class="p">)</span>           <span class="c1"># new is MRU anyway; make old LRU... put another</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"x"</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>          <span class="c1"># should purge old, not evict new</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"x"</span><span class="p">,</span> <span class="s2">"new"</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_expired_not_counted_in_len_keys_contains_delete</span><span class="p">():</span>
+    <span class="n">clock</span> <span class="o">=</span> <span class="n">FakeClock</span><span class="p">()</span>
+    <span class="n">seen</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">LRUCache</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="n">ttl</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">clock</span><span class="o">=</span><span class="n">clock</span><span class="p">,</span> <span class="n">on_evict</span><span class="o">=</span><span class="k">lambda</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">seen</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">k</span><span class="p">))</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="s2">"a"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">c</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s2">"b"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="n">seen</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_no_ttl_never_expires</span><span class="p">():</span>
+    <span class="n">clock</span> <span class="o">=</span> <span class="n">FakeClock</span><span class="p">()</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">LRUCache</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">clock</span><span class="o">=</span><span class="n">clock</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">10</span> <span class="o">**</span> <span class="mi">9</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"a"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+
+
+<span class="c1"># ---- stress / O(1) behaviour</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_large_workload_matches_reference_model</span><span class="p">():</span>
+    <span class="n">cap</span> <span class="o">=</span> <span class="mi">50</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">LRUCache</span><span class="p">(</span><span class="n">cap</span><span class="p">)</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># keys MRU first</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">random</span>
+    <span class="n">rnd</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">Random</span><span class="p">(</span><span class="mi">7</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3000</span><span class="p">):</span>
+        <span class="n">k</span> <span class="o">=</span> <span class="n">rnd</span><span class="o">.</span><span class="n">randrange</span><span class="p">(</span><span class="mi">80</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">rnd</span><span class="o">.</span><span class="n">random</span><span class="p">()</span> <span class="o">&lt;</span> <span class="mf">0.5</span><span class="p">:</span>
+            <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">k</span> <span class="o">*</span> <span class="mi">2</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">model</span><span class="p">:</span>
+                <span class="n">model</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span>
+            <span class="k">del</span> <span class="n">model</span><span class="p">[</span><span class="n">cap</span><span class="p">:]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">got</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">model</span><span class="p">:</span>
+                <span class="n">model</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+                <span class="n">model</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span>
+                <span class="k">assert</span> <span class="n">got</span> <span class="o">==</span> <span class="n">k</span> <span class="o">*</span> <span class="mi">2</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="n">got</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="o">==</span> <span class="n">model</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_operations_scale_linearly_not_quadratically</span><span class="p">():</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">LRUCache</span><span class="p">(</span><span class="mi">1000</span><span class="p">)</span>
+    <span class="n">start</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">100_000</span><span class="p">):</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">i</span> <span class="o">%</span> <span class="mi">1500</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">((</span><span class="n">i</span> <span class="o">*</span> <span class="mi">7</span><span class="p">)</span> <span class="o">%</span> <span class="mi">1500</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1000</span>
+    <span class="k">assert</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span> <span class="o">-</span> <span class="n">start</span> <span class="o">&lt;</span> <span class="mi">5</span>  <span class="c1"># generous: O(n) per op would take minutes</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../11-lld/problem-01-lru-cache/exercises.py.html">← Problem 1 · LRU cache: Exercises (code)</a><a class="next" href="../../11-lld/problem-02-rate-limiter/lesson.html">Problem 2 · Rate limiter: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

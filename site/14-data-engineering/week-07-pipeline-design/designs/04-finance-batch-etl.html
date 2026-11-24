@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Design 4: Batch ETL for Daily Finance Reporting with Strong Reconciliation | Study Hub</title><link rel="stylesheet" href="../../../assets/style.css"><link rel="stylesheet" href="../../../assets/pygments.css"></head>
+<body data-root="../../../" data-page-id="14-data-engineering/week-07-pipeline-design/designs/04-finance-batch-etl" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../../index.html">Home</a> / <a href="../../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../../14-data-engineering/week-07-pipeline-design/designs/01-clickstream-analytics.html">Week 7 · Pipeline design</a> / <a href="../../../14-data-engineering/week-07-pipeline-design/designs/01-clickstream-analytics.html">Designs</a> / <span>Design 4: Batch ETL for Daily Finance Reporting with Strong Reconciliation</span></nav><button id="mark-done" data-id="14-data-engineering/week-07-pipeline-design/designs/04-finance-batch-etl">Mark as done</button></div><article class="doc">
+<h1 id="design-4-batch-etl-for-daily-finance-reporting-with-strong-reconciliation">Design 4: Batch ETL for Daily Finance Reporting with Strong Reconciliation</h1>
+<p>Prompt: "Build the daily pipeline that produces revenue and settlement reports for the finance team from payments, orders, refunds, and bank files. Numbers must tie out to the penny and be auditable."</p>
+<h2 id="requirements">Requirements</h2>
+<p>Functional</p>
+<ul>
+<li>Ingest from: payments DB (CDC or daily extract), payment-processor settlement files (CSV/SFTP), ERP/GL exports, FX rates feed.</li>
+<li>Produce daily and month-end reports: gross/net revenue, refunds, fees, taxes, by entity/currency/product; ledger-ready journal entries.</li>
+<li>Reconcile: orders vs payments vs processor settlement vs bank statements; list unmatched items.</li>
+<li>Corrections: late refunds and restatements must be handled with a full audit trail.</li>
+</ul>
+<p>Non-functional</p>
+<ul>
+<li>Deadline: reports ready by 07:00 local time; month-end close within 2 business days.</li>
+<li>Correctness above all: totals tie to source systems to the cent, deterministic re-runs produce identical output.</li>
+<li>Auditability: SOX-style lineage, who ran what, immutable inputs, 7-year retention.</li>
+<li>Security: restricted access, PII/card data excluded (tokens only), change management.</li>
+<li>Out of scope: real-time reporting, tax filing.</li>
+</ul>
+<h2 id="capacity-estimates">Capacity estimates</h2>
+<ul>
+<li>20M transactions/day x 500 bytes = 10 GB/day raw; 3.6 TB/year; plus settlement files (a few GB/day).</li>
+<li>Compute is small: a Spark/warehouse job over a day's partitions takes minutes. Cost is dominated by correctness work, not scale.</li>
+<li>Reconciliation joins: 20M payments x 20M settlement lines per day, trivial for a distributed join (hash join on transaction id).</li>
+</ul>
+<h2 id="architecture">Architecture</h2>
+<pre class="mermaid">flowchart LR
+  P[(Payments DB)] --&gt;|CDC or snapshot at cutoff| LZ[Landing / Bronze immutable]
+  PS[Processor settlement files] --&gt;|SFTP + checksum + manifest| LZ
+  ERP[ERP/GL exports] --&gt; LZ
+  FX[FX rates] --&gt; LZ
+  LZ --&gt; V[Validate: schema, control totals, duplicates]
+  V --&gt;|fail| Q[Quarantine + alert]
+  V --&gt; S[Silver: typed, deduped, conformed, currency-normalized]
+  S --&gt; R[Reconciliation engine: 3-way match]
+  R --&gt; EX[(Exceptions table + workflow)]
+  S --&gt; G[Gold: revenue facts, journal entries, daily snapshots]
+  R --&gt; G
+  G --&gt; WH[Warehouse / BI reports]
+  G --&gt; GL[Export to GL]
+  ORC[Orchestrator: Airflow, run_id, cutoff_ts] -.-&gt; V
+  AUD[Audit log + lineage + row-count/amount control totals] -.-&gt; G</pre>
+<h2 id="data-model">Data model</h2>
+<ul>
+<li><code>fact_transaction(txn_id, order_id, account, entity, currency, amount_minor_units, fx_rate_id, amount_reporting_ccy, txn_type [sale|refund|fee|chargeback], posted_date, source_system, source_batch_id, load_run_id)</code>. Amounts as integer minor units or DECIMAL; never float.</li>
+<li><code>recon_match(txn_id, source_a_id, source_b_id, status [matched|amount_diff|missing_in_processor|missing_in_bank], diff_amount, run_id)</code>.</li>
+<li><code>fct_daily_revenue_snapshot(report_date, as_of_run_id, entity, currency, gross, refunds, fees, net)</code>: append snapshots per run, never overwrite, so earlier published numbers remain reproducible.</li>
+<li><code>control_totals(source, batch_id, row_count, sum_amount, hash, received_at)</code> captured on arrival.</li>
+<li><code>dim_fx_rate</code> with <code>rate_date</code> and source; SCD2 on any dimension used for reporting.</li>
+</ul>
+<h2 id="step-by-step-flow">Step-by-step flow</h2>
+<ol>
+<li>A fixed business cutoff (for example 00:00 UTC) defines the day. The orchestrator creates <code>run_id</code> and passes <code>logical_date</code> + <code>cutoff_ts</code> to every task (no <code>now()</code> inside jobs).</li>
+<li>Land source data unchanged with control totals from the source (row counts and amount sums reported by the source system or file trailer) and our own computed totals.</li>
+<li>Validate: control totals match, no duplicate file (checksum), schema matches contract, mandatory fields present. Any failure blocks promotion (hard gate) and pages the owner.</li>
+<li>Transform to Silver idempotently: dedupe on (source, source_txn_id), convert currencies with the rate effective on the transaction date, standardize statuses. Write by partition overwrite (<code>posted_date</code>), so reruns replace, not append.</li>
+<li>Reconcile three ways: orders vs payments (internal), payments vs processor settlement, settlement vs bank deposits. Match on id plus amount; tolerance rules only for known rounding; unmatched items go to an exceptions queue with aging.</li>
+<li>Build Gold: revenue facts, journal entries (debits = credits check), daily snapshot with <code>as_of_run_id</code>.</li>
+<li>Run financial controls: total debits = total credits, Gold sum = Silver sum = source control total, day-over-day variance within threshold (warn) and absolute tie-out (block).</li>
+<li>Publish: swap a pointer/view to the new snapshot atomically; notify finance; archive run manifest (inputs, code version, config, outputs, checks).</li>
+</ol>
+<h2 id="failure-modes">Failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Failure</th>
+<th>Handling</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Source file arrives late or partial</td>
+<td>Sensor + SLA alert; control total mismatch blocks; publish previous day flagged "pending" rather than wrong numbers</td>
+</tr>
+<tr>
+<td>Duplicate file/resent data</td>
+<td>Checksum + (source, batch id) uniqueness</td>
+</tr>
+<tr>
+<td>Late refunds/chargebacks</td>
+<td>Posted in the period they occur (posting date), with adjustment entries; prior snapshots stay immutable; restatement process for closed periods</td>
+</tr>
+<tr>
+<td>FX rate missing</td>
+<td>Block (no silent default), use prior business day rate only if policy allows and flag</td>
+</tr>
+<tr>
+<td>Job rerun gives different results</td>
+<td>Forbidden: no <code>now()</code>, deterministic ordering, pinned code version and inputs</td>
+</tr>
+<tr>
+<td>Partial write</td>
+<td>Write to staging, validate, then atomic swap</td>
+</tr>
+<tr>
+<td>Float rounding</td>
+<td>Integer minor units / DECIMAL; define rounding rule centrally</td>
+</tr>
+<tr>
+<td>Wrong join fan-out inflating revenue</td>
+<td>Grain tests (unique key on fact), control totals compare to source</td>
+</tr>
+</tbody>
+</table>
+<h2 id="trade-offs">Trade-offs</h2>
+<ul>
+<li>Daily batch vs streaming: finance needs closed, auditable periods; batch with cutoff is simpler and defensible. Streaming adds a provisional intraday view only if asked.</li>
+<li>Warehouse SQL (dbt) vs Spark: this volume fits warehouse SQL well and is easier for finance analysts to audit; use Spark if heavy file parsing is needed.</li>
+<li>Immutable snapshots vs overwrite: snapshots cost storage but give point-in-time reproducibility, which auditors want.</li>
+<li>Strict blocking vs warn-only checks: block on tie-outs, warn on variance; document who may override and require sign-off.</li>
+<li>Soft tolerances in matching: tolerance hides errors; keep them explicit, tiny, and reported.</li>
+</ul>
+<h2 id="follow-up-questions">Follow-up questions</h2>
+<ol>
+<li>A refund posted in March for a January sale: where does it appear? (March by posting date, linked to original order; Jan restated only via formal process)</li>
+<li>How do you prove to auditors the report matches source? (control totals, lineage, run manifest, reproducible rerun)</li>
+<li>How do you handle multiple currencies at month end? (transaction-date rate vs period-end revaluation; store both)</li>
+<li>The processor changed file format silently. Detect? (schema contract tests, trailer checks, quarantine)</li>
+<li>How do you backfill 6 months after a bug fix? (versioned code, new <code>run_id</code> per day, compare to old snapshots, publish diffs for finance approval)</li>
+<li>What would you add for intraday visibility? (streaming provisional table marked non-authoritative)</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../../14-data-engineering/week-07-pipeline-design/designs/03-realtime-metrics-dashboard.html">← Design 3: Real-Time Dashboard / Metrics (Ride-Hailing Surge and ETA Stats)</a><a class="next" href="../../../14-data-engineering/week-07-pipeline-design/designs/05-feature-store.html">Design 5: ML Feature Store (Offline + Online) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../../assets/data.js"></script><script src="../../../assets/app.js"></script></body></html>

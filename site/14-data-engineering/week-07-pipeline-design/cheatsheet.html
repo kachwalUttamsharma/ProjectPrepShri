@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 7 Cheatsheet: Pipeline Design | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="14-data-engineering/week-07-pipeline-design/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../14-data-engineering/week-07-pipeline-design/designs/01-clickstream-analytics.html">Week 7 · Pipeline design</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="14-data-engineering/week-07-pipeline-design/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="week-7-cheatsheet-pipeline-design">Week 7 Cheatsheet: Pipeline Design</h1>
+<h2 id="one-page-template-copy-to-the-whiteboard">One-page template (copy to the whiteboard)</h2>
+<div class="highlight"><pre><span></span><code>REQUIREMENTS  consumers / freshness SLA / volume / correctness / sources / history / compliance / budget
+HARDEST REQ   ...
+ESTIMATES     events/s avg+peak ; GB/day ; TB/yr (x replication) ; partitions
+MODE          batch | micro-batch | streaming | hybrid  (slowest that meets SLA)
+INGEST        CDC | API cursor | file landing | event bus
+LAYERS        bronze(raw, immutable) -&gt; silver(clean, dedupe) -&gt; gold(marts)
+PROCESS       idempotent jobs ; event time + watermark ; dedupe key+version
+SERVE         warehouse | OLAP | feature store | cache
+OPS           orchestration, quality gates, observability, backfill, DLQ
+RISKS         dupes, late data, schema drift, skew, small files, cost, PII
+EVOLVE        what changes at 10x
+</code></pre></div>
+
+<h2 id="quick-numbers">Quick numbers</h2>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Rule of thumb</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 day</td>
+<td>86,400 s (use 100K for mental math)</td>
+</tr>
+<tr>
+<td>Peak vs average</td>
+<td>2-5x (say your factor)</td>
+</tr>
+<tr>
+<td>JSON event</td>
+<td>about 1 KB; Parquet compressed 4-6x smaller</td>
+</tr>
+<tr>
+<td>Kafka partition</td>
+<td>about 5-10 MB/s write; plan partitions by throughput and consumer parallelism</td>
+</tr>
+<tr>
+<td>Kafka storage</td>
+<td>MB/s x 86,400 x retention days x replication 3</td>
+</tr>
+<tr>
+<td>Parquet file size</td>
+<td>128 MB to 1 GB target</td>
+</tr>
+<tr>
+<td>Spark shuffle partitions</td>
+<td>aim for 100-200 MB per partition</td>
+</tr>
+<tr>
+<td>Streaming vs batch cost</td>
+<td>often 3-10x more to run and operate</td>
+</tr>
+</tbody>
+</table>
+<h2 id="batch-vs-micro-batch-vs-streaming">Batch vs micro-batch vs streaming</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Batch</th>
+<th>Micro-batch</th>
+<th>Streaming</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Latency</td>
+<td>min-hours</td>
+<td>seconds-minutes</td>
+<td>ms-seconds</td>
+</tr>
+<tr>
+<td>Engine</td>
+<td>Spark, dbt, SQL</td>
+<td>Spark SS</td>
+<td>Flink, Kafka Streams</td>
+</tr>
+<tr>
+<td>Reprocess</td>
+<td>trivial</td>
+<td>easy</td>
+<td>replay + state</td>
+</tr>
+<tr>
+<td>Use</td>
+<td>finance, reports</td>
+<td>CDC merge, near-RT BI</td>
+<td>fraud, alerting, ops</td>
+</tr>
+</tbody>
+</table>
+<h2 id="ingestion-patterns">Ingestion patterns</h2>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th>Pattern</th>
+<th>Watch</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DB</td>
+<td>log-based CDC</td>
+<td>slot lag, deletes, DDL, snapshot handoff</td>
+</tr>
+<tr>
+<td>DB (no log)</td>
+<td>incremental by watermark</td>
+<td>misses deletes, overlap window</td>
+</tr>
+<tr>
+<td>API</td>
+<td>cursor pull</td>
+<td>rate limits, pagination, idempotent load</td>
+</tr>
+<tr>
+<td>Files</td>
+<td>landing + manifest + checksum</td>
+<td>partial files, dupes, late</td>
+</tr>
+<tr>
+<td>Events</td>
+<td>schema registry + Kafka</td>
+<td>partition key, event time, PII</td>
+</tr>
+</tbody>
+</table>
+<h2 id="delivery-semantics">Delivery semantics</h2>
+<ul>
+<li>At-least-once + idempotent sink = exactly-once effect.</li>
+<li>Dedupe: producer event_id; <code>row_number() over (partition by key order by version desc)</code>.</li>
+<li>CDC ordering: by LSN/log position, per key.</li>
+<li>Commit offsets/cursors after the durable write.</li>
+</ul>
+<h2 id="streaming-concepts">Streaming concepts</h2>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Event time vs processing time</td>
+<td>When it happened vs when we saw it</td>
+</tr>
+<tr>
+<td>Watermark</td>
+<td>Estimate that no events older than T will arrive; triggers window close</td>
+</tr>
+<tr>
+<td>Allowed lateness</td>
+<td>Extra time to update closed windows</td>
+</tr>
+<tr>
+<td>Tumbling / sliding / session window</td>
+<td>Fixed, overlapping, gap-based</td>
+</tr>
+<tr>
+<td>Checkpoint</td>
+<td>Snapshot of state + offsets for recovery</td>
+</tr>
+<tr>
+<td>Backpressure</td>
+<td>Slow consumer slows producers</td>
+</tr>
+</tbody>
+</table>
+<h2 id="quality-checks-at-gates">Quality checks at gates</h2>
+<p>Schema, freshness, volume, null/unique, referential, reconciliation (sum/count vs source), distribution drift. Policy: block on correctness (finance totals), warn on soft metrics.</p>
+<h2 id="failure-modes-mitigation">Failure modes -&gt; mitigation</h2>
+<table>
+<thead>
+<tr>
+<th>Failure</th>
+<th>Mitigation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Duplicates</td>
+<td>idempotent write, dedupe key</td>
+</tr>
+<tr>
+<td>Late data</td>
+<td>watermark + batch correction</td>
+</tr>
+<tr>
+<td>Schema drift</td>
+<td>registry, contracts, quarantine</td>
+</tr>
+<tr>
+<td>Poison message</td>
+<td>DLQ + replay</td>
+</tr>
+<tr>
+<td>Skew</td>
+<td>salt, broadcast, AQE</td>
+</tr>
+<tr>
+<td>Small files</td>
+<td>compaction, larger triggers</td>
+</tr>
+<tr>
+<td>Slot / backlog growth</td>
+<td>lag alerts, heartbeats</td>
+</tr>
+<tr>
+<td>Silent corruption</td>
+<td>reconciliation, time travel rollback</td>
+</tr>
+<tr>
+<td>Cost runaway</td>
+<td>budgets, auto-terminate, lifecycle</td>
+</tr>
+<tr>
+<td>Wrong joins fan-out</td>
+<td>grain tests, control totals</td>
+</tr>
+</tbody>
+</table>
+<h2 id="serving-choices">Serving choices</h2>
+<table>
+<thead>
+<tr>
+<th>Need</th>
+<th>Pick</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BI, finance, ad hoc</td>
+<td>warehouse / lakehouse SQL</td>
+</tr>
+<tr>
+<td>Sub-second, high concurrency, fresh</td>
+<td>Druid / Pinot / ClickHouse</td>
+</tr>
+<tr>
+<td>Online ML features</td>
+<td>Redis / DynamoDB / Cassandra</td>
+</tr>
+<tr>
+<td>Lookup API</td>
+<td>KV + cache</td>
+</tr>
+</tbody>
+</table>
+<h2 id="design-specific-one-liners">Design-specific one-liners</h2>
+<ol>
+<li>Clickstream: dedupe by event_id, session windows, stream provisional + batch authoritative.</li>
+<li>CDC: Debezium -&gt; Kafka -&gt; raw log -&gt; MERGE by LSN; reconcile; watch replication slots.</li>
+<li>Real-time metrics: Flink windows -&gt; OLAP + Redis; approximate now, correct later.</li>
+<li>Finance: cutoffs, control totals, 3-way reconciliation, immutable snapshots, no floats.</li>
+<li>Feature store: one definition, as-of joins, log served features to catch skew.</li>
+<li>Self-serve platform: config-driven DAGs, contracts, quotas, PII default-deny.</li>
+<li>Fraud: sync score under 100 ms, precomputed velocity features, fallback to rules, delayed labels.</li>
+<li>GDPR: PII inventory, batch deletes, compaction + snapshot expiry, suppression list, crypto-shredding, audit.</li>
+</ol>
+<h2 id="phrases-that-signal-seniority">Phrases that signal seniority</h2>
+<ul>
+<li>"I would pick the slowest mode that meets the SLA."</li>
+<li>"Raw is immutable, so everything downstream is replayable."</li>
+<li>"Every job is idempotent: same inputs, same outputs."</li>
+<li>"I would detect that with X before the consumer does."</li>
+<li>"At 10x, the first thing that breaks is Y."</li>
+<li>"I am unsure of the current default for Z; I would check the docs."</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../../14-data-engineering/week-07-pipeline-design/interview-qa.html">← Week 7 · Pipeline design: Interview Q&amp;A</a><a class="next" href="../../14-data-engineering/rapid-fire.html">Data Engineering: Rapid-fire Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

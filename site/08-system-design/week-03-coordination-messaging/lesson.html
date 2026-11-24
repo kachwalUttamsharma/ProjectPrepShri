@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 3 - Coordination and Messaging: Queues, Logs, Delivery Semantics, Resilience Patterns | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="08-system-design/week-03-coordination-messaging/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../08-system-design/README.html">System Design</a> / <a href="../../08-system-design/week-03-coordination-messaging/lesson.html">Week 3 · Coordination and messaging</a> / <span>Lesson</span></nav><button id="mark-done" data-id="08-system-design/week-03-coordination-messaging/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-3-coordination-and-messaging-queues-logs-delivery-semantics-resilience-patterns">Week 3 - Coordination and Messaging: Queues, Logs, Delivery Semantics, Resilience Patterns</h1>
+<p>Time budget: ~3 hrs. Read lesson (1.5h), Q&amp;A aloud (1h), cheatsheet (30m).
+Numbers marked "(check current docs)" change over time; verify before quoting.
+AWS cross-link: <a href="../../07-aws/week-05-integration-ops-security/lesson.html">../../07-aws/week-05-integration-ops-security</a> covers SQS, SNS, EventBridge, Kinesis as managed products. This week is the concepts underneath.</p>
+<p>Contents</p>
+<ol>
+<li>Why messaging at all</li>
+<li>Queues vs logs</li>
+<li>Kafka concepts</li>
+<li>Delivery semantics</li>
+<li>Idempotency</li>
+<li>Outbox pattern</li>
+<li>Pub/sub and fan-out</li>
+<li>Backpressure</li>
+<li>Rate limiting algorithms</li>
+<li>Timeouts, retries, backoff, jitter</li>
+<li>Circuit breakers (and bulkheads)</li>
+<li>Putting it together</li>
+<li>How interviewers probe this</li>
+</ol>
+<hr />
+<h2 id="1-why-messaging-at-all">1. Why messaging at all</h2>
+<p>Synchronous call chain:</p>
+<div class="highlight"><pre><span></span><code> Client -&gt; API -&gt; Payment -&gt; Inventory -&gt; Email -&gt; Analytics
+ availability = product of availabilities (0.999^5 ~ 0.995)
+ latency      = sum of latencies
+ any slow dependency stalls the caller
+</code></pre></div>
+
+<p>Asynchronous with a broker:</p>
+<div class="highlight"><pre><span></span><code> Client -&gt; API -&gt; [ broker ] --&gt; Payment worker
+                      |------&gt; Email worker
+                      |------&gt; Analytics worker
+</code></pre></div>
+
+<p>What a broker buys you</p>
+<ul>
+<li>Decoupling in time: producer does not need the consumer to be up.</li>
+<li>Decoupling in rate: absorbs bursts (a buffer / shock absorber).</li>
+<li>Fan-out: one event, many independent consumers.</li>
+<li>Retry and replay: failed work can be redone; a log can be re-read.</li>
+<li>Independent scaling of producer and consumer fleets.</li>
+</ul>
+<p>What it costs you</p>
+<ul>
+<li>Eventual consistency: the user sees "accepted", not "done".</li>
+<li>Duplicates and reordering become your problem (section 4, 5).</li>
+<li>Harder debugging (no single stack trace); need correlation IDs and tracing.</li>
+<li>A new critical component to operate (or pay for).</li>
+</ul>
+<p>Rule of thumb: put a queue where the user does not need the result in the same request, or where the downstream is slower / less reliable than the upstream.</p>
+<hr />
+<h2 id="2-queues-vs-logs">2. Queues vs logs</h2>
+<p>Two mental models. Interviewers love "SQS vs Kafka".</p>
+<div class="highlight"><pre><span></span><code> TRADITIONAL QUEUE (SQS, RabbitMQ)            LOG (Kafka, Kinesis, Pulsar)
+ msg is a TASK; consumed = deleted            msg is a FACT; retained for N days
+ +-------------------+                        +--------------------------------+
+ | m5 m4 m3 m2 m1 | -&gt; worker A (m1)          | offset: 0 1 2 3 4 5 6 7 ...    |
+ +-------------------+ -&gt; worker B (m2)       |         ^consumer X at 3       |
+ competing consumers; ack removes message     |              ^consumer Y at 6  |
+ no replay once acked                         +--------------------------------+
+                                              each consumer group tracks its own offset
+                                              replay = move the offset back
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th>Aspect</th>
+<th>Queue</th>
+<th>Log</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>After consume</td>
+<td>deleted (or hidden until ack/visibility timeout)</td>
+<td>retained by time/size policy</td>
+</tr>
+<tr>
+<td>Consumers</td>
+<td>competing; each message to one worker</td>
+<td>many independent groups, each sees everything</td>
+</tr>
+<tr>
+<td>Ordering</td>
+<td>best effort (FIFO variants exist, with throughput limits)</td>
+<td>strict per partition</td>
+</tr>
+<tr>
+<td>Replay</td>
+<td>no (except DLQ redrive)</td>
+<td>yes: reset offset</td>
+</tr>
+<tr>
+<td>Scaling unit</td>
+<td>add consumers freely</td>
+<td>consumers &lt;= partitions per group</td>
+</tr>
+<tr>
+<td>Per-message features</td>
+<td>visibility timeout, delay, per-message DLQ, priority (some)</td>
+<td>usually none; you build retry topics</td>
+</tr>
+<tr>
+<td>Best for</td>
+<td>job/task distribution, work queues</td>
+<td>event streams, CDC, analytics, event sourcing, many consumers</td>
+</tr>
+</tbody>
+</table>
+<p>Visibility timeout (SQS style): a received message is hidden for N seconds; if the worker does not delete (ack) it in time, it reappears. This is the origin of at-least-once: slow worker + short timeout = duplicate processing.</p>
+<p>Dead-letter queue (DLQ): after K failed attempts, park the message for inspection. Always alarm on DLQ depth; a silent DLQ is a data-loss bug in slow motion.</p>
+<hr />
+<h2 id="3-kafka-concepts">3. Kafka concepts</h2>
+<div class="highlight"><pre><span></span><code> Topic "orders" (3 partitions, replication factor 3)
+
+ Producer --key hash--&gt; P0: [0][1][2][3][4] ...  leader on broker 1, followers on 2,3
+                        P1: [0][1][2][3]   ...  leader on broker 2
+                        P2: [0][1][2]      ...  leader on broker 3
+
+ Consumer group "billing" (3 consumers)        Consumer group "search-indexer" (1 consumer)
+   C1 &lt;- P0                                      C1 &lt;- P0, P1, P2
+   C2 &lt;- P1
+   C3 &lt;- P2
+</code></pre></div>
+
+<p>Core terms</p>
+<ul>
+<li>Topic: named stream. Partition: an ordered, append-only, immutable log; the unit of parallelism and ordering.</li>
+<li>Offset: position of a record within a partition. Order is guaranteed only within a partition, never across partitions.</li>
+<li>Key: producer picks partition via hash(key) % N (default). Same key -&gt; same partition -&gt; ordered per key. Use the entity id (user_id, order_id).</li>
+<li>Broker: server storing partitions. Each partition has a leader (serves reads/writes) and followers (replicate).</li>
+<li>ISR (in-sync replicas): followers caught up with the leader. A write with <code>acks=all</code> is acknowledged once all ISR have it; with <code>min.insync.replicas=2</code> and RF=3 you tolerate one broker loss without losing acked data.</li>
+<li>Consumer group: set of consumers sharing a topic; each partition assigned to exactly one consumer in the group. More consumers than partitions = idle consumers. Different groups are independent.</li>
+<li>Committed offset: consumer group's progress, stored in the internal <code>__consumer_offsets</code> topic. Commit after processing for at-least-once.</li>
+<li>Rebalance: when consumers join/leave, partitions are reassigned; processing pauses (stop-the-world in older protocols; cooperative rebalancing reduces this). Frequent rebalances (slow <code>poll</code>, long GC) are a classic production issue.</li>
+<li>Retention: time or size based (default 7 days; check current docs). Log compaction: keep latest record per key (good for changelog / "current state" topics; tombstone = null value deletes).</li>
+<li>Metadata: historically ZooKeeper; modern Kafka uses KRaft (Raft-based controller quorum). Check current docs for versions.</li>
+</ul>
+<p>Why Kafka is fast</p>
+<ul>
+<li>Sequential disk appends and reads; OS page cache; batching + compression; zero-copy (sendfile) to consumers. Throughput of hundreds of MB/s per broker is realistic (order of magnitude; check benchmarks).</li>
+</ul>
+<p>Partition count tradeoffs</p>
+<ul>
+<li>More partitions = more parallelism and throughput, but more open files, longer leader-election/recovery, more end-to-end latency in some cases, and you cannot decrease it. Changing partition count remaps keys (ordering across the change breaks). Size for future peak: target throughput / per-partition throughput.</li>
+<li>Hot key: one key with huge volume saturates one partition. Mitigate by salting the key (loses strict per-key order) or splitting the entity.</li>
+</ul>
+<p>Producer reliability settings (mention by name)</p>
+<div class="highlight"><pre><span></span><code> acks=0   fire and forget                    (may lose)
+ acks=1   leader acked                       (lose if leader dies before replication)
+ acks=all + min.insync.replicas=2 + RF=3     (durable, slightly higher latency)
+ enable.idempotence=true   broker dedups retries per (producer id, partition, sequence)
+ transactions              atomic writes across partitions + offsets (exactly-once in Kafka-&gt;Kafka)
+</code></pre></div>
+
+<p>Kinesis comparison: shard ~ partition; 1 MB/s or 1000 records/s write per shard (check current docs); managed. SQS FIFO: message groups ~ keys, ordering per group. See the AWS week 5 lesson.</p>
+<p>Failure modes</p>
+<ul>
+<li>Consumer lag grows: consumers slower than producers. Fix: scale consumers (up to partition count), speed processing, batch, or add partitions.</li>
+<li>Poison message: one record always fails -&gt; consumer stuck retrying forever, blocking the partition (head-of-line blocking). Fix: bounded retries then send to a dead-letter topic and continue.</li>
+<li>Rebalance storm: consumers exceed <code>max.poll.interval.ms</code>, are kicked, rejoin, repeat.</li>
+<li>Unclean leader election: allowing an out-of-sync replica to become leader can lose acked data (availability vs durability choice).</li>
+<li>Duplicate processing after rebalance: offset not committed yet when partition moves.</li>
+</ul>
+<hr />
+<h2 id="4-delivery-semantics">4. Delivery semantics</h2>
+<p>Why this is hard: a network can lose the message OR the ack, and the sender cannot tell which (Two Generals problem). So:</p>
+<div class="highlight"><pre><span></span><code> Producer --send--&gt; Broker --deliver--&gt; Consumer --ack--&gt; Broker
+       ^  loss here?        ^ loss here?       ^ loss here?
+</code></pre></div>
+
+<ul>
+<li>At-most-once: send once, never retry. May lose, never duplicates. (Commit offset BEFORE processing; crash = message skipped.) Fine for metrics, telemetry.</li>
+<li>At-least-once: retry until acked. Never loses, may duplicate. (Commit offset AFTER processing; crash = reprocess.) The default practical choice. Requires idempotent consumers.</li>
+<li>Exactly-once: each message's effect happens once. Truly "exactly-once delivery" over an unreliable network is impossible in general; what we achieve is exactly-once PROCESSING / EFFECT = at-least-once delivery + idempotency (or transactional atomic commit of output and offset).</li>
+</ul>
+<div class="highlight"><pre><span></span><code> Consumer loop at-least-once:
+   msg = poll()
+   process(msg)        # side effect
+   commit(msg.offset)  # crash between these two lines =&gt; duplicate on restart
+</code></pre></div>
+
+<p>Kafka "exactly-once semantics" (EOS): idempotent producer + transactions + <code>isolation.level=read_committed</code>. It makes the consume-process-produce loop within Kafka atomic (output records and consumer offsets commit together). It does NOT make an external side effect (send an email, charge a card, write to Postgres) exactly-once; for that use idempotency keys or write results and offsets in the same DB transaction.</p>
+<p>Ordering interplay: retries can reorder (message 1 fails, 2 succeeds, 1 retried). Kafka producer: <code>enable.idempotence=true</code> preserves order with in-flight requests up to 5; without it set <code>max.in.flight=1</code> for strict order.</p>
+<hr />
+<h2 id="5-idempotency">5. Idempotency</h2>
+<p>Definition: doing the operation N times has the same effect as doing it once. <code>SET x=5</code> is idempotent; <code>x += 1</code> is not.</p>
+<p>Techniques</p>
+<ol>
+<li>Natural idempotency: upserts, PUT semantics, "set status=SHIPPED".</li>
+<li>Idempotency key: client generates a UUID per logical operation, sends it with the request (Stripe style <code>Idempotency-Key</code> header). Server stores key -&gt; result; a repeat returns the stored result.</li>
+<li>Dedup table with unique constraint: insert (message_id) first; if conflict, skip.</li>
+<li>Versioning / conditional writes: <code>UPDATE ... WHERE version = 7</code>, DynamoDB conditional put.</li>
+</ol>
+<div class="highlight"><pre><span></span><code><span class="c1"># Idempotent consumer: dedupe + effect in ONE transaction (the crucial part)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">handle</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="n">msg</span><span class="p">):</span>
+    <span class="k">with</span> <span class="n">conn</span><span class="p">:</span>  <span class="c1"># BEGIN ... COMMIT</span>
+        <span class="n">cur</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
+            <span class="s2">"INSERT INTO processed_messages(id) VALUES (</span><span class="si">%s</span><span class="s2">) ON CONFLICT DO NOTHING"</span><span class="p">,</span>
+            <span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">id</span><span class="p">,))</span>
+        <span class="k">if</span> <span class="n">cur</span><span class="o">.</span><span class="n">rowcount</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span>  <span class="c1"># duplicate, already applied</span>
+        <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"UPDATE accounts SET balance = balance + </span><span class="si">%s</span><span class="s2"> WHERE id = </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
+                     <span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">amount</span><span class="p">,</span> <span class="n">msg</span><span class="o">.</span><span class="n">account_id</span><span class="p">))</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code><span class="c1"># Idempotency-key for an HTTP endpoint (FastAPI-flavoured sketch)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">create_payment</span><span class="p">(</span><span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">body</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+    <span class="n">row</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">row</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">row</span><span class="o">.</span><span class="n">request_hash</span> <span class="o">!=</span> <span class="nb">hash</span><span class="p">(</span><span class="n">body</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">Conflict</span><span class="p">(</span><span class="s2">"key reused with different payload"</span><span class="p">)</span>  <span class="c1"># 422/409</span>
+        <span class="k">return</span> <span class="n">row</span><span class="o">.</span><span class="n">response</span>           <span class="c1"># replay stored response</span>
+    <span class="c1"># claim the key atomically first (unique constraint), then do work</span>
+    <span class="n">db</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="s2">"in_progress"</span><span class="p">,</span> <span class="n">request_hash</span><span class="o">=</span><span class="nb">hash</span><span class="p">(</span><span class="n">body</span><span class="p">))</span>
+    <span class="n">resp</span> <span class="o">=</span> <span class="n">charge_card</span><span class="p">(</span><span class="n">body</span><span class="p">)</span>
+    <span class="n">db</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="s2">"done"</span><span class="p">,</span> <span class="n">response</span><span class="o">=</span><span class="n">resp</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">resp</span>
+</code></pre></div>
+
+<p>Gotchas</p>
+<ul>
+<li>Race: two concurrent requests with the same key; the unique-constraint claim makes one win, the other waits or gets 409.</li>
+<li>Crash after the side effect but before recording the key -&gt; the effect repeats. Hence record key and effect atomically, or pass the key downstream so the downstream dedups too (Stripe's key to the card network).</li>
+<li>Key TTL: keep long enough to cover client retry windows (24h is common; check each provider).</li>
+<li>Dedup state is bounded: a "seen IDs" set cannot grow forever; use TTL or per-producer monotonic sequence numbers (Kafka idempotent producer uses sequence per partition).</li>
+</ul>
+<hr />
+<h2 id="6-outbox-pattern">6. Outbox pattern</h2>
+<p>Problem: dual write. You must update your DB AND publish an event; there is no transaction spanning both.</p>
+<div class="highlight"><pre><span></span><code> BAD:  db.commit();  broker.publish(event)   # crash between =&gt; DB changed, no event
+ BAD:  broker.publish(event); db.commit()    # crash/rollback =&gt; event for state that never existed
+</code></pre></div>
+
+<p>Solution: write the event to an <code>outbox</code> table in the SAME local transaction as the business change; a separate relay publishes it.</p>
+<div class="highlight"><pre><span></span><code> +-------------- one DB transaction --------------+
+ | INSERT INTO orders ...                         |
+ | INSERT INTO outbox(id, topic, key, payload)    |
+ +------------------------------------------------+
+        |
+        v   (poller OR CDC log tailing, e.g. Debezium reading the WAL/binlog)
+   relay --publish--&gt; Kafka --&gt; consumers (idempotent!)
+        then mark outbox row sent (or delete)
+</code></pre></div>
+
+<ul>
+<li>Guarantee: at-least-once publish (relay can crash after publish before marking sent). So consumers must be idempotent; outbox row id doubles as the dedup key.</li>
+<li>Polling relay: simple, adds DB load and latency; use <code>SELECT ... FOR UPDATE SKIP LOCKED</code> for multiple relays.</li>
+<li>CDC relay (Debezium): reads the transaction log, low latency, no polling load, preserves commit order.</li>
+<li>Mirror image, the inbox pattern: consumer writes the received message id into an inbox table in the same transaction as its effect (this is exactly the dedup code in section 5).</li>
+<li>Alternative: "listen to yourself" / event sourcing: the log is the source of truth, DB is a projection.</li>
+</ul>
+<hr />
+<h2 id="7-pubsub-and-fan-out">7. Pub/sub and fan-out</h2>
+<div class="highlight"><pre><span></span><code> Publisher -&gt; Topic -&gt; Subscription A (queue) -&gt; service A
+                    -&gt; Subscription B (queue) -&gt; service B
+                    -&gt; Subscription C (push webhook)
+</code></pre></div>
+
+<ul>
+<li>Pub/sub: publisher does not know subscribers. Each subscription gets a copy.</li>
+<li>Fan-out with a queue per subscriber (SNS -&gt; many SQS) gives each consumer its own buffer, retries, and DLQ, so a slow subscriber does not hurt others. With Kafka, each consumer group is its own subscription.</li>
+<li>Delivery models: push (broker calls you; needs backpressure signal, retries, auth) vs pull (consumer polls at its own pace; natural backpressure).</li>
+<li>Filtering: by topic hierarchy, attributes, or content (EventBridge rules, SNS filter policies).</li>
+<li>Event types: notification (thin: "order 42 changed", consumer calls back) vs event-carried state transfer (fat: payload has the data, no callback, but schema coupling). Version your schemas (Avro/Protobuf + schema registry; add fields compatibly).</li>
+<li>Ordering and exactly-once do not come free with pub/sub; ask what the product guarantees.</li>
+</ul>
+<hr />
+<h2 id="8-backpressure">8. Backpressure</h2>
+<p>Definition: a mechanism by which a slow consumer signals a fast producer to slow down, so queues do not grow without bound and memory/latency do not explode.</p>
+<div class="highlight"><pre><span></span><code> producer 1000/s --&gt; [ queue ] --&gt; consumer 400/s
+   queue grows 600/s -&gt; unbounded memory, latency = queue_depth / 400 rises forever
+</code></pre></div>
+
+<p>Little's Law: L = lambda * W (items in system = arrival rate x time in system). An unbounded queue turns overload into unbounded latency; users time out and retry, making it worse (retry amplification).</p>
+<p>Options (pick consciously)</p>
+<ol>
+<li>Bound the queue and block the producer (TCP window, bounded channels, Reactive Streams <code>request(n)</code>).</li>
+<li>Load shed: reject excess immediately (HTTP 429/503 with <code>Retry-After</code>). Prefer failing fast to queuing forever. Shed lowest-priority first.</li>
+<li>Drop (newest or oldest) when data is lossy/perishable (metrics, video frames).</li>
+<li>Buffer durably (Kafka) and scale consumers; lag is the explicit signal. Autoscale on lag (KEDA / CloudWatch queue depth).</li>
+<li>Degrade gracefully: serve cached/stale, disable expensive features.</li>
+<li>Rate limit at the edge (section 9) and use admission control per tenant.</li>
+</ol>
+<p>Signals: queue age (oldest message age) is more useful than depth; alert on it. Pull-based consumers have backpressure built in; push-based need explicit handling.</p>
+<p>Failure mode: metastable failure / retry storm. A brief overload causes timeouts, clients retry, load doubles, system never recovers even after the trigger vanishes. Defences: load shedding, retry budgets, jittered backoff, circuit breakers.</p>
+<hr />
+<h2 id="9-rate-limiting-algorithms">9. Rate limiting algorithms</h2>
+<p>Goals: protect services, enforce fairness and quotas, control cost (especially LLM APIs billed per token), prevent abuse. Return <code>429 Too Many Requests</code> with <code>Retry-After</code> and headers like <code>X-RateLimit-Remaining</code>.</p>
+<h3 id="91-token-bucket">9.1 Token bucket</h3>
+<div class="highlight"><pre><span></span><code> bucket capacity B tokens, refill rate r tokens/sec
+ request costs 1 (or n) tokens; if tokens &gt;= cost: allow, subtract; else reject
+ allows bursts up to B, long-run rate r
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TokenBucket</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rate</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">capacity</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rate</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">capacity</span> <span class="o">=</span> <span class="n">rate</span><span class="p">,</span> <span class="n">capacity</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tokens</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ts</span> <span class="o">=</span> <span class="n">capacity</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">allow</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cost</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tokens</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">capacity</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">tokens</span> <span class="o">+</span> <span class="p">(</span><span class="n">now</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">ts</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">rate</span><span class="p">)</span>  <span class="c1"># lazy refill</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ts</span> <span class="o">=</span> <span class="n">now</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">tokens</span> <span class="o">&gt;=</span> <span class="n">cost</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">tokens</span> <span class="o">-=</span> <span class="n">cost</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="kc">False</span>
+</code></pre></div>
+
+<p>Lazy refill: no timer thread; compute from elapsed time. Used by AWS API Gateway, Stripe, many others. Memory: 2 numbers per key.</p>
+<h3 id="92-leaky-bucket">9.2 Leaky bucket</h3>
+<div class="highlight"><pre><span></span><code> requests enter a FIFO queue (the bucket) of size B; drained at a constant rate r
+ full bucket =&gt; drop
+ output is smooth; no bursts downstream
+</code></pre></div>
+
+<p>Token bucket = bursty-friendly limiter; leaky bucket = traffic shaper that smooths output. (As a meter, they are mathematically equivalent; as a queue, the leaky bucket adds delay.)</p>
+<h3 id="93-fixed-window-counter">9.3 Fixed window counter</h3>
+<div class="highlight"><pre><span></span><code> key = (user, floor(now / 60)); INCR; if count &gt; limit reject; TTL 60s
+</code></pre></div>
+
+<p>Simple and cheap. Flaw: boundary burst, up to 2x the limit across a window edge (limit 100 at 00:59 and 100 at 01:00 = 200 in 2 seconds).</p>
+<h3 id="94-sliding-window-log">9.4 Sliding window log</h3>
+<p>Store a timestamp per request in a sorted set; drop entries older than window; count. Exact, but O(requests) memory per user.</p>
+<h3 id="95-sliding-window-counter-approximation">9.5 Sliding window counter (approximation)</h3>
+<div class="highlight"><pre><span></span><code> estimate = prev_window_count * (1 - fraction_into_current) + current_count
+</code></pre></div>
+
+<p>Two counters per key; smooths the boundary problem; error small in practice (Cloudflare reported very low error; check source). Usual practical choice.</p>
+<table>
+<thead>
+<tr>
+<th>Algorithm</th>
+<th>Memory</th>
+<th>Bursts</th>
+<th>Accuracy</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Token bucket</td>
+<td>O(1)</td>
+<td>allowed up to B</td>
+<td>good</td>
+<td>default choice</td>
+</tr>
+<tr>
+<td>Leaky bucket</td>
+<td>O(B) queue</td>
+<td>smoothed</td>
+<td>good</td>
+<td>shaping</td>
+</tr>
+<tr>
+<td>Fixed window</td>
+<td>O(1)</td>
+<td>2x at edges</td>
+<td>poor edge</td>
+<td>simplest</td>
+</tr>
+<tr>
+<td>Sliding log</td>
+<td>O(n)</td>
+<td>none</td>
+<td>exact</td>
+<td>expensive</td>
+</tr>
+<tr>
+<td>Sliding counter</td>
+<td>O(1)</td>
+<td>minimal</td>
+<td>approx</td>
+<td>good tradeoff</td>
+</tr>
+</tbody>
+</table>
+<h3 id="96-distributed-rate-limiting">9.6 Distributed rate limiting</h3>
+<ul>
+<li>Central store (Redis) with atomic ops. Token bucket must be atomic; use a Lua script or <code>INCR</code> + <code>EXPIRE</code> pattern (race: INCR then crash before EXPIRE leaves a key forever; set expiry in the same script).</li>
+</ul>
+<div class="highlight"><pre><span></span><code> -- Redis fixed-window via Lua (atomic)
+ local c = redis.call('INCR', KEYS[1])
+ if c == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end
+ return c
+</code></pre></div>
+
+<ul>
+<li>Where: API gateway / edge (coarse, per IP/API key), per-service sidecar (fine, per user/tenant), client-side (be a good citizen).</li>
+<li>Tradeoff: strict global accuracy needs a round trip per request; relax by local token slices (each node leases N tokens from Redis, refills periodically) at the cost of slight over/under-admission.</li>
+<li>Failure policy: if Redis is down, fail open (availability) or fail closed (protect backend)? State it explicitly; many choose fail-open with local fallback limits.</li>
+<li>Dimensions: per user, per API key, per IP, per endpoint, per tenant tier; weigh cost (LLM tokens, heavy queries) rather than request count.</li>
+<li>Clock: use the Redis server time, not app-server clocks.</li>
+<li>Related: concurrency limits (max in-flight requests) often protect better than QPS limits because slow requests pile up (Little's Law).</li>
+</ul>
+<hr />
+<h2 id="10-timeouts-retries-exponential-backoff-and-jitter">10. Timeouts, retries, exponential backoff and jitter</h2>
+<h3 id="101-timeouts">10.1 Timeouts</h3>
+<ul>
+<li>Every network call needs a timeout; the default in many libraries is infinite. Without one, threads/connections leak and a slow dependency takes you down.</li>
+<li>Set from the dependency's p99 or p99.9 latency plus margin, not a round number. Use connect timeout and read timeout separately.</li>
+<li>Deadline propagation: the client sets an overall deadline (e.g. 2s); each hop passes the remaining budget (gRPC deadlines). A downstream must not keep working on a request the caller already abandoned.</li>
+<li>Timeouts nest: inner timeout &lt; outer timeout, or retries inside will be wasted.</li>
+<li>A timeout does NOT tell you whether the operation happened. Hence idempotency (section 5).</li>
+</ul>
+<h3 id="102-retries">10.2 Retries</h3>
+<ul>
+<li>Retry only: idempotent operations (or those with idempotency keys) and transient errors (timeouts, 502/503/504, 429 honoring Retry-After, connection reset). Never retry 4xx validation errors.</li>
+<li>Limit attempts (3 is typical) and use a retry budget (e.g. retries &lt;= 10% of requests) so retries cannot multiply load.</li>
+<li>Retry amplification: with depth d and k retries per layer, worst-case load is (k+1)^d. Retry at ONE layer (usually the outermost or the edge), not at every layer.</li>
+</ul>
+<h3 id="103-exponential-backoff-jitter">10.3 Exponential backoff + jitter</h3>
+<p>Without jitter, all clients that failed together retry together (thundering herd), re-crashing the server in synchronized waves.</p>
+<div class="highlight"><pre><span></span><code> delay = min(cap, base * 2^attempt)
+ Full jitter:         sleep = random(0, delay)               &lt;- AWS recommended
+ Equal jitter:        sleep = delay/2 + random(0, delay/2)
+ Decorrelated jitter: sleep = min(cap, random(base, prev_sleep*3))
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">random</span><span class="o">,</span><span class="w"> </span><span class="nn">time</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">retry</span><span class="p">(</span><span class="n">fn</span><span class="p">,</span> <span class="n">attempts</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">base</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">cap</span><span class="o">=</span><span class="mf">10.0</span><span class="p">,</span> <span class="n">retry_on</span><span class="o">=</span><span class="p">(</span><span class="ne">TimeoutError</span><span class="p">,</span> <span class="ne">ConnectionError</span><span class="p">)):</span>
+    <span class="k">for</span> <span class="n">attempt</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">attempts</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">fn</span><span class="p">()</span>
+        <span class="k">except</span> <span class="n">retry_on</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">attempt</span> <span class="o">==</span> <span class="n">attempts</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span>
+            <span class="n">delay</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">cap</span><span class="p">,</span> <span class="n">base</span> <span class="o">*</span> <span class="mi">2</span> <span class="o">**</span> <span class="n">attempt</span><span class="p">)</span>
+            <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">delay</span><span class="p">))</span>   <span class="c1"># full jitter</span>
+</code></pre></div>
+
+<p>The AWS Architecture Blog "Exponential Backoff and Jitter" showed full jitter minimizes total work and completion time vs no jitter. Honor server hints (<code>Retry-After</code>) over your own computed delay.</p>
+<p>Hedged requests: send a second request after p95 latency to cut tail latency; only for idempotent reads and with a cap on extra load (Google "Tail at Scale").</p>
+<hr />
+<h2 id="11-circuit-breakers-and-bulkheads">11. Circuit breakers (and bulkheads)</h2>
+<p>Problem: a dependency is failing; continuing to call it wastes threads, adds latency, and prevents recovery.</p>
+<div class="highlight"><pre><span></span><code>        failures &gt; threshold
+ CLOSED --------------------&gt; OPEN  (fail fast, no calls; return fallback)
+   ^                            |
+   | probe succeeds             | after cool-down timer
+   |                            v
+   +------------------------ HALF-OPEN (allow a few trial calls)
+        probe fails -&gt; back to OPEN
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">CircuitBreaker</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fail_threshold</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">reset_after</span><span class="o">=</span><span class="mf">30.0</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fail_threshold</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">reset_after</span> <span class="o">=</span> <span class="n">fail_threshold</span><span class="p">,</span> <span class="n">reset_after</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">failures</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">opened_at</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">state</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="s2">"closed"</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fn</span><span class="p">,</span> <span class="n">fallback</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">state</span> <span class="o">==</span> <span class="s2">"open"</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">opened_at</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">reset_after</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">fallback</span><span class="p">()</span> <span class="k">if</span> <span class="n">fallback</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_raise</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">state</span> <span class="o">=</span> <span class="s2">"half_open"</span>            <span class="c1"># let one trial through</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">fn</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">failures</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">state</span> <span class="o">==</span> <span class="s2">"half_open"</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">failures</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fail_threshold</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">opened_at</span> <span class="o">=</span> <span class="s2">"open"</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span>
+            <span class="k">raise</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">failures</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">state</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">"closed"</span>
+        <span class="k">return</span> <span class="n">result</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_raise</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"circuit open"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Production breakers (Resilience4j, Envoy outlier detection, Hystrix historically) use failure RATE over a sliding window and a minimum call volume, not a raw count.</p>
+<p>Design points</p>
+<ul>
+<li>Pair with a fallback: cached data, default value, degraded feature, queue for later.</li>
+<li>Per-dependency breakers, not one global.</li>
+<li>Bulkheads: isolate resources per dependency (separate thread/connection pools, per-tenant concurrency limits) so one failing dependency cannot exhaust shared capacity. Named after ship compartments.</li>
+<li>Count timeouts as failures; do not count 4xx client errors.</li>
+<li>Service mesh (Envoy/Istio) can provide breaking, retries, timeouts outside app code.</li>
+</ul>
+<p>Combined resilience stack, outer to inner:</p>
+<div class="highlight"><pre><span></span><code> deadline -&gt; rate limit/admission -&gt; bulkhead -&gt; circuit breaker -&gt; retry w/ backoff+jitter -&gt; timeout -&gt; call
+</code></pre></div>
+
+<p>(Order varies by library; the key is that you can explain why each exists.)</p>
+<hr />
+<h2 id="12-putting-it-together-order-service-example">12. Putting it together: order service example</h2>
+<div class="highlight"><pre><span></span><code> POST /orders (Idempotency-Key: K)
+   -&gt; API: dedup on K; BEGIN; insert order + outbox(OrderPlaced); COMMIT; 202 Accepted
+   -&gt; Debezium/relay -&gt; Kafka topic orders (key=order_id)
+        group payment:   idempotent consumer; charges with key=order_id; retries w/ backoff+jitter;
+                         circuit breaker around card gateway; poison -&gt; orders.dlq
+        group email:     at-least-once, dedup by event id
+        group analytics: at-most-once is fine
+   -&gt; rate limiter at gateway per API key; 429 + Retry-After
+   -&gt; consumer lag alert; autoscale on lag; DLQ depth alert
+</code></pre></div>
+
+<p>Failure walkthrough to practise aloud</p>
+<ul>
+<li>Relay crashes after publish, before marking sent -&gt; duplicate event -&gt; consumer dedups on event id.</li>
+<li>Payment gateway slow -&gt; timeouts -&gt; breaker opens -&gt; consumers pause/back off, lag grows (acceptable; messages durable) -&gt; breaker half-open probes -&gt; recover and drain backlog.</li>
+<li>Poison message -&gt; bounded retries -&gt; DLQ -&gt; alert -&gt; fix -&gt; redrive.</li>
+</ul>
+<hr />
+<h2 id="13-how-interviewers-probe-this">13. How interviewers probe this</h2>
+<ul>
+<li>"Can you guarantee exactly-once?" Expected: no for delivery; at-least-once + idempotency gives exactly-once effect; Kafka EOS scope limited to Kafka-to-Kafka; external effects need idempotency keys.</li>
+<li>"How do you update the DB and publish an event atomically?" Outbox + CDC/poller; mention at-least-once relay and idempotent consumers.</li>
+<li>"Your consumer lags. What do you do?" Check producer rate vs consumer rate; partition count limits parallelism; look for slow processing, rebalances, poison messages; scale, batch, add partitions (with ordering caveat).</li>
+<li>"How do you order messages?" Per partition/key only; global order costs throughput (single partition). Ask whether you really need it.</li>
+<li>"Design a rate limiter." Algorithm choice, where it lives, Redis atomicity, fail-open vs closed, headers, multi-tier. (Full walkthrough in week 6.)</li>
+<li>"Retries made the outage worse; why?" Retry amplification, no jitter, no budget, retrying non-transient errors.</li>
+<li>"What if the broker is down?" Producer buffering with limits, outbox keeps events safe in the DB, fall back to sync path, backpressure to clients.</li>
+<li>"Kafka vs SQS vs RabbitMQ?" Log vs queue, replay, ordering, throughput, ops burden, per-message features.</li>
+<li>Probe style: they push on the failure case of each answer ("and if the consumer crashes right there?"). Practise saying "the crash window is between X and Y, so we make it safe by Z."</li>
+<li>What to say out loud: state the guarantee you want, name the failure window, name the mechanism that closes it, name what remains (cost/limitation).</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../../08-system-design/week-02-data-storage/cheatsheet.html">← Week 2 · Data and storage: Cheatsheet</a><a class="next" href="../../08-system-design/week-03-coordination-messaging/interview-qa.html">Week 3 · Coordination and messaging: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

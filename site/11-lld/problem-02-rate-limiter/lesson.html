@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LLD 02: Rate limiter | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="11-lld/problem-02-rate-limiter/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../11-lld/README.html">Low-Level Design</a> / <a href="../../11-lld/problem-02-rate-limiter/lesson.html">Problem 2 · Rate limiter</a> / <span>Lesson</span></nav><button id="mark-done" data-id="11-lld/problem-02-rate-limiter/lesson">Mark as done</button></div><article class="doc">
+<h1 id="lld-02-rate-limiter">LLD 02: Rate limiter</h1>
+<p>Classic at Google/Uber/Stripe-style interviews. The trap: candidates pick one algorithm and hard-code it. The strong answer defines a <code>RateLimiter</code> interface, implements two or three algorithms behind it, injects the clock, and discusses concurrency and memory. Budget: ~4 hours. Sketch + trade-offs (45 min), token bucket (1h), sliding window (1h), fixed window + composite (45 min), concurrency review (30 min).</p>
+<h2 id="1-requirements-questions-to-ask-the-interviewer">1. Requirements: questions to ask the interviewer</h2>
+<ul>
+<li>Who is limited: user, API key, IP, endpoint, or a combination? (-&gt; a <code>key</code> string.)</li>
+<li>Limit shape: steady rate, <strong>bursts allowed</strong>, or hard N per window?</li>
+<li>Hard (reject) or soft (queue/delay)? What does the caller get back - bool, or also "retry after"?</li>
+<li>Single process or distributed? (Here: in-process; distributed is a follow-up.)</li>
+<li>Multiple limits at once (10/sec <strong>and</strong> 1000/hour)? Different limits per tier/plan?</li>
+<li>Accuracy vs memory: is a 2x boundary burst acceptable?</li>
+<li>Is a request ever "heavier" than 1 (cost/weight)?</li>
+<li>Concurrency: many threads hitting the same key?</li>
+</ul>
+<p>Assumptions to state: in-memory, reject (return False), per-key state, integer cost, thread-safe, time source injectable.</p>
+<h2 id="2-entities">2. Entities</h2>
+<table>
+<thead>
+<tr>
+<th>Entity</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>RateLimiter</code> (ABC)</td>
+<td>Contract: <code>allow(key, cost)</code>, <code>retry_after(key, cost)</code>.</td>
+</tr>
+<tr>
+<td><code>TokenBucketLimiter</code></td>
+<td>Burst-friendly; per key <code>(tokens, last_refill)</code>; lazy refill.</td>
+</tr>
+<tr>
+<td><code>SlidingWindowLogLimiter</code></td>
+<td>Exact; per key deque of timestamps.</td>
+</tr>
+<tr>
+<td><code>FixedWindowLimiter</code></td>
+<td>Cheapest; per key <code>(window_start, count)</code>.</td>
+</tr>
+<tr>
+<td><code>CompositeLimiter</code></td>
+<td>AND of several limiters with no partial charge (Composite pattern).</td>
+</tr>
+<tr>
+<td>clock</td>
+<td>Injected callable; makes everything deterministic.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="3-class-diagram">3. Class diagram</h2>
+<div class="highlight"><pre><span></span><code>            +---------------------------+
+            |  &lt;&lt;ABC&gt;&gt; RateLimiter      |
+            |  allow(key, cost) -&gt; bool |
+            |  retry_after(key, cost)   |
+            +-------------+-------------+
+     +------------+-------+-----------+----------------+
+     |            |                   |                |
+TokenBucket   SlidingWindowLog   FixedWindow      CompositeLimiter
+(tokens,last) (deque[ts])        (start,count)    has-many RateLimiter
+ per key       per key            per key         (is-a RateLimiter)
+ + Lock        + Lock             + Lock          + Lock
+ + clock()     + clock()          + clock()
+</code></pre></div>
+
+<pre class="mermaid">classDiagram
+  class RateLimiter { &lt;&lt;abstract&gt;&gt; +allow(key,cost) +retry_after(key,cost) }
+  RateLimiter &lt;|-- TokenBucketLimiter
+  RateLimiter &lt;|-- SlidingWindowLogLimiter
+  RateLimiter &lt;|-- FixedWindowLimiter
+  RateLimiter &lt;|-- CompositeLimiter
+  CompositeLimiter o-- RateLimiter</pre>
+<h2 id="4-algorithms-and-trade-offs">4. Algorithms and trade-offs</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Token bucket</th>
+<th>Sliding window log</th>
+<th>Fixed window</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Memory / key</td>
+<td>O(1)</td>
+<td>O(limit)</td>
+<td>O(1)</td>
+</tr>
+<tr>
+<td>Burst</td>
+<td>up to capacity, then steady rate</td>
+<td>none beyond limit</td>
+<td>up to <strong>2x limit</strong> at the boundary</td>
+</tr>
+<tr>
+<td>Accuracy</td>
+<td>good</td>
+<td>exact</td>
+<td>coarse</td>
+</tr>
+<tr>
+<td>Use</td>
+<td>APIs allowing bursts (most common)</td>
+<td>strict quotas, low limits</td>
+<td>cheap/coarse, counters in Redis</td>
+</tr>
+</tbody>
+</table>
+<p>Token bucket math: <code>tokens = min(capacity, tokens + elapsed*rate)</code>; no timer threads - refill is <strong>lazy</strong>, computed on access. Sliding window <em>counter</em> (weighted two fixed windows) is the O(1)-memory approximation of the log; mention it.</p>
+<h2 id="5-patterns-used-and-why">5. Patterns used and why</h2>
+<ul>
+<li><strong>Strategy</strong>: callers depend on <code>RateLimiter</code>; algorithm is swappable (OCP).</li>
+<li><strong>Composite</strong>: <code>CompositeLimiter</code> is itself a <code>RateLimiter</code>, so limits stack without callers changing.</li>
+<li><strong>Dependency injection</strong>: the clock (testability, no sleeps).</li>
+<li><strong>Template of validation</strong>: shared <code>cost</code> checks in one place.</li>
+<li><strong>Monitor/lock</strong>: each limiter guards its state with its own lock (check-then-act must be atomic).</li>
+<li>(Follow-up) <strong>Factory/Registry</strong> to map plan/endpoint -&gt; limiter config; <strong>Decorator/middleware</strong> to apply it.</li>
+</ul>
+<h2 id="6-extensibility-follow-ups-interviewers-ask">6. Extensibility follow-ups interviewers ask</h2>
+<ul>
+<li>Distributed limiting: Redis + Lua script (atomic), sticky sharding by key, or approximate local counters synced periodically.</li>
+<li>Per-tier limits (free vs paid) - registry keyed by plan.</li>
+<li>Return rich result (remaining, reset time, <code>Retry-After</code> header, <code>X-RateLimit-*</code>).</li>
+<li>Blocking/queueing variant (leaky bucket as a queue).</li>
+<li>Eviction of idle keys (memory leak!): TTL map / LRU of limiters (ties to problem 01).</li>
+<li>Dynamic config reload without losing state.</li>
+<li>Metrics, shadow mode (log would-be rejects).</li>
+<li>Fail-open vs fail-closed when the limiter store is down.</li>
+</ul>
+<h2 id="7-what-to-say-out-loud">7. What to say out loud</h2>
+<ol>
+<li>"I'll expose <code>allow(key, cost)</code> returning bool plus <code>retry_after</code> so callers can emit a 429 with <code>Retry-After</code>."</li>
+<li>"Token bucket for burst-tolerant APIs; sliding window log when exactness matters; fixed window is cheapest but allows a 2x burst at the boundary."</li>
+<li>"No background refill thread: I compute refill lazily from elapsed time on each call."</li>
+<li>"Check-and-decrement must be atomic, so a lock per limiter (or per key if contention shows up)."</li>
+<li>"Denied requests must not consume budget - otherwise retries starve the client."</li>
+<li>"Clock is injected and I guard against it going backwards; production would use a monotonic clock, not wall time."</li>
+<li>"State is per key, so memory grows with key cardinality - I'd evict idle keys."</li>
+</ol>
+<h2 id="8-common-mistakes">8. Common mistakes</h2>
+<ul>
+<li>Using <code>time.time()</code>/<code>sleep</code> directly (untestable, also wall clocks jump).</li>
+<li>Refilling with a timer thread instead of lazily.</li>
+<li>Not capping tokens at capacity (hours of idle -&gt; unlimited burst).</li>
+<li>Charging on denial; or in a composite, charging limiter A then failing on B (partial consumption).</li>
+<li>Race: <code>if tokens &gt;= cost: ...; tokens -= cost</code> without a lock.</li>
+<li>Off-by-one at the window boundary (decide if an entry at <code>t0</code> counts at <code>t0+window</code>; document it).</li>
+<li>Never pruning the log; never evicting idle keys.</li>
+<li>Float drift: compare fractional tokens carefully; use exact test numbers.</li>
+<li>Creating a <code>Lock</code> per call instead of per limiter.</li>
+</ul>
+<h2 id="9-follow-up-qa">9. Follow-up Q&amp;A</h2>
+<p><strong>Q: Token bucket vs leaky bucket?</strong> Token bucket allows bursts and meters at request time; leaky bucket smooths output to a constant rate (a queue).
+<strong>Q: How do you make it work across 50 servers?</strong> Shared store (Redis) with an atomic Lua script for refill+decrement, or route by key hash to one owner. Accept approximation if cheap local limits + periodic sync is OK.
+<strong>Q: Where do you place it?</strong> API gateway/middleware before business logic; also per-dependency client-side limits.
+<strong>Q: Lock contention on a hot key?</strong> Per-key locks/striping; or atomic ops; or split the budget across shards and rebalance.
+<strong>Q: How to avoid unbounded memory?</strong> Evict keys idle for &gt; window (token bucket: idle long enough = full bucket = equivalent to a missing key, so dropping it is lossless).
+<strong>Q: What do you return to the client?</strong> HTTP 429 + <code>Retry-After</code> (from <code>retry_after</code>) + remaining/reset headers.
+<strong>Q: Fixed window's 2x burst - how to fix cheaply?</strong> Sliding window counter: <code>prev_count * overlap_fraction + curr_count</code>.
+<strong>Q: How do you test time-based code?</strong> Inject a fake clock that tests advance explicitly; concurrency tests freeze the clock so counts are exact.</p>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run
+<code>.venv/bin/pytest 11-lld/problem-02-rate-limiter -v</code></p>
+<p>Then on paper: write the token bucket for a distributed setting as pseudo-Lua (read tokens/ts, refill, decrement, write).</p>
+</article><div class="pager"><a class="prev" href="../../11-lld/problem-01-lru-cache/test_exercises.py.html">← Problem 1 · LRU cache: Tests (code)</a><a class="next" href="../../11-lld/problem-02-rate-limiter/exercises.py.html">Problem 2 · Rate limiter: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

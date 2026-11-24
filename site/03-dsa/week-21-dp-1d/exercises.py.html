@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-21-dp-1d/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-21-dp-1d/lesson.html">Week 21 · 1-D dynamic programming</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="03-dsa/week-21-dp-1d/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>03-dsa/week-21-dp-1d/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 21 exercises: 1-D dynamic programming. Replace each `...` with your code."""</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">climb_stairs</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 70. You can climb 1 or 2 steps at a time. Return the number of distinct ways</span>
+<span class="sd">    to reach the top of n steps (n &gt;= 0; there is 1 way to climb 0 steps).</span>
+
+<span class="sd">    Example: 2 -&gt; 2;  3 -&gt; 3;  5 -&gt; 8</span>
+
+<span class="sd">    Hint: dp[i] = dp[i-1] + dp[i-2]. Keep only two variables.</span>
+<span class="sd">    Expected: O(n) time, O(1) space.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">house_robber</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 198. nums[i] is the money in house i; you cannot rob two adjacent houses.</span>
+<span class="sd">    Return the maximum amount you can rob. Empty list -&gt; 0.</span>
+
+<span class="sd">    Example: [2,7,9,3,1] -&gt; 12;  [1,2,3,1] -&gt; 4</span>
+
+<span class="sd">    Hint: dp[i] = max(dp[i-1], dp[i-2] + nums[i]).</span>
+<span class="sd">    Expected: O(n) time, O(1) space.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">house_robber_circular</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 213. Same as above but the houses are in a circle (first and last are adjacent).</span>
+
+<span class="sd">    Example: [2,3,2] -&gt; 3;  [1,2,3,1] -&gt; 4;  [5] -&gt; 5</span>
+
+<span class="sd">    Hint: answer = max(rob(nums[1:]), rob(nums[:-1])); single house is a special case.</span>
+<span class="sd">    Expected: O(n) time.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">max_subarray</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 53. Return the largest sum of a non-empty contiguous subarray.</span>
+
+<span class="sd">    Example: [-2,1,-3,4,-1,2,1,-5,4] -&gt; 6;  [-3,-1,-2] -&gt; -1</span>
+
+<span class="sd">    Hint: Kadane: best_ending_here = max(x, best_ending_here + x).</span>
+<span class="sd">    Expected: O(n) time, O(1) space.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">max_product_subarray</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 152. Return the largest product of a non-empty contiguous subarray.</span>
+
+<span class="sd">    Example: [2,3,-2,4] -&gt; 6;  [-2,0,-1] -&gt; 0;  [-2,3,-4] -&gt; 24</span>
+
+<span class="sd">    Hint: track both the max and the min product ending here (a negative flips them).</span>
+<span class="sd">    Expected: O(n) time, O(1) space.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">coin_change</span><span class="p">(</span><span class="n">coins</span><span class="p">,</span> <span class="n">amount</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 322. Return the fewest coins (unlimited supply of each denomination) that sum</span>
+<span class="sd">    to `amount`, or -1 if impossible. amount 0 -&gt; 0.</span>
+
+<span class="sd">    Example: [1,2,5], 11 -&gt; 3;  [2], 3 -&gt; -1;  [1,3,4], 6 -&gt; 2</span>
+
+<span class="sd">    Hint: dp[a] = min(dp[a - c] + 1 for c in coins). Greedy fails on [1,3,4].</span>
+<span class="sd">    Expected: O(amount * len(coins)) time, O(amount) space.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">coin_change_ways</span><span class="p">(</span><span class="n">amount</span><span class="p">,</span> <span class="n">coins</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 518. Return the number of *combinations* (order does not matter) of coins that</span>
+<span class="sd">    make up `amount`. amount 0 -&gt; 1.</span>
+
+<span class="sd">    Example: 5, [1,2,5] -&gt; 4;  3, [2] -&gt; 0;  10, [10] -&gt; 1</span>
+
+<span class="sd">    Hint: coins in the OUTER loop, amounts in the inner loop (else you count permutations).</span>
+<span class="sd">    Expected: O(amount * len(coins)) time, O(amount) space.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">length_of_lis</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 300. Return the length of the longest strictly increasing subsequence.</span>
+
+<span class="sd">    Example: [10,9,2,5,3,7,101,18] -&gt; 4;  [7,7,7] -&gt; 1;  [] -&gt; 0</span>
+
+<span class="sd">    Hint: O(n^2) DP first; then the O(n log n) "tails" array with bisect_left.</span>
+<span class="sd">    Expected: O(n log n) time.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">word_break</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">word_dict</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 139. Return True if s can be segmented into a space-separated sequence of</span>
+<span class="sd">    words from word_dict (words can be reused).</span>
+
+<span class="sd">    Example: "leetcode", ["leet","code"] -&gt; True;  "catsandog", ["cats","dog","sand","and","cat"] -&gt; False</span>
+
+<span class="sd">    Hint: dp[i] = True if some j &lt; i has dp[j] and s[j:i] in the set. Convert the list to a set.</span>
+<span class="sd">    Expected: O(n^2) time (plus hashing cost), O(n) space.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">num_decodings</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 91. 'A'=1 ... 'Z'=26. Return the number of ways to decode the digit string s.</span>
+<span class="sd">    Return 0 if it cannot be decoded (e.g. leading '0'). s is non-empty.</span>
+
+<span class="sd">    Example: "12" -&gt; 2;  "226" -&gt; 3;  "06" -&gt; 0;  "10" -&gt; 1</span>
+
+<span class="sd">    Hint: dp[i] = (dp[i-1] if s[i-1] != '0') + (dp[i-2] if 10 &lt;= int(s[i-2:i]) &lt;= 26).</span>
+<span class="sd">    Expected: O(n) time, O(1) space.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-21-dp-1d/lesson.html">← Week 21 · 1-D dynamic programming: Lesson</a><a class="next" href="../../03-dsa/week-21-dp-1d/test_exercises.py.html">Week 21 · 1-D dynamic programming: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

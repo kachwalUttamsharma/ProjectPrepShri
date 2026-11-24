@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 2: Pydantic, validation, response models, errors | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="04-fastapi/week-02-pydantic-validation/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../04-fastapi/week-01-first-endpoints/lesson.html">FastAPI</a> / <a href="../../04-fastapi/week-02-pydantic-validation/lesson.html">Week 2 · Pydantic and validation</a> / <span>Lesson</span></nav><button id="mark-done" data-id="04-fastapi/week-02-pydantic-validation/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-2-pydantic-validation-response-models-errors">Week 2: Pydantic, validation, response models, errors</h1>
+<p>Goal: stop accepting raw dicts. Define the <em>shape</em> of your data once; FastAPI validates input, filters output, and documents it. As an FDE, this is how you survive messy customer payloads. Budget ~7-8 hours.</p>
+<h2 id="1-pydantic-models">1. Pydantic models</h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">Field</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ProductCreate</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">50</span><span class="p">)</span>
+    <span class="n">price</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">gt</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">quantity</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">ge</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">tags</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>   <span class="c1"># never `= []` style sharing worries; this is explicit</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code><span class="n">p</span> <span class="o">=</span> <span class="n">ProductCreate</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"Mug"</span><span class="p">,</span> <span class="n">price</span><span class="o">=</span><span class="s2">"9.5"</span><span class="p">)</span>   <span class="c1"># "9.5" is coerced to 9.5 (lax mode)</span>
+<span class="n">p</span><span class="o">.</span><span class="n">price</span>            <span class="c1"># 9.5</span>
+<span class="n">p</span><span class="o">.</span><span class="n">model_dump</span><span class="p">()</span>     <span class="c1"># plain dict</span>
+<span class="n">p</span><span class="o">.</span><span class="n">model_dump_json</span><span class="p">()</span>
+<span class="n">ProductCreate</span><span class="o">.</span><span class="n">model_validate</span><span class="p">({</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"Mug"</span><span class="p">,</span> <span class="s2">"price"</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>   <span class="c1"># from a dict</span>
+<span class="n">ProductCreate</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">""</span><span class="p">,</span> <span class="n">price</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>   <span class="c1"># raises pydantic.ValidationError</span>
+</code></pre></div>
+
+<ul>
+<li>Field constraints: <code>gt, ge, lt, le</code> (numbers), <code>min_length, max_length, pattern</code> (strings/lists).</li>
+<li>Optional: <code>age: int | None = None</code>.</li>
+<li>Coercion: <code>"5"</code> -&gt; <code>5</code>, <code>"2024-01-31"</code> -&gt; <code>date</code>. Surprising at first, great for messy input. Strict mode exists when you don't want it.</li>
+<li>Inheritance reuses fields: <code>class ProductRead(ProductCreate): id: int</code>.</li>
+<li>Nested models and lists of models work as you'd hope.</li>
+</ul>
+<h2 id="2-custom-validators">2. Custom validators</h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">field_validator</span><span class="p">,</span> <span class="n">model_validator</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Customer</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">email</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="nd">@field_validator</span><span class="p">(</span><span class="s2">"email"</span><span class="p">)</span>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">clean_email</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>      <span class="c1"># runs after type check; return the cleaned value</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="k">if</span> <span class="s2">"@"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">v</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"not an email"</span><span class="p">)</span>   <span class="c1"># becomes a validation error</span>
+        <span class="k">return</span> <span class="n">v</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">DateRange</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">start</span><span class="p">:</span> <span class="n">date</span>
+    <span class="n">end</span><span class="p">:</span> <span class="n">date</span>
+    <span class="nd">@model_validator</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s2">"after"</span><span class="p">)</span>           <span class="c1"># sees the whole model: cross-field rules</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">check_order</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">end</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"end before start"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span>
+</code></pre></div>
+
+<p><code>mode="before"</code> validators see the raw input (useful to normalise junk before type checking).</p>
+<h2 id="3-models-in-fastapi">3. Models in FastAPI</h2>
+<div class="highlight"><pre><span></span><code><span class="nd">@app</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/products"</span><span class="p">,</span> <span class="n">status_code</span><span class="o">=</span><span class="mi">201</span><span class="p">,</span> <span class="n">response_model</span><span class="o">=</span><span class="n">ProductRead</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span><span class="n">product</span><span class="p">:</span> <span class="n">ProductCreate</span><span class="p">):</span>      <span class="c1"># body parsed + validated; invalid -&gt; 422 automatically</span>
+    <span class="o">...</span>
+</code></pre></div>
+
+<ul>
+<li><strong>Request model</strong>: a parameter typed with a <code>BaseModel</code> is read from the JSON body.</li>
+<li><strong><code>response_model</code></strong>: FastAPI validates and <em>filters</em> what you return. If you return a dict with <code>password_hash</code>, a <code>UserOut</code> without that field strips it. This is your security net against leaking fields.</li>
+<li><strong>Separate models per purpose</strong>: <code>XCreate</code> (input), <code>XUpdate</code> (all optional), <code>XRead</code> (output). One model for everything leads to leaked fields and impossible PATCHes.</li>
+<li>The 422 body looks like <code>{"detail": [{"loc": ["body", "price"], "msg": "...", "type": "..."}]}</code>: great to show customers exactly what to fix.</li>
+</ul>
+<h2 id="4-partial-updates-patch">4. Partial updates (PATCH)</h2>
+<div class="highlight"><pre><span></span><code><span class="n">changes</span><span class="o">.</span><span class="n">model_dump</span><span class="p">(</span><span class="n">exclude_unset</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>    <span class="c1"># only the fields the client actually sent</span>
+</code></pre></div>
+
+<p>Without <code>exclude_unset</code> every omitted field would overwrite data with <code>None</code>.</p>
+<h2 id="5-errors">5. Errors</h2>
+<div class="highlight"><pre><span></span><code><span class="k">raise</span> <span class="n">HTTPException</span><span class="p">(</span><span class="n">status_code</span><span class="o">=</span><span class="mi">404</span><span class="p">,</span> <span class="n">detail</span><span class="o">=</span><span class="s2">"Product not found"</span><span class="p">)</span>      <span class="c1"># -&gt; {"detail": "..."}</span>
+</code></pre></div>
+
+<p>For your own domain errors, raise a custom exception in business logic and translate it once:</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">OutOfStock</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span> <span class="o">...</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">exception_handler</span><span class="p">(</span><span class="n">OutOfStock</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">handle</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">exc</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">JSONResponse</span><span class="p">(</span><span class="n">status_code</span><span class="o">=</span><span class="mi">409</span><span class="p">,</span> <span class="n">content</span><span class="o">=</span><span class="p">{</span><span class="s2">"error"</span><span class="p">:</span> <span class="s2">"out_of_stock"</span><span class="p">})</span>
+</code></pre></div>
+
+<p>Business code stays free of HTTP details; the API layer owns status codes.</p>
+<p>Pick codes deliberately: 400 malformed/semantic problem you detect yourself, 404 missing, 409 conflicts with current state (duplicate, out of stock), 422 schema validation (automatic).</p>
+<h2 id="6-query-parameter-validation">6. Query parameter validation</h2>
+<p><code>qty: int = Query(1, ge=1)</code>, <code>tag: str | None = None</code> (optional filter). Same constraint vocabulary as <code>Field</code>.</p>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li>Using the same model for input and output (leaks passwords/internal ids, or forces clients to send <code>id</code>).</li>
+<li><code>PATCH</code> that writes <code>None</code> over unsent fields (forgot <code>exclude_unset</code>).</li>
+<li>Mutable default <code>tags: list = []</code> in plain Python classes. In Pydantic it's copied, but <code>default_factory=list</code> is the clear habit.</li>
+<li>Forgetting <code>@classmethod</code> under <code>@field_validator</code>.</li>
+<li>Validators that don't <code>return</code> the value (field becomes <code>None</code>).</li>
+<li>Raising <code>HTTPException</code> deep in business logic (hard to reuse/test). Prefer domain exceptions + handlers.</li>
+<li>Treating coercion as bug-free: <code>"true"</code>, <code>"1"</code>, <code>1</code> all become <code>True</code> for a <code>bool</code>; check what your customers actually send.</li>
+<li>Storing passwords unhashed. (We use sha256 only to keep the exercise stdlib; real systems use argon2/bcrypt.)</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<ol>
+<li>Experiment in a REPL: build models, feed them bad data, read <code>ValidationError.errors()</code>.</li>
+<li>Fill in <code>exercises.py</code>: models first (tests run without HTTP), then routes. Run <code>../../.venv/bin/pytest -q</code>.</li>
+<li>Stretch: run uvicorn, send an invalid body from <code>/docs</code>, and read the 422 response. Then add a <code>Literal["small","large"]</code> field to <code>ProductCreate</code> and see how <code>/docs</code> changes.</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../04-fastapi/week-01-first-endpoints/test_exercises.py.html">← Week 1 · First endpoints: Tests (code)</a><a class="next" href="../../04-fastapi/week-02-pydantic-validation/exercises.py.html">Week 2 · Pydantic and validation: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 3: Agents and Tool Use | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="13-llm-ai-concepts/week-03-agents-tool-use/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../13-llm-ai-concepts/README.html">LLM and AI Concepts</a> / <a href="../../13-llm-ai-concepts/week-03-agents-tool-use/lesson.html">Week 3 · Agents and tool use</a> / <span>Lesson</span></nav><button id="mark-done" data-id="13-llm-ai-concepts/week-03-agents-tool-use/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-3-agents-and-tool-use">Week 3: Agents and Tool Use</h1>
+<p>Goal: explain how tool calling works, build and bound an agent loop, and talk about reliability, safety and cost like someone who has shipped one. Hands-on companion: <code>05-fde-projects/project-04-tool-calling-agent</code>.</p>
+<hr />
+<h2 id="1-function-calling-tool-use">1. Function calling (tool use)</h2>
+<p>The model cannot act on the world. Tool calling lets it request an action; your code performs it.</p>
+<div class="highlight"><pre><span></span><code> you -&gt; model:  messages + tool definitions (name, description, JSON schema)
+ model -&gt; you:  "call get_order(order_id='A123')"     (a structured request, NOT executed by the model)
+ you:           validate args, check permission, run the function
+ you -&gt; model:  tool result as a message
+ model -&gt; you:  final natural-language answer (or another tool call)
+</code></pre></div>
+
+<p>Key facts:</p>
+<ul>
+<li>The tool description and schema are prompt text; the model picks tools from them. Clear names, precise descriptions, enums and examples matter more than most people expect.</li>
+<li>The model can hallucinate tools, arguments, or IDs. Validate everything against the schema and against business rules. Return errors as tool results so the model can self-correct.</li>
+<li>Models can emit multiple tool calls in one turn (parallel calls); handle them concurrently when independent.</li>
+<li>Tool results are untrusted input (prompt-injection vector).</li>
+<li>Forcing a tool (<code>tool_choice</code>) or forbidding tools is a provider option (check current docs for exact parameter names).</li>
+</ul>
+<p>Runnable skeleton with a fake model, no API key:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+
+<span class="n">TOOLS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"get_order"</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">order_id</span><span class="p">:</span> <span class="p">{</span><span class="s2">"order_id"</span><span class="p">:</span> <span class="n">order_id</span><span class="p">,</span> <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"shipped"</span><span class="p">,</span> <span class="s2">"eta_days"</span><span class="p">:</span> <span class="mi">2</span><span class="p">},</span>
+    <span class="s2">"add"</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">fake_model</span><span class="p">(</span><span class="n">messages</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Stands in for an LLM: asks for a tool first, then answers from the result."""</span>
+    <span class="n">last</span> <span class="o">=</span> <span class="n">messages</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">last</span><span class="p">[</span><span class="s2">"role"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"user"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"tool_call"</span><span class="p">,</span> <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"get_order"</span><span class="p">,</span> <span class="s2">"args"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"order_id"</span><span class="p">:</span> <span class="s2">"A123"</span><span class="p">}}</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">last</span><span class="p">[</span><span class="s2">"content"</span><span class="p">])</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"final"</span><span class="p">,</span> <span class="s2">"text"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Order </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">'order_id'</span><span class="p">]</span><span class="si">}</span><span class="s2"> is </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">'status'</span><span class="p">]</span><span class="si">}</span><span class="s2">, arriving in </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">'eta_days'</span><span class="p">]</span><span class="si">}</span><span class="s2"> days."</span><span class="p">}</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="n">user_text</span><span class="p">,</span> <span class="n">max_steps</span><span class="o">=</span><span class="mi">5</span><span class="p">):</span>
+    <span class="n">messages</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">"role"</span><span class="p">:</span> <span class="s2">"user"</span><span class="p">,</span> <span class="s2">"content"</span><span class="p">:</span> <span class="n">user_text</span><span class="p">}]</span>
+    <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">max_steps</span><span class="p">):</span>                     <span class="c1"># hard cap</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">fake_model</span><span class="p">(</span><span class="n">messages</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">out</span><span class="p">[</span><span class="s2">"type"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"final"</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">out</span><span class="p">[</span><span class="s2">"text"</span><span class="p">]</span>
+        <span class="n">fn</span> <span class="o">=</span> <span class="n">TOOLS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">out</span><span class="p">[</span><span class="s2">"name"</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">fn</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>                                 <span class="c1"># hallucinated tool</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"error"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"unknown tool </span><span class="si">{</span><span class="n">out</span><span class="p">[</span><span class="s1">'name'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">}</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="n">fn</span><span class="p">(</span><span class="o">**</span><span class="n">out</span><span class="p">[</span><span class="s2">"args"</span><span class="p">])</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>                     <span class="c1"># feed errors back, do not crash</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"error"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)}</span>
+        <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s2">"role"</span><span class="p">:</span> <span class="s2">"tool"</span><span class="p">,</span> <span class="s2">"content"</span><span class="p">:</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">result</span><span class="p">)})</span>
+    <span class="k">return</span> <span class="s2">"Stopped: step limit reached."</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">run</span><span class="p">(</span><span class="s2">"Where is my order A123?"</span><span class="p">))</span>
+</code></pre></div>
+
+<h2 id="2-the-agent-loop">2. The agent loop</h2>
+<p>An agent is an LLM in a loop with tools, deciding the next step from observations.</p>
+<div class="highlight"><pre><span></span><code>        +---------------------------------------------+
+        |                                             v
+ goal -&gt; [LLM: think / choose action] -&gt; action? --yes--&gt; [execute tool] -&gt; observation
+                                            |                                   |
+                                            no (final answer)                   |
+                                            v                                   |
+                                         return  &lt;----- stop conditions &lt;-------+
+        stop conditions: final answer | max steps | token/cost budget | timeout | error threshold | human needed
+</code></pre></div>
+
+<p>ReAct pattern: reason, act, observe, repeat. Modern APIs implement this via tool-calling messages instead of text parsing.</p>
+<p>Workflow vs agent: a workflow has a fixed control flow written in code with LLM calls at nodes (predictable, testable); an agent lets the model choose the flow (flexible, riskier). Default to the simplest thing that works: single call, then chain/workflow, then agent only when the path is genuinely open-ended. Interviewers like hearing "I would not use an agent here".</p>
+<p>Workflow shapes: prompt chaining, routing, parallelization (fan-out/fan-in), orchestrator-workers, evaluator-optimizer loop.</p>
+<h2 id="3-planning">3. Planning</h2>
+<ul>
+<li>Implicit: the model decides step by step (ReAct). Good for short tasks.</li>
+<li>Explicit plan-then-execute: produce a plan (list of steps), execute each, re-plan on failure. Better for long tasks, easier to show to a human for approval, and cheaper to monitor.</li>
+<li>Reasoning models plan internally with thinking tokens; still bound them with budgets.</li>
+<li>Failure modes: looping on the same failing call, drifting from the goal, over-planning, premature "done", skipping verification. Mitigate with step caps, loop detection (same tool + same args N times), checklists, and a final verification step.</li>
+</ul>
+<h2 id="4-memory">4. Memory</h2>
+<div class="highlight"><pre><span></span><code> Short-term : the message history in the context window (trim, summarise when long)
+ Working    : scratchpad/state object for the current task (plan, found facts, IDs)
+ Long-term  : external store (DB / vector store) of user preferences, past cases, facts; retrieved on demand
+</code></pre></div>
+
+<p>Techniques: sliding window, summarize old turns, extract key facts into a structured state, retrieve memories by similarity (RAG on memory). Risks: stale or wrong memories, privacy (per-user isolation, deletion rights), memory poisoning (injected instructions persisted), context bloat. Tool results can be huge: truncate, summarise, or store off-context and pass a handle.</p>
+<h2 id="5-tool-protocols-and-mcp-style-integration-generic">5. Tool protocols and MCP-style integration (generic)</h2>
+<p>Problem: N apps times M tools means N*M custom integrations. A standard protocol (the Model Context Protocol pattern) defines how a client (the agent host) discovers and calls tools exposed by servers.</p>
+<div class="highlight"><pre><span></span><code> Agent host (LLM app) &lt;--- JSON-RPC over stdio / HTTP ---&gt;  Tool server(s)
+   - list tools (name, description, input schema)               - expose tools, resources (read-only data), prompts
+   - call tool with args, get result                            - own auth to the underlying system
+   - consent / approval UI
+</code></pre></div>
+
+<p>Concepts: tools (actions), resources (data the model can read), prompts (templates), capability negotiation, transport (local process vs remote HTTP), auth (OAuth for remote servers). Benefits: reuse, separation of concerns, discoverability. Risks: untrusted or malicious servers (tool description injection, "rug pull" changes to tool definitions), over-broad permissions, token leakage, too many tools bloating the prompt (selection accuracy drops past a few dozen). Mitigate: allowlist servers, pin versions, least-privilege scopes per user, approval for risky tools, tool-count discipline (route/subset tools per task). Check the current protocol spec for details; do not quote version specifics from memory.</p>
+<h2 id="6-multi-agent-patterns">6. Multi-agent patterns</h2>
+<ul>
+<li>Orchestrator-worker (supervisor): a planner delegates subtasks to specialists and merges results. Most common.</li>
+<li>Pipeline/handoff: agent A passes to agent B (e.g., triage to billing agent).</li>
+<li>Parallel workers: fan-out for independent research, then synthesize.</li>
+<li>Debate/critic: one agent proposes, another critiques.
+Tradeoffs: more tokens and latency, harder debugging, error compounding, context handoff losses. Use when subtasks need different tools/prompts/contexts, or when parallelism pays. Often one agent with good tools beats several agents. Give each agent a narrow tool set and its own context, communicate through structured messages.</li>
+</ul>
+<h2 id="7-reliability-engineering">7. Reliability engineering</h2>
+<p>Failure rates compound: ten steps at 95 percent each is about 60 percent end to end. So design for it.</p>
+<p>Checklist:</p>
+<ul>
+<li>Step cap, token/cost budget, wall-clock timeout per run and per tool call.</li>
+<li>Retries with exponential backoff and jitter for transient errors (timeouts, 429, 5xx); not for validation errors; make tools idempotent or use idempotency keys so retries do not double-charge.</li>
+<li>Schema validation of tool arguments; return helpful errors to the model; cap self-correction attempts.</li>
+<li>Circuit breaker on failing downstream systems; fallback model or graceful degradation.</li>
+<li>Loop detection and repeat-call suppression.</li>
+<li>Deterministic code for what code can do (math, dates, ID lookups, permissions).</li>
+<li>Guardrails: input checks (PII, injection heuristics), output checks (schema, policy, URL stripping), allowlists of tools/domains/amounts, sandbox for code execution (no network, resource limits).</li>
+<li>Observability: trace each step (prompt, tool call, args, result, latency, tokens). Without traces you cannot debug an agent.</li>
+<li>State persistence and resumability for long runs; idempotent steps.</li>
+<li>Testing: scenario evals with expected tool sequences and final outcomes; mock tools; adversarial cases; run multiple times because of non-determinism (pass@k or success rate).</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">random</span><span class="o">,</span><span class="w"> </span><span class="nn">time</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">call_with_retry</span><span class="p">(</span><span class="n">fn</span><span class="p">,</span> <span class="n">attempts</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">base</span><span class="o">=</span><span class="mf">0.2</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">attempts</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">fn</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">TimeoutError</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">attempts</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span>
+            <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">base</span> <span class="o">*</span> <span class="p">(</span><span class="mi">2</span> <span class="o">**</span> <span class="n">i</span><span class="p">)</span> <span class="o">+</span> <span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">()</span> <span class="o">*</span> <span class="n">base</span><span class="p">)</span>   <span class="c1"># exponential backoff + jitter</span>
+
+<span class="n">calls</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"n"</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">flaky</span><span class="p">():</span>
+    <span class="n">calls</span><span class="p">[</span><span class="s2">"n"</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">if</span> <span class="n">calls</span><span class="p">[</span><span class="s2">"n"</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TimeoutError</span>
+    <span class="k">return</span> <span class="s2">"ok"</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">call_with_retry</span><span class="p">(</span><span class="n">flaky</span><span class="p">),</span> <span class="n">calls</span><span class="p">)</span>
+</code></pre></div>
+
+<h2 id="8-human-in-the-loop-hitl">8. Human-in-the-loop (HITL)</h2>
+<p>Where to put humans: approval before irreversible or costly actions (send email, refund, delete, deploy), review of low-confidence outputs, clarification questions when required parameters are missing, escalation path with full context, and feedback capture.</p>
+<p>Design: classify tools as read-only / reversible / irreversible; auto-run the first, ask for approval on the last. Present a clear proposed action with arguments and reasoning, allow edit-and-approve. Persist state so the run can pause and resume (approval may take hours). Avoid approval fatigue: batch, set sensible thresholds (e.g. refunds below X auto-approve), audit logs. Log human decisions as labeled data for evals.</p>
+<h2 id="9-cost-and-latency-control">9. Cost and latency control</h2>
+<ul>
+<li>Budget per run (tokens, tool calls, dollars) with hard stops; per-user and per-tenant quotas.</li>
+<li>Each loop iteration re-sends the whole history: cost grows roughly quadratically with steps unless you trim, summarise or use prompt caching. Put stable content (system prompt, tool definitions) first so caching works.</li>
+<li>Use cheaper models for routing/simple steps, stronger ones for planning/hard steps.</li>
+<li>Limit tool output size; paginate; return only needed fields.</li>
+<li>Parallelize independent tool calls; stream partial results to the user.</li>
+<li>Cache deterministic tool results.</li>
+<li>Prefer workflows to agents when the path is known.</li>
+<li>Track cost per successful task, not per call.</li>
+</ul>
+<p>Worked example (illustrative, use placeholder prices P_in, P_out per million tokens): an agent with a 3,000-token fixed prefix and 800 new tokens per step over 8 steps resends about 3,000 + 800<em>k tokens at step k. Total input about 8</em>3,000 + 800*(0+1+...+7) = 24,000 + 22,400 = 46,400 tokens, plus output. Caching the prefix and trimming tool output can cut this sharply. Cost = 46,400/1e6 * P_in + out_tokens/1e6 * P_out. Look up current prices.</p>
+<h2 id="10-security-for-agents">10. Security for agents</h2>
+<ul>
+<li>Least privilege and per-user credentials; the agent acts with the user's rights, never more.</li>
+<li>Indirect injection through tool results and retrieved content; do not let untrusted content trigger high-impact tools without approval.</li>
+<li>Validate arguments server-side as if the caller were hostile (authorization in the tool, not the prompt).</li>
+<li>Secrets never in prompts; tools hold credentials.</li>
+<li>Audit log of every action.</li>
+<li>Sandboxed code execution.</li>
+</ul>
+<h2 id="11-how-interviewers-probe">11. How interviewers probe</h2>
+<ul>
+<li>"Walk through how function calling works." (Model emits request; you execute; result returned.)</li>
+<li>"How do you stop an agent from looping or burning money?" (Caps, budgets, loop detection, timeouts.)</li>
+<li>"The agent called the refund tool twice." (Idempotency keys, approval, retries on non-idempotent actions.)</li>
+<li>"Agent or workflow?" (Open-ended path vs known path.)</li>
+<li>"How do you test an agent?" (Scenario evals, tool mocks, trace inspection, repeated runs.)</li>
+<li>"Tell me about MCP." (Standard client-server tool protocol; discovery; security risks.)</li>
+<li>"Memory design?" (Short/working/long-term; privacy; poisoning.)</li>
+<li>"When multi-agent?" (Different contexts/tools, parallelism; otherwise single agent.)</li>
+</ul>
+<h2 id="self-check">Self-check</h2>
+<ol>
+<li>Write the agent loop with caps from memory.</li>
+<li>List five stop conditions.</li>
+<li>Explain why retries need idempotency.</li>
+<li>Name three ways a tool server can be an attack vector.</li>
+<li>Compute the cost growth for an N-step loop with and without caching.</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../13-llm-ai-concepts/week-02-retrieval-rag/cheatsheet.html">← Week 2 · Retrieval and RAG: Cheatsheet</a><a class="next" href="../../13-llm-ai-concepts/week-03-agents-tool-use/interview-qa.html">Week 3 · Agents and tool use: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

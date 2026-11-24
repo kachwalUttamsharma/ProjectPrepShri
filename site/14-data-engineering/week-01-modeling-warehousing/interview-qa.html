@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 1 Interview Q&amp;A: Modeling and Warehousing | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="14-data-engineering/week-01-modeling-warehousing/interview-qa" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../14-data-engineering/week-01-modeling-warehousing/lesson.html">Week 1 · Modeling and warehousing</a> / <span>Interview Q&amp;A</span></nav><button id="mark-done" data-id="14-data-engineering/week-01-modeling-warehousing/interview-qa">Mark as done</button></div><article class="doc">
+<h1 id="week-1-interview-qa-modeling-and-warehousing">Week 1 Interview Q&amp;A: Modeling and Warehousing</h1>
+<p>Cover the answer, say yours out loud, then compare. Answers are deliberately concise. "Probe" lines are the follow-ups interviewers typically ask.</p>
+<hr />
+<p><strong>1. OLTP vs OLAP, and why not run analytics on the OLTP database?</strong>
+OLTP: many small transactional reads/writes by key, normalized, row-store. OLAP: few large scans/aggregations over history, denormalized, columnar. Analytics on the primary competes for locks, buffer cache and IO with customer traffic, and a row store reads whole rows to aggregate one column. Use CDC or a replica into a warehouse/lakehouse.
+Probe: "What if the business needs real-time?" CDC/stream into the warehouse, or a real-time OLAP store (Pinot, Druid, ClickHouse); trade freshness against cost and complexity.</p>
+<p><strong>2. Walk me through the Kimball design process.</strong>
+Pick the business process, declare the grain, choose dimensions, choose facts. Grain first because every column and measure must be valid at that grain, and it determines what questions can be answered (you can roll up, never drill below grain).</p>
+<p><strong>3. What is grain, and what goes wrong if it is ambiguous?</strong>
+Grain is the precise meaning of one fact row ("one order line"). Ambiguity leads to mixed grains: e.g. shipping fee at order level repeated on each line, so <code>SUM(shipping)</code> overcounts. Fix: allocate to lines or keep a header-grain fact.</p>
+<p><strong>4. Star vs snowflake?</strong>
+Star: denormalized dimensions, one hop, simple and fast for BI. Snowflake: normalized dimension hierarchies, more joins, minor storage savings (columnar compression already shrinks repetition). Default to star; snowflake only for large shared sub-dimensions or when hierarchy maintenance demands it.</p>
+<p><strong>5. Name the fact table types and when to use each.</strong>
+Transaction (event), periodic snapshot (state per period, e.g. daily balance), accumulating snapshot (pipeline lifecycle with updated milestone dates), factless (events/coverage with no measure). Probe: "Which is updated in place?" Accumulating snapshot.</p>
+<p><strong>6. Additive, semi-additive, non-additive?</strong>
+Additive sums across all dimensions (revenue). Semi-additive cannot sum across time (balances, inventory; use last value, average or end-of-period). Non-additive: ratios/percentages; store numerator and denominator, compute the ratio after aggregation.</p>
+<p><strong>7. Why surrogate keys instead of natural keys?</strong>
+Needed for SCD2 (many versions per natural key); insulates from source key reuse/format changes/merging systems; compact integer joins; supports unknown/inferred members. Cost: needs a lookup during fact load and key management. Hash keys make parallel/idempotent loads easy (deterministic) but are wider.</p>
+<p><strong>8. Explain SCD types 1, 2, 3, 6 and give a use for each.</strong>
+1: overwrite (typo fix). 2: new row with valid_from/valid_to/is_current (customer region in sales reports). 3: previous-value column (limited history). 6: SCD2 plus a current-value column on all versions so you can report as-was and as-is. Probe: "Which do you default to?" 2 for analytically significant attributes, 1 for the rest, decided per column, not per table.</p>
+<p><strong>9. How do you implement SCD2 safely and idempotently?</strong>
+Stage the changes, compare tracked attributes (column compare or row hash), close current rows, insert new versions, in one transaction (or one MERGE). Half-open intervals, unique index on current row per key, dedupe the staging by key and effective date, and make the batch re-runnable (NOT EXISTS current row). Test: one current row per key, no overlaps/gaps.
+Probe: "Two changes for one key in the same batch?" Order by effective timestamp and generate multiple versions in one pass (window function with LEAD to compute valid_to).</p>
+<p><strong>10. How does a fact row find the right SCD2 version?</strong>
+Range join on the event time: <code>event_ts &gt;= valid_from AND event_ts &lt; valid_to</code> on the natural key. Late events resolve to the version valid at event time, not the current one.</p>
+<p><strong>11. Late-arriving facts vs late-arriving dimensions?</strong>
+Late fact: load it, look up the historical version; recompute affected aggregates/partitions. Fact arriving before its dimension row: insert an inferred member (flagged) and fill in the real attributes when they arrive. Late dimension change (backdated): split the version and re-point facts in the affected window, or accept load-time effectiveness and document it.</p>
+<p><strong>12. What is a degenerate dimension? A junk dimension? A role-playing dimension?</strong>
+Degenerate: identifier in the fact with no table (order_number). Junk: combine low-cardinality flags into one small dimension. Role-playing: one physical dimension (date) used under several roles (order date, ship date) via aliases/views.</p>
+<p><strong>13. What is a conformed dimension and why does it matter?</strong>
+Same keys, attributes and meaning shared across fact tables/marts. It lets you drill across processes (sales vs returns by the same customer segment) and is the basis of the bus matrix. Without it, each mart's "customer" disagrees.</p>
+<p><strong>14. When do you need a bridge table?</strong>
+Many-to-many between a fact and a dimension (encounter-diagnosis, account-owners) or hierarchies with variable depth. Add a weighting factor so allocated measures sum correctly; warn consumers about fan-out when no weights are applied.</p>
+<p><strong>15. Kimball vs Inmon vs Data Vault: which and when?</strong>
+Kimball: dimensional marts via conformed dims, fastest to value. Inmon: normalized enterprise warehouse first. Data Vault: hubs/links/satellites for auditability and flexible source onboarding, with marts on top. In practice many teams run raw -&gt; staging -&gt; marts (Kimball presentation) and add Vault only for heavy multi-source/audit needs. Trade-off: Vault has more joins and tables and needs a presentation layer.</p>
+<p><strong>16. ELT vs ETL?</strong>
+ELT loads raw first and transforms in the warehouse using SQL (dbt); good with elastic compute and raw replay. ETL transforms before load; good when sensitive data must be masked before landing or the target is constrained. Most real pipelines are hybrid. Keep an immutable raw layer either way.</p>
+<p><strong>17. Why are columnar stores fast for analytics and bad at row updates?</strong>
+Reading only needed columns, high compression (dictionary/RLE/delta), vectorized execution, block skipping via min/max. Updating one row means rewriting compressed column chunks, so engines use immutable files, delta stores, and batch merges.</p>
+<p><strong>18. Partitioning vs clustering in a warehouse?</strong>
+Partitioning physically segments by a column (usually date) for exact pruning and predictable cost; clustering/sorting orders data within storage so min/max statistics are tight for other filter columns. Pitfalls: partitioning on high-cardinality columns (too many small partitions), clustering on columns never filtered, reclustering cost (Snowflake automatic clustering consumes credits; check current docs).</p>
+<p><strong>19. How would you control warehouse cost?</strong>
+Prune columns and partitions, incremental models, materialize repeated aggregates, auto-suspend and right-size compute, separate warehouses/slot reservations per workload with budgets and timeouts, query tagging and monitoring of top-cost queries, shorter retention for staging tables, bytes-billed caps (BigQuery) / resource monitors (Snowflake) (check current docs for names).
+Probe: "A dashboard suddenly costs 10x." Check query history for changed scan volume, lost partition filter, new join, or cache invalidation from frequent upstream refresh; fix with a pre-aggregated table.</p>
+<p><strong>20. Compare Snowflake, BigQuery, Redshift at a design level.</strong>
+Snowflake: virtual warehouses (compute) over micro-partitioned storage, per-second billing, multi-cluster for concurrency, automatic layout. BigQuery: serverless, bytes-scanned or slot capacity pricing, you declare partition/cluster. Redshift: MPP clusters (or Serverless) where sort and distribution keys matter, plus Spectrum for S3. Details and pricing change: check current docs.</p>
+<p><strong>21. What are distribution and sort keys in Redshift?</strong>
+Distribution key decides which node holds a row: co-locate join keys to avoid shuffles; ALL for small dimensions; EVEN for no good key; AUTO lets the engine choose. Sort key orders rows on disk so zone maps skip blocks (compound is typical; interleaved is rarely beneficial now, check current docs). Pitfall: skewed distribution key.</p>
+<p><strong>22. How do you model a many-to-one hierarchy that changes over time (e.g. product category reorganized)?</strong>
+If history matters, SCD2 on the product dimension (category attribute). If reorganizations are large and frequent, a separate hierarchy dimension or bridge with effective dates so you can report under old or new structure.</p>
+<p><strong>23. How would you test a dimensional model?</strong>
+Grain uniqueness on the fact (PK test), not-null and relationship tests on FKs (every FK has a dimension row; unknown member), one current row per natural key, no overlapping SCD intervals, row-count and sum reconciliation to source, freshness checks, accepted values.</p>
+<p><strong>24. What is a fan trap / chasm trap and how do you avoid it?</strong>
+Joining across one-to-many paths inflates measures (fan trap), or joining two facts through a shared dimension multiplies rows. Avoid by aggregating each fact to the shared dimension grain before joining (drill-across), and by understanding cardinality of every join.</p>
+<p><strong>25. When would you use One Big Table instead of a star?</strong>
+Simple, stable use cases with a single consumer and a columnar engine; avoids joins. Downsides: duplicated attributes, expensive rebuilds on dimension change, weaker governance and SCD handling. Often a derived layer built from the star, not a replacement.</p>
+<p><strong>26. How do you handle currencies/time zones in facts?</strong>
+Store UTC timestamp plus a local date key where relevant; store original currency amount, functional-currency amount and the rate used (rate table with effective date). Never convert in the BI layer only.</p>
+<p><strong>27. Explain how you would design the model for a ride-sharing company in 10 minutes.</strong>
+Process: trips. Grain: one completed trip (cancelled trips in a sibling fact). Measures: fare, distance, duration, surge, payout. Dims: rider, driver (SCD2), vehicle, pickup/dropoff location role-playing, date, time, product type, payment. Add accumulating snapshot for request-to-dropoff lifecycle and a daily driver-utilization periodic snapshot. Flag late mobile events and event vs server time. (More prompts in the lesson, section 9.)</p>
+<p><strong>28. A source system hard-deletes rows. How does the warehouse know?</strong>
+CDC with delete events, or periodic full-key comparison (anti-join of source keys vs warehouse). Implement as soft delete (<code>is_deleted</code>, <code>deleted_at</code>) so history and facts survive. Mention GDPR deletion as a separate hard-delete path.</p>
+<p><strong>29. What is the difference between a data mart, warehouse, and data lake in this context?</strong>
+Warehouse: curated, modeled, governed integrated data. Mart: subject-specific subset (finance, marketing), often a star. Lake: raw/semi-structured files in object storage with schema on read. Lakehouse (week 5) unifies them with table formats.</p>
+<p><strong>30. Where do metrics definitions live?</strong>
+Ideally one governed semantic layer (dbt metrics/MetricFlow, LookML, Cube; check current docs) so "revenue" is defined once; otherwise each dashboard reinvents it. Tie to conformed dimensions.</p>
+<hr />
+<h2 id="whiteboard-drill-do-3-per-session-timed-10-min-each">Whiteboard drill (do 3 per session, timed 10 min each)</h2>
+<p>Pick prompts from lesson section 9. Required output: grain sentence, bus matrix row, fact columns, 5 dimensions with SCD choice, one tricky issue, three business questions answered by your model, and tests you would write.</p>
+</article><div class="pager"><a class="prev" href="../../14-data-engineering/week-01-modeling-warehousing/lesson.html">← Week 1 · Modeling and warehousing: Lesson</a><a class="next" href="../../14-data-engineering/week-01-modeling-warehousing/cheatsheet.html">Week 1 · Modeling and warehousing: Cheatsheet →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

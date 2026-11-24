@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 1 Cheatsheet: LLM Fundamentals | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="13-llm-ai-concepts/week-01-llm-fundamentals/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../13-llm-ai-concepts/README.html">LLM and AI Concepts</a> / <a href="../../13-llm-ai-concepts/week-01-llm-fundamentals/lesson.html">Week 1 · LLM fundamentals</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="13-llm-ai-concepts/week-01-llm-fundamentals/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="week-1-cheatsheet-llm-fundamentals">Week 1 Cheatsheet: LLM Fundamentals</h1>
+<h2 id="pipeline">Pipeline</h2>
+<p>text -&gt; tokenizer -&gt; tokens -&gt; transformer (attention + FFN, stacked) -&gt; logits -&gt; sampler -&gt; next token -&gt; append -&gt; repeat.</p>
+<h2 id="numbers-rough-verify-per-model-check-current-docs">Numbers (rough; verify per model, check current docs)</h2>
+<ul>
+<li>1 token about 4 chars about 0.75 English words.</li>
+<li>Output tokens: slower and pricier than input tokens.</li>
+<li>Latency = time-to-first-token (prefill, grows with prompt) + output_tokens / tokens-per-sec.</li>
+<li>Cost per call = in_tokens * in_price + out_tokens * out_price (get prices from current docs).</li>
+</ul>
+<h2 id="attention">Attention</h2>
+<p>score = softmax(Q.K / sqrt(d)); output = sum(weight * V). Causal mask = no peeking ahead. Naive cost about O(n^2) in sequence length.</p>
+<h2 id="kv-cache">KV cache</h2>
+<p>Prefill (parallel, compute-bound) then decode (sequential, memory-bound). Cache grows with length and concurrency. Prompt caching: stable prefix first, variable text last.</p>
+<h2 id="training-stages">Training stages</h2>
+<p>Pretrain (knowledge) -&gt; SFT (follow instructions) -&gt; preference tuning/RLHF/DPO (helpful, safe, tone). New knowledge: retrieve, do not fine-tune.</p>
+<h2 id="sampling">Sampling</h2>
+<ul>
+<li>T=0 greedy; T low = focused; T high = diverse. Top-p = nucleus. Tune one knob.</li>
+<li>Deterministic tasks: low T. Still validate.</li>
+</ul>
+<h2 id="model-choice">Model choice</h2>
+<p>Cheap/small: classify, extract, route. Mid: most RAG/agents. Large/reasoning: hard multi-step. Patterns: route, cascade, distill. Always benchmark on customer data.</p>
+<h2 id="hallucination-playbook">Hallucination playbook</h2>
+<p>Ground -&gt; cite and verify -&gt; constrain output -&gt; abstain path -&gt; verify pass -&gt; human for high stakes -&gt; eval with unanswerable questions.</p>
+<h2 id="prompt-patterns">Prompt patterns</h2>
+<p>System prompt (stable rules) | delimiters for untrusted data | few-shot (diverse, include edge cases) | CoT (more tokens) | structured output (schema + validate + retry) | decomposition | self-consistency | reflection.</p>
+<h2 id="structured-output-ladder">Structured output ladder</h2>
+<p>Prompt-only &lt; JSON mode &lt; schema-constrained / tool-call. Always validate meaning; handle truncation and refusals.</p>
+<h2 id="prompt-injection">Prompt injection</h2>
+<p>Direct vs indirect. No hard instruction/data boundary. Defend with: least privilege, human approval, allowlists, output URL stripping, isolation of untrusted content, no secrets in prompts, red-team evals. Avoid trifecta: private data + untrusted content + exfil channel.</p>
+<h2 id="failure-modes">Failure modes</h2>
+<p>No max_tokens/timeout/retry; free-text parsing; model doing math/dates; prompt changes without eval; unpinned model version; PII in logs; trusting citations unchecked.</p>
+<h2 id="one-liners-for-interviews">One-liners for interviews</h2>
+<ul>
+<li>"LLMs are plausibility engines; I add grounding and verification."</li>
+<li>"Treat the model as an untrusted component; enforce auth in code."</li>
+<li>"I would measure on your data before choosing a model."</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../../13-llm-ai-concepts/week-01-llm-fundamentals/interview-qa.html">← Week 1 · LLM fundamentals: Interview Q&amp;A</a><a class="next" href="../../13-llm-ai-concepts/week-02-retrieval-rag/lesson.html">Week 2 · Retrieval and RAG: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

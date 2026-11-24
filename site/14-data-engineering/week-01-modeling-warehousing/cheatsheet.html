@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 1 Cheatsheet: Modeling and Warehousing | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="14-data-engineering/week-01-modeling-warehousing/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../14-data-engineering/week-01-modeling-warehousing/lesson.html">Week 1 · Modeling and warehousing</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="14-data-engineering/week-01-modeling-warehousing/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="week-1-cheatsheet-modeling-and-warehousing">Week 1 Cheatsheet: Modeling and Warehousing</h1>
+<h2 id="design-recipe">Design recipe</h2>
+<p>Process -&gt; Grain -&gt; Dimensions -&gt; Facts. State grain in one sentence. Every column true at that grain.</p>
+<h2 id="oltp-vs-olap">OLTP vs OLAP</h2>
+<p>OLTP: row store, normalized, point reads/writes. OLAP: columnar, denormalized, scans/aggregates. ELT: land raw, transform with SQL in warehouse; keep raw immutable.</p>
+<h2 id="fact-types">Fact types</h2>
+<ul>
+<li>Transaction: one row per event.</li>
+<li>Periodic snapshot: one row per entity per period (dense, semi-additive).</li>
+<li>Accumulating snapshot: one row per process instance, updated at milestones.</li>
+<li>Factless: events/coverage, count rows.
+Additive / semi-additive (balances: no sum over time) / non-additive (ratios: store num+denom).</li>
+</ul>
+<h2 id="dimension-toolkit">Dimension toolkit</h2>
+<p>surrogate key | natural key | degenerate (order_no in fact) | role-playing (date) | junk (flags) | conformed (shared) | mini-dimension (fast-changing) | bridge (M:N, weights) | outrigger | unknown/inferred members | date dim.</p>
+<h2 id="scd">SCD</h2>
+<p>0 fixed | 1 overwrite | 2 versions (valid_from, valid_to, is_current) | 3 prev column | 4 history table | 6 = 1+2+3 | 7 durable key + version key.
+SCD2 rules: half-open interval <code>from &lt;= t &lt; to</code>; open end 9999-12-31; unique current row per key; fact stores version surrogate key; fact load joins on event time; batch re-runnable; hash tracked columns.</p>
+<p>SCD2 skeleton:</p>
+<div class="highlight"><pre><span></span><code><span class="k">UPDATE</span><span class="w"> </span><span class="n">dim</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">valid_to</span><span class="o">=</span><span class="n">s</span><span class="p">.</span><span class="n">eff</span><span class="p">,</span><span class="w"> </span><span class="n">is_current</span><span class="o">=</span><span class="mi">0</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">is_current</span><span class="o">=</span><span class="mi">1</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">tracked</span><span class="w"> </span><span class="n">cols</span><span class="w"> </span><span class="n">differ</span><span class="p">;</span>
+<span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">dim</span><span class="w"> </span><span class="k">SELECT</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">stg</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="p">(</span><span class="k">current</span><span class="w"> </span><span class="k">row</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="k">key</span><span class="p">);</span>
+</code></pre></div>
+
+<h2 id="late-data">Late data</h2>
+<p>Late fact -&gt; historical version lookup, rebuild affected partitions. Fact before dim -&gt; inferred member. Backdated dim change -&gt; split version, re-point facts.</p>
+<h2 id="methodologies">Methodologies</h2>
+<p>Kimball: bus + conformed dims + marts. Inmon: 3NF EDW first. Data Vault: Hub (keys), Link (relationships), Satellite (attributes, history); raw vault + marts. Pragmatic: raw -&gt; staging -&gt; marts.</p>
+<h2 id="warehouse-concepts">Warehouse concepts</h2>
+<p>Columnar = compression + column pruning + min/max block skipping. Storage/compute separation. MPP: shuffle vs co-location; skew is the enemy.
+Partition (exact pruning, low-cardinality date) vs cluster/sort (tight min/max on filter columns).
+Snowflake: micro-partitions, warehouses, clustering keys. BigQuery: partition+cluster, bytes scanned or slots. Redshift: dist key + sort key, WLM, Spectrum. (check current docs for pricing/limits)</p>
+<h2 id="cost-control">Cost control</h2>
+<p>No SELECT *; filter on partition; incremental models; materialize hot aggregates; auto-suspend; right-size; separate compute per workload; timeouts/budgets; monitor top queries; short retention on staging.</p>
+<h2 id="traps">Traps</h2>
+<p>Mixed grains | fan-out joins | summing semi-additive | NULL FKs | natural key in SCD2 fact | time zones | SCD2 on everything | undocumented metric definitions.</p>
+<h2 id="tests">Tests</h2>
+<p>Grain unique; FKs not null and exist; one current row per key; no overlaps; reconciliation to source; freshness.</p>
+</article><div class="pager"><a class="prev" href="../../14-data-engineering/week-01-modeling-warehousing/interview-qa.html">← Week 1 · Modeling and warehousing: Interview Q&amp;A</a><a class="next" href="../../14-data-engineering/week-01-modeling-warehousing/scd2_demo.sql.html">Week 1 · Modeling and warehousing: scd2_demo.sql →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

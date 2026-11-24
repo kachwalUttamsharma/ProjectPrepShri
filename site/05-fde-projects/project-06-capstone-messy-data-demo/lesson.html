@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Project 6 (capstone): From messy data to a deployed demo | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="05-fde-projects/project-06-capstone-messy-data-demo/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../05-fde-projects/project-01-llm-basics/lesson.html">FDE Projects</a> / <a href="../../05-fde-projects/project-06-capstone-messy-data-demo/lesson.html">Project 6 · Capstone</a> / <span>Lesson</span></nav><button id="mark-done" data-id="05-fde-projects/project-06-capstone-messy-data-demo/lesson">Mark as done</button></div><article class="doc">
+<h1 id="project-6-capstone-from-messy-data-to-a-deployed-demo">Project 6 (capstone): From messy data to a deployed demo</h1>
+<p>Budget: ~2 hrs/week, so plan 2 sessions. Session 1: scoping + data cleaning + extraction (functions 1-5). Session 2: API, Docker, README, demo script, risks (functions 6-11), then rehearse the demo out loud.</p>
+<h2 id="the-customer-request-verbatim-as-it-arrives">The customer request (verbatim, as it arrives)</h2>
+<blockquote>
+<p>Hi, we're a mid-size logistics company. Our finance team drowns in supplier invoices: PDFs, emails, and a spreadsheet export from our old system that nobody trusts. We heard AI can "just read them". Can you show us something next week? Ideally it plugs into our ERP and has a dashboard, and handles everything automatically. Not sure how accurate it needs to be.</p>
+</blockquote>
+<p>Your job is not to build all of that. Your job is to turn it into a demo that is small, honest, and impressive in 5 minutes.</p>
+<h2 id="scoping-a-vague-request-scope_request">Scoping a vague request (<code>scope_request</code>)</h2>
+<p>Listen for three things: the real pain (finance re-keying invoices), the wish list (ERP, dashboard, "everything"), and the missing facts (volume, accuracy bar, sample data, who approves).</p>
+<table>
+<thead>
+<tr>
+<th>Customer says</th>
+<th>You translate to</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>"plugs into our ERP"</td>
+<td>Out of scope for the demo; ask for a sandbox or a sample export</td>
+</tr>
+<tr>
+<td>"dashboard"</td>
+<td>Out of scope; FastAPI <code>/docs</code> or one simple page is enough</td>
+</tr>
+<tr>
+<td>"handles everything automatically"</td>
+<td>One workflow, human review for low confidence</td>
+</tr>
+<tr>
+<td>"not sure how accurate"</td>
+<td>Propose a metric, e.g. 90% field accuracy on 20 samples</td>
+</tr>
+</tbody>
+</table>
+<p>Always ask: can we get 20+ real anonymised samples? Who judges success?</p>
+<h2 id="spec">Spec</h2>
+<p>Build a service that takes messy invoice data and returns clean structured data.</p>
+<ul>
+<li>Batch path: messy CSV export -&gt; <code>parse_messy_csv</code> -&gt; <code>clean_records</code> -&gt; clean rows + an explicit rejected list (never silently drop data).</li>
+<li>LLM path: <code>POST /extract {"text": "..."}</code> -&gt; <code>extract_with_fallback</code> -&gt; <code>{"data", "needs_review", "error", "attempts"}</code>.</li>
+<li><code>GET /health</code> for the container health check.</li>
+<li>Ship it with a Dockerfile, README, a 5-minute demo script, and a risk checklist.</li>
+</ul>
+<h2 id="concepts">Concepts</h2>
+<ul>
+<li><strong>Injected <code>llm: Callable[[str], str]</code></strong>: the tests use a <code>FakeLLM</code>; production plugs in Anthropic. Same code, no network in tests.</li>
+<li><strong>Validate everything the LLM returns</strong>; retry once with the error in the prompt; then fall back to <code>needs_review=True</code> instead of crashing or guessing.</li>
+<li><strong>Money as integer cents</strong> with <code>Decimal</code>, never floats. Dates to ISO; state your assumption (<code>03/04/2024</code> is DD/MM here) to the customer.</li>
+<li><strong>Docker layer caching</strong>: copy <code>requirements.txt</code> and install before copying code.</li>
+<li><strong>Honest limits</strong>: a demo that shows its failure handling builds more trust than one that looks perfect.</li>
+</ul>
+<h2 id="how-an-fde-would-approach-it">How an FDE would approach it</h2>
+<ol>
+<li>Day 0: reply with a 5-line scope (in / out / questions) before writing code. <code>scope_request</code> is a toy version of that habit.</li>
+<li>Get real samples first; the messiest 3 files tell you more than the spec does.</li>
+<li>Make the ugly path work end to end (CSV in, JSON out), then add the LLM where rules run out.</li>
+<li>Measure: even 20 hand-labelled examples (see Project 5) beat "it looks good".</li>
+<li>Package: Dockerfile + README so someone else can run it in 2 minutes.</li>
+<li>Rehearse the demo with a timer; prepare the failure case on purpose.</li>
+</ol>
+<h2 id="optional-manual-step-real-anthropic-not-used-by-tests">Optional manual step: real Anthropic (not used by tests)</h2>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">anthropic</span>
+<span class="n">client</span> <span class="o">=</span> <span class="n">anthropic</span><span class="o">.</span><span class="n">Anthropic</span><span class="p">()</span>  <span class="c1"># reads ANTHROPIC_API_KEY from the environment</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">llm</span><span class="p">(</span><span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">messages</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">=</span><span class="s2">"claude-sonnet-5-5"</span><span class="p">,</span>
+        <span class="n">max_tokens</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span>
+        <span class="n">messages</span><span class="o">=</span><span class="p">[{</span><span class="s2">"role"</span><span class="p">:</span> <span class="s2">"user"</span><span class="p">,</span> <span class="s2">"content"</span><span class="p">:</span> <span class="n">prompt</span><span class="p">}],</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">msg</span><span class="o">.</span><span class="n">content</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">create_app</span><span class="p">(</span><span class="n">llm</span><span class="p">)</span>   <span class="c1"># then: uvicorn main:app --reload</span>
+</code></pre></div>
+
+<p>Never commit the key. Set it with <code>export ANTHROPIC_API_KEY=...</code> or pass <code>-e ANTHROPIC_API_KEY</code> to <code>docker run</code>.</p>
+<h2 id="dockerfile-walkthrough-generate_dockerfile">Dockerfile walkthrough (<code>generate_dockerfile</code>)</h2>
+<div class="highlight"><pre><span></span><code>FROM python:3.14-slim                      # small base image
+WORKDIR /app
+COPY requirements.txt .                    # changes rarely -&gt; cached layer
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .                                   # changes often -&gt; last
+EXPOSE 8000
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+</code></pre></div>
+
+<p><code>--host 0.0.0.0</code> is required or the container is unreachable from outside. Run: <code>docker build -t invoice-demo .</code> then <code>docker run -p 8000:8000 -e ANTHROPIC_API_KEY invoice-demo</code>. (Docker is a manual step; tests only check the generated text.)</p>
+<h2 id="readme-template-render_readme">README template (<code>render_readme</code>)</h2>
+<p>Name, one-line summary, Setup (numbered), Endpoints (table), Known limitations. The limitations section is not optional: it is what a customer's engineer reads first.</p>
+<h2 id="5-minute-demo-script-demo_script">5-minute demo script (<code>demo_script</code>)</h2>
+<table>
+<thead>
+<tr>
+<th>Time</th>
+<th>Step</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0:00-0:45</td>
+<td>Their problem in their words</td>
+</tr>
+<tr>
+<td>0:45-1:30</td>
+<td>The messy input (show the ugliest file)</td>
+</tr>
+<tr>
+<td>1:30-3:30</td>
+<td>Live run: CSV clean-up, then <code>/extract</code> on a PDF text</td>
+</tr>
+<tr>
+<td>3:30-4:15</td>
+<td>Failure case: bad LLM output -&gt; <code>needs_review</code>, human in the loop</td>
+</tr>
+<tr>
+<td>4:15-5:00</td>
+<td>Limits, next steps, what you need from them</td>
+</tr>
+</tbody>
+</table>
+<h2 id="risks-and-limits-checklist-risk_checklist">Risks and limits checklist (<code>risk_checklist</code>)</h2>
+<p>Eval set exists - fallback for invalid output - human review - PII decision - cost per request estimated - timeouts/retries - secrets in env vars. Say the unmet ones out loud to the customer.</p>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li>Promising ERP integration or "100% accuracy" in the first call.</li>
+<li>Silently dropping bad rows; report them.</li>
+<li>Floats for money; ambiguous dates left unstated.</li>
+<li>Trusting LLM JSON without validating; no timeout on the LLM call.</li>
+<li>Demoing only the happy path; improvising the demo instead of rehearsing it.</li>
+<li>Dockerfile that copies code before installing dependencies (slow rebuilds).</li>
+</ul>
+<h2 id="demo-tips">Demo tips</h2>
+<ul>
+<li>Pre-load inputs; do not type live. Keep a recorded fallback in case wifi dies.</li>
+<li>Use the customer's own (anonymised) data and vocabulary.</li>
+<li>Show a failure on purpose, then show how it is contained.</li>
+<li>Explain tradeoffs to non-engineers in terms of cost, risk and review time, not tokens.</li>
+<li>End with a concrete ask: samples, a sandbox, and a success metric.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, run <code>.venv/bin/pytest -q</code> inside this folder. Then write a real <code>main.py</code>, README and Dockerfile with your functions and do a timed rehearsal.</p>
+</article><div class="pager"><a class="prev" href="../../05-fde-projects/project-05-evaluation/test_exercises.py.html">← Project 5 · Evaluation: Tests (code)</a><a class="next" href="../../05-fde-projects/project-06-capstone-messy-data-demo/exercises.py.html">Project 6 · Capstone: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

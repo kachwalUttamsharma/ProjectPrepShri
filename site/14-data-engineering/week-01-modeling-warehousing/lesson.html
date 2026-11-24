@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 1: Data Modeling and Warehousing | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="14-data-engineering/week-01-modeling-warehousing/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../14-data-engineering/week-01-modeling-warehousing/lesson.html">Week 1 · Modeling and warehousing</a> / <span>Lesson</span></nav><button id="mark-done" data-id="14-data-engineering/week-01-modeling-warehousing/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-1-data-modeling-and-warehousing">Week 1: Data Modeling and Warehousing</h1>
+<p>Goal: be able to take a vague business ("model a ride-sharing company") and, in 10 minutes at a whiteboard, declare the grain, name the facts and dimensions, pick SCD behavior, and explain how it lands in a columnar warehouse. Vendor details (Snowflake, BigQuery, Redshift) change often: items marked "(check current docs)" need verification before you quote them.</p>
+<p>Run the demo: <code>sqlite3 :memory: &lt; scd2_demo.sql</code> (file in this folder, verified on SQLite 3.54).</p>
+<hr />
+<h2 id="1-oltp-vs-olap">1. OLTP vs OLAP</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>OLTP</th>
+<th>OLAP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Purpose</td>
+<td>Run the business (orders, payments)</td>
+<td>Analyze the business</td>
+</tr>
+<tr>
+<td>Access pattern</td>
+<td>Many small point reads/writes by key</td>
+<td>Few huge scans and aggregations</td>
+</tr>
+<tr>
+<td>Schema</td>
+<td>Normalized (3NF), many tables</td>
+<td>Denormalized (star), few wide tables</td>
+</tr>
+<tr>
+<td>Storage</td>
+<td>Row-oriented (B-tree indexes)</td>
+<td>Columnar, compressed, partitioned</td>
+</tr>
+<tr>
+<td>Concurrency</td>
+<td>Thousands of short txns</td>
+<td>Tens of heavy queries</td>
+</tr>
+<tr>
+<td>History</td>
+<td>Current state (updates in place)</td>
+<td>Historical, append-heavy</td>
+</tr>
+<tr>
+<td>Examples</td>
+<td>Postgres, MySQL, DynamoDB</td>
+<td>Snowflake, BigQuery, Redshift, ClickHouse</td>
+</tr>
+</tbody>
+</table>
+<p>HTAP and "zero-ETL" blur the line, but the access-pattern difference still drives design. Never run heavy analytics on the OLTP primary: use a replica, CDC to a warehouse, or both.</p>
+<h2 id="2-normalization-in-one-page">2. Normalization in one page</h2>
+<ul>
+<li>1NF: atomic values, no repeating groups.</li>
+<li>2NF: no partial dependency on part of a composite key.</li>
+<li>3NF: no transitive dependency (non-key attribute depends only on the key). Mnemonic: "the key, the whole key, nothing but the key."</li>
+<li>Why OLTP normalizes: single place to update, no update anomalies, small rows.</li>
+<li>Why OLAP denormalizes: joins on billions of rows are expensive; analysts need few, understandable tables; storage is cheap and columnar compression eats the repetition (a repeated <code>country</code> string compresses to almost nothing with dictionary/RLE encoding).</li>
+</ul>
+<h2 id="3-dimensional-modeling-kimball">3. Dimensional modeling (Kimball)</h2>
+<p>Four-step design process (memorize):</p>
+<ol>
+<li>Pick the business process (orders, rides, subscriptions billing).</li>
+<li>Declare the grain (what exactly is one row in the fact table).</li>
+<li>Identify the dimensions (who, what, where, when, how, why).</li>
+<li>Identify the facts (numeric measurements at that grain).</li>
+</ol>
+<p>Declaring the grain first is the single most important habit. Every column must be true at that grain; mixing grains (order-level shipping fee on an order-line row) causes double counting when summed.</p>
+<h3 id="star-vs-snowflake">Star vs snowflake</h3>
+<ul>
+<li>Star: fact table surrounded by denormalized dimensions (one join hop). Fast, simple, BI-friendly. Default choice.</li>
+<li>Snowflake: dimensions normalized into sub-dimensions (product -&gt; category -&gt; department). Saves little space, adds joins and confusion. Use sparingly: when a sub-dimension is shared and changes independently, or the hierarchy is huge.</li>
+<li>Galaxy / constellation: several facts sharing conformed dimensions.</li>
+</ul>
+<h3 id="fact-table-types">Fact table types</h3>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>One row per</th>
+<th>Example</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Transaction</td>
+<td>Event at a point in time</td>
+<td>Order line, payment, ride</td>
+<td>Most common, sparse, additive measures</td>
+</tr>
+<tr>
+<td>Periodic snapshot</td>
+<td>Entity per period (day/month)</td>
+<td>Daily account balance, daily inventory</td>
+<td>Dense; includes rows even with no activity; semi-additive measures (balance)</td>
+</tr>
+<tr>
+<td>Accumulating snapshot</td>
+<td>Process instance through a pipeline</td>
+<td>Order: placed, paid, shipped, delivered</td>
+<td>Row is UPDATED as milestones hit; multiple date keys; lag measures</td>
+</tr>
+<tr>
+<td>Factless</td>
+<td>Event with no numeric measure</td>
+<td>Student attended class, promo eligibility</td>
+<td>Count rows; also "coverage" tables to find what did NOT happen</td>
+</tr>
+</tbody>
+</table>
+<p>Additivity: additive (sum across all dims: revenue), semi-additive (sum across some dims, not time: balance, inventory on hand), non-additive (ratios, unit price: store numerator and denominator instead and divide at query time).</p>
+<h3 id="dimensions">Dimensions</h3>
+<ul>
+<li>Surrogate key: meaningless integer (or hash) generated by the warehouse. Why: insulates from source key changes and reuse, enables SCD2 (several rows per natural key), smaller joins, handles "unknown" members (key -1 / 0). Hash-based surrogates (md5 of natural key plus version) are common in dbt and parallel loads; trade-off is wider keys and collision theory (negligible with 128+ bits).</li>
+<li>Natural / business key: the source ID. Keep it as an attribute.</li>
+<li>Degenerate dimension: a dimension attribute stored in the fact with no dimension table (order number, invoice number, ticket id). Useful for grouping lines into the parent document.</li>
+<li>Role-playing dimension: same dimension used several times (order_date, ship_date, delivery_date all point to dim_date). Create views or aliases.</li>
+<li>Junk dimension: combine low-cardinality flags/indicators (is_gift, payment_method, channel) into one small dimension instead of many flag columns on the fact.</li>
+<li>Conformed dimension: shared, identically defined dimension across facts/marts (dim_customer, dim_date). It is what makes "drill across" possible and is the core of the Kimball bus architecture (enterprise bus matrix: processes as rows, conformed dims as columns).</li>
+<li>Mini-dimension: split rapidly changing attributes (income band, credit score band) out of a big SCD2 dimension to prevent row explosion.</li>
+<li>Outrigger: dimension referencing another dimension (snowflaking light).</li>
+<li>Bridge table: resolves many-to-many between fact and dimension (a patient with multiple diagnoses, an account with multiple owners) or ragged hierarchies. Often carries a weighting factor so measures are allocated and do not double count.</li>
+<li>Multi-valued dimension without bridge: pitfall is fan-out.</li>
+<li>Date dimension: pre-built, one row per day, with fiscal periods, holidays, week numbers. Do not compute these in queries. Time of day is a separate dimension.</li>
+<li>Unknown / not applicable members: seeded rows so fact FKs are never NULL (inner joins then never drop facts).</li>
+</ul>
+<h2 id="4-slowly-changing-dimensions">4. Slowly Changing Dimensions</h2>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Behavior</th>
+<th>History</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>Never changes</td>
+<td>n/a</td>
+<td>Original signup date, birth date</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Overwrite</td>
+<td>None</td>
+<td>Typo fixes, non-analytical attributes</td>
+</tr>
+<tr>
+<td>2</td>
+<td>New row per version (valid_from, valid_to, is_current)</td>
+<td>Full</td>
+<td>Default for attributes that matter historically (region, segment)</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Extra column for previous value</td>
+<td>One step</td>
+<td>Rare: "previous region" analysis, planned re-orgs</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Current table + history table (mini-dim / history)</td>
+<td>Full, separated</td>
+<td>Fast-changing attributes</td>
+</tr>
+<tr>
+<td>6</td>
+<td>1+2+3 hybrid: SCD2 rows plus a "current value" column overwritten on every version</td>
+<td>Full + as-is view</td>
+<td>Report both "as-was" and "as-is" without self-join</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Dual keys in the fact (surrogate version key plus durable natural key)</td>
+<td>Full</td>
+<td>Similar goal to 6 via joins</td>
+</tr>
+</tbody>
+</table>
+<p>Key mechanics of SCD2:</p>
+<ul>
+<li>Fact rows reference the surrogate key of the version valid at event time. Facts never get re-pointed when the dimension changes.</li>
+<li>Tracked attributes: decide which columns trigger a new version (city yes, phone no -&gt; SCD1).</li>
+<li>Close old row (<code>valid_to = effective_date</code>, <code>is_current = 0</code>), insert new row. Use half-open intervals <code>valid_from &lt;= t &lt; valid_to</code> so there are no gaps or overlaps. <code>9999-12-31</code> as open end is conventional.</li>
+<li>Change detection: compare columns or a hash of tracked columns.</li>
+<li>Effective date: use the business effective date when the source has it, otherwise load/ingestion time. Say which one you chose; interviewers probe this.</li>
+<li>Idempotency: re-running the same batch must not create duplicate versions. Guard with the <code>NOT EXISTS current row</code> pattern (see demo) and a unique partial index on <code>(natural_key) WHERE is_current</code>.</li>
+<li>Late-arriving data: see section 6.</li>
+</ul>
+<h3 id="runnable-demo-star-schema-scd2-sqlite3">Runnable demo: star schema + SCD2 (sqlite3)</h3>
+<p>Source of truth is <code>scd2_demo.sql</code>; here is the same file.</p>
+<div class="highlight"><pre><span></span><code><span class="c1">-- scd2_demo.sql : star schema + SCD Type 2 in sqlite3-compatible SQL</span>
+<span class="c1">-- Run: sqlite3 :memory: &lt; scd2_demo.sql</span>
+<span class="c1">-- Needs SQLite &gt;= 3.25 (window functions) and &gt;= 3.35 not required.</span>
+
+<span class="n">PRAGMA</span><span class="w"> </span><span class="n">foreign_keys</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">ON</span><span class="p">;</span>
+
+<span class="c1">-- ---------- 1. Dimensions ----------</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">dim_date</span><span class="w"> </span><span class="p">(</span>
+<span class="w">  </span><span class="n">date_key</span><span class="w">     </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span><span class="w">   </span><span class="c1">-- smart key yyyymmdd (acceptable for date dim)</span>
+<span class="w">  </span><span class="n">full_date</span><span class="w">    </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">  </span><span class="k">year</span><span class="w">         </span><span class="nb">INTEGER</span><span class="p">,</span><span class="w"> </span><span class="k">month</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">,</span><span class="w"> </span><span class="k">day</span><span class="w"> </span><span class="nb">INTEGER</span>
+<span class="p">);</span>
+
+<span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">dim_product</span><span class="w"> </span><span class="p">(</span>
+<span class="w">  </span><span class="n">product_key</span><span class="w">  </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span><span class="w">   </span><span class="c1">-- surrogate</span>
+<span class="w">  </span><span class="n">product_id</span><span class="w">   </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">         </span><span class="c1">-- natural / business key</span>
+<span class="w">  </span><span class="n">name</span><span class="w">         </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">  </span><span class="n">category</span><span class="w">     </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span>
+<span class="p">);</span>
+
+<span class="c1">-- SCD2 customer dimension</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">dim_customer</span><span class="w"> </span><span class="p">(</span>
+<span class="w">  </span><span class="n">customer_key</span><span class="w">   </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="n">AUTOINCREMENT</span><span class="p">,</span><span class="w">  </span><span class="c1">-- surrogate, one per version</span>
+<span class="w">  </span><span class="n">customer_id</span><span class="w">    </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">                      </span><span class="c1">-- natural key</span>
+<span class="w">  </span><span class="n">name</span><span class="w">           </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">  </span><span class="n">city</span><span class="w">           </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">                      </span><span class="c1">-- tracked attribute</span>
+<span class="w">  </span><span class="n">segment</span><span class="w">        </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">                      </span><span class="c1">-- tracked attribute</span>
+<span class="w">  </span><span class="n">valid_from</span><span class="w">     </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">  </span><span class="n">valid_to</span><span class="w">       </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="s1">'9999-12-31'</span><span class="p">,</span>
+<span class="w">  </span><span class="n">is_current</span><span class="w">     </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">1</span>
+<span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">UNIQUE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">ux_customer_current</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">dim_customer</span><span class="p">(</span><span class="n">customer_id</span><span class="p">)</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">is_current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+
+<span class="c1">-- ---------- 2. Fact (grain: one row per order line) ----------</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">fact_sales</span><span class="w"> </span><span class="p">(</span>
+<span class="w">  </span><span class="n">order_id</span><span class="w">      </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">            </span><span class="c1">-- degenerate dimension</span>
+<span class="w">  </span><span class="n">line_no</span><span class="w">       </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">  </span><span class="n">date_key</span><span class="w">      </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">dim_date</span><span class="p">(</span><span class="n">date_key</span><span class="p">),</span>
+<span class="w">  </span><span class="n">customer_key</span><span class="w">  </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">dim_customer</span><span class="p">(</span><span class="n">customer_key</span><span class="p">),</span>
+<span class="w">  </span><span class="n">product_key</span><span class="w">   </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">dim_product</span><span class="p">(</span><span class="n">product_key</span><span class="p">),</span>
+<span class="w">  </span><span class="n">quantity</span><span class="w">      </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">  </span><span class="n">amount</span><span class="w">        </span><span class="nb">REAL</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">  </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="p">(</span><span class="n">order_id</span><span class="p">,</span><span class="w"> </span><span class="n">line_no</span><span class="p">)</span>
+<span class="p">);</span>
+
+<span class="c1">-- ---------- 3. Seed ----------</span>
+<span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">dim_date</span><span class="w"> </span><span class="k">VALUES</span>
+<span class="w"> </span><span class="p">(</span><span class="mi">20240101</span><span class="p">,</span><span class="s1">'2024-01-01'</span><span class="p">,</span><span class="mi">2024</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">),</span>
+<span class="w"> </span><span class="p">(</span><span class="mi">20240215</span><span class="p">,</span><span class="s1">'2024-02-15'</span><span class="p">,</span><span class="mi">2024</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">15</span><span class="p">),</span>
+<span class="w"> </span><span class="p">(</span><span class="mi">20240601</span><span class="p">,</span><span class="s1">'2024-06-01'</span><span class="p">,</span><span class="mi">2024</span><span class="p">,</span><span class="mi">6</span><span class="p">,</span><span class="mi">1</span><span class="p">);</span>
+<span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">dim_product</span><span class="w"> </span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="s1">'P1'</span><span class="p">,</span><span class="s1">'Widget'</span><span class="p">,</span><span class="s1">'Hardware'</span><span class="p">),(</span><span class="mi">2</span><span class="p">,</span><span class="s1">'P2'</span><span class="p">,</span><span class="s1">'Gadget'</span><span class="p">,</span><span class="s1">'Hardware'</span><span class="p">);</span>
+
+<span class="c1">-- Initial load (day 1)</span>
+<span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">dim_customer</span><span class="w"> </span><span class="p">(</span><span class="n">customer_id</span><span class="p">,</span><span class="n">name</span><span class="p">,</span><span class="n">city</span><span class="p">,</span><span class="n">segment</span><span class="p">,</span><span class="n">valid_from</span><span class="p">)</span>
+<span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="s1">'C1'</span><span class="p">,</span><span class="s1">'Asha'</span><span class="p">,</span><span class="s1">'Pune'</span><span class="p">,</span><span class="s1">'SMB'</span><span class="p">,</span><span class="s1">'2024-01-01'</span><span class="p">),</span>
+<span class="w">       </span><span class="p">(</span><span class="s1">'C2'</span><span class="p">,</span><span class="s1">'Ben'</span><span class="p">,</span><span class="s1">'Austin'</span><span class="p">,</span><span class="s1">'Enterprise'</span><span class="p">,</span><span class="s1">'2024-01-01'</span><span class="p">);</span>
+
+<span class="c1">-- Fact row before the change: points at the OLD version of C1</span>
+<span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">fact_sales</span><span class="w"> </span><span class="k">VALUES</span>
+<span class="w"> </span><span class="p">(</span><span class="s1">'O1'</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">20240101</span><span class="p">,(</span><span class="k">SELECT</span><span class="w"> </span><span class="n">customer_key</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">dim_customer</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">customer_id</span><span class="o">=</span><span class="s1">'C1'</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">is_current</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">20</span><span class="p">.</span><span class="mi">0</span><span class="p">);</span>
+
+<span class="c1">-- ---------- 4. SCD2 change feed ----------</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">stg_customer</span><span class="w"> </span><span class="p">(</span><span class="n">customer_id</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w"> </span><span class="n">city</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w"> </span><span class="n">segment</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w"> </span><span class="n">effective_date</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">);</span>
+<span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">stg_customer</span><span class="w"> </span><span class="k">VALUES</span>
+<span class="w"> </span><span class="p">(</span><span class="s1">'C1'</span><span class="p">,</span><span class="s1">'Asha'</span><span class="p">,</span><span class="s1">'Mumbai'</span><span class="p">,</span><span class="s1">'SMB'</span><span class="p">,</span><span class="s1">'2024-02-15'</span><span class="p">),</span><span class="w">        </span><span class="c1">-- city changed</span>
+<span class="w"> </span><span class="p">(</span><span class="s1">'C2'</span><span class="p">,</span><span class="s1">'Ben'</span><span class="p">,</span><span class="s1">'Austin'</span><span class="p">,</span><span class="s1">'Enterprise'</span><span class="p">,</span><span class="s1">'2024-02-15'</span><span class="p">),</span><span class="w">  </span><span class="c1">-- unchanged</span>
+<span class="w"> </span><span class="p">(</span><span class="s1">'C3'</span><span class="p">,</span><span class="s1">'Chen'</span><span class="p">,</span><span class="s1">'Berlin'</span><span class="p">,</span><span class="s1">'SMB'</span><span class="p">,</span><span class="s1">'2024-02-15'</span><span class="p">);</span><span class="w">        </span><span class="c1">-- brand new</span>
+
+<span class="c1">-- Step A: close current rows whose tracked attributes differ</span>
+<span class="k">UPDATE</span><span class="w"> </span><span class="n">dim_customer</span>
+<span class="k">SET</span><span class="w"> </span><span class="n">valid_to</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">effective_date</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">stg_customer</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">customer_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dim_customer</span><span class="p">.</span><span class="n">customer_id</span><span class="p">),</span>
+<span class="w">    </span><span class="n">is_current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">is_current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span>
+<span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">stg_customer</span><span class="w"> </span><span class="n">s</span>
+<span class="w">              </span><span class="k">WHERE</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">customer_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dim_customer</span><span class="p">.</span><span class="n">customer_id</span>
+<span class="w">                </span><span class="k">AND</span><span class="w"> </span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="n">city</span><span class="w"> </span><span class="o">&lt;&gt;</span><span class="w"> </span><span class="n">dim_customer</span><span class="p">.</span><span class="n">city</span><span class="w"> </span><span class="k">OR</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">segment</span><span class="w"> </span><span class="o">&lt;&gt;</span><span class="w"> </span><span class="n">dim_customer</span><span class="p">.</span><span class="n">segment</span><span class="p">));</span>
+
+<span class="c1">-- Step B: insert new versions for changed + new customers (no current row exists now)</span>
+<span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">dim_customer</span><span class="w"> </span><span class="p">(</span><span class="n">customer_id</span><span class="p">,</span><span class="n">name</span><span class="p">,</span><span class="n">city</span><span class="p">,</span><span class="n">segment</span><span class="p">,</span><span class="n">valid_from</span><span class="p">)</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">customer_id</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">city</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">segment</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">effective_date</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">stg_customer</span><span class="w"> </span><span class="n">s</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">dim_customer</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">customer_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">customer_id</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">is_current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+
+<span class="c1">-- Fact load AFTER change: look up the version valid on the transaction date</span>
+<span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">fact_sales</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="s1">'O2'</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">20240215</span><span class="p">,</span>
+<span class="w">       </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="n">customer_key</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">dim_customer</span>
+<span class="w">         </span><span class="k">WHERE</span><span class="w"> </span><span class="n">customer_id</span><span class="o">=</span><span class="s1">'C1'</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="s1">'2024-02-15'</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">valid_from</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="s1">'2024-02-15'</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">valid_to</span><span class="p">),</span>
+<span class="w">       </span><span class="mi">2</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">15</span><span class="p">.</span><span class="mi">0</span><span class="p">;</span>
+
+<span class="c1">-- ---------- 5. Checks / demo queries ----------</span>
+<span class="p">.</span><span class="n">headers</span><span class="w"> </span><span class="k">on</span>
+<span class="p">.</span><span class="k">mode</span><span class="w"> </span><span class="k">column</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="s1">'--- dim_customer versions ---'</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">info</span><span class="p">;</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">customer_key</span><span class="p">,</span><span class="n">customer_id</span><span class="p">,</span><span class="n">city</span><span class="p">,</span><span class="n">valid_from</span><span class="p">,</span><span class="n">valid_to</span><span class="p">,</span><span class="n">is_current</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">dim_customer</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">customer_id</span><span class="p">,</span><span class="n">valid_from</span><span class="p">;</span>
+
+<span class="k">SELECT</span><span class="w"> </span><span class="s1">'--- sales by city AS-WAS (historical truth) ---'</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">info</span><span class="p">;</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="n">city</span><span class="p">,</span><span class="w"> </span><span class="k">SUM</span><span class="p">(</span><span class="n">f</span><span class="p">.</span><span class="n">amount</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">revenue</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">fact_sales</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">dim_customer</span><span class="w"> </span><span class="k">c</span><span class="w"> </span><span class="k">USING</span><span class="w"> </span><span class="p">(</span><span class="n">customer_key</span><span class="p">)</span>
+<span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="n">city</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="n">city</span><span class="p">;</span>
+
+<span class="k">SELECT</span><span class="w"> </span><span class="s1">'--- sales by CURRENT city AS-IS (join on natural key to current row) ---'</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">info</span><span class="p">;</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">cur</span><span class="p">.</span><span class="n">city</span><span class="p">,</span><span class="w"> </span><span class="k">SUM</span><span class="p">(</span><span class="n">f</span><span class="p">.</span><span class="n">amount</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">revenue</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">fact_sales</span><span class="w"> </span><span class="n">f</span>
+<span class="k">JOIN</span><span class="w"> </span><span class="n">dim_customer</span><span class="w"> </span><span class="n">v</span><span class="w">   </span><span class="k">ON</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="n">customer_key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">f</span><span class="p">.</span><span class="n">customer_key</span>
+<span class="k">JOIN</span><span class="w"> </span><span class="n">dim_customer</span><span class="w"> </span><span class="n">cur</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">cur</span><span class="p">.</span><span class="n">customer_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="n">customer_id</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">cur</span><span class="p">.</span><span class="n">is_current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span>
+<span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">cur</span><span class="p">.</span><span class="n">city</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">cur</span><span class="p">.</span><span class="n">city</span><span class="p">;</span>
+
+<span class="k">SELECT</span><span class="w"> </span><span class="s1">'--- integrity: exactly one current row per customer (expect 0 rows) ---'</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">info</span><span class="p">;</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">customer_id</span><span class="p">,</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">dim_customer</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">is_current</span><span class="o">=</span><span class="mi">1</span><span class="w"> </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">HAVING</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="o">&lt;&gt;</span><span class="mi">1</span><span class="p">;</span>
+
+<span class="k">SELECT</span><span class="w"> </span><span class="s1">'--- integrity: no overlapping validity ranges (expect 0 rows) ---'</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">info</span><span class="p">;</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="n">customer_id</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">dim_customer</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">dim_customer</span><span class="w"> </span><span class="n">b</span>
+<span class="w">  </span><span class="k">ON</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="n">customer_id</span><span class="o">=</span><span class="n">b</span><span class="p">.</span><span class="n">customer_id</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="n">customer_key</span><span class="o">&lt;</span><span class="n">b</span><span class="p">.</span><span class="n">customer_key</span>
+<span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="n">valid_from</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">b</span><span class="p">.</span><span class="n">valid_to</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">b</span><span class="p">.</span><span class="n">valid_from</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="n">valid_to</span><span class="p">;</span>
+
+<span class="k">SELECT</span><span class="w"> </span><span class="s1">'--- idempotency: re-run steps A and B, row count must stay 4 ---'</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">info</span><span class="p">;</span>
+<span class="k">UPDATE</span><span class="w"> </span><span class="n">dim_customer</span>
+<span class="k">SET</span><span class="w"> </span><span class="n">valid_to</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">effective_date</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">stg_customer</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">customer_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dim_customer</span><span class="p">.</span><span class="n">customer_id</span><span class="p">),</span><span class="w"> </span><span class="n">is_current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">is_current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">stg_customer</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">customer_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dim_customer</span><span class="p">.</span><span class="n">customer_id</span>
+<span class="w">      </span><span class="k">AND</span><span class="w"> </span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="n">city</span><span class="w"> </span><span class="o">&lt;&gt;</span><span class="w"> </span><span class="n">dim_customer</span><span class="p">.</span><span class="n">city</span><span class="w"> </span><span class="k">OR</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">segment</span><span class="w"> </span><span class="o">&lt;&gt;</span><span class="w"> </span><span class="n">dim_customer</span><span class="p">.</span><span class="n">segment</span><span class="p">));</span>
+<span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">dim_customer</span><span class="w"> </span><span class="p">(</span><span class="n">customer_id</span><span class="p">,</span><span class="n">name</span><span class="p">,</span><span class="n">city</span><span class="p">,</span><span class="n">segment</span><span class="p">,</span><span class="n">valid_from</span><span class="p">)</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">customer_id</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">city</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">segment</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">effective_date</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">stg_customer</span><span class="w"> </span><span class="n">s</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">dim_customer</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">customer_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">customer_id</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">is_current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">rows_after_rerun</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">dim_customer</span><span class="p">;</span>
+</code></pre></div>
+
+<p>Expected result: C1 has two versions; "as-was" report splits revenue Pune 20 / Mumbai 15; "as-is" report attributes all 35 to Mumbai; both integrity queries return no rows; re-running steps A/B leaves 4 rows.</p>
+<h3 id="other-scd-types-in-sql-sqlite3-verified">Other SCD types in SQL (sqlite3 verified)</h3>
+<div class="highlight"><pre><span></span><code><span class="c1">-- SCD1: overwrite</span>
+<span class="k">UPDATE</span><span class="w"> </span><span class="n">dim_customer</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">city</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Mumbai'</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">customer_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'C1'</span><span class="p">;</span>
+
+<span class="c1">-- SCD3: keep previous value in a column</span>
+<span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">dim_customer</span><span class="w"> </span><span class="k">ADD</span><span class="w"> </span><span class="k">COLUMN</span><span class="w"> </span><span class="n">prev_city</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">;</span>
+<span class="k">UPDATE</span><span class="w"> </span><span class="n">dim_customer</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">prev_city</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">city</span><span class="p">,</span><span class="w"> </span><span class="n">city</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Mumbai'</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">customer_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'C1'</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">city</span><span class="w"> </span><span class="o">&lt;&gt;</span><span class="w"> </span><span class="s1">'Mumbai'</span><span class="p">;</span>
+
+<span class="c1">-- SCD6: SCD2 rows + current_city column refreshed on ALL versions of that customer</span>
+<span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">dim_customer</span><span class="w"> </span><span class="k">ADD</span><span class="w"> </span><span class="k">COLUMN</span><span class="w"> </span><span class="n">current_city</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">;</span>
+<span class="k">UPDATE</span><span class="w"> </span><span class="n">dim_customer</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">current_city</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span>
+<span class="w">  </span><span class="k">SELECT</span><span class="w"> </span><span class="n">c2</span><span class="p">.</span><span class="n">city</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">dim_customer</span><span class="w"> </span><span class="n">c2</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">c2</span><span class="p">.</span><span class="n">customer_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dim_customer</span><span class="p">.</span><span class="n">customer_id</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">c2</span><span class="p">.</span><span class="n">is_current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+</code></pre></div>
+
+<p>In a warehouse the SCD2 change is done with <code>MERGE</code> (Snowflake/BigQuery/Redshift/Delta all support it, syntax differs: check current docs) or, in dbt, with snapshots (week 3). Typical MERGE pattern: first statement closes changed rows, second inserts new versions; or a single MERGE using a UNION of "update the old row" and "insert the new row" source rows keyed with a NULL merge key trick.</p>
+<h2 id="5-kimball-vs-inmon-vs-data-vault">5. Kimball vs Inmon vs Data Vault</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Kimball</th>
+<th>Inmon</th>
+<th>Data Vault 2.0</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Approach</td>
+<td>Bottom-up: business-process marts using conformed dimensions</td>
+<td>Top-down: normalized (3NF) enterprise warehouse first, marts derived</td>
+<td>Hub / Link / Satellite raw vault, then business vault and marts</td>
+</tr>
+<tr>
+<td>Strength</td>
+<td>Fast delivery, user-friendly, great BI performance</td>
+<td>Single integrated truth, consistent</td>
+<td>Auditability, parallel loading, easy source onboarding, tolerant of schema change</td>
+</tr>
+<tr>
+<td>Weakness</td>
+<td>Conformance discipline needed; reworking grain is painful</td>
+<td>Slow, upfront heavy</td>
+<td>More tables and joins; needs a presentation layer on top; heavier skill demand</td>
+</tr>
+<tr>
+<td>Use when</td>
+<td>Most analytics teams</td>
+<td>Large enterprise with strong central governance</td>
+<td>Many sources, regulatory audit, frequent source change</td>
+</tr>
+</tbody>
+</table>
+<p>Data Vault pieces: Hub = unique business keys; Link = relationships (many-to-many by default); Satellite = descriptive attributes with load date and hash diff (history). Everything insert-only and source-tracked. In practice: raw vault (as-is, auditable) feeds star-schema marts for consumption. A modern pragmatic pattern: raw -&gt; staging -&gt; intermediate -&gt; marts (star), which is Kimball presentation with dbt.</p>
+<p>"One Big Table" (wide denormalized table) is common in columnar warehouses for simple use cases: fewest joins, but duplicates dimension attributes, makes SCD handling and governance harder, and large rebuilds when a dimension changes. Often used as a derived layer on top of a star.</p>
+<h2 id="6-late-arriving-data">6. Late-arriving data</h2>
+<ul>
+<li>Late-arriving fact (event for a time already loaded): fine for facts; load it; look up the dimension version valid at event time (range join with <code>valid_from &lt;= event_ts &lt; valid_to</code>). Incremental pipelines need a lookback window or watermark that re-reads recent partitions; aggregates need rebuild of affected partitions.</li>
+<li>Early-arriving fact / late-arriving dimension (fact references a customer not yet in the dimension): insert an "inferred member" row (natural key, attributes unknown, flagged <code>is_inferred</code>) so the fact has a valid surrogate key; when the real dimension row arrives, overwrite the inferred row (SCD1 style for first real load) rather than creating a version.</li>
+<li>Late-arriving dimension change (a change effective in the past, e.g. customer moved last month, reported today): requires splitting the existing version: close the version at the effective date, insert the new row with <code>valid_from = effective</code>, <code>valid_to = old valid_to</code>, and re-point fact rows with event dates in the affected window. This is why many teams accept "effective as of load time" and document the limitation.</li>
+<li>Event time vs processing time; use a watermark / allowed lateness (details in week 4). Keep both timestamps on the fact.</li>
+<li>Idempotent, partition-overwrite loads (replace date partition) make reprocessing safe.</li>
+</ul>
+<h2 id="7-columnar-warehouses-concepts">7. Columnar warehouses (concepts)</h2>
+<p>Why columnar: analytic queries touch few columns of many rows; columns stored contiguously compress well (dictionary, run-length, delta, bit-packing) and allow vectorized execution and skipping blocks via min/max metadata. Cost: slow single-row updates/inserts, so loads are bulk/batch and updates are expensive (rewrite or delta + merge).</p>
+<p>Concepts shared by all:</p>
+<ul>
+<li>Separation of storage and compute (Snowflake, BigQuery; Redshift RA3/Serverless) vs coupled (older Redshift node types, on-prem MPP). Lets you scale and pause compute independently; cost shifts to compute-time or bytes-scanned.</li>
+<li>MPP: data distributed across nodes; joins require co-location or shuffling/broadcast. Data skew creates hot nodes.</li>
+<li>Pruning: skip data that cannot match a filter, via partitions or per-block min/max metadata.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Concept</th>
+<th>Snowflake</th>
+<th>BigQuery</th>
+<th>Redshift</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Billing model</td>
+<td>Compute credits per warehouse-second (min 60s on resume) plus storage</td>
+<td>On-demand: bytes scanned; or capacity (slots) editions (check current docs)</td>
+<td>Provisioned nodes or Serverless RPUs (check current docs)</td>
+</tr>
+<tr>
+<td>Physical layout</td>
+<td>Automatic micro-partitions (small immutable files), metadata with min/max per column</td>
+<td>Capacitor columnar storage; you declare partitioning and clustering</td>
+<td>Slices; sort keys and distribution keys</td>
+</tr>
+<tr>
+<td>Pruning control</td>
+<td>Clustering keys (automatic reclustering costs credits; only worth it for very large tables)</td>
+<td>Partition by date/integer/ingestion time; cluster by up to 4 columns (check current docs)</td>
+<td>Sort key (compound / interleaved), zone maps</td>
+</tr>
+<tr>
+<td>Join co-location</td>
+<td>Not user-managed</td>
+<td>Not user-managed</td>
+<td>Distribution style: KEY, ALL (small dim), EVEN, AUTO</td>
+</tr>
+<tr>
+<td>Concurrency/workload mgmt</td>
+<td>Multi-cluster warehouses; separate warehouses per workload</td>
+<td>Slot reservations / assignments; autoscaling editions</td>
+<td>WLM queues, concurrency scaling, auto WLM</td>
+</tr>
+<tr>
+<td>Semi-structured</td>
+<td>VARIANT</td>
+<td>JSON type / STRUCT, ARRAY</td>
+<td>SUPER</td>
+</tr>
+<tr>
+<td>Time travel</td>
+<td>Yes (retention configurable by edition)</td>
+<td>Yes (default window; check current docs)</td>
+<td>Snapshots/restore, not table-level time travel in same way (check current docs)</td>
+</tr>
+</tbody>
+</table>
+<p>Partitioning vs clustering: partitioning splits a table into separate segments, best on a low-to-medium cardinality, commonly filtered column (event date); pruning is exact and cost estimates are predictable. Clustering/sort orders data within partitions to make min/max stats tight, helping range filters and joins on higher cardinality columns (customer_id). Over-partitioning (too many tiny partitions) hurts: metadata overhead and small files.</p>
+<p>Cost control checklist (the answer interviewers want):</p>
+<ul>
+<li>Select only needed columns; never <code>SELECT *</code> on columnar engines (billing/IO scales with columns read).</li>
+<li>Filter on the partition column; require partition filter where supported.</li>
+<li>Pre-aggregate/materialize repeated heavy queries (materialized views, incremental dbt models).</li>
+<li>Right-size and auto-suspend compute; separate warehouses per workload (ELT, BI, ad hoc) with per-workload budgets/resource monitors and query timeouts.</li>
+<li>Prefer incremental over full refresh.</li>
+<li>Monitor top queries by cost via the query history views; tag queries by team.</li>
+<li>Beware of cross joins, exploding joins, <code>ORDER BY</code> without <code>LIMIT</code>, repeated <code>DISTINCT</code> on huge sets, UDFs row-by-row.</li>
+<li>Storage: expire/transient tables for staging, shorten time travel on high-churn tables, tiering of cold data.</li>
+<li>Use result caching but do not depend on it.</li>
+</ul>
+<p>Workload management pattern: isolate (ELT vs BI vs data science) into separate compute pools; set priorities; add queueing/concurrency limits; use autoscale for BI spikes; guard rails (statement timeouts, max bytes billed in BigQuery).</p>
+<h2 id="8-etl-vs-elt">8. ETL vs ELT</h2>
+<ul>
+<li>ETL: transform before load, on a separate engine (Informatica, SSIS, Spark). Used when the target is expensive/limited, or sensitive data must be scrubbed before landing.</li>
+<li>ELT: load raw first, transform inside the warehouse with SQL (dbt). Wins when warehouse compute is elastic, you want to keep raw data for replay, and analysts own transformations in SQL.</li>
+<li>Real systems are mixed: EL (Fivetran/Airbyte/CDC/Kafka connect) into a raw layer, then T in SQL, with Spark for heavy or non-SQL work (ML features, unstructured parsing).</li>
+<li>Layers: raw/bronze (immutable as-landed) -&gt; staging/silver (typed, deduplicated, renamed) -&gt; marts/gold (star schemas, metrics).</li>
+<li>Always keep raw immutable: lets you fix logic bugs and backfill without re-extracting.</li>
+</ul>
+<h2 id="9-modeling-case-prompts-with-answer-sketches">9. Modeling case prompts with answer sketches</h2>
+<p>Use this skeleton every time: business process -&gt; grain -&gt; facts -&gt; dimensions -&gt; SCD choices -&gt; tricky parts -&gt; queries it must answer.</p>
+<ol>
+<li>E-commerce orders.
+   - Fact: <code>fact_order_line</code> grain = one product on one order. Measures: quantity, gross_amount, discount, tax, net_amount. Degenerate: order_id, line_no.
+   - Dims: date (role-playing: order, ship), customer (SCD2 for segment/region), product (SCD2 price tier? usually SCD1 for name, SCD2 for category), geography, promotion, channel (junk dim), payment method.
+   - Order-level fees (shipping): allocate to lines or place in a separate <code>fact_order</code> at header grain. Never mix grains.
+   - Also: accumulating snapshot <code>fact_order_fulfillment</code> (placed, paid, packed, shipped, delivered dates; lag days). Returns: separate fact with negative or separate return rows.</li>
+<li>Ride-sharing (Uber-like).
+   - Fact: <code>fact_trip</code> grain = one completed trip (cancelled trips in a separate fact or status dim). Measures: distance, duration, fare, surge_multiplier, driver_payout, tip.
+   - Dims: rider, driver (SCD2: vehicle, rating tier, city), vehicle, pickup/dropoff location (role-playing; geohash/H3 cell dimension), date, time of day, product type (pool, black), payment.
+   - Accumulating snapshot for trip lifecycle (requested, matched, pickup, dropoff). Periodic snapshot for driver daily online hours/utilization. Late events from mobile apps: event time vs server time.</li>
+<li>Subscription business (SaaS).
+   - Facts: <code>fact_invoice_line</code> (transaction), <code>fact_subscription_daily</code> or <code>fact_mrr_monthly</code> (periodic snapshot: MRR by customer/plan/month), plus <code>fact_subscription_event</code> (start, upgrade, downgrade, cancel).
+   - Dims: customer, plan (SCD2 price changes), date, promo, billing cycle.
+   - MRR movements (new, expansion, contraction, churn, reactivation) are derived by comparing consecutive snapshots; churn definitions must be agreed and documented. Semi-additive MRR.</li>
+<li>Banking / accounts.
+   - Periodic snapshot <code>fact_account_balance_daily</code> (balance semi-additive) plus transaction fact <code>fact_transaction</code>. Bridge table <code>bridge_account_customer</code> (joint accounts, weighting). SCD2 on customer risk tier. PII governance: tokenization, column masking.</li>
+<li>Ad impressions/clicks (adtech).
+   - Very high volume fact at impression grain, partitioned by event date, clustered by campaign. Dims: campaign, creative, placement, device, geography. Click and conversion facts linked via impression_id (degenerate) with attribution window logic. Approximate distinct counts (HyperLogLog) for uniques. Often aggregated into hourly rollups for dashboards.</li>
+<li>Streaming/content platform (watch events).
+   - Fact <code>fact_playback_session</code> grain = one viewing session; measures watch_seconds, buffer_events. Dims: user, title (hierarchy: show -&gt; season -&gt; episode, ragged: use bridge or flatten), device, date, time, geography. Daily snapshot for DAU/MAU precomputations. Sessionization of raw events is the hard part (gap-based windows).</li>
+<li>Healthcare encounters.
+   - Fact <code>fact_encounter</code>. Patient can have many diagnoses: bridge table <code>bridge_encounter_diagnosis</code> with weighting factor, or a diagnosis-group dimension. Factless fact for appointment scheduling. HIPAA: de-identify, row/column level security, audit.</li>
+<li>Inventory and supply chain.
+   - Periodic snapshot <code>fact_inventory_daily</code> (on-hand semi-additive), transaction fact for movements (receipt, sale, transfer, adjust), accumulating snapshot for purchase-order lifecycle. Dims: product, warehouse, supplier, date. Reorder analytics need snapshots with zero rows for no-movement days (dense).</li>
+<li>HR / org hierarchy (employees, managers).
+   - SCD2 employee dimension (department, manager, level) so headcount at any date is correct. Hierarchy: self-referencing manager_id is hard in BI; materialize path/level columns or a bridge (ancestor, descendant, depth) for ragged hierarchies. Factless fact for position assignment.</li>
+<li>Marketplace (buyers, sellers, listings).<ul>
+<li>Two-sided; facts: <code>fact_order_line</code>, <code>fact_listing_event</code>, <code>fact_payout</code>. Conformed dims across them: seller, buyer, category, date. Seller and buyer might be the same person: make a conformed <code>dim_party</code> with role flags or two role dims referencing one underlying entity.</li>
+</ul>
+</li>
+<li>IoT / sensor telemetry.<ul>
+<li>Huge append-only fact at reading grain, partitioned by day, aggregated to 1-min/1-hour rollups; dims: device (SCD2 firmware), location, sensor type. Late/out-of-order events, deduplication on (device_id, ts). Consider time-series DB for hot data, warehouse/lakehouse for history.</li>
+</ul>
+</li>
+<li>Customer 360 / identity resolution.<ul>
+<li>Source customer IDs from CRM, web, billing. Build <code>dim_customer</code> with a durable surrogate "golden" key and a crosswalk table (source_system, source_id -&gt; customer_key) with match confidence. Merges and unmerges: keep crosswalk history; never delete keys; fact rows may need re-pointing (SCD7 style durable key helps).</li>
+</ul>
+</li>
+<li>Clickstream / web analytics.<ul>
+<li>Raw events at event grain; sessionize; <code>fact_page_view</code>, <code>fact_session</code>; dims: page, user (anonymous id to user id stitching), campaign (UTM), device, geography. Bot filtering, time zone handling.</li>
+</ul>
+</li>
+<li>Ledger / finance (GL).<ul>
+<li><code>fact_gl_entry</code> grain = one journal line, debit/credit signed measure. Dims: account (hierarchical chart of accounts with versioning), cost center, legal entity, date/fiscal period, currency. Multi-currency: store transaction currency amount, functional currency amount, and rate used; separate rate dimension/fact. Reconciliation: totals must tie to source.</li>
+</ul>
+</li>
+</ol>
+<p>Generic probes to be ready for: "what is the grain?", "how do you handle a product moving category?", "how do you backfill?", "how do you keep dimension and fact consistent?", "what is the PK of the fact?", "how would this change if volume grew 100x?", "how do you test it?" (uniqueness of grain, not-null FKs, referential integrity, row-count reconciliation, sum tie-out to source).</p>
+<h2 id="10-pitfalls">10. Pitfalls</h2>
+<ul>
+<li>Fan-out joins: joining a fact to a bridge/multi-valued dim without weights, or joining two facts of different grains directly. Aggregate each fact to a common grain first, then join (drill-across).</li>
+<li>Summing non-additive or semi-additive measures.</li>
+<li>Using the natural key in the fact for SCD2 dimensions (loses history, joins to multiple rows).</li>
+<li>NULL foreign keys (use unknown member).</li>
+<li>Time zones: store UTC timestamps; derive the local date key explicitly.</li>
+<li>Overusing SCD2 on every attribute (row explosion, slow loads) or on high-churn columns.</li>
+<li>Treating the star schema as a one-time design rather than evolving with conformed dimensions.</li>
+<li>Not documenting grain and metric definitions (same word, two meanings).</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../../14-data-engineering/README.html">← Data Engineering: Overview</a><a class="next" href="../../14-data-engineering/week-01-modeling-warehousing/interview-qa.html">Week 1 · Modeling and warehousing: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

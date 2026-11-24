@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 10: Binary Search (including on the answer) | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-10-binary-search/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-10-binary-search/lesson.html">Week 10 · Binary search</a> / <span>Lesson</span></nav><button id="mark-done" data-id="03-dsa/week-10-binary-search/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-10-binary-search-including-on-the-answer">Week 10: Binary Search (including on the answer)</h1>
+<h2 id="1-concept">1. Concept</h2>
+<p>Binary search repeatedly halves a search space. It works whenever you can test a
+position and know which <strong>side</strong> the answer is on. Sorted array is the classic case,
+but the real requirement is a <strong>monotonic predicate</strong>: a yes/no question whose answers
+look like <code>F F F F T T T T</code>. Find the boundary.</p>
+<h2 id="2-how-to-recognize-the-pattern">2. How to recognize the pattern</h2>
+<ul>
+<li>Input is sorted (or rotated sorted) and you need O(log n).</li>
+<li>"Find the minimum X such that ..." / "maximum X such that ..." where checking one
+  candidate X is easy (usually an O(n) greedy) and feasibility is monotonic in X.
+  This is <strong>binary search on the answer</strong> (Koko bananas, ship packages, split array).</li>
+<li>Peak finding: no sorting, but a local slope tells you which side holds a peak.</li>
+<li>Brute force is O(n) or O(n^2) and n is up to 10^5 - 10^9: think log.</li>
+</ul>
+<h2 id="3-templates-memorize-these-two">3. Templates (memorize these two)</h2>
+<p><strong>A. Exact match</strong> (<code>lo &lt;= hi</code>, shrink by <code>mid +/- 1</code>):</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
+    <span class="n">lo</span><span class="p">,</span> <span class="n">hi</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="k">while</span> <span class="n">lo</span> <span class="o">&lt;=</span> <span class="n">hi</span><span class="p">:</span>
+        <span class="n">mid</span> <span class="o">=</span> <span class="p">(</span><span class="n">lo</span> <span class="o">+</span> <span class="n">hi</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+        <span class="k">if</span> <span class="n">nums</span><span class="p">[</span><span class="n">mid</span><span class="p">]</span> <span class="o">==</span> <span class="n">target</span><span class="p">:</span> <span class="k">return</span> <span class="n">mid</span>
+        <span class="k">if</span> <span class="n">nums</span><span class="p">[</span><span class="n">mid</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">target</span><span class="p">:</span> <span class="n">lo</span> <span class="o">=</span> <span class="n">mid</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span> <span class="n">hi</span> <span class="o">=</span> <span class="n">mid</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="o">-</span><span class="mi">1</span>
+</code></pre></div>
+
+<p><strong>B. Boundary / first True</strong> (<code>lo &lt; hi</code>, <code>hi = mid</code> keeps the candidate):</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">first_true</span><span class="p">(</span><span class="n">lo</span><span class="p">,</span> <span class="n">hi</span><span class="p">,</span> <span class="n">pred</span><span class="p">):</span>      <span class="c1"># smallest x in [lo, hi] with pred(x) True</span>
+    <span class="k">while</span> <span class="n">lo</span> <span class="o">&lt;</span> <span class="n">hi</span><span class="p">:</span>
+        <span class="n">mid</span> <span class="o">=</span> <span class="p">(</span><span class="n">lo</span> <span class="o">+</span> <span class="n">hi</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+        <span class="k">if</span> <span class="n">pred</span><span class="p">(</span><span class="n">mid</span><span class="p">):</span> <span class="n">hi</span> <span class="o">=</span> <span class="n">mid</span>     <span class="c1"># mid might be the answer, keep it</span>
+        <span class="k">else</span><span class="p">:</span>         <span class="n">lo</span> <span class="o">=</span> <span class="n">mid</span> <span class="o">+</span> <span class="mi">1</span> <span class="c1"># mid is definitely too small</span>
+    <span class="k">return</span> <span class="n">lo</span>                      <span class="c1"># lo == hi: the answer (ensure hi is feasible!)</span>
+</code></pre></div>
+
+<p>Lower bound = <code>first_true(0, len(nums), lambda i: nums[i] &gt;= target)</code> (hi = len means
+"not found / insert at end"; adapt so you never index nums[len]).</p>
+<p><strong>Largest True</strong> (e.g. integer sqrt): use <code>mid = (lo + hi + 1) // 2</code> and
+<code>lo = mid</code> / <code>hi = mid - 1</code>, otherwise <code>lo = mid</code> loops forever.</p>
+<p><strong>Answer-space recipe</strong></p>
+<ol>
+<li>Pick range <code>[lo, hi]</code> that surely contains the answer (e.g. <code>max(x)</code> to <code>sum(x)</code>).</li>
+<li>Write <code>feasible(x)</code> (greedy, O(n)).</li>
+<li>Run template B.</li>
+</ol>
+<h2 id="4-complexity">4. Complexity</h2>
+<ul>
+<li>Plain search: O(log n) time, O(1) space.</li>
+<li>On the answer: O(cost_of_check * log(range)), e.g. O(n log(sum)).</li>
+<li>Python helper: <code>bisect.bisect_left / bisect_right</code> are O(log n) lower/upper bound.
+  Know them, but be able to write by hand in an interview.</li>
+</ul>
+<h2 id="5-common-mistakes">5. Common mistakes</h2>
+<ul>
+<li>Infinite loop: <code>lo = mid</code> with <code>mid = (lo+hi)//2</code> (rounds down). Use the +1 variant.</li>
+<li>Mixing templates: <code>while lo &lt;= hi</code> with <code>hi = mid</code> never terminates.</li>
+<li>Off-by-one on <code>hi</code> (<code>len(nums)</code> vs <code>len(nums)-1</code>); decide whether hi is inclusive.</li>
+<li>Wrong search range for answer problems (lo must be &gt;= max single item for capacity).</li>
+<li>Rotated array: compare against <code>nums[hi]</code> (min) or check which half is sorted
+  using <code>nums[lo] &lt;= nums[mid]</code> (note <code>&lt;=</code>).</li>
+<li>Forgetting empty input or single element.</li>
+<li>(Other languages) <code>(lo+hi)//2</code> overflow; in Python ints are unbounded so it is safe.</li>
+</ul>
+<h2 id="6-interview-tips">6. Interview tips</h2>
+<ul>
+<li>State the invariant out loud: "the answer is always in [lo, hi]".</li>
+<li>Test on arrays of size 0, 1, 2 and on target smaller/larger than everything.</li>
+<li>Say "monotonic" explicitly when you binary search on the answer, and justify it.</li>
+<li>For duplicates, ask: first, last, or any occurrence? Use the boundary template.</li>
+<li>Median of two sorted arrays is the classic hard follow-up: practise the partition idea.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run <code>.venv/bin/pytest 03-dsa/week-10-binary-search -q</code>.
+Budget: ~2 hrs reading and re-deriving the templates, ~5 hrs on problems.</p>
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-09-linked-lists/test_exercises.py.html">← Week 9 · Linked lists: Tests (code)</a><a class="next" href="../../03-dsa/week-10-binary-search/exercises.py.html">Week 10 · Binary search: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

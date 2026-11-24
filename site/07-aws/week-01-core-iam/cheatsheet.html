@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 1 Cheatsheet | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="07-aws/week-01-core-iam/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../07-aws/README.html">AWS</a> / <a href="../../07-aws/week-01-core-iam/lesson.html">Week 1 · Core ideas and IAM</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="07-aws/week-01-core-iam/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="week-1-cheatsheet">Week 1 Cheatsheet</h1>
+<table>
+<thead>
+<tr>
+<th>Service / concept</th>
+<th>One-liner</th>
+<th>Typical use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Region</td>
+<td>Isolated geographic area</td>
+<td>Data residency, latency, DR</td>
+</tr>
+<tr>
+<td>AZ</td>
+<td>Independent data center group in a region</td>
+<td>Multi-AZ HA</td>
+</tr>
+<tr>
+<td>Edge location</td>
+<td>CDN/DNS PoP</td>
+<td>CloudFront, Route 53, Global Accelerator</td>
+</tr>
+<tr>
+<td>Local Zone / Wavelength / Outposts</td>
+<td>Region extension / 5G edge / AWS rack on-prem</td>
+<td>Low latency in cities / telco / hybrid</td>
+</tr>
+<tr>
+<td>IAM</td>
+<td>Global authN/authZ, free</td>
+<td>Control who can do what</td>
+</tr>
+<tr>
+<td>User / Group / Role</td>
+<td>Long-lived identity / user set / assumable temp identity</td>
+<td>Humans (prefer SSO) / policy mgmt / services and cross-account</td>
+</tr>
+<tr>
+<td>Policy (JSON)</td>
+<td>Allow/Deny Actions on Resources with Conditions</td>
+<td>Permissions</td>
+</tr>
+<tr>
+<td>Trust policy</td>
+<td>Who may assume a role</td>
+<td>Cross-account, service roles</td>
+</tr>
+<tr>
+<td>STS</td>
+<td>Issues temporary credentials</td>
+<td>AssumeRole, web identity, whoami (GetCallerIdentity)</td>
+</tr>
+<tr>
+<td>Permissions boundary</td>
+<td>Max permission cap on identity</td>
+<td>Safe delegation</td>
+</tr>
+<tr>
+<td>SCP</td>
+<td>Org guardrail, never grants</td>
+<td>Region/service restrictions</td>
+</tr>
+<tr>
+<td>IAM Identity Center</td>
+<td>Workforce SSO to accounts</td>
+<td>Human access</td>
+</tr>
+<tr>
+<td>Access Analyzer</td>
+<td>Finds external/unused access, generates policies</td>
+<td>Least privilege</td>
+</tr>
+<tr>
+<td>Organizations</td>
+<td>Account tree, consolidated billing, SCPs</td>
+<td>Multi-account governance</td>
+</tr>
+<tr>
+<td>Control Tower</td>
+<td>Landing zone + guardrails + account factory</td>
+<td>Quick compliant multi-account setup</td>
+</tr>
+<tr>
+<td>Cost Explorer / Budgets / CUR</td>
+<td>Analyze / alert / detailed billing data</td>
+<td>FinOps</td>
+</tr>
+<tr>
+<td>Trusted Advisor</td>
+<td>Best-practice checks</td>
+<td>Cost, security, limits</td>
+</tr>
+<tr>
+<td>AWS Artifact</td>
+<td>Compliance reports on demand</td>
+<td>Audits</td>
+</tr>
+</tbody>
+</table>
+<p>Memorize</p>
+<ul>
+<li>Eval: default deny -&gt; explicit deny wins -&gt; need allow; SCP/boundary/session must also allow.</li>
+<li>Shared responsibility: AWS = OF the cloud; you = IN the cloud.</li>
+<li>AssumeRole creds: 15m-12h, default 1h, chaining 1h.</li>
+<li>Data in free; data out/cross-AZ/cross-region cost money.</li>
+<li>Use roles not keys; MFA on root; Identity Center for humans.</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../../07-aws/week-01-core-iam/interview-qa.html">← Week 1 · Core ideas and IAM: Interview Q&amp;A</a><a class="next" href="../../07-aws/week-01-core-iam/labs.html">Week 1 · Core ideas and IAM: Labs →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

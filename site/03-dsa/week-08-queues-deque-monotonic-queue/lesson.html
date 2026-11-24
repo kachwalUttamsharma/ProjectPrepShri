@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 8: Queues, deque, monotonic queue | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-08-queues-deque-monotonic-queue/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-08-queues-deque-monotonic-queue/lesson.html">Week 8 · Queues and deque</a> / <span>Lesson</span></nav><button id="mark-done" data-id="03-dsa/week-08-queues-deque-monotonic-queue/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-8-queues-deque-monotonic-queue">Week 8: Queues, deque, monotonic queue</h1>
+<h2 id="1-concept">1. Concept</h2>
+<p>A queue is First-In-First-Out (FIFO). <strong>Never use <code>list.pop(0)</code></strong> (O(n)). Use <code>collections.deque</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">deque</span>
+<span class="n">q</span> <span class="o">=</span> <span class="n">deque</span><span class="p">()</span>
+<span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>        <span class="c1"># enqueue right, O(1)</span>
+<span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>        <span class="c1"># dequeue left, O(1)</span>
+<span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">q</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>        <span class="c1"># peek front / back, O(1)</span>
+<span class="n">q</span><span class="o">.</span><span class="n">appendleft</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>    <span class="c1"># O(1)</span>
+<span class="n">q</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>            <span class="c1"># O(1) from the right</span>
+<span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">),</span> <span class="nb">bool</span><span class="p">(</span><span class="n">q</span><span class="p">)</span>
+</code></pre></div>
+
+<p>A deque is a double-ended queue: O(1) at both ends, but indexing in the middle is O(n).
+<code>deque(maxlen=k)</code> automatically drops from the opposite end when full (handy for "last k items").</p>
+<h2 id="2-how-to-recognize-the-pattern">2. How to recognize the pattern</h2>
+<ul>
+<li>Process in arrival order, or "the last N events / the last k seconds" -&gt; queue / deque.</li>
+<li>Shortest path or minimum steps in an unweighted graph/grid, level by level -&gt; <strong>BFS</strong> with a queue.</li>
+<li>Simulation (round-robin, ticket lines) -&gt; queue.</li>
+<li>Implement one structure with another (queue via two stacks).</li>
+<li>Sliding window <strong>maximum/minimum</strong> -&gt; <strong>monotonic deque</strong>.</li>
+<li>DP of the form <code>dp[i] = x[i] + max(dp[i-k..i-1])</code> -&gt; monotonic deque over the window of dp.</li>
+<li>Shortest subarray with sum &gt;= K when negatives exist -&gt; monotonic deque over prefix sums.</li>
+</ul>
+<h2 id="3-templates">3. Templates</h2>
+<h3 id="bfs-level-order-tracks-distance">BFS (level order, tracks distance)</h3>
+<div class="highlight"><pre><span></span><code><span class="n">q</span> <span class="o">=</span> <span class="n">deque</span><span class="p">([</span><span class="n">start</span><span class="p">]);</span> <span class="n">seen</span> <span class="o">=</span> <span class="p">{</span><span class="n">start</span><span class="p">};</span> <span class="n">steps</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="k">while</span> <span class="n">q</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">)):</span>          <span class="c1"># one level at a time</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">node</span> <span class="o">==</span> <span class="n">goal</span><span class="p">:</span> <span class="k">return</span> <span class="n">steps</span>
+        <span class="k">for</span> <span class="n">nxt</span> <span class="ow">in</span> <span class="n">neighbors</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">nxt</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+                <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">nxt</span><span class="p">)</span>        <span class="c1"># mark when ENQUEUING, not when dequeuing</span>
+                <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nxt</span><span class="p">)</span>
+    <span class="n">steps</span> <span class="o">+=</span> <span class="mi">1</span>
+</code></pre></div>
+
+<h3 id="monotonic-deque-window-maximum-store-indices-values-decreasing">Monotonic deque: window maximum (store INDICES, values decreasing)</h3>
+<div class="highlight"><pre><span></span><code><span class="n">dq</span> <span class="o">=</span> <span class="n">deque</span><span class="p">()</span>
+<span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+    <span class="k">while</span> <span class="n">dq</span> <span class="ow">and</span> <span class="n">nums</span><span class="p">[</span><span class="n">dq</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span> <span class="o">&lt;=</span> <span class="n">x</span><span class="p">:</span>   <span class="c1"># smaller items can never be a max again</span>
+        <span class="n">dq</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+    <span class="n">dq</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">dq</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">i</span> <span class="o">-</span> <span class="n">k</span><span class="p">:</span>                <span class="c1"># front has left the window</span>
+        <span class="n">dq</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">i</span> <span class="o">&gt;=</span> <span class="n">k</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nums</span><span class="p">[</span><span class="n">dq</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span>       <span class="c1"># front is the window max</span>
+</code></pre></div>
+
+<p>For a window minimum flip the comparison (increasing deque).</p>
+<h3 id="queue-from-two-stacks-amortized-o1">Queue from two stacks (amortized O(1))</h3>
+<p><code>inbox</code> takes pushes; when <code>outbox</code> is empty on pop/peek, move everything from <code>inbox</code> to <code>outbox</code> (this reverses order).</p>
+<h2 id="4-complexity">4. Complexity</h2>
+<p>Each index enters and leaves the deque at most once, so monotonic-deque algorithms are O(n) time, O(k) or O(n) space. BFS is O(V + E) (grid: O(rows*cols)).</p>
+<h2 id="5-common-mistakes">5. Common mistakes</h2>
+<ul>
+<li><code>list.pop(0)</code> in a loop -&gt; accidental O(n^2).</li>
+<li>Marking visited when dequeuing instead of enqueuing (duplicates in the queue, blow-up).</li>
+<li>Storing values instead of indices in the monotonic deque (can't tell when the front expires).</li>
+<li><code>&lt;</code> vs <code>&lt;=</code> when popping: both work for max, but <code>&lt;=</code> keeps the deque smaller with duplicates.</li>
+<li>Forgetting to expire the front before reading it.</li>
+<li>Not handling <code>k &gt; len(nums)</code> or empty input.</li>
+</ul>
+<h2 id="6-interview-tips">6. Interview tips</h2>
+<ul>
+<li>State the invariant: "the deque holds indices of candidates in decreasing value order".</li>
+<li>Explain why popped elements are useless: a newer, larger element outlives them.</li>
+<li>For BFS, say why BFS (shortest path in an unweighted graph) and what the state is.</li>
+<li>For queue-with-two-stacks, justify amortized O(1): each element moves at most twice.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run <code>.venv/bin/pytest 03-dsa/week-08-queues-deque-monotonic-queue -q</code> (from the repo root).</p>
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-07-stacks/test_exercises.py.html">← Week 7 · Stacks: Tests (code)</a><a class="next" href="../../03-dsa/week-08-queues-deque-monotonic-queue/exercises.py.html">Week 8 · Queues and deque: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

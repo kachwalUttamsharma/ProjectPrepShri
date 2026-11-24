@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Part 01 interview Q&amp;A: SQL language map, DDL, DML | Study Hub</title><link rel="stylesheet" href="../../../assets/style.css"><link rel="stylesheet" href="../../../assets/pygments.css"></head>
+<body data-root="../../../" data-page-id="06-sql/general-sql/01-language-map-ddl-dml/interview-qa" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../../index.html">Home</a> / <a href="../../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../../06-sql/general-sql/README.html">General SQL</a> / <a href="../../../06-sql/general-sql/01-language-map-ddl-dml/lesson.html">Part 1 · Language map, DDL and DML</a> / <span>Interview Q&amp;A</span></nav><button id="mark-done" data-id="06-sql/general-sql/01-language-map-ddl-dml/interview-qa">Mark as done</button></div><article class="doc">
+<h1 id="part-01-interview-qa-sql-language-map-ddl-dml">Part 01 interview Q&amp;A: SQL language map, DDL, DML</h1>
+<p>Answer aloud first, then compare. Version-dependent details: check current docs.</p>
+<p><strong>1. What are the SQL sub-languages?</strong>
+DDL (CREATE/ALTER/DROP/TRUNCATE) defines structure; DML (INSERT/UPDATE/DELETE/MERGE) changes rows; DQL (SELECT) reads; DCL (GRANT/REVOKE) controls permissions; TCL (BEGIN/COMMIT/ROLLBACK/SAVEPOINT) controls transactions.</p>
+<p><strong>2. Is SQL one language? What does "standard SQL" mean in practice?</strong>
+It is an ISO/ANSI standard, but each engine implements a subset plus extensions (LIMIT vs TOP vs FETCH FIRST, concatenation operators, auto-increment syntax, RETURNING vs OUTPUT). Core SELECT/JOIN/GROUP BY is portable; DDL details, date functions, upsert and procedural code are not.</p>
+<p><strong>3. DELETE vs TRUNCATE vs DROP?</strong>
+DELETE: DML, row by row, WHERE allowed, fires triggers, fully logged, rollbackable. TRUNCATE: removes all rows quickly by deallocating storage, no WHERE, usually resets identity, takes a stronger lock, restricted with FKs; rollbackable in Postgres/SQL Server but implicitly commits in MySQL/Oracle. DROP removes the table itself.</p>
+<p><strong>4. Why is MySQL DDL "not transactional" and why does it matter?</strong>
+MySQL implicitly commits around most DDL, so a migration that fails halfway leaves a half-applied schema. Postgres, SQL Server and SQLite can roll back DDL. Practical consequence: make MySQL migrations small and idempotent.</p>
+<p><strong>5. How do you do an upsert in Postgres, MySQL, SQL Server, and SQLite?</strong>
+Postgres/SQLite: <code>INSERT ... ON CONFLICT (key) DO UPDATE SET ... = excluded....</code> or <code>DO NOTHING</code>. MySQL: <code>INSERT ... ON DUPLICATE KEY UPDATE ...</code>. SQL Server/Oracle: <code>MERGE</code> (Postgres 15+ also). Requires a unique constraint/index as the conflict target.</p>
+<p><strong>6. Why not SELECT then INSERT/UPDATE in application code?</strong>
+Race condition: two sessions both see "missing" and both insert, giving a duplicate or an error. A unique constraint plus an atomic upsert pushes the decision into the database.</p>
+<p><strong>7. What does MERGE do, and what are its caveats?</strong>
+Joins a source to a target and applies WHEN MATCHED / NOT MATCHED actions in one statement; good for staging-table syncs. Not in MySQL/SQLite. SQL Server's implementation has known concurrency pitfalls; in Postgres, concurrent inserts can still hit unique violations.</p>
+<p><strong>8. What is RETURNING and which databases support it?</strong>
+Returns columns of affected rows from INSERT/UPDATE/DELETE in one round trip. Postgres, SQLite 3.35+, MariaDB (insert/delete). SQL Server uses OUTPUT; MySQL has none (use LAST_INSERT_ID()). Use it instead of SELECT MAX(id), which is racy.</p>
+<p><strong>9. How do you get the generated id after an insert in each database?</strong>
+Postgres/SQLite: RETURNING id. MySQL: LAST_INSERT_ID() (per connection). SQL Server: OUTPUT inserted.id (or SCOPE_IDENTITY()).</p>
+<p><strong>10. What happens to NULLs in UNIQUE columns?</strong>
+In SQLite, Postgres (default) and MySQL, NULLs are treated as distinct, so many NULLs are allowed. SQL Server permits only one NULL. Postgres 15+ can opt in to NULLS NOT DISTINCT.</p>
+<p><strong>11. Does a CHECK constraint reject NULL?</strong>
+No. CHECK passes when the expression is TRUE or UNKNOWN. <code>CHECK (grade BETWEEN 0 AND 100)</code> accepts NULL; add NOT NULL if required. Also note MySQL enforces CHECK only from 8.0.16.</p>
+<p><strong>12. Explain ON DELETE CASCADE, RESTRICT, NO ACTION, SET NULL.</strong>
+CASCADE deletes children; RESTRICT blocks the parent delete immediately; NO ACTION blocks at statement end (can be deferred in Postgres); SET NULL nulls child FK (column must be nullable). Choose CASCADE for owned data (order lines), RESTRICT for reference data.</p>
+<p><strong>13. Name data type pitfalls: money, dates, booleans, strings.</strong>
+Money: DECIMAL/NUMERIC or integer cents, never FLOAT. Dates: use real types; in Postgres prefer TIMESTAMPTZ for instants. Booleans: BOOLEAN in Postgres, TINYINT(1) alias in MySQL, BIT in SQL Server, 0/1 in SQLite. Strings: VARCHAR(n) vs TEXT is the same performance in Postgres; SQL Server needs NVARCHAR for Unicode; MySQL needs utf8mb4 for full Unicode.</p>
+<p><strong>14. What is SQLite's type affinity and why can it hurt?</strong>
+Declared types are hints; any value can be stored in any column unless the table is STRICT. <code>'abc'</code> goes into an INTEGER column. Code that works on SQLite may fail on Postgres, so validate with the production engine.</p>
+<p><strong>15. Why is <code>INSERT INTO t VALUES (...)</code> without column list bad?</strong>
+It depends on column order, so adding or reordering columns silently breaks or corrupts data. Always name columns.</p>
+<p><strong>16. How do you safely run a risky UPDATE or DELETE in production?</strong>
+Write the SELECT with the same WHERE first and count; run in a transaction; check rows affected before COMMIT; have a backup/PITR; for huge changes, batch by key range to avoid long locks and bloat.</p>
+<p><strong>17. Can you change a column type online?</strong>
+Depends on engine and change. Many type changes rewrite the table under a heavy lock. Safe pattern: add new column, backfill in batches, dual-write, switch reads, drop old (see part 05). Check current docs for what your version does in place.</p>
+<p><strong>18. What does CREATE TABLE AS SELECT copy and not copy?</strong>
+Columns and data, not primary keys, indexes, defaults or FKs (details vary; SQL Server uses SELECT INTO). Re-add constraints explicitly.</p>
+<p><strong>19. What is the difference between a PRIMARY KEY and a UNIQUE NOT NULL column?</strong>
+Practically close: both enforce uniqueness and identify rows. A table has one primary key, FKs conventionally reference it, and engines may use it as the clustered index (InnoDB, SQL Server by default). UNIQUE can be several and may allow NULL.</p>
+<p><strong>20. Why use IDENTITY/GENERATED instead of SERIAL in Postgres?</strong>
+GENERATED ... AS IDENTITY is the SQL-standard form, ties the sequence to the column, and <code>ALWAYS</code> prevents accidental manual overrides; SERIAL is legacy shorthand with looser ownership and permissions behaviour.</p>
+</article><div class="pager"><a class="prev" href="../../../06-sql/general-sql/01-language-map-ddl-dml/lesson.html">← Part 1 · Language map, DDL and DML: Lesson</a><a class="next" href="../../../06-sql/general-sql/01-language-map-ddl-dml/setup.sql.html">Part 1 · Language map, DDL and DML: setup.sql (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../../assets/data.js"></script><script src="../../../assets/app.js"></script></body></html>

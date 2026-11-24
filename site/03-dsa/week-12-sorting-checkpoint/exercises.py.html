@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-12-sorting-checkpoint/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-12-sorting-checkpoint/lesson.html">Week 12 · Sorting and checkpoint</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="03-dsa/week-12-sorting-checkpoint/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>03-dsa/week-12-sorting-checkpoint/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 12: Sorting + checkpoint (mock set covering weeks 1-11).</span>
+<span class="sd">Replace each `...` with your code. Run: .venv/bin/pytest 03-dsa/week-12-sorting-checkpoint -q</span>
+<span class="sd">Part A (1-10): sorting algorithms and custom keys. Part B (11-15): MOCK INTERVIEW SET -</span>
+<span class="sd">time yourself: 2 problems in 45 minutes, no hints, explain complexity aloud.</span>
+<span class="sd">In problems 1, 2, 8, 9 do NOT call sorted()/list.sort() for the core algorithm."""</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ListNode</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="nb">next</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">val</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="nb">next</span>
+
+
+<span class="c1"># ---------------------------- Part A: sorting ----------------------------</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">merge_sort</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a NEW sorted list using merge sort (do not mutate the input).</span>
+<span class="sd">    Example: [5,2,3,1] -&gt; [1,2,3,5] ; [] -&gt; []</span>
+<span class="sd">    Time O(n log n) always, Space O(n). Must be stable.</span>
+<span class="sd">    Hint: split in halves, sort each, merge with two pointers (take left on ties)."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">quick_sort</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a NEW sorted list using quick sort. Must handle many duplicates and</span>
+<span class="sd">    already-sorted input of ~20000 elements without RecursionError or O(n^2) time.</span>
+<span class="sd">    Example: [3,1,2,3,3] -&gt; [1,2,3,3,3]</span>
+<span class="sd">    Time O(n log n) expected, Space O(log n) stack (+ output copy).</span>
+<span class="sd">    Hint: random pivot + 3-way partition (less / equal / greater)."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">sort_colors</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Sort a list containing only 0, 1, 2 IN PLACE in one pass (return None).</span>
+<span class="sd">    Example: [2,0,2,1,1,0] -&gt; nums becomes [0,0,1,1,2,2]</span>
+<span class="sd">    Time O(n), Space O(1).</span>
+<span class="sd">    Hint: Dutch national flag - pointers low, mid, high."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">merge_intervals</span><span class="p">(</span><span class="n">intervals</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Merge all overlapping intervals ([a,b] and [b,c] touch -&gt; merged).</span>
+<span class="sd">    Return a list of [start, end] sorted by start.</span>
+<span class="sd">    Example: [[1,3],[2,6],[8,10],[15,18]] -&gt; [[1,6],[8,10],[15,18]] ; [[1,4],[4,5]] -&gt; [[1,5]]</span>
+<span class="sd">    Time O(n log n), Space O(n). Hint: sort by start, extend the last merged interval."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">largest_number</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Arrange non-negative ints so that concatenated they form the largest number.</span>
+<span class="sd">    Return it as a string (no leading zeros: [0,0] -&gt; '0').</span>
+<span class="sd">    Example: [10,2] -&gt; '210' ; [3,30,34,5,9] -&gt; '9534330'</span>
+<span class="sd">    Time O(n log n * L), Space O(n).</span>
+<span class="sd">    Hint: compare a+b vs b+a as strings: functools.cmp_to_key."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">frequency_sort</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return s's characters ordered by frequency descending; ties broken by the</span>
+<span class="sd">    character ascending. Example: 'tree' -&gt; 'eert' ; 'cccaaa' -&gt; 'aaaccc' ; '' -&gt; ''</span>
+<span class="sd">    Time O(n + k log k), Space O(n). Hint: Counter + sorted with key=(-count, char)."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">k_closest</span><span class="p">(</span><span class="n">points</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the k points closest to the origin (Euclidean), as a list of</span>
+<span class="sd">    [x, y] sorted by (distance, x, y). 1 &lt;= k &lt;= len(points).</span>
+<span class="sd">    Example: ([[1,3],[-2,2]], 1) -&gt; [[-2,2]] ; ([[3,3],[5,-1],[-2,4]], 2) -&gt; [[3,3],[-2,4]]</span>
+<span class="sd">    Time O(n log n) (O(n log k) with a heap), Space O(n).</span>
+<span class="sd">    Hint: compare squared distances - no sqrt needed."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">count_inversions</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Count pairs i &lt; j with nums[i] &gt; nums[j].</span>
+<span class="sd">    Example: [2,4,1,3,5] -&gt; 3 ; [5,4,3,2,1] -&gt; 10 ; [] -&gt; 0</span>
+<span class="sd">    Time O(n log n), Space O(n). Hint: during merge sort's merge step, when you take</span>
+<span class="sd">    from the right half, every remaining left element is an inversion. (MEDIUM+)"""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">kth_largest</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the k-th largest element (1-indexed, counting duplicates).</span>
+<span class="sd">    Example: ([3,2,1,5,6,4], 2) -&gt; 5 ; ([3,2,3,1,2,4,5,5,6], 4) -&gt; 4</span>
+<span class="sd">    Time O(n) average with quickselect (O(n log n) via sorting is acceptable first).</span>
+<span class="sd">    Space O(1)-O(n). Hint: target index n-k in sorted order; partition and recurse</span>
+<span class="sd">    on one side only. Randomise the pivot."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">sort_students</span><span class="p">(</span><span class="n">students</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""students: list of (name, grade, age). Return a new list sorted by grade</span>
+<span class="sd">    DESCENDING, then age ASCENDING, then name ASCENDING.</span>
+<span class="sd">    Example: [('bo',90,20),('al',90,19),('cy',95,30)] -&gt; [('cy',95,30),('al',90,19),('bo',90,20)]</span>
+<span class="sd">    Time O(n log n), Space O(n). Hint: key=lambda s: (-s[1], s[2], s[0])."""</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># ------------------- Part B: mock interview checkpoint -------------------</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">longest_unique_substring</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""(Sliding window, wk5) Length of the longest substring without repeating chars.</span>
+<span class="sd">    Example: 'abcabcbb' -&gt; 3 ; 'bbbbb' -&gt; 1 ; '' -&gt; 0 ; 'pwwkew' -&gt; 3</span>
+<span class="sd">    Time O(n), Space O(min(n, alphabet))."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">daily_temperatures</span><span class="p">(</span><span class="n">temps</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""(Monotonic stack, wk7) For each day, number of days until a warmer</span>
+<span class="sd">    temperature; 0 if none. Example: [73,74,75,71,69,72,76,73] -&gt; [1,1,4,2,1,1,0,0]</span>
+<span class="sd">    Time O(n), Space O(n)."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">subarray_sum_k</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""(Prefix sums + hash map, wk3/6) Number of contiguous subarrays summing to k.</span>
+<span class="sd">    Negatives allowed. Example: ([1,1,1], 2) -&gt; 2 ; ([1,-1,0], 0) -&gt; 3</span>
+<span class="sd">    Time O(n), Space O(n)."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">merge_two_lists</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""(Linked lists, wk9) Merge two sorted singly linked lists (heads a, b; may be</span>
+<span class="sd">    None) into one sorted list by splicing nodes; return the new head.</span>
+<span class="sd">    Example: 1-&gt;2-&gt;4 and 1-&gt;3-&gt;4 -&gt; 1-&gt;1-&gt;2-&gt;3-&gt;4-&gt;4</span>
+<span class="sd">    Time O(m + n), Space O(1). Hint: dummy head node."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">min_meeting_rooms</span><span class="p">(</span><span class="n">intervals</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""(Sorting + intervals, wk6/12) Minimum rooms needed so all meetings</span>
+<span class="sd">    [start, end) can happen; a meeting ending at t does not conflict with one</span>
+<span class="sd">    starting at t. Example: [[0,30],[5,10],[15,20]] -&gt; 2 ; [[7,10],[2,4]] -&gt; 1</span>
+<span class="sd">    Time O(n log n), Space O(n). Hint: sort starts and ends separately, two pointers</span>
+<span class="sd">    (or a min-heap of end times)."""</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-12-sorting-checkpoint/lesson.html">← Week 12 · Sorting and checkpoint: Lesson</a><a class="next" href="../../03-dsa/week-12-sorting-checkpoint/test_exercises.py.html">Week 12 · Sorting and checkpoint: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

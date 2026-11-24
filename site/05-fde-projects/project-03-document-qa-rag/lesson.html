@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Project 3: Document Q&amp;A (RAG) over a customer&#x27;s messy files | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="05-fde-projects/project-03-document-qa-rag/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../05-fde-projects/project-01-llm-basics/lesson.html">FDE Projects</a> / <a href="../../05-fde-projects/project-03-document-qa-rag/lesson.html">Project 3 · Document Q&amp;A (RAG)</a> / <span>Lesson</span></nav><button id="mark-done" data-id="05-fde-projects/project-03-document-qa-rag/lesson">Mark as done</button></div><article class="doc">
+<h1 id="project-3-document-qa-rag-over-a-customers-messy-files">Project 3: Document Q&amp;A (RAG) over a customer's messy files</h1>
+<p>Budget: ~2 hours. Run tests with <code>cd</code> into this folder, then <code>../../.venv/bin/pytest -q</code>. No network and no API key are needed: the LLM is an injected callable and the tests use a <code>FakeLLM</code>.</p>
+<h2 id="the-customer-scenario">The customer scenario</h2>
+<blockquote>
+<p>"Our support team spends hours digging through the 80-page policy PDF and a pile of old <code>.txt</code> notes to answer the same questions. Can we get a chatbot that answers from our documents? It must never make things up, and agents need to see where an answer came from."</p>
+</blockquote>
+<p>Your job: build the core of a retrieval-augmented generation (RAG) pipeline. Load -&gt; chunk -&gt; embed -&gt; retrieve -&gt; prompt with citations -&gt; answer -&gt; verify citations.</p>
+<h2 id="spec-what-you-implement-in-exercisespy">Spec (what you implement in <code>exercises.py</code>)</h2>
+<table>
+<thead>
+<tr>
+<th>Piece</th>
+<th>Behaviour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>load_text_file</code>, <code>load_pdf</code>, <code>load_document</code></td>
+<td><code>.txt/.md</code> -&gt; one page; <code>.pdf</code> -&gt; one entry per page via <code>pypdf</code>; blank pages skipped, numbering kept; unknown extension -&gt; <code>ValueError</code></td>
+</tr>
+<tr>
+<td><code>chunk_text</code>, <code>build_chunks</code></td>
+<td>word-based chunks with overlap; <code>Chunk(text, source, page, chunk_id)</code> metadata</td>
+</tr>
+<tr>
+<td><code>cosine_similarity</code>, <code>top_k</code></td>
+<td>numpy; zero vector -&gt; 0.0; deterministic tie-breaking</td>
+</tr>
+<tr>
+<td><code>Retriever</code></td>
+<td>embeds chunks once; <code>retrieve(query, k, min_score)</code></td>
+</tr>
+<tr>
+<td><code>build_prompt</code>, <code>extract_citations</code></td>
+<td>numbered <code>[n] (file, p.N) text</code> sources; parse <code>[n]</code> markers</td>
+</tr>
+<tr>
+<td><code>answer_question</code></td>
+<td>refuses (without calling the LLM) when nothing relevant is retrieved; drops invented citation numbers</td>
+</tr>
+</tbody>
+</table>
+<p>Provided for you: <code>tokenize</code>, <code>BagOfWordsEmbedder</code> (a deterministic hashing embedder standing in for a real embedding model), <code>Chunk</code>, <code>Answer</code>, <code>IDK</code>.</p>
+<h2 id="concepts">Concepts</h2>
+<ul>
+<li><strong>Why RAG?</strong> The model does not know the customer's documents, and stuffing 80 pages in every prompt is slow, costly and noisy. Retrieve only the few relevant passages.</li>
+<li><strong>Chunking</strong>: too big and retrieval is vague; too small and context is lost. Overlap keeps a sentence that straddles a boundary findable. Keep page/source metadata on each chunk, because that is what makes citations possible.</li>
+<li><strong>Embeddings + cosine similarity</strong>: texts become vectors; similar meaning gives a high cosine. With real embedding models, similar <em>meaning</em> matches; our bag-of-words fake only matches shared <em>words</em>, which is enough to test the logic.</li>
+<li><strong>Top-k + threshold</strong>: always return the best k, but drop hits below a minimum score. "I don't know" is a feature.</li>
+<li><strong>Citations</strong>: number the sources in the prompt, ask the model to cite <code>[n]</code>, then <em>verify</em> the numbers exist. Models invent citations.</li>
+<li><strong>Dependency injection</strong>: <code>llm(prompt) -&gt; str</code> and <code>embedder.embed(text)</code> are passed in, so tests are fast and deterministic and you can swap vendors.</li>
+</ul>
+<h2 id="how-an-fde-would-approach-this">How an FDE would approach this</h2>
+<ol>
+<li><strong>Look at the real documents first.</strong> Scanned PDFs have no text layer (<code>extract_text()</code> returns empty): detect it and tell the customer you need OCR, rather than silently indexing nothing. Tables, headers/footers and multi-column layouts extract badly.</li>
+<li><strong>Ask for 10-20 real questions and the right answers</strong> before writing code. That is your test set (see project 5).</li>
+<li><strong>Start with the simplest pipeline</strong>, measure retrieval separately from generation: "was the right chunk in the top 3?" is the number to improve first.</li>
+<li><strong>Decide the failure behaviour with the customer</strong>: wrong answer vs. "I don't know, ask a human". Usually refusing wins.</li>
+<li><strong>Show sources in the UI.</strong> Trust comes from clickable citations, not from prose quality.</li>
+<li>Ask about permissions: should every user see every document? Retrieval must respect access control.</li>
+</ol>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li>Chunking by characters and splitting words in half; or overlap &gt;= chunk size (infinite loop). Validate.</li>
+<li>Emitting a trailing duplicate chunk when the last window already reached the end.</li>
+<li>Resetting <code>chunk_id</code> per page, so ids collide.</li>
+<li>Re-embedding the whole corpus on every query. Embed once in <code>__init__</code>.</li>
+<li>Forgetting zero vectors (empty or all-stopword text) -&gt; division by zero / NaN.</li>
+<li>Calling the LLM when nothing relevant was retrieved, then trusting its answer.</li>
+<li>Trusting <code>[7]</code> when only 3 sources were supplied.</li>
+<li>Sorting scores without a tie-break, which makes tests and demos flaky.</li>
+</ul>
+<h2 id="demo-tips">Demo tips</h2>
+<ul>
+<li>Bring one question the docs answer, one they only partly answer, and one they do not (the "I don't know" moment lands well with non-engineers).</li>
+<li>Print the retrieved chunks with scores next to the answer; it shows the audience what "grounded" means.</li>
+<li>Pre-load the documents; never index live on stage.</li>
+<li>Explain tradeoffs plainly: chunk size = precision vs. context; threshold = fewer wrong answers vs. more refusals.</li>
+</ul>
+<h2 id="optional-manual-step-plug-in-the-real-claude-api">Optional manual step: plug in the real Claude API</h2>
+<p>Not used by the tests. Needs <code>ANTHROPIC_API_KEY</code> in your environment.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">anthropic</span>
+
+<span class="n">client</span> <span class="o">=</span> <span class="n">anthropic</span><span class="o">.</span><span class="n">Anthropic</span><span class="p">()</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">real_llm</span><span class="p">(</span><span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">messages</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">=</span><span class="s2">"claude-sonnet-5-5"</span><span class="p">,</span>
+        <span class="n">max_tokens</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span>
+        <span class="n">messages</span><span class="o">=</span><span class="p">[{</span><span class="s2">"role"</span><span class="p">:</span> <span class="s2">"user"</span><span class="p">,</span> <span class="s2">"content"</span><span class="p">:</span> <span class="n">prompt</span><span class="p">}],</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">msg</span><span class="o">.</span><span class="n">content</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span>
+
+<span class="n">pages</span> <span class="o">=</span> <span class="n">load_document</span><span class="p">(</span><span class="s2">"policy.pdf"</span><span class="p">)</span>
+<span class="n">retriever</span> <span class="o">=</span> <span class="n">Retriever</span><span class="p">(</span><span class="n">BagOfWordsEmbedder</span><span class="p">(),</span> <span class="n">build_chunks</span><span class="p">(</span><span class="n">pages</span><span class="p">,</span> <span class="s2">"policy.pdf"</span><span class="p">,</span> <span class="mi">80</span><span class="p">,</span> <span class="mi">15</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">answer_question</span><span class="p">(</span><span class="s2">"How long do refunds take?"</span><span class="p">,</span> <span class="n">retriever</span><span class="p">,</span> <span class="n">real_llm</span><span class="p">)</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+</code></pre></div>
+
+<p>For production you would swap <code>BagOfWordsEmbedder</code> for a real embedding model and a vector store; the rest of the code stays the same because of the injected interfaces.</p>
+</article><div class="pager"><a class="prev" href="../../05-fde-projects/project-02-ticket-triage/test_exercises.py.html">← Project 2 · Ticket triage: Tests (code)</a><a class="next" href="../../05-fde-projects/project-03-document-qa-rag/exercises.py.html">Project 3 · Document Q&amp;A (RAG): Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

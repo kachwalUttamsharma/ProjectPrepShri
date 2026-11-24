@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>test_exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="10-python-depth/week-03-concurrency/test_exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../10-python-depth/week-01-functions-deep-dive/lesson.html">Python Depth</a> / <a href="../../10-python-depth/week-03-concurrency/lesson.html">Week 3 · Concurrency</a> / <span>Tests (code)</span></nav><button id="mark-done" data-id="10-python-depth/week-03-concurrency/test_exercises.py">Mark as done</button></div><article class="doc">
+<h1>test_exercises.py</h1><p class="code-path"><code>10-python-depth/week-03-concurrency/test_exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="n">coro</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""asyncio.run with a global safety timeout so a bug fails instead of hanging."""</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">guarded</span><span class="p">():</span>
+        <span class="k">return</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">wait_for</span><span class="p">(</span><span class="n">coro</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">guarded</span><span class="p">())</span>
+
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">val</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">delay</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
+    <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">delay</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">x</span>
+
+
+<span class="c1"># 1</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_gather_in_order</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">run</span><span class="p">(</span><span class="n">gather_in_order</span><span class="p">(</span><span class="n">val</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mf">0.04</span><span class="p">),</span> <span class="n">val</span><span class="p">(</span><span class="s2">"b"</span><span class="p">),</span> <span class="n">val</span><span class="p">(</span><span class="s2">"c"</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">)))</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">run</span><span class="p">(</span><span class="n">gather_in_order</span><span class="p">())</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_gather_is_concurrent</span><span class="p">():</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+        <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">Event</span><span class="p">(),</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">Event</span><span class="p">()</span>
+
+        <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">one</span><span class="p">():</span>
+            <span class="n">a</span><span class="o">.</span><span class="n">set</span><span class="p">()</span>
+            <span class="k">await</span> <span class="n">b</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
+            <span class="k">return</span> <span class="mi">1</span>
+
+        <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">two</span><span class="p">():</span>
+            <span class="n">b</span><span class="o">.</span><span class="n">set</span><span class="p">()</span>
+            <span class="k">await</span> <span class="n">a</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
+            <span class="k">return</span> <span class="mi">2</span>
+
+        <span class="c1"># sequential execution would deadlock; keep failure fast</span>
+        <span class="k">return</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">wait_for</span><span class="p">(</span><span class="n">gather_in_order</span><span class="p">(</span><span class="n">one</span><span class="p">(),</span> <span class="n">two</span><span class="p">()),</span> <span class="mf">0.5</span><span class="p">)</span>
+
+    <span class="k">assert</span> <span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+
+
+<span class="c1"># 2</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_bounded_gather</span><span class="p">():</span>
+    <span class="n">state</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"cur"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">"max"</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">job</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+        <span class="n">state</span><span class="p">[</span><span class="s2">"cur"</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">state</span><span class="p">[</span><span class="s2">"max"</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">state</span><span class="p">[</span><span class="s2">"max"</span><span class="p">],</span> <span class="n">state</span><span class="p">[</span><span class="s2">"cur"</span><span class="p">])</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+            <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">state</span><span class="p">[</span><span class="s2">"cur"</span><span class="p">]</span> <span class="o">-=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">i</span> <span class="o">*</span> <span class="mi">10</span>
+
+    <span class="n">factories</span> <span class="o">=</span> <span class="p">[</span><span class="k">lambda</span> <span class="n">i</span><span class="o">=</span><span class="n">i</span><span class="p">:</span> <span class="n">job</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">8</span><span class="p">)]</span>
+    <span class="k">assert</span> <span class="n">run</span><span class="p">(</span><span class="n">bounded_gather</span><span class="p">(</span><span class="n">factories</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span> <span class="o">==</span> <span class="p">[</span><span class="n">i</span> <span class="o">*</span> <span class="mi">10</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">8</span><span class="p">)]</span>
+    <span class="k">assert</span> <span class="n">state</span><span class="p">[</span><span class="s2">"max"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_bounded_gather_limit_one</span><span class="p">():</span>
+    <span class="n">state</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"cur"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">"max"</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">job</span><span class="p">():</span>
+        <span class="n">state</span><span class="p">[</span><span class="s2">"cur"</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">state</span><span class="p">[</span><span class="s2">"max"</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">state</span><span class="p">[</span><span class="s2">"max"</span><span class="p">],</span> <span class="n">state</span><span class="p">[</span><span class="s2">"cur"</span><span class="p">])</span>
+        <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">state</span><span class="p">[</span><span class="s2">"cur"</span><span class="p">]</span> <span class="o">-=</span> <span class="mi">1</span>
+
+    <span class="n">run</span><span class="p">(</span><span class="n">bounded_gather</span><span class="p">([</span><span class="n">job</span><span class="p">]</span> <span class="o">*</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="k">assert</span> <span class="n">state</span><span class="p">[</span><span class="s2">"max"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+
+
+<span class="c1"># 3</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_with_timeout</span><span class="p">():</span>
+    <span class="n">flag</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"cancelled"</span><span class="p">:</span> <span class="kc">False</span><span class="p">}</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">never</span><span class="p">():</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">Event</span><span class="p">()</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
+        <span class="k">except</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">CancelledError</span><span class="p">:</span>
+            <span class="n">flag</span><span class="p">[</span><span class="s2">"cancelled"</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">raise</span>
+
+    <span class="k">assert</span> <span class="n">run</span><span class="p">(</span><span class="n">with_timeout</span><span class="p">(</span><span class="n">never</span><span class="p">(),</span> <span class="mf">0.05</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">"late"</span><span class="p">))</span> <span class="o">==</span> <span class="s2">"late"</span>
+    <span class="k">assert</span> <span class="n">flag</span><span class="p">[</span><span class="s2">"cancelled"</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">True</span>
+    <span class="k">assert</span> <span class="n">run</span><span class="p">(</span><span class="n">with_timeout</span><span class="p">(</span><span class="n">val</span><span class="p">(</span><span class="mi">42</span><span class="p">),</span> <span class="mi">1</span><span class="p">))</span> <span class="o">==</span> <span class="mi">42</span>
+    <span class="k">assert</span> <span class="n">run</span><span class="p">(</span><span class="n">with_timeout</span><span class="p">(</span><span class="n">never</span><span class="p">(),</span> <span class="mf">0.02</span><span class="p">))</span> <span class="ow">is</span> <span class="kc">None</span>
+
+
+<span class="c1"># 4</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_cancel_task</span><span class="p">():</span>
+    <span class="n">log</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+        <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">worker</span><span class="p">():</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">Event</span><span class="p">()</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
+            <span class="k">finally</span><span class="p">:</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"cleaned"</span><span class="p">)</span>
+
+        <span class="n">t</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span><span class="n">worker</span><span class="p">())</span>
+        <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>  <span class="c1"># let it start</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">cancel_task</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+        <span class="n">done</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span><span class="n">val</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+        <span class="k">await</span> <span class="n">done</span>
+        <span class="k">return</span> <span class="n">result</span><span class="p">,</span> <span class="k">await</span> <span class="n">cancel_task</span><span class="p">(</span><span class="n">done</span><span class="p">)</span>
+
+    <span class="k">assert</span> <span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span> <span class="o">==</span> <span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">log</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"cleaned"</span><span class="p">]</span>
+
+
+<span class="c1"># 5</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_retry_async_succeeds_eventually</span><span class="p">():</span>
+    <span class="n">calls</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">flaky</span><span class="p">():</span>
+        <span class="n">calls</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">calls</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"boom"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s2">"ok"</span>
+
+    <span class="k">assert</span> <span class="n">run</span><span class="p">(</span><span class="n">retry_async</span><span class="p">(</span><span class="n">flaky</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span> <span class="o">==</span> <span class="s2">"ok"</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">calls</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_retry_async_gives_up_with_last_error</span><span class="p">():</span>
+    <span class="n">calls</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">bad</span><span class="p">():</span>
+        <span class="n">calls</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"fail </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">calls</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">"fail 3"</span><span class="p">):</span>
+        <span class="n">run</span><span class="p">(</span><span class="n">retry_async</span><span class="p">(</span><span class="n">bad</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">calls</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span>
+
+
+<span class="c1"># 6</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_async_resource</span><span class="p">():</span>
+    <span class="n">log</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">ok</span><span class="p">():</span>
+        <span class="k">async</span> <span class="k">with</span> <span class="n">AsyncResource</span><span class="p">(</span><span class="s2">"db"</span><span class="p">,</span> <span class="n">log</span><span class="p">)</span> <span class="k">as</span> <span class="n">r</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">AsyncResource</span><span class="p">)</span>
+            <span class="n">log</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"work"</span><span class="p">)</span>
+
+    <span class="n">run</span><span class="p">(</span><span class="n">ok</span><span class="p">())</span>
+    <span class="k">assert</span> <span class="n">log</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"open:db"</span><span class="p">,</span> <span class="s2">"work"</span><span class="p">,</span> <span class="s2">"close:db"</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_async_resource_does_not_swallow</span><span class="p">():</span>
+    <span class="n">log</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">bad</span><span class="p">():</span>
+        <span class="k">async</span> <span class="k">with</span> <span class="n">AsyncResource</span><span class="p">(</span><span class="s2">"x"</span><span class="p">,</span> <span class="n">log</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"no"</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">RuntimeError</span><span class="p">):</span>
+        <span class="n">run</span><span class="p">(</span><span class="n">bad</span><span class="p">())</span>
+    <span class="k">assert</span> <span class="n">log</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"open:x"</span><span class="p">,</span> <span class="s2">"error:x"</span><span class="p">,</span> <span class="s2">"close:x"</span><span class="p">]</span>
+
+
+<span class="c1"># 7</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_async_batches</span><span class="p">():</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">source</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="k">yield</span> <span class="n">i</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">collect</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">size</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">b</span> <span class="k">async</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">async_batches</span><span class="p">(</span><span class="n">source</span><span class="p">(</span><span class="n">n</span><span class="p">),</span> <span class="n">size</span><span class="p">)]</span>
+
+    <span class="k">assert</span> <span class="n">run</span><span class="p">(</span><span class="n">collect</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span> <span class="o">==</span> <span class="p">[[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="p">[</span><span class="mi">5</span><span class="p">]]</span>
+    <span class="k">assert</span> <span class="n">run</span><span class="p">(</span><span class="n">collect</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span> <span class="o">==</span> <span class="p">[[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">]]</span>
+    <span class="k">assert</span> <span class="n">run</span><span class="p">(</span><span class="n">collect</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="c1"># 8</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_run_blocking_uses_thread_and_keeps_loop_free</span><span class="p">():</span>
+    <span class="n">gate</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Event</span><span class="p">()</span>
+    <span class="n">main_id</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">get_ident</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">blocking</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+        <span class="c1"># Waits for the event loop to set the gate. If run on the loop itself</span>
+        <span class="c1"># the gate can never be set, so this times out and returns False.</span>
+        <span class="n">ok</span> <span class="o">=</span> <span class="n">gate</span><span class="o">.</span><span class="n">wait</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">threading</span><span class="o">.</span><span class="n">get_ident</span><span class="p">(),</span> <span class="n">ok</span><span class="p">,</span> <span class="n">x</span> <span class="o">*</span> <span class="mi">2</span><span class="p">)</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">opener</span><span class="p">():</span>
+        <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">gate</span><span class="o">.</span><span class="n">set</span><span class="p">()</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+        <span class="n">result</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="n">run_blocking</span><span class="p">(</span><span class="n">blocking</span><span class="p">,</span> <span class="mi">21</span><span class="p">),</span> <span class="n">opener</span><span class="p">())</span>
+        <span class="k">return</span> <span class="n">result</span>
+
+    <span class="n">tid</span><span class="p">,</span> <span class="n">ok</span><span class="p">,</span> <span class="n">doubled</span> <span class="o">=</span> <span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+    <span class="k">assert</span> <span class="n">ok</span> <span class="ow">is</span> <span class="kc">True</span>
+    <span class="k">assert</span> <span class="n">tid</span> <span class="o">!=</span> <span class="n">main_id</span>
+    <span class="k">assert</span> <span class="n">doubled</span> <span class="o">==</span> <span class="mi">42</span>
+
+
+<span class="c1"># 9</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_thread_safe_counter</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">ThreadSafeCounter</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">value</span> <span class="o">==</span> <span class="mi">0</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">work</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5000</span><span class="p">):</span>
+            <span class="n">c</span><span class="o">.</span><span class="n">increment</span><span class="p">()</span>
+
+    <span class="n">threads</span> <span class="o">=</span> <span class="p">[</span><span class="n">threading</span><span class="o">.</span><span class="n">Thread</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">work</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">8</span><span class="p">)]</span>
+    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">threads</span><span class="p">:</span>
+        <span class="n">t</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">threads</span><span class="p">:</span>
+        <span class="n">t</span><span class="o">.</span><span class="n">join</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">value</span> <span class="o">==</span> <span class="mi">40000</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">increment</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">value</span> <span class="o">==</span> <span class="mi">40010</span>
+
+
+<span class="c1"># 10</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_worker_pool_queue_order_and_result</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">worker_pool_queue</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">20</span><span class="p">)),</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="o">*</span> <span class="n">x</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="n">x</span> <span class="o">*</span> <span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">20</span><span class="p">)]</span>
+    <span class="k">assert</span> <span class="n">worker_pool_queue</span><span class="p">([],</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_worker_pool_queue_thread_count</span><span class="p">():</span>
+    <span class="n">ids</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">lock</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Lock</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">fn</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+        <span class="k">with</span> <span class="n">lock</span><span class="p">:</span>
+            <span class="n">ids</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">threading</span><span class="o">.</span><span class="n">get_ident</span><span class="p">())</span>
+        <span class="k">return</span> <span class="n">x</span>
+
+    <span class="n">worker_pool_queue</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">30</span><span class="p">)),</span> <span class="n">fn</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="mi">1</span> <span class="o">&lt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">ids</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="n">threading</span><span class="o">.</span><span class="n">get_ident</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ids</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../10-python-depth/week-03-concurrency/exercises.py.html">← Week 3 · Concurrency: Exercises (code)</a><a class="next" href="../../10-python-depth/week-04-quality-and-tooling/lesson.html">Week 4 · Quality and tooling: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

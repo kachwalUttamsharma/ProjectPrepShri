@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>test_exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="14-data-engineering/week-03-orchestration-dbt/test_exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../14-data-engineering/week-03-orchestration-dbt/lesson.html">Week 3 · Orchestration and dbt</a> / <span>Tests (code)</span></nav><button id="mark-done" data-id="14-data-engineering/week-03-orchestration-dbt/test_exercises.py">Mark as done</button></div><article class="doc">
+<h1>test_exercises.py</h1><p class="code-path"><code>14-data-engineering/week-03-orchestration-dbt/test_exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">sqlite3</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+
+
+<span class="c1"># 1 topological order</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_topological_order_linear_and_diamond</span><span class="p">():</span>
+    <span class="n">deps</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"load"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"transform"</span><span class="p">},</span> <span class="s2">"transform"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"extract"</span><span class="p">},</span> <span class="s2">"extract"</span><span class="p">:</span> <span class="nb">set</span><span class="p">()}</span>
+    <span class="k">assert</span> <span class="n">topological_order</span><span class="p">(</span><span class="n">deps</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"extract"</span><span class="p">,</span> <span class="s2">"transform"</span><span class="p">,</span> <span class="s2">"load"</span><span class="p">]</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">:</span> <span class="nb">set</span><span class="p">(),</span> <span class="s2">"b"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">},</span> <span class="s2">"c"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">},</span> <span class="s2">"d"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"b"</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">}}</span>
+    <span class="k">assert</span> <span class="n">topological_order</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">,</span> <span class="s2">"d"</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_topological_order_includes_implicit_nodes_and_is_deterministic</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">topological_order</span><span class="p">({</span><span class="s2">"b"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">}})</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">topological_order</span><span class="p">({</span><span class="s2">"z"</span><span class="p">:</span> <span class="nb">set</span><span class="p">(),</span> <span class="s2">"m"</span><span class="p">:</span> <span class="nb">set</span><span class="p">(),</span> <span class="s2">"a"</span><span class="p">:</span> <span class="nb">set</span><span class="p">()})</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"m"</span><span class="p">,</span> <span class="s2">"z"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">topological_order</span><span class="p">({})</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_topological_order_cycle</span><span class="p">():</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">CycleError</span><span class="p">):</span>
+        <span class="n">topological_order</span><span class="p">({</span><span class="s2">"a"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"b"</span><span class="p">},</span> <span class="s2">"b"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">}})</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">CycleError</span><span class="p">):</span>
+        <span class="n">topological_order</span><span class="p">({</span><span class="s2">"a"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">}})</span>
+
+
+<span class="c1"># 2 run dag</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_run_dag_order_and_success</span><span class="p">():</span>
+    <span class="n">log</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">tasks</span> <span class="o">=</span> <span class="p">{</span><span class="n">n</span><span class="p">:</span> <span class="p">(</span><span class="k">lambda</span> <span class="n">n</span><span class="o">=</span><span class="n">n</span><span class="p">:</span> <span class="n">log</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">n</span><span class="p">))</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="s2">"abc"</span><span class="p">}</span>
+    <span class="n">st</span> <span class="o">=</span> <span class="n">run_dag</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="p">{</span><span class="s2">"b"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">},</span> <span class="s2">"c"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"b"</span><span class="p">}})</span>
+    <span class="k">assert</span> <span class="n">log</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">st</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">:</span> <span class="s2">"success"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">:</span> <span class="s2">"success"</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">:</span> <span class="s2">"success"</span><span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_run_dag_retries_then_succeeds</span><span class="p">():</span>
+    <span class="n">calls</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"n"</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">flaky</span><span class="p">():</span>
+        <span class="n">calls</span><span class="p">[</span><span class="s2">"n"</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">calls</span><span class="p">[</span><span class="s2">"n"</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"boom"</span><span class="p">)</span>
+
+    <span class="n">st</span> <span class="o">=</span> <span class="n">run_dag</span><span class="p">({</span><span class="s2">"x"</span><span class="p">:</span> <span class="n">flaky</span><span class="p">},</span> <span class="p">{},</span> <span class="n">max_retries</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">st</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"x"</span><span class="p">:</span> <span class="s2">"success"</span><span class="p">}</span> <span class="ow">and</span> <span class="n">calls</span><span class="p">[</span><span class="s2">"n"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_run_dag_failure_skips_downstream</span><span class="p">():</span>
+    <span class="n">ran</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">bad</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span>
+
+    <span class="n">tasks</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">:</span> <span class="n">bad</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">:</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">ran</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"b"</span><span class="p">),</span> <span class="s2">"c"</span><span class="p">:</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">ran</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"c"</span><span class="p">)}</span>
+    <span class="n">st</span> <span class="o">=</span> <span class="n">run_dag</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="p">{</span><span class="s2">"b"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">}},</span> <span class="n">max_retries</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">st</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">:</span> <span class="s2">"failed"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">:</span> <span class="s2">"upstream_failed"</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">:</span> <span class="s2">"success"</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">ran</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"c"</span><span class="p">]</span>
+
+
+<span class="c1"># 3 refs</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_extract_refs</span><span class="p">():</span>
+    <span class="n">sql</span> <span class="o">=</span> <span class="s2">"""select * from {{ ref('stg_orders') }} o</span>
+<span class="s2">    join {{ ref("stg_users") }} u on 1=1</span>
+<span class="s2">    join {{ref('stg_orders')}} again"""</span>
+    <span class="k">assert</span> <span class="n">extract_refs</span><span class="p">(</span><span class="n">sql</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"stg_orders"</span><span class="p">,</span> <span class="s2">"stg_users"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">extract_refs</span><span class="p">(</span><span class="s2">"select 1"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="n">extract_refs</span><span class="p">(</span><span class="s2">"select * from {{ source('raw', 'x') }}"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_build_order</span><span class="p">():</span>
+    <span class="n">models</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">"orders_mart"</span><span class="p">:</span> <span class="s2">"select * from {{ ref('stg_orders') }} join {{ ref('stg_users') }}"</span><span class="p">,</span>
+        <span class="s2">"stg_orders"</span><span class="p">:</span> <span class="s2">"select * from raw.orders"</span><span class="p">,</span>
+        <span class="s2">"stg_users"</span><span class="p">:</span> <span class="s2">"select * from raw.users"</span><span class="p">,</span>
+        <span class="s2">"report"</span><span class="p">:</span> <span class="s2">"select * from {{ ref('orders_mart') }}"</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="k">assert</span> <span class="n">build_order</span><span class="p">(</span><span class="n">models</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"stg_orders"</span><span class="p">,</span> <span class="s2">"stg_users"</span><span class="p">,</span> <span class="s2">"orders_mart"</span><span class="p">,</span> <span class="s2">"report"</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_build_order_errors</span><span class="p">():</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">KeyError</span><span class="p">):</span>
+        <span class="n">build_order</span><span class="p">({</span><span class="s2">"a"</span><span class="p">:</span> <span class="s2">"select * from {{ ref('missing') }}"</span><span class="p">})</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">CycleError</span><span class="p">):</span>
+        <span class="n">build_order</span><span class="p">({</span><span class="s2">"a"</span><span class="p">:</span> <span class="s2">"{{ ref('b') }}"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">:</span> <span class="s2">"{{ ref('a') }}"</span><span class="p">})</span>
+
+
+<span class="c1"># 4 upsert</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">rows_of</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="n">q</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">q</span><span class="p">)</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_upsert_idempotent</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">":memory:"</span><span class="p">)</span>
+    <span class="n">init_users</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+    <span class="n">batch</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"a"</span><span class="p">,</span> <span class="s2">"updated_at"</span><span class="p">:</span> <span class="s2">"t1"</span><span class="p">},</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"b"</span><span class="p">,</span> <span class="s2">"updated_at"</span><span class="p">:</span> <span class="s2">"t1"</span><span class="p">}]</span>
+    <span class="n">upsert_users</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">batch</span><span class="p">)</span>
+    <span class="n">first</span> <span class="o">=</span> <span class="n">rows_of</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s2">"select * from users order by id"</span><span class="p">)</span>
+    <span class="n">upsert_users</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">batch</span><span class="p">)</span>
+    <span class="n">upsert_users</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">batch</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">rows_of</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s2">"select * from users order by id"</span><span class="p">)</span> <span class="o">==</span> <span class="n">first</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">first</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_upsert_updates_existing</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">":memory:"</span><span class="p">)</span>
+    <span class="n">init_users</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+    <span class="n">upsert_users</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="p">[{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"a"</span><span class="p">,</span> <span class="s2">"updated_at"</span><span class="p">:</span> <span class="s2">"t1"</span><span class="p">}])</span>
+    <span class="n">upsert_users</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="p">[{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"A2"</span><span class="p">,</span> <span class="s2">"updated_at"</span><span class="p">:</span> <span class="s2">"t2"</span><span class="p">},</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"c"</span><span class="p">,</span> <span class="s2">"updated_at"</span><span class="p">:</span> <span class="s2">"t2"</span><span class="p">}])</span>
+    <span class="k">assert</span> <span class="n">rows_of</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s2">"select id, name, updated_at from users order by id"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span>
+        <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s2">"A2"</span><span class="p">,</span> <span class="s2">"t2"</span><span class="p">),</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">,</span> <span class="s2">"t2"</span><span class="p">)]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_upsert_is_atomic</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">":memory:"</span><span class="p">)</span>
+    <span class="n">init_users</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+    <span class="n">bad</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"a"</span><span class="p">,</span> <span class="s2">"updated_at"</span><span class="p">:</span> <span class="s2">"t"</span><span class="p">},</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"b"</span><span class="p">}]</span>  <span class="c1"># missing key</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+        <span class="n">upsert_users</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">bad</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">rows_of</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s2">"select count(*) from users"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,)]</span>
+
+
+<span class="c1"># 5 incremental</span>
+<span class="n">SRC</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"value"</span><span class="p">:</span> <span class="s2">"a"</span><span class="p">,</span> <span class="s2">"updated_at"</span><span class="p">:</span> <span class="s2">"2024-01-01"</span><span class="p">},</span>
+    <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"value"</span><span class="p">:</span> <span class="s2">"b"</span><span class="p">,</span> <span class="s2">"updated_at"</span><span class="p">:</span> <span class="s2">"2024-01-02"</span><span class="p">},</span>
+<span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_incremental_load_watermark</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">":memory:"</span><span class="p">)</span>
+    <span class="n">init_incremental</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">incremental_load</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">SRC</span><span class="p">,</span> <span class="s2">"j"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">incremental_load</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">SRC</span><span class="p">,</span> <span class="s2">"j"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>  <span class="c1"># nothing new</span>
+    <span class="k">assert</span> <span class="n">rows_of</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s2">"select watermark from etl_state where name='j'"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[(</span><span class="s2">"2024-01-02"</span><span class="p">,)]</span>
+    <span class="n">src2</span> <span class="o">=</span> <span class="n">SRC</span> <span class="o">+</span> <span class="p">[{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"value"</span><span class="p">:</span> <span class="s2">"b2"</span><span class="p">,</span> <span class="s2">"updated_at"</span><span class="p">:</span> <span class="s2">"2024-01-05"</span><span class="p">},</span>
+                  <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">"value"</span><span class="p">:</span> <span class="s2">"c"</span><span class="p">,</span> <span class="s2">"updated_at"</span><span class="p">:</span> <span class="s2">"2024-01-04"</span><span class="p">}]</span>
+    <span class="k">assert</span> <span class="n">incremental_load</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">src2</span><span class="p">,</span> <span class="s2">"j"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">rows_of</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s2">"select id, value from target order by id"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[(</span><span class="mi">1</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">),</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="s2">"b2"</span><span class="p">),</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">)]</span>
+    <span class="k">assert</span> <span class="n">rows_of</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s2">"select watermark from etl_state where name='j'"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[(</span><span class="s2">"2024-01-05"</span><span class="p">,)]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_incremental_watermarks_are_per_job</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">":memory:"</span><span class="p">)</span>
+    <span class="n">init_incremental</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+    <span class="n">incremental_load</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">SRC</span><span class="p">,</span> <span class="s2">"one"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">incremental_load</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">SRC</span><span class="p">,</span> <span class="s2">"two"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+
+
+<span class="c1"># 6 backfill</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_backfill_intervals</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">backfill_intervals</span><span class="p">(</span><span class="s2">"2024-02-27"</span><span class="p">,</span> <span class="s2">"2024-03-01"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span>
+        <span class="p">(</span><span class="s2">"2024-02-27"</span><span class="p">,</span> <span class="s2">"2024-02-28"</span><span class="p">),</span> <span class="p">(</span><span class="s2">"2024-02-28"</span><span class="p">,</span> <span class="s2">"2024-02-29"</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">"2024-02-29"</span><span class="p">,</span> <span class="s2">"2024-03-01"</span><span class="p">),</span> <span class="p">(</span><span class="s2">"2024-03-01"</span><span class="p">,</span> <span class="s2">"2024-03-02"</span><span class="p">)]</span>
+    <span class="k">assert</span> <span class="n">backfill_intervals</span><span class="p">(</span><span class="s2">"2024-01-01"</span><span class="p">,</span> <span class="s2">"2024-01-01"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[(</span><span class="s2">"2024-01-01"</span><span class="p">,</span> <span class="s2">"2024-01-02"</span><span class="p">)]</span>
+    <span class="k">assert</span> <span class="n">backfill_intervals</span><span class="p">(</span><span class="s2">"2024-01-02"</span><span class="p">,</span> <span class="s2">"2024-01-01"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="c1"># 7 dedupe</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_dedupe_latest</span><span class="p">():</span>
+    <span class="n">rows</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"v"</span><span class="p">:</span> <span class="s2">"old"</span><span class="p">,</span> <span class="s2">"ts"</span><span class="p">:</span> <span class="mi">1</span><span class="p">},</span>
+        <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"v"</span><span class="p">:</span> <span class="s2">"x"</span><span class="p">,</span> <span class="s2">"ts"</span><span class="p">:</span> <span class="mi">5</span><span class="p">},</span>
+        <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"v"</span><span class="p">:</span> <span class="s2">"new"</span><span class="p">,</span> <span class="s2">"ts"</span><span class="p">:</span> <span class="mi">3</span><span class="p">},</span>
+        <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"v"</span><span class="p">:</span> <span class="s2">"mid"</span><span class="p">,</span> <span class="s2">"ts"</span><span class="p">:</span> <span class="mi">2</span><span class="p">},</span>
+    <span class="p">]</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">dedupe_latest</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="s2">"id"</span><span class="p">,</span> <span class="s2">"ts"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">out</span> <span class="o">==</span> <span class="p">[{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"v"</span><span class="p">:</span> <span class="s2">"new"</span><span class="p">,</span> <span class="s2">"ts"</span><span class="p">:</span> <span class="mi">3</span><span class="p">},</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"v"</span><span class="p">:</span> <span class="s2">"x"</span><span class="p">,</span> <span class="s2">"ts"</span><span class="p">:</span> <span class="mi">5</span><span class="p">}]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_dedupe_tie_last_wins_and_idempotent</span><span class="p">():</span>
+    <span class="n">rows</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"v"</span><span class="p">:</span> <span class="s2">"first"</span><span class="p">,</span> <span class="s2">"ts"</span><span class="p">:</span> <span class="mi">1</span><span class="p">},</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"v"</span><span class="p">:</span> <span class="s2">"second"</span><span class="p">,</span> <span class="s2">"ts"</span><span class="p">:</span> <span class="mi">1</span><span class="p">}]</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">dedupe_latest</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="s2">"id"</span><span class="p">,</span> <span class="s2">"ts"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">out</span> <span class="o">==</span> <span class="p">[{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"v"</span><span class="p">:</span> <span class="s2">"second"</span><span class="p">,</span> <span class="s2">"ts"</span><span class="p">:</span> <span class="mi">1</span><span class="p">}]</span>
+    <span class="k">assert</span> <span class="n">dedupe_latest</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="s2">"id"</span><span class="p">,</span> <span class="s2">"ts"</span><span class="p">)</span> <span class="o">==</span> <span class="n">out</span>
+    <span class="k">assert</span> <span class="n">dedupe_latest</span><span class="p">([],</span> <span class="s2">"id"</span><span class="p">,</span> <span class="s2">"ts"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="c1"># 8 partition overwrite</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_overwrite_partition_idempotent_and_isolated</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">":memory:"</span><span class="p">)</span>
+    <span class="n">init_daily</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+    <span class="n">overwrite_partition</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s2">"2024-01-01"</span><span class="p">,</span> <span class="p">[{</span><span class="s2">"sku"</span><span class="p">:</span> <span class="s2">"a"</span><span class="p">,</span> <span class="s2">"qty"</span><span class="p">:</span> <span class="mi">1</span><span class="p">},</span> <span class="p">{</span><span class="s2">"sku"</span><span class="p">:</span> <span class="s2">"b"</span><span class="p">,</span> <span class="s2">"qty"</span><span class="p">:</span> <span class="mi">2</span><span class="p">}])</span>
+    <span class="n">overwrite_partition</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s2">"2024-01-02"</span><span class="p">,</span> <span class="p">[{</span><span class="s2">"sku"</span><span class="p">:</span> <span class="s2">"a"</span><span class="p">,</span> <span class="s2">"qty"</span><span class="p">:</span> <span class="mi">9</span><span class="p">}])</span>
+    <span class="n">overwrite_partition</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s2">"2024-01-01"</span><span class="p">,</span> <span class="p">[{</span><span class="s2">"sku"</span><span class="p">:</span> <span class="s2">"a"</span><span class="p">,</span> <span class="s2">"qty"</span><span class="p">:</span> <span class="mi">1</span><span class="p">},</span> <span class="p">{</span><span class="s2">"sku"</span><span class="p">:</span> <span class="s2">"b"</span><span class="p">,</span> <span class="s2">"qty"</span><span class="p">:</span> <span class="mi">2</span><span class="p">}])</span>
+    <span class="k">assert</span> <span class="n">rows_of</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s2">"select * from daily_sales order by ds, sku"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span>
+        <span class="p">(</span><span class="s2">"2024-01-01"</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="s2">"2024-01-01"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="s2">"2024-01-02"</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">,</span> <span class="mi">9</span><span class="p">)]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_overwrite_partition_replaces_and_rolls_back</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">":memory:"</span><span class="p">)</span>
+    <span class="n">init_daily</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+    <span class="n">overwrite_partition</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s2">"d1"</span><span class="p">,</span> <span class="p">[{</span><span class="s2">"sku"</span><span class="p">:</span> <span class="s2">"a"</span><span class="p">,</span> <span class="s2">"qty"</span><span class="p">:</span> <span class="mi">1</span><span class="p">}])</span>
+    <span class="n">overwrite_partition</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s2">"d1"</span><span class="p">,</span> <span class="p">[{</span><span class="s2">"sku"</span><span class="p">:</span> <span class="s2">"z"</span><span class="p">,</span> <span class="s2">"qty"</span><span class="p">:</span> <span class="mi">7</span><span class="p">}])</span>
+    <span class="k">assert</span> <span class="n">rows_of</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s2">"select sku from daily_sales"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[(</span><span class="s2">"z"</span><span class="p">,)]</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+        <span class="n">overwrite_partition</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s2">"d1"</span><span class="p">,</span> <span class="p">[{</span><span class="s2">"sku"</span><span class="p">:</span> <span class="s2">"q"</span><span class="p">,</span> <span class="s2">"qty"</span><span class="p">:</span> <span class="mi">1</span><span class="p">},</span> <span class="p">{</span><span class="s2">"sku"</span><span class="p">:</span> <span class="s2">"bad"</span><span class="p">}])</span>
+    <span class="k">assert</span> <span class="n">rows_of</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s2">"select sku from daily_sales"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[(</span><span class="s2">"z"</span><span class="p">,)]</span>  <span class="c1"># old data intact</span>
+
+
+<span class="c1"># 9 dead letter</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_dead_letter_routing_and_retries</span><span class="p">():</span>
+    <span class="n">attempts</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">handler</span><span class="p">(</span><span class="n">rec</span><span class="p">):</span>
+        <span class="n">attempts</span><span class="p">[</span><span class="n">rec</span><span class="p">]</span> <span class="o">=</span> <span class="n">attempts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">rec</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">rec</span> <span class="o">==</span> <span class="s2">"bad"</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"cannot parse"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">rec</span> <span class="o">==</span> <span class="s2">"flaky"</span> <span class="ow">and</span> <span class="n">attempts</span><span class="p">[</span><span class="n">rec</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"transient"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">rec</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
+
+    <span class="n">ok</span><span class="p">,</span> <span class="n">dead</span> <span class="o">=</span> <span class="n">process_with_dead_letter</span><span class="p">([</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"bad"</span><span class="p">,</span> <span class="s2">"flaky"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">],</span> <span class="n">handler</span><span class="p">,</span> <span class="n">max_attempts</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">ok</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"A"</span><span class="p">,</span> <span class="s2">"FLAKY"</span><span class="p">,</span> <span class="s2">"B"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">dead</span> <span class="o">==</span> <span class="p">[(</span><span class="s2">"bad"</span><span class="p">,</span> <span class="s2">"cannot parse"</span><span class="p">)]</span>
+    <span class="k">assert</span> <span class="n">attempts</span><span class="p">[</span><span class="s2">"bad"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span> <span class="ow">and</span> <span class="n">attempts</span><span class="p">[</span><span class="s2">"flaky"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">attempts</span><span class="p">[</span><span class="s2">"a"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_dead_letter_empty_and_single_attempt</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">process_with_dead_letter</span><span class="p">([],</span> <span class="nb">str</span><span class="p">)</span> <span class="o">==</span> <span class="p">([],</span> <span class="p">[])</span>
+    <span class="n">ok</span><span class="p">,</span> <span class="n">dead</span> <span class="o">=</span> <span class="n">process_with_dead_letter</span><span class="p">([</span><span class="mi">1</span><span class="p">],</span> <span class="k">lambda</span> <span class="n">r</span><span class="p">:</span> <span class="mi">1</span> <span class="o">/</span> <span class="mi">0</span><span class="p">,</span> <span class="n">max_attempts</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">ok</span> <span class="o">==</span> <span class="p">[]</span> <span class="ow">and</span> <span class="n">dead</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../14-data-engineering/week-03-orchestration-dbt/exercises.py.html">← Week 3 · Orchestration and dbt: Exercises (code)</a><a class="next" href="../../14-data-engineering/week-04-kafka-streaming/lesson.html">Week 4 · Kafka and streaming: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

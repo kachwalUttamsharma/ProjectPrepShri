@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="04-fastapi/week-01-first-endpoints/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../04-fastapi/week-01-first-endpoints/lesson.html">FastAPI</a> / <a href="../../04-fastapi/week-01-first-endpoints/lesson.html">Week 1 · First endpoints</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="04-fastapi/week-01-first-endpoints/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>04-fastapi/week-01-first-endpoints/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 1 exercises: first FastAPI endpoints.</span>
+
+<span class="sd">Replace each `...` with your code. Routes are marked `# TODO`. The decorators</span>
+<span class="sd">are given; you write the function bodies (and, where the docstring says so,</span>
+<span class="sd">adjust the decorator).</span>
+
+<span class="sd">Run it by hand to see the docs:</span>
+<span class="sd">    cd 04-fastapi/week-01-first-endpoints</span>
+<span class="sd">    ../../.venv/bin/uvicorn exercises:app --reload</span>
+<span class="sd">then open http://127.0.0.1:8000/docs</span>
+<span class="sd">"""</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">FastAPI</span><span class="p">,</span> <span class="n">Header</span><span class="p">,</span> <span class="n">HTTPException</span><span class="p">,</span> <span class="n">Query</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">fastapi.responses</span><span class="w"> </span><span class="kn">import</span> <span class="n">JSONResponse</span>
+
+<span class="c1"># Exercise 1 (TODO): give the app title="Week 1 API" and version="0.1.0".</span>
+<span class="c1"># Hint: FastAPI(title=..., version=...). These show up in /docs and /openapi.json.</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">()</span>
+
+<span class="n">FRUITS</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"apple"</span><span class="p">,</span> <span class="s2">"apricot"</span><span class="p">,</span> <span class="s2">"banana"</span><span class="p">,</span> <span class="s2">"blueberry"</span><span class="p">,</span> <span class="s2">"cherry"</span><span class="p">,</span> <span class="s2">"cranberry"</span><span class="p">,</span> <span class="s2">"date"</span><span class="p">,</span> <span class="s2">"fig"</span><span class="p">,</span> <span class="s2">"grape"</span><span class="p">]</span>
+<span class="n">NOTES</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">reset_state</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Provided: tests call this between tests. Do not change."""</span>
+    <span class="n">NOTES</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+
+
+<span class="c1"># Exercise 2 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">status_category</span><span class="p">(</span><span class="n">code</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the class of an HTTP status code as a string.</span>
+<span class="sd">    100-199 'informational', 200-299 'success', 300-399 'redirect',</span>
+<span class="sd">    400-499 'client error', 500-599 'server error'. Anything else: ValueError.</span>
+<span class="sd">    Hint: code // 100 gives the first digit.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 3 -------------------------------------------------------------</span>
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/health"</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">health</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""TODO: return {"status": "ok"}. (FastAPI turns the dict into JSON.)"""</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 4 -------------------------------------------------------------</span>
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/hello/</span><span class="si">{name}</span><span class="s2">"</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">hello</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">shout</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""TODO: return {"message": "Hello, Sam!"} for name='Sam'.</span>
+<span class="sd">    If the query parameter ?shout=true is given, the message is uppercased:</span>
+<span class="sd">    {"message": "HELLO, SAM!"}. Hint: path param = in the route string;</span>
+<span class="sd">    query param = any other function argument. bool accepts true/false/1/0.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 5 -------------------------------------------------------------</span>
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/fruits/</span><span class="si">{index}</span><span class="s2">"</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_fruit</span><span class="p">(</span><span class="n">index</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""TODO: return {"index": index, "name": FRUITS[index]}.</span>
+<span class="sd">    If index is out of range (negative or too big) respond 404 with</span>
+<span class="sd">    detail "Fruit not found". Hint: raise HTTPException(status_code=404, detail=...).</span>
+<span class="sd">    A non-integer index (/fruits/abc) is rejected automatically with 422.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 6 -------------------------------------------------------------</span>
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/add"</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""TODO: return {"result": a + b} for /add?a=2&amp;b=3.</span>
+<span class="sd">    Missing or non-integer a/b must give 422 -- you get that for free from the type hints.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 7 -------------------------------------------------------------</span>
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/search"</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span><span class="n">q</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span> <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">offset</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""TODO: search FRUITS for names containing q (case-insensitive substring;</span>
+<span class="sd">    empty q matches all). Return</span>
+<span class="sd">        {"query": q, "count": &lt;total matches&gt;, "results": &lt;the page&gt;}</span>
+<span class="sd">    where the page is matches[offset : offset + limit].</span>
+<span class="sd">    Also change `limit` to be validated: 1 &lt;= limit &lt;= 50 (422 otherwise), and</span>
+<span class="sd">    offset &gt;= 0. Hint: limit: int = Query(10, ge=1, le=50)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 8 -------------------------------------------------------------</span>
+<span class="nd">@app</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/notes"</span><span class="p">)</span>  <span class="c1"># TODO: this must answer 201 Created. Hint: status_code=201</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">create_note</span><span class="p">(</span><span class="n">body</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""TODO: body looks like {"text": "buy milk"}. If "text" is missing or is not</span>
+<span class="sd">    a non-empty string, respond 400 with detail "text is required".</span>
+<span class="sd">    Otherwise store it in NOTES with id = max(existing ids, default=0) + 1 and</span>
+<span class="sd">    return {"id": id, "text": text}.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/notes/</span><span class="si">{note_id}</span><span class="s2">"</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_note</span><span class="p">(</span><span class="n">note_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""TODO: return {"id": ..., "text": ...} or 404 (detail "Note not found")."""</span>
+    <span class="o">...</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s2">"/notes/</span><span class="si">{note_id}</span><span class="s2">"</span><span class="p">)</span>  <span class="c1"># TODO: successful delete answers 204 (no body).</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">delete_note</span><span class="p">(</span><span class="n">note_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""TODO: remove the note. 404 (detail "Note not found") if it does not exist.</span>
+<span class="sd">    A 204 response must have an empty body, so return None.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 9 -------------------------------------------------------------</span>
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/teapot"</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">teapot</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""TODO: respond with status 418 and JSON body {"detail": "I'm a teapot"}.</span>
+<span class="sd">    Hint: return JSONResponse(status_code=..., content=...)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 10 ------------------------------------------------------------</span>
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/whoami"</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">whoami</span><span class="p">(</span><span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">Header</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">)):</span>
+<span class="w">    </span><span class="sd">"""TODO: return {"user_agent": &lt;value of the User-Agent request header&gt;}.</span>
+<span class="sd">    FastAPI converts the argument name user_agent to the header User-Agent.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../04-fastapi/week-01-first-endpoints/lesson.html">← Week 1 · First endpoints: Lesson</a><a class="next" href="../../04-fastapi/week-01-first-endpoints/test_exercises.py.html">Week 1 · First endpoints: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

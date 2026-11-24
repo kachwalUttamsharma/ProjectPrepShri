@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LLD Problem 05: Seat booking (BookMyShow style) with holds and locks | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="11-lld/problem-05-seat-booking/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../11-lld/README.html">Low-Level Design</a> / <a href="../../11-lld/problem-05-seat-booking/lesson.html">Problem 5 · Seat booking</a> / <span>Lesson</span></nav><button id="mark-done" data-id="11-lld/problem-05-seat-booking/lesson">Mark as done</button></div><article class="doc">
+<h1 id="lld-problem-05-seat-booking-bookmyshow-style-with-holds-and-locks">LLD Problem 05: Seat booking (BookMyShow style) with holds and locks</h1>
+<p>The classic "concurrency" LLD question. The data model is easy; the interview is about <strong>not double-booking</strong> and <strong>what happens when a user walks away mid-checkout</strong>. Budget: 3-4 hours. Suggested split: read + sketch (30m), statuses and holds (1h), expiry (45m), locking + threaded tests (1h), review (30m).</p>
+<h2 id="1-clarify-requirements-ask-these-first">1. Clarify requirements (ask these first)</h2>
+<ul>
+<li>One theatre or many? Multiple screens/shows? (We model <strong>show -&gt; seats</strong>; theatre/movie are metadata you can name but not build.)</li>
+<li>Seat categories and pricing (Gold/Silver)? Payment? (Out of scope; payment is the thing that happens <em>between</em> hold and confirm.)</li>
+<li>Can a user pick several seats at once? Must it be all-or-nothing? (Yes.)</li>
+<li>What happens if the user never pays? (Hold with TTL; seats return to the pool.)</li>
+<li>Is TTL per seat or per hold? Can a hold be extended? (Per hold, no extension.)</li>
+<li>Expected concurrency: one process with threads, or many servers? (Threads here; many servers means the DB owns the lock - say it.)</li>
+<li>Do we need cancellation of confirmed bookings, refunds, waitlists? (Follow-ups.)</li>
+</ul>
+<p>State your assumptions out loud, then proceed.</p>
+<h2 id="2-entities">2. Entities</h2>
+<table>
+<thead>
+<tr>
+<th>Entity</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SeatStatus</code></td>
+<td>AVAILABLE / HELD / BOOKED</td>
+</tr>
+<tr>
+<td><code>Hold</code></td>
+<td>frozen record: who holds which seats until when</td>
+</tr>
+<tr>
+<td><code>Booking</code></td>
+<td>frozen record: permanent result of confirm</td>
+</tr>
+<tr>
+<td><code>BookingService</code></td>
+<td>owns shows, locks, ids, the clock; the only mutator</td>
+</tr>
+<tr>
+<td>Errors</td>
+<td><code>BookingError</code> base; <code>SeatUnavailableError</code>, <code>HoldExpiredError</code>, <code>InvalidHoldError</code>, <code>UnknownShowError</code>, <code>UnknownSeatError</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="3-class-diagram">3. Class diagram</h2>
+<pre class="mermaid">classDiagram
+  class BookingService {
+    -clock
+    -hold_ttl
+    +add_show(show_id, seat_ids)
+    +hold_seats(show_id, seat_ids, user_id) Hold
+    +confirm(hold_id) Booking
+    +release(hold_id)
+    +seat_status(show_id, seat_id) SeatStatus
+    +available_seats(show_id) list
+    +bookings_for(user_id) list
+  }
+  class ShowState {
+    lock
+    seats: seat_id -&gt; owner
+    holds: hold_id -&gt; Hold
+  }
+  class Hold { hold_id show_id seat_ids user_id expires_at }
+  class Booking { booking_id show_id seat_ids user_id }
+  BookingService "1" *-- "many" ShowState
+  ShowState "1" o-- "many" Hold
+  BookingService ..&gt; Booking : creates</pre>
+<p>Seat state machine: <code>AVAILABLE --hold--&gt; HELD --confirm--&gt; BOOKED</code>; <code>HELD --release/expiry--&gt; AVAILABLE</code>. BOOKED is terminal.</p>
+<h2 id="4-patterns-and-why">4. Patterns and why</h2>
+<ul>
+<li><strong>Derived state instead of timers</strong>: store <code>expires_at</code>, compute status from <code>clock()</code>. No background thread to race with, trivially testable with a fake clock. (Lazy expiry; a janitor can compact memory later.)</li>
+<li><strong>Fine-grained locking</strong>: one lock per show. Bookings for different shows never contend. A single global lock is correct but a scaling smell; per-seat locks need ordered acquisition to avoid deadlock (see Q&amp;A).</li>
+<li><strong>Check-then-act inside one critical section</strong>: "is it free?" and "mark it held" must be under the same lock. That is the whole problem.</li>
+<li><strong>State pattern (light)</strong>: status transitions are explicit; you can promote to State objects if each state grows behaviour.</li>
+<li><strong>Immutable value objects</strong> (<code>Hold</code>, <code>Booking</code>) are safe to hand to callers across threads.</li>
+<li><strong>Dependency injection</strong> of the clock (same as the parking lot).</li>
+</ul>
+<h2 id="5-spec-summary-precise-rules-are-in-exercisespy-docstrings">5. Spec summary (precise rules are in <code>exercises.py</code> docstrings)</h2>
+<ul>
+<li>Seat is HELD while <code>clock() &lt; expires_at</code>; at <code>&gt;= expires_at</code> it is AVAILABLE.</li>
+<li><code>hold_seats</code> is all-or-nothing; a failed call leaves no trace and burns no id.</li>
+<li><code>confirm</code> on an expired hold -&gt; <code>HoldExpiredError</code>; on unknown/used hold -&gt; <code>InvalidHoldError</code>.</li>
+<li><code>release</code> of an expired hold must NOT free a seat someone else has since re-held (compare the owning hold id).</li>
+<li>Hold/booking ids are global counters starting at 1 (guard the counter too).</li>
+</ul>
+<h2 id="6-extensibility-follow-ups-interviewers-ask">6. Extensibility follow-ups interviewers ask</h2>
+<ul>
+<li>Pricing per seat category / dynamic pricing -&gt; <code>PricingStrategy</code> injected at confirm.</li>
+<li>Cancellation + refund -&gt; <code>BOOKED -&gt; AVAILABLE</code> transition, a <code>Booking.status</code>.</li>
+<li>Waitlist when a show is sold out -&gt; queue per show, notify on release (Observer, see problem 07).</li>
+<li>Seat-map UI wants a consistent snapshot -&gt; take the show lock, copy statuses.</li>
+<li>Multiple servers -&gt; move truth to a DB: <code>UPDATE seats SET status='HELD', hold_id=?, expires_at=? WHERE show_id=? AND seat_id IN (...) AND (status='AVAILABLE' OR expires_at &lt;= now)</code> and check affected rows == len(seats); or Redis <code>SET NX EX</code>.</li>
+<li>Max seats per hold / per user -&gt; validation in <code>hold_seats</code>.</li>
+<li>Extend hold during payment -&gt; <code>extend(hold_id)</code> with the same lock.</li>
+</ul>
+<h2 id="7-what-to-say-out-loud">7. What to say out loud</h2>
+<ol>
+<li>"The invariant is: a seat is in at most one live hold or booking. I will protect it with one lock per show."</li>
+<li>"I'll derive HELD/AVAILABLE from an expiry timestamp so there are no timer threads."</li>
+<li>"hold is all-or-nothing, so I validate every seat under the lock before mutating any."</li>
+<li>"Confirm re-checks expiry under the lock, because the user may confirm after the TTL."</li>
+<li>"In a distributed deployment this lock becomes a conditional write in the database."</li>
+</ol>
+<h2 id="8-common-mistakes">8. Common mistakes</h2>
+<ul>
+<li>Checking availability outside the lock, then locking to write (classic TOCTOU double-booking).</li>
+<li>Mutating seats one by one and leaving partial holds when the 3rd seat fails.</li>
+<li>Using <code>time.time()</code> directly, or a <code>Timer</code> thread per hold (untestable, leaks threads).</li>
+<li>Releasing an expired hold and freeing a seat that now belongs to someone else.</li>
+<li>A single global lock held while calling out to payment (blocks everyone). Hold, release the lock, pay, then confirm.</li>
+<li>Forgetting the id counters are shared state and need protection too.</li>
+<li>Taking per-seat locks in arbitrary order -&gt; deadlock between <code>[A1,A2]</code> and <code>[A2,A1]</code>.</li>
+</ul>
+<h2 id="9-follow-up-qa">9. Follow-up Q&amp;A</h2>
+<p><strong>Q: Why not just a global lock?</strong> A: Correct but serialises unrelated shows. Per-show lock keeps correctness with far less contention.</p>
+<p><strong>Q: How would you do per-seat locks?</strong> A: Acquire locks in sorted seat-id order for every request so there is a global lock order, which rules out deadlock. Release all in <code>finally</code>.</p>
+<p><strong>Q: Why lazy expiry instead of a timer?</strong> A: Timers add threads, ordering races (timer fires just as confirm runs) and test sleeps. Deriving status from <code>expires_at</code> is race-free under the lock.</p>
+<p><strong>Q: Memory grows with expired holds. Fix?</strong> A: Purge expired holds opportunistically in <code>hold_seats</code> for that show, or run a periodic sweep that takes the show lock.</p>
+<p><strong>Q: What if payment succeeds after the hold expired?</strong> A: <code>confirm</code> raises <code>HoldExpiredError</code>; the payment layer must refund or retry-hold. Mention idempotency keys for payment callbacks.</p>
+<p><strong>Q: Optimistic vs pessimistic locking?</strong> A: Pessimistic (locks) is simple for in-memory. In a DB, optimistic conditional updates scale better under low contention; under a flash-sale hot seat, queueing is better.</p>
+<p><strong>Q: How do you test concurrency deterministically?</strong> A: A <code>threading.Barrier</code> releases N threads at once on the same seat; assert exactly one success. Repeat many shows to raise the chance of exposing a race. No sleeps.</p>
+<p><strong>Q: Where would the lock live if there are millions of shows?</strong> A: Lock striping: <code>locks[hash(show_id) % 256]</code>.</p>
+<h2 id="10-your-task">10. Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run
+<code>.venv/bin/pytest 11-lld/problem-05-seat-booking -v</code></p>
+<p>Then, out loud and without notes: draw the state machine, explain why hold is atomic, and say what changes with two app servers.</p>
+</article><div class="pager"><a class="prev" href="../../11-lld/problem-04-vending-machine/test_exercises.py.html">← Problem 4 · Vending machine: Tests (code)</a><a class="next" href="../../11-lld/problem-05-seat-booking/exercises.py.html">Problem 5 · Seat booking: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

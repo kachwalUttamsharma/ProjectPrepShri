@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 5 Cheatsheet: Classic ML Essentials | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="13-llm-ai-concepts/week-05-classic-ml-essentials/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../13-llm-ai-concepts/README.html">LLM and AI Concepts</a> / <a href="../../13-llm-ai-concepts/week-05-classic-ml-essentials/lesson.html">Week 5 · Classic ML essentials</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="13-llm-ai-concepts/week-05-classic-ml-essentials/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="week-5-cheatsheet-classic-ml-essentials">Week 5 Cheatsheet: Classic ML Essentials</h1>
+<h2 id="learning-types">Learning types</h2>
+<p>Supervised (X,y) | Unsupervised (X) | Self-supervised (labels from data; LLMs) | Semi | Reinforcement (reward; RLHF).</p>
+<h2 id="bias-variance">Bias-variance</h2>
+<p>Error = bias^2 + variance + noise. High bias: train and test both bad -&gt; more capacity. High variance: big train-test gap -&gt; data, regularize, simplify, ensemble, early stop.
+L2 shrinks, L1 sparsifies, elastic net both. loss = data_loss + lambda * penalty.</p>
+<h2 id="splits">Splits</h2>
+<p>Train fit | Val tune | Test once. k-fold (stratified, grouped). Time series: split by time.
+Leakage: target/future features, preprocessing before split, duplicates, same entity across splits, tuning on test, benchmark contamination. Too-good score = suspect.</p>
+<h2 id="metrics">Metrics</h2>
+<p>Precision = TP/(TP+FP). Recall = TP/(TP+FN). Specificity = TN/(TN+FP). FPR = 1 - spec. F1 = 2PR/(P+R). Accuracy = (TP+TN)/N.
+Worked: TP40 FP10 FN20 TN930 -&gt; P .80, R .667, F1 .727, Acc .97 (baseline always-negative .94).
+ROC-AUC = P(random pos scores &gt; random neg). Rare positives: use PR-AUC. Threshold: lower = more recall, less precision.
+Regression: MAE, RMSE, R^2. Ranking: nDCG, MRR, recall@k. Macro vs micro vs weighted averages.</p>
+<h2 id="models">Models</h2>
+<p>Linear: y=w.x+b, squared loss. Logistic: sigmoid(w.x+b), log loss, gradient (p-y)*x.
+Tree: split to reduce Gini/entropy; Gini = 1 - sum p^2. Forest = bagging (variance down). GBM = sequential residual fitting (bias down), tune lr/depth/trees, early stop. Tabular: boosted trees strong baseline.</p>
+<h2 id="clustering-embeddings">Clustering / embeddings</h2>
+<p>k-means: assign, recompute, repeat; pick k via silhouette/elbow; scale features. DBSCAN for shapes/noise. PCA for variance directions. Embeddings: dense similarity vectors; eval on downstream task. Curse of dimensionality.</p>
+<h2 id="neural-nets">Neural nets</h2>
+<p>neuron = act(w.x+b); nonlinearity essential. Forward -&gt; loss -&gt; backprop (chain rule) -&gt; w -= lr*grad. Adam/SGD, mini-batch, epoch. LR most sensitive. Vanishing gradients: ReLU, residuals, norm. Overfit: dropout, weight decay, early stop. Softmax + cross-entropy classify.</p>
+<h2 id="workflow">Workflow</h2>
+<p>Metric + baseline -&gt; split -&gt; EDA -&gt; simple model -&gt; boosted trees -&gt; tune on val -&gt; test once -&gt; error analysis by segment -&gt; monitor drift.</p>
+<h2 id="red-flags-to-say-aloud">Red flags to say aloud</h2>
+<p>"99 percent accuracy" on imbalance; "random split" on time data; "scaled before splitting"; "tuned on test".</p>
+</article><div class="pager"><a class="prev" href="../../13-llm-ai-concepts/week-05-classic-ml-essentials/interview-qa.html">← Week 5 · Classic ML essentials: Interview Q&amp;A</a><a class="next" href="../../13-llm-ai-concepts/rapid-fire.html">LLM and AI Concepts: Rapid-fire Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

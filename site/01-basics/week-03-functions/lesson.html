@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 3: Functions | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="01-basics/week-03-functions/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../01-basics/week-01-first-steps/lesson.html">Python Basics</a> / <a href="../../01-basics/week-03-functions/lesson.html">Week 3 · Functions</a> / <span>Lesson</span></nav><button id="mark-done" data-id="01-basics/week-03-functions/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-3-functions">Week 3: Functions</h1>
+<h2 id="1-defining-and-calling">1. Defining and calling</h2>
+<p>A function is a named, reusable block of code.</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">greet</span><span class="p">(</span><span class="n">name</span><span class="p">):</span>
+    <span class="k">return</span> <span class="s2">"Hello, "</span> <span class="o">+</span> <span class="n">name</span>
+
+<span class="n">msg</span> <span class="o">=</span> <span class="n">greet</span><span class="p">(</span><span class="s2">"Sam"</span><span class="p">)</span>      <span class="c1"># msg is "Hello, Sam"</span>
+</code></pre></div>
+
+<ul>
+<li><code>name</code> is a <strong>parameter</strong> (the placeholder). <code>"Sam"</code> is the <strong>argument</strong> (the real value).</li>
+<li><code>return</code> sends a value back and ends the function immediately.</li>
+<li>Without <code>return</code>, a function gives back <code>None</code>.</li>
+</ul>
+<h2 id="2-print-vs-return">2. print vs return</h2>
+<p><code>print</code> shows text on screen. <code>return</code> hands a value to the caller so it can be reused. Tests check what you <strong>return</strong>.</p>
+<h2 id="3-default-and-keyword-arguments">3. Default and keyword arguments</h2>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">power</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">exp</span><span class="o">=</span><span class="mi">2</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">base</span> <span class="o">**</span> <span class="n">exp</span>
+
+<span class="n">power</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>           <span class="c1"># 9   (exp uses default)</span>
+<span class="n">power</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>        <span class="c1"># 27</span>
+<span class="n">power</span><span class="p">(</span><span class="n">exp</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">base</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>   <span class="c1"># 8  (keyword arguments, any order)</span>
+</code></pre></div>
+
+<p>Parameters with defaults must come after those without.</p>
+<h2 id="4-args-and-kwargs">4. *args and **kwargs</h2>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">total</span><span class="p">(</span><span class="o">*</span><span class="n">nums</span><span class="p">):</span>          <span class="c1"># nums is a tuple of all extra positional args</span>
+    <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span>
+<span class="n">total</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>             <span class="c1"># 6</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">show</span><span class="p">(</span><span class="o">**</span><span class="n">info</span><span class="p">):</span>          <span class="c1"># info is a dict of keyword args</span>
+    <span class="k">return</span> <span class="n">info</span>
+<span class="n">show</span><span class="p">(</span><span class="n">a</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">b</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>             <span class="c1"># {'a': 1, 'b': 2}</span>
+</code></pre></div>
+
+<h2 id="5-returning-several-values">5. Returning several values</h2>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">min_max</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">min</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>    <span class="c1"># a tuple</span>
+<span class="n">lo</span><span class="p">,</span> <span class="n">hi</span> <span class="o">=</span> <span class="n">min_max</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>             <span class="c1"># unpacking</span>
+</code></pre></div>
+
+<h2 id="6-scope">6. Scope</h2>
+<p>Variables created inside a function exist only there (<strong>local</strong>). A function can read outer (global) variables, but assigning to a name inside creates a new local one. Avoid globals; pass values in and return results.</p>
+<h2 id="7-docstrings">7. Docstrings</h2>
+<p>The string right under <code>def</code> describes the function. <code>help(greet)</code> shows it.</p>
+<h2 id="8-recursion-intro">8. Recursion (intro)</h2>
+<p>A function that calls itself on a smaller problem. Needs:</p>
+<ol>
+<li>a <strong>base case</strong> (stops the recursion),</li>
+<li>a <strong>recursive case</strong> (moves toward the base case).</li>
+</ol>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">countdown_sum</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>             <span class="c1"># base case</span>
+        <span class="k">return</span> <span class="mi">0</span>
+    <span class="k">return</span> <span class="n">n</span> <span class="o">+</span> <span class="n">countdown_sum</span><span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Forgetting the base case gives <code>RecursionError</code>.</p>
+<h2 id="9-mutable-default-trap">9. Mutable default trap</h2>
+<p>Never write <code>def f(x, items=[])</code>: the list is shared between calls. Use <code>items=None</code> and create a new list inside.</p>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li>Using <code>print</code> instead of <code>return</code>.</li>
+<li>Code after <code>return</code> never runs.</li>
+<li>Forgetting to call: <code>greet</code> is the function, <code>greet("Sam")</code> is the result.</li>
+<li>Mutable default arguments (above).</li>
+<li>Recursion without a base case.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run:
+<code>.venv/bin/pytest 01-basics/week-03-functions -v</code></p>
+</article><div class="pager"><a class="prev" href="../../01-basics/week-02-conditions-loops/test_exercises.py.html">← Week 2 · Conditions and loops: Tests (code)</a><a class="next" href="../../01-basics/week-03-functions/exercises.py.html">Week 3 · Functions: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

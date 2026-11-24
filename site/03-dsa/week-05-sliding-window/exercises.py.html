@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-05-sliding-window/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-05-sliding-window/lesson.html">Week 5 · Sliding window</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="03-dsa/week-05-sliding-window/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>03-dsa/week-05-sliding-window/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 5 exercises: sliding window. Replace each `...` with your code.</span>
+
+<span class="sd">Run the tests from this folder:  ../../../.venv/bin/pytest -q</span>
+<span class="sd">Every problem here has an O(n) (or O(n) with a small alphabet) solution.</span>
+<span class="sd">The tests include large inputs, so an O(n*k) or O(n^2) answer will be slow.</span>
+<span class="sd">"""</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">max_sum_subarray_k</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the maximum sum of any contiguous subarray of length exactly k.</span>
+<span class="sd">    If k &lt;= 0 or k &gt; len(nums), return 0.</span>
+
+<span class="sd">    max_sum_subarray_k([2, 1, 5, 1, 3, 2], 3) -&gt; 9</span>
+<span class="sd">    max_sum_subarray_k([-1, -2, -3], 2) -&gt; -3</span>
+
+<span class="sd">    Hint: fixed-size window; add the entering element, subtract the leaving one.</span>
+<span class="sd">    Time O(n), space O(1).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">contains_nearby_duplicate</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 219. Return True if there are two DISTINCT indices i, j with</span>
+<span class="sd">    nums[i] == nums[j] and abs(i - j) &lt;= k.</span>
+
+<span class="sd">    contains_nearby_duplicate([1, 2, 3, 1], 3) -&gt; True</span>
+<span class="sd">    contains_nearby_duplicate([1, 2, 3, 1, 2, 3], 2) -&gt; False</span>
+<span class="sd">    contains_nearby_duplicate([1, 1], 0) -&gt; False</span>
+
+<span class="sd">    Hint: a window of the last k elements kept in a set.</span>
+<span class="sd">    Time O(n), space O(k).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">min_subarray_len</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 209. nums contains positive integers. Return the minimal length of a</span>
+<span class="sd">    contiguous subarray whose sum is &gt;= target, or 0 if none exists.</span>
+
+<span class="sd">    min_subarray_len(7, [2, 3, 1, 2, 4, 3]) -&gt; 2   ([4, 3])</span>
+<span class="sd">    min_subarray_len(100, [1, 2, 3]) -&gt; 0</span>
+
+<span class="sd">    Hint: variable window; expand right, then shrink left while the sum is still enough.</span>
+<span class="sd">    Why does this need positive numbers?</span>
+<span class="sd">    Time O(n), space O(1).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">length_of_longest_substring</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 3. Length of the longest substring of s without repeating characters.</span>
+
+<span class="sd">    length_of_longest_substring("abcabcbb") -&gt; 3</span>
+<span class="sd">    length_of_longest_substring("bbbbb") -&gt; 1</span>
+<span class="sd">    length_of_longest_substring("") -&gt; 0</span>
+
+<span class="sd">    Hint: dict char -&gt; last index; when you see a repeat inside the window jump left</span>
+<span class="sd">    past it (never move left backwards).</span>
+<span class="sd">    Time O(n), space O(min(n, alphabet)).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">longest_ones</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 1004. nums contains only 0 and 1. You may flip at most k zeros to 1.</span>
+<span class="sd">    Return the length of the longest run of 1s you can get.</span>
+
+<span class="sd">    longest_ones([1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0], 2) -&gt; 6</span>
+<span class="sd">    longest_ones([0, 0, 0], 0) -&gt; 0</span>
+
+<span class="sd">    Hint: window may contain at most k zeros.</span>
+<span class="sd">    Time O(n), space O(1).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">character_replacement</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 424. s is uppercase letters. You may change at most k characters to any</span>
+<span class="sd">    letter. Return the length of the longest substring of one repeated letter you can get.</span>
+
+<span class="sd">    character_replacement("ABAB", 2) -&gt; 4</span>
+<span class="sd">    character_replacement("AABABBA", 1) -&gt; 4</span>
+
+<span class="sd">    Hint: a window is valid if (window length - count of its most frequent letter) &lt;= k.</span>
+<span class="sd">    You do not need to shrink max_count when the window slides; think about why.</span>
+<span class="sd">    Time O(n), space O(26).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">check_inclusion</span><span class="p">(</span><span class="n">s1</span><span class="p">,</span> <span class="n">s2</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 567. Return True if s2 contains a permutation of s1 as a substring.</span>
+
+<span class="sd">    check_inclusion("ab", "eidbaooo") -&gt; True</span>
+<span class="sd">    check_inclusion("ab", "eidboaoo") -&gt; False</span>
+<span class="sd">    check_inclusion("", "abc") -&gt; True</span>
+
+<span class="sd">    Hint: fixed window of len(s1) with a character-count comparison (collections.Counter,</span>
+<span class="sd">    or a 'matches' counter for O(1) updates).</span>
+<span class="sd">    Time O(n), space O(alphabet).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">find_anagrams</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 438. Return the start indices (ascending) of every substring of s that is</span>
+<span class="sd">    an anagram of p.</span>
+
+<span class="sd">    find_anagrams("cbaebabacd", "abc") -&gt; [0, 6]</span>
+<span class="sd">    find_anagrams("abab", "ab") -&gt; [0, 1, 2]</span>
+<span class="sd">    find_anagrams("a", "ab") -&gt; []</span>
+
+<span class="sd">    Time O(n), space O(alphabet).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">longest_substring_k_distinct</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Length of the longest substring with at most k distinct characters.</span>
+<span class="sd">    k &lt;= 0 -&gt; 0.</span>
+
+<span class="sd">    longest_substring_k_distinct("eceba", 2) -&gt; 3    ("ece")</span>
+<span class="sd">    longest_substring_k_distinct("aa", 1) -&gt; 2</span>
+<span class="sd">    longest_substring_k_distinct("abc", 0) -&gt; 0</span>
+
+<span class="sd">    Hint: dict of counts in the window; shrink while len(dict) &gt; k.</span>
+<span class="sd">    Time O(n), space O(k).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">min_window</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">t</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 76 (hard). Return the smallest substring of s that contains every</span>
+<span class="sd">    character of t (with multiplicity). If none exists return "". If several windows</span>
+<span class="sd">    have the minimum length, return the leftmost.</span>
+
+<span class="sd">    min_window("ADOBECODEBANC", "ABC") -&gt; "BANC"</span>
+<span class="sd">    min_window("a", "aa") -&gt; ""</span>
+<span class="sd">    min_window("aa", "aa") -&gt; "aa"</span>
+<span class="sd">    t == "" -&gt; ""</span>
+
+<span class="sd">    Hint: track `missing` = number of required characters still not covered; expand right</span>
+<span class="sd">    until missing == 0, then shrink left as far as possible while it stays 0.</span>
+<span class="sd">    Time O(len(s) + len(t)), space O(alphabet).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">max_sliding_window</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 239 (hard). Return a list with the maximum of every window of size k.</span>
+<span class="sd">    Empty nums or k &lt;= 0 -&gt; []. If k &gt; len(nums) -&gt; [].</span>
+
+<span class="sd">    max_sliding_window([1, 3, -1, -3, 5, 3, 6, 7], 3) -&gt; [3, 3, 5, 5, 6, 7]</span>
+<span class="sd">    max_sliding_window([1], 1) -&gt; [1]</span>
+
+<span class="sd">    Hint: monotonic deque of INDICES whose values are decreasing; the front is the max.</span>
+<span class="sd">    Pop the front when it leaves the window, pop the back while it is &lt;= the new value.</span>
+<span class="sd">    Time O(n), space O(k).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-05-sliding-window/lesson.html">← Week 5 · Sliding window: Lesson</a><a class="next" href="../../03-dsa/week-05-sliding-window/test_exercises.py.html">Week 5 · Sliding window: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

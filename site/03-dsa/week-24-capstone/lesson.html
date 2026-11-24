@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 24: Capstone (mock interviews, cheat sheet, communication, prep checklist) | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-24-capstone/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-24-capstone/lesson.html">Week 24 · Capstone</a> / <span>Lesson</span></nav><button id="mark-done" data-id="03-dsa/week-24-capstone/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-24-capstone-mock-interviews-cheat-sheet-communication-prep-checklist">Week 24: Capstone (mock interviews, cheat sheet, communication, prep checklist)</h1>
+<p>This week has no new algorithm. You rehearse the real thing: recognise the
+pattern fast, communicate clearly, finish in time.</p>
+<h2 id="1-how-to-use-this-week">1. How to use this week</h2>
+<p><code>exercises.py</code> has 10 problems grouped into three timed mock sets. Rules:</p>
+<ol>
+<li>Set a visible timer for the whole set (A: 45 min, B: 50 min, C: 75 min).</li>
+<li>Plain editor, no autocomplete, no looking up solutions. Docstring hints are allowed ONLY after you've burned half the question's budget (note that you used one).</li>
+<li>Talk out loud (or record yourself). Follow the protocol in section 3.</li>
+<li>Run the tests only when you believe you are done, like a real interviewer saying "does it work?". Count how many attempts you needed.</li>
+<li>After each set: write down what slowed you down, then redo the weakest problem from scratch the next day.
+Suggested schedule (7-8 hrs): Set A + review (1.5h), Set B + review (1.5h), Set C + review (2h), cheat sheet / weak-topic drills (2h), final checklist (1h).</li>
+</ol>
+<p>Mock sets:</p>
+<ul>
+<li>Set A, phone screen, 45 min: group_anagrams (10), length_of_longest_substring (15), merge_k_lists (20).</li>
+<li>Set B, onsite trees/graphs, 50 min: lowest_common_ancestor (15), num_islands (15), can_finish (20).</li>
+<li>Set C, stretch, 75 min: top_k_frequent (15), word_break (20), generate_parentheses (15), network_delay_time (25). Aim for 3 of 4 clean.
+Scoring: full marks = tests green at first run, correct complexity stated, no hints. Passing bar for a Google/Uber-style loop: 2 of 3 per set clean, remaining one close with a correct approach.</li>
+</ul>
+<h2 id="2-pattern-recognition-cheat-sheet">2. Pattern-recognition cheat sheet</h2>
+<table>
+<thead>
+<tr>
+<th>Signal in the problem</th>
+<th>Pattern</th>
+<th>Tool / Complexity</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sorted array, find pair/target</td>
+<td>Two pointers / binary search</td>
+<td>O(n) / O(log n)</td>
+</tr>
+<tr>
+<td>Contiguous subarray/substring with a constraint</td>
+<td>Sliding window</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>Subarray sum equals k, range sums</td>
+<td>Prefix sums + hash map</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>Lookups, duplicates, grouping, counting</td>
+<td>Hash map / set / Counter</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>Matching brackets, next greater element, nested structure</td>
+<td>Stack / monotonic stack</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>Level by level, shortest path unweighted</td>
+<td>BFS (deque)</td>
+<td>O(V+E)</td>
+</tr>
+<tr>
+<td>Linked list cycle, middle, k-th from end</td>
+<td>Fast/slow pointers, dummy node</td>
+<td>O(n), O(1)</td>
+</tr>
+<tr>
+<td>"Minimum X such that condition holds" with monotonic check</td>
+<td>Binary search on the answer</td>
+<td>O(n log range)</td>
+</tr>
+<tr>
+<td>Top K, K-th largest, merge K sorted, running median</td>
+<td>Heap (heapq)</td>
+<td>O(n log k)</td>
+</tr>
+<tr>
+<td>Tree traversal, path sums, LCA, depth</td>
+<td>DFS recursion (post-order returns info up)</td>
+<td>O(n), O(h)</td>
+</tr>
+<tr>
+<td>BST property, kth smallest, validate</td>
+<td>Inorder traversal / bounds</td>
+<td>O(n) / O(h)</td>
+</tr>
+<tr>
+<td>Prefix search, autocomplete, word dictionary</td>
+<td>Trie</td>
+<td>O(L) per op</td>
+</tr>
+<tr>
+<td>Connected components, islands, flood fill</td>
+<td>DFS/BFS or union-find</td>
+<td>O(V+E)</td>
+</tr>
+<tr>
+<td>Dependencies, ordering, cycle in directed graph</td>
+<td>Topological sort (Kahn / DFS colors)</td>
+<td>O(V+E)</td>
+</tr>
+<tr>
+<td>Dynamic connectivity, "are they in the same group"</td>
+<td>Union-find</td>
+<td>~O(alpha(n))</td>
+</tr>
+<tr>
+<td>Weighted shortest path, non-negative</td>
+<td>Dijkstra (heap)</td>
+<td>O((V+E) log V)</td>
+</tr>
+<tr>
+<td>Weights only 0/1</td>
+<td>0-1 BFS (deque, appendleft for 0)</td>
+<td>O(V+E)</td>
+</tr>
+<tr>
+<td>Generate all combos/permutations/subsets, constraint pruning</td>
+<td>Backtracking</td>
+<td>exponential, prune</td>
+</tr>
+<tr>
+<td>Count ways / min cost / max value with overlapping subproblems</td>
+<td>1-D DP</td>
+<td>O(n*k)</td>
+</tr>
+<tr>
+<td>Two sequences or grid or knapsack</td>
+<td>2-D DP</td>
+<td>O(m*n)</td>
+</tr>
+<tr>
+<td>Local best choice provably works (intervals, jumps, scheduling)</td>
+<td>Greedy + sort</td>
+<td>O(n log n)</td>
+</tr>
+<tr>
+<td>Find unique / missing, subsets of small n, flags</td>
+<td>Bit manipulation / bitmask</td>
+<td>O(n) / O(2^n)</td>
+</tr>
+<tr>
+<td>Input is small (n &lt;= 20)</td>
+<td>Exponential brute force is intended</td>
+<td>bitmask / backtracking</td>
+</tr>
+<tr>
+<td>n up to 1e5 or 1e6</td>
+<td>Need O(n) or O(n log n)</td>
+<td>rules out O(n^2)</td>
+</tr>
+<tr>
+<td>Constraint trick: n &lt;= 20 -&gt; 2^n; n &lt;= 500 -&gt; n^3; n &lt;= 1e4 -&gt; n^2; n &lt;= 1e5+ -&gt; n log n.</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="3-how-to-communicate-in-an-interview">3. How to communicate in an interview</h2>
+<p>Use the same protocol every time (aim: first 5-8 minutes before any code).</p>
+<ol>
+<li><strong>Restate</strong> the problem in your own words.</li>
+<li><strong>Clarify</strong> inputs: size, duplicates, negatives, empty input, sorted?, in-place?, return type, can I mutate the input? Ask about expected scale.</li>
+<li><strong>Examples</strong>: walk one normal case and one edge case with the interviewer.</li>
+<li><strong>Brute force first</strong>: say it and its complexity ("that's O(n^2), let me look for better"). Shows you can always produce something.</li>
+<li><strong>Optimise</strong> by naming the bottleneck and the pattern ("repeated lookup -&gt; hash map").</li>
+<li><strong>Agree</strong> on the approach and complexity before coding ("Does this sound reasonable?").</li>
+<li><strong>Code</strong> with meaningful names, small helpers, narrate non-obvious lines. Don't go silent for more than ~30 seconds.</li>
+<li><strong>Test</strong> by hand-tracing a small example, then edge cases (empty, one element, duplicates, all same, max size). Find your own bugs before they do.</li>
+<li><strong>Analyse</strong> time and space, and mention trade-offs and follow-ups.</li>
+</ol>
+<p>Useful phrases:</p>
+<ul>
+<li>"Let me make sure I understand..." / "Can I assume...?"</li>
+<li>"The naive approach is X in O(...). The bottleneck is Y."</li>
+<li>"I'll start with a simple version and optimise after."</li>
+<li>"I'm stuck on Z; let me try a smaller example." (thinking aloud while stuck is fine and expected)</li>
+<li>"I made a mistake here, fixing..." (calm, no panic)</li>
+</ul>
+<p>When stuck: shrink the input, draw it, reverse (what would the last step be?), try a different data structure, ask for a hint early (a hint at minute 15 beats silence until minute 35).
+When the interviewer adds a follow-up ("what if the stream is infinite / memory is limited / sorted input"): treat it as expected, not as a sign you were wrong.
+Google specifics: strong on correctness, clean code, edge cases, and clear trade-off discussion; expect a follow-up that changes constraints.
+Uber specifics: practical problems (graphs, grids, intervals, heaps, geo/matching flavour), working code, sometimes a coding round that looks like a mini-service or data-processing task; discuss complexity and scale.</p>
+<h2 id="4-common-mistakes-in-mocks">4. Common mistakes in mocks</h2>
+<ul>
+<li>Jumping to code before agreeing on the approach.</li>
+<li>Not stating complexity unprompted.</li>
+<li>Skipping the dry run; shipping off-by-one bugs.</li>
+<li>Silent debugging. Narrate it.</li>
+<li>Over-optimising early or going for a fancy structure when a hash map works.</li>
+<li>Forgetting empty / single-element / duplicate inputs.</li>
+<li>Recursion depth on a deep tree or big grid in Python (use iterative, or say you know the limit).</li>
+<li>Comparing nodes in a heap tuple without a tiebreaker index.</li>
+<li>Mutating input unexpectedly.</li>
+</ul>
+<h2 id="5-googleuber-style-prep-checklist">5. Google/Uber-style prep checklist</h2>
+<p>Content</p>
+<ul>
+<li>[ ] Can solve a new medium in 25-30 min and a hard in 40-45 min about 70% of the time.</li>
+<li>[ ] For each pattern in the cheat sheet, I can write the template from memory: sliding window, binary search (both variants), BFS/DFS (tree and grid), Kahn, Dijkstra, union-find with path compression, trie, backtracking, 1-D and 2-D DP, heap top-K.</li>
+<li>[ ] I can state time/space for everything I write without calculating.</li>
+<li>[ ] I know Python tools cold: <code>heapq</code> (min-heap, negate for max), <code>collections.deque/Counter/defaultdict</code>, <code>bisect</code>, <code>functools.cache</code>, <code>itertools</code>, slicing cost (copies are O(k)), <code>sorted(key=...)</code>, <code>sys.setrecursionlimit</code> and its risks.</li>
+<li>[ ] I've done at least 3 timed mocks per week for the last 2 weeks (this folder counts as one cycle).</li>
+<li>
+<p>[ ] I keep an error log: problem, mistake type, fix; I reread it weekly.
+Practice</p>
+</li>
+<li>
+<p>[ ] Practise on a plain editor or a shared doc (Google interviews often use a doc/CoderPad-style environment without autocomplete or running tests).</p>
+</li>
+<li>[ ] Do 1-2 mocks with a human (peer, or a mock platform) to practise talking.</li>
+<li>[ ] Rehearse follow-ups: "what if it doesn't fit in memory", "streaming input", "concurrent access", "can you do it in O(1) space".</li>
+<li>
+<p>[ ] Review fundamentals: hash table internals, heap vs balanced BST, BFS vs DFS trade-offs, amortised analysis, recursion vs iteration, stability of sorts.
+Logistics</p>
+</li>
+<li>
+<p>[ ] Interview day: sleep, water, a quiet place, charged laptop, test the video/IDE setup.</p>
+</li>
+<li>[ ] Prepare 4-5 behavioural stories (conflict, failure, ambiguity, leadership, impact) with the STAR structure. Google's "Googleyness" and Uber's values both probe these.</li>
+<li>[ ] Prepare questions to ask the interviewer.</li>
+<li>[ ] If the role is senior: prepare for a system design round too (separate track, not covered by this repo).</li>
+<li>[ ] During the loop: reset between rounds; a bad round does not predict the next.</li>
+</ul>
+<h2 id="6-final-week-plan-after-the-mocks">6. Final week plan after the mocks</h2>
+<ul>
+<li>Pick the 3 weakest patterns from your error log; redo 3 problems each (no peeking, timed).</li>
+<li>Re-solve every problem you needed hints on, 2 days later, from scratch.</li>
+<li>Day before the interview: light review of the cheat sheet and templates only. No new hard problems.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Do the three mock sets in <code>exercises.py</code> under timer. Run
+<code>&lt;project-root&gt;/.venv/bin/pytest -q</code> from this folder,
+and use <code>pytest -q -k lca</code> style filters to run a single question.</p>
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-23-greedy-bits/test_exercises.py.html">← Week 23 · Greedy and bit manipulation: Tests (code)</a><a class="next" href="../../03-dsa/week-24-capstone/exercises.py.html">Week 24 · Capstone: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

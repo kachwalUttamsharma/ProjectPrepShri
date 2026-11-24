@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 18: Topological sort and Union-Find | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-18-topo-sort-union-find/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-18-topo-sort-union-find/lesson.html">Week 18 · Topological sort and Union-Find</a> / <span>Lesson</span></nav><button id="mark-done" data-id="03-dsa/week-18-topo-sort-union-find/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-18-topological-sort-and-union-find">Week 18: Topological sort and Union-Find</h1>
+<h2 id="1-concepts">1. Concepts</h2>
+<h3 id="topological-sort">Topological sort</h3>
+<p>A <strong>topological order</strong> of a directed graph lists every node so that for each edge
+<code>u -&gt; v</code>, <code>u</code> comes before <code>v</code>. It exists <strong>iff the graph is a DAG</strong> (no directed cycle).
+Typical story: tasks with prerequisites, build order, course schedules, symbol
+dependencies, "order of letters" from sorted data.</p>
+<p>Two algorithms:</p>
+<ul>
+<li><strong>Kahn's (BFS)</strong>: repeatedly remove nodes with in-degree 0. If fewer than V nodes
+  are removed, there is a cycle. Easy to extend to "levels" (parallel semesters) and
+  longest-chain questions.</li>
+<li><strong>DFS post-order</strong>: with 3 colors (unvisited / visiting / done). Reverse post-order is a
+  topological order; reaching a "visiting" node = cycle.</li>
+</ul>
+<h3 id="union-find-disjoint-set-union-dsu">Union-Find (Disjoint Set Union, DSU)</h3>
+<p>Maintains a partition of elements into sets under two operations:</p>
+<ul>
+<li><code>find(x)</code>: which set is x in (its representative root)?</li>
+<li><code>union(a, b)</code>: merge the two sets.
+With <strong>path compression</strong> + <strong>union by size/rank</strong> both run in amortized
+O(alpha(n)) (practically constant). Ideal for <strong>dynamic connectivity</strong> on
+<strong>undirected</strong> graphs where edges only get added: components, cycle detection while
+adding edges, Kruskal's MST, merging accounts.</li>
+</ul>
+<h2 id="2-how-to-recognize-the-pattern">2. How to recognize the pattern</h2>
+<p>Topological sort:</p>
+<ul>
+<li>"Prerequisites", "dependencies", "order of tasks/courses/characters", "build order".</li>
+<li>"Is there a cycle in a directed graph?"</li>
+<li>"Minimum number of rounds/semesters" = longest path in a DAG = Kahn's levels.</li>
+<li>Order inferred from sorted data (alien dictionary): derive edges from adjacent items.</li>
+<li>Tree centers / "peel the leaves" (MHT) is the same in-degree-peeling idea on an undirected tree.</li>
+</ul>
+<p>Union-Find:</p>
+<ul>
+<li>"Connected components", "provinces", "same group", "merge groups sharing something".</li>
+<li>Edges arrive one by one and you must detect the first that creates a cycle (redundant connection).</li>
+<li>Grouping by shared key (emails, accounts, equivalences like <code>a == b</code>).</li>
+<li>You only need connectivity, not paths. (Need the path itself? Use BFS/DFS.)</li>
+<li>Does NOT handle edge deletion or directed reachability.</li>
+</ul>
+<h2 id="3-template-code">3. Template code</h2>
+<p>Kahn's algorithm:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">defaultdict</span><span class="p">,</span> <span class="n">deque</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">topo_order</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">edges</span><span class="p">):</span>              <span class="c1"># edge (a, b): a must come before b</span>
+    <span class="n">adj</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+    <span class="n">indeg</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">n</span>
+    <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">edges</span><span class="p">:</span>
+        <span class="n">adj</span><span class="p">[</span><span class="n">a</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+        <span class="n">indeg</span><span class="p">[</span><span class="n">b</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="n">deque</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="k">if</span> <span class="n">indeg</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">order</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">while</span> <span class="n">q</span><span class="p">:</span>
+        <span class="n">u</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+        <span class="n">order</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">u</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">adj</span><span class="p">[</span><span class="n">u</span><span class="p">]:</span>
+            <span class="n">indeg</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="o">-=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">indeg</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">order</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">order</span><span class="p">)</span> <span class="o">==</span> <span class="n">n</span> <span class="k">else</span> <span class="p">[]</span>     <span class="c1"># [] means a cycle</span>
+</code></pre></div>
+
+<p>Level-by-level (count semesters): wrap the pop in <code>for _ in range(len(q))</code> and count levels.</p>
+<p>DFS with 3 states:</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">has_cycle</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">adj</span><span class="p">):</span>
+    <span class="n">state</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">n</span>                     <span class="c1"># 0 new, 1 visiting, 2 done</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">dfs</span><span class="p">(</span><span class="n">u</span><span class="p">):</span>
+        <span class="n">state</span><span class="p">[</span><span class="n">u</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">adj</span><span class="p">[</span><span class="n">u</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">state</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">or</span> <span class="p">(</span><span class="n">state</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">dfs</span><span class="p">(</span><span class="n">v</span><span class="p">)):</span>
+                <span class="k">return</span> <span class="kc">True</span>
+        <span class="n">state</span><span class="p">[</span><span class="n">u</span><span class="p">]</span> <span class="o">=</span> <span class="mi">2</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="n">state</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">dfs</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">))</span>
+</code></pre></div>
+
+<p>Union-Find:</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">UnionFind</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parent</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">size</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">n</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">components</span> <span class="o">=</span> <span class="n">n</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">find</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="p">[</span><span class="n">x</span><span class="p">]</span> <span class="o">!=</span> <span class="n">x</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="p">[</span><span class="n">x</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="p">[</span><span class="n">x</span><span class="p">]]</span>   <span class="c1"># path halving</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="p">[</span><span class="n">x</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">x</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">union</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+        <span class="n">ra</span><span class="p">,</span> <span class="n">rb</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">a</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">ra</span> <span class="o">==</span> <span class="n">rb</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="n">ra</span><span class="p">]</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="n">rb</span><span class="p">]:</span>
+            <span class="n">ra</span><span class="p">,</span> <span class="n">rb</span> <span class="o">=</span> <span class="n">rb</span><span class="p">,</span> <span class="n">ra</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="p">[</span><span class="n">rb</span><span class="p">]</span> <span class="o">=</span> <span class="n">ra</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="n">ra</span><span class="p">]</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="n">rb</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">components</span> <span class="o">-=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="kc">True</span>
+</code></pre></div>
+
+<p>For non-integer keys (emails, strings), either map them to ids or use dicts for <code>parent</code>.</p>
+<h2 id="4-complexity">4. Complexity</h2>
+<ul>
+<li>Topological sort (either): O(V + E) time, O(V + E) space.</li>
+<li>Union-Find: O(alpha(n)) amortized per op; building from E edges is O(E * alpha(n)).</li>
+<li>Accounts merge: O(E log E) from sorting the emails.</li>
+<li>Leaf peeling for MHT: O(V).</li>
+</ul>
+<h2 id="5-common-mistakes">5. Common mistakes</h2>
+<ul>
+<li><strong>Edge direction</strong> flipped: <code>[a, b]</code> = "take b before a" means edge <code>b -&gt; a</code>. Write it on the board before coding.</li>
+<li>Forgetting nodes with no edges (they still belong in the order / in letters of alien dictionary).</li>
+<li>Not detecting the cycle: always compare <code>len(order)</code> against the number of nodes.</li>
+<li>Alien dictionary: forgetting the invalid-prefix case (<code>["abc", "ab"]</code>), adding duplicate edges
+  (inflates in-degree), or comparing non-adjacent words.</li>
+<li>Union-Find without compression / union by size: O(n) finds, TLE on chains. Recursive <code>find</code> hits the recursion limit.</li>
+<li>Calling <code>parent[x]</code> instead of <code>find(x)</code> when counting groups (stale roots).</li>
+<li>Counting components as <code>len(set(parent))</code>: only correct after finding every root.</li>
+<li>Using Union-Find on a <strong>directed</strong> cycle question: DSU only sees undirected connectivity.</li>
+<li>Merging accounts by <strong>name</strong>: different people share names; merge by email.</li>
+</ul>
+<h2 id="6-interview-tips">6. Interview tips</h2>
+<ul>
+<li>Phrase it: "This is a dependency problem, so I'll build a directed graph and run Kahn's algorithm. If I can't process every node there is a cycle."</li>
+<li>Ask: can there be duplicate edges, self loops, isolated nodes? Does any valid order work or must it be unique/lexicographically smallest (then use a heap instead of a deque)?</li>
+<li>Know both Kahn and DFS and which to pick: Kahn for levels, shortest/longest chains; DFS when you already recurse.</li>
+<li>For DSU say "path compression plus union by size gives near-constant time" and implement <code>find</code> iteratively.</li>
+<li>Follow-ups: Kruskal's MST with DSU, "number of islands II" (add land online, DSU), DSU with weights (division evaluation),
+  detecting a cycle in directed vs undirected graphs, checking whether a topological order is unique (queue size is always 1).</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run the tests from this directory with <code>../../.venv/bin/pytest</code> (see PROGRESS.md).</p>
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-17-graphs-basics/test_exercises.py.html">← Week 17 · Graph basics: Tests (code)</a><a class="next" href="../../03-dsa/week-18-topo-sort-union-find/exercises.py.html">Week 18 · Topological sort and Union-Find: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

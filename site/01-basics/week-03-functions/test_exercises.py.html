@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>test_exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="01-basics/week-03-functions/test_exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../01-basics/week-01-first-steps/lesson.html">Python Basics</a> / <a href="../../01-basics/week-03-functions/lesson.html">Week 3 · Functions</a> / <span>Tests (code)</span></nav><button id="mark-done" data-id="01-basics/week-03-functions/test_exercises.py">Mark as done</button></div><article class="doc">
+<h1>test_exercises.py</h1><p class="code-path"><code>01-basics/week-03-functions/test_exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_square</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">square</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span> <span class="o">==</span> <span class="mi">16</span>
+    <span class="k">assert</span> <span class="n">square</span><span class="p">(</span><span class="o">-</span><span class="mi">3</span><span class="p">)</span> <span class="o">==</span> <span class="mi">9</span>
+    <span class="k">assert</span> <span class="n">square</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_power</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">power</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span> <span class="o">==</span> <span class="mi">9</span>
+    <span class="k">assert</span> <span class="n">power</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span> <span class="o">==</span> <span class="mi">32</span>
+    <span class="k">assert</span> <span class="n">power</span><span class="p">(</span><span class="n">exp</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">base</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">8</span>
+    <span class="k">assert</span> <span class="n">power</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_min_max</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">min_max</span><span class="p">([</span><span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">])</span> <span class="o">==</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">min_max</span><span class="p">([</span><span class="mi">7</span><span class="p">])</span> <span class="o">==</span> <span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="mi">7</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">min_max</span><span class="p">([</span><span class="o">-</span><span class="mi">5</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">9</span><span class="p">])</span> <span class="o">==</span> <span class="p">(</span><span class="o">-</span><span class="mi">9</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_total</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">total</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">total</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span> <span class="o">==</span> <span class="mi">5</span>
+    <span class="k">assert</span> <span class="n">total</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> <span class="o">==</span> <span class="mi">6</span>
+    <span class="k">assert</span> <span class="n">total</span><span class="p">(</span><span class="mf">1.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">)</span> <span class="o">==</span> <span class="mf">4.0</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_make_greeting</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">make_greeting</span><span class="p">(</span><span class="s2">"Sam"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"Hello, Sam!"</span>
+    <span class="k">assert</span> <span class="n">make_greeting</span><span class="p">(</span><span class="s2">"Sam"</span><span class="p">,</span> <span class="s2">"Hi"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"Hi, Sam!"</span>
+    <span class="k">assert</span> <span class="n">make_greeting</span><span class="p">(</span><span class="s2">"Sam"</span><span class="p">,</span> <span class="n">punctuation</span><span class="o">=</span><span class="s2">"?"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"Hello, Sam?"</span>
+    <span class="k">assert</span> <span class="n">make_greeting</span><span class="p">(</span><span class="s2">"Ann"</span><span class="p">,</span> <span class="n">greeting</span><span class="o">=</span><span class="s2">"Yo"</span><span class="p">,</span> <span class="n">punctuation</span><span class="o">=</span><span class="s2">"."</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"Yo, Ann."</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_describe</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">describe</span><span class="p">()</span> <span class="o">==</span> <span class="s2">""</span>
+    <span class="k">assert</span> <span class="n">describe</span><span class="p">(</span><span class="n">a</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"a=1"</span>
+    <span class="k">assert</span> <span class="n">describe</span><span class="p">(</span><span class="n">b</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">a</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"a=1, b=2"</span>
+    <span class="k">assert</span> <span class="n">describe</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"x"</span><span class="p">,</span> <span class="n">age</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"age=3, name=x"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_append_item</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">append_item</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">append_item</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># fresh list each time</span>
+    <span class="n">original</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">append_item</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">original</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">result</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">original</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># not modified</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_factorial</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">factorial</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">factorial</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">factorial</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span> <span class="o">==</span> <span class="mi">120</span>
+    <span class="k">assert</span> <span class="n">factorial</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3628800</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_fibonacci</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">fibonacci</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">)]</span> <span class="o">==</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">13</span><span class="p">,</span> <span class="mi">21</span><span class="p">,</span> <span class="mi">34</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">fibonacci</span><span class="p">(</span><span class="mi">15</span><span class="p">)</span> <span class="o">==</span> <span class="mi">610</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_sum_digits</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">sum_digits</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">sum_digits</span><span class="p">(</span><span class="mi">7</span><span class="p">)</span> <span class="o">==</span> <span class="mi">7</span>
+    <span class="k">assert</span> <span class="n">sum_digits</span><span class="p">(</span><span class="mi">1234</span><span class="p">)</span> <span class="o">==</span> <span class="mi">10</span>
+    <span class="k">assert</span> <span class="n">sum_digits</span><span class="p">(</span><span class="mi">1000</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_is_palindrome</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">is_palindrome</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span>
+    <span class="k">assert</span> <span class="n">is_palindrome</span><span class="p">(</span><span class="s2">"a"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span>
+    <span class="k">assert</span> <span class="n">is_palindrome</span><span class="p">(</span><span class="s2">"Racecar"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span>
+    <span class="k">assert</span> <span class="n">is_palindrome</span><span class="p">(</span><span class="s2">"abba"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span>
+    <span class="k">assert</span> <span class="n">is_palindrome</span><span class="p">(</span><span class="s2">"abca"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="n">is_palindrome</span><span class="p">(</span><span class="s2">"ab"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../01-basics/week-03-functions/exercises.py.html">← Week 3 · Functions: Exercises (code)</a><a class="next" href="../../01-basics/week-04-lists-tuples/lesson.html">Week 4 · Lists, tuples, strings: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

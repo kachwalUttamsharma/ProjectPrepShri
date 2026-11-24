@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 2 interview Q&amp;A: joins and subqueries | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="06-sql/week-02-joins-subqueries/interview-qa" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../06-sql/week-02-joins-subqueries/lesson.html">Week 2 · Joins and subqueries</a> / <span>Interview Q&amp;A</span></nav><button id="mark-done" data-id="06-sql/week-02-joins-subqueries/interview-qa">Mark as done</button></div><article class="doc">
+<h1 id="week-2-interview-qa-joins-and-subqueries">Week 2 interview Q&amp;A: joins and subqueries</h1>
+<p><strong>1. Explain INNER, LEFT, RIGHT, FULL OUTER and CROSS joins.</strong>
+INNER: only rows with a match on both sides. LEFT: all left rows, right columns NULL when unmatched. RIGHT: mirror. FULL: unmatched rows from both sides. CROSS: Cartesian product (n x m), no condition.</p>
+<p><strong>2. What is the difference between putting a condition in ON vs WHERE?</strong>
+For INNER joins nothing. For OUTER joins, ON decides which rows match (unmatched left rows survive with NULLs); WHERE filters the final result, so a condition on the right table discards the NULL-extended rows and effectively turns a LEFT JOIN into an INNER JOIN.</p>
+<p><strong>3. Name the ways to express "rows with no match in another table".</strong>
+<code>NOT EXISTS</code> with a correlated subquery, a <code>LEFT JOIN</code> followed by a <code>IS NULL</code> test on the right table's key, or <code>NOT IN</code> (only if the subquery column can never be NULL). Which would you pick and why? <code>NOT EXISTS</code>.</p>
+<p><strong>4. Why can <code>NOT IN (subquery)</code> return nothing?</strong>
+If the subquery yields any NULL, <code>x &lt;&gt; NULL</code> is unknown for every x, so the predicate is never true. <code>NOT EXISTS</code> has no such problem.</p>
+<p><strong>5. EXISTS vs IN vs JOIN?</strong>
+All can express "has a match". EXISTS and IN do not duplicate left rows and are semi-joins; JOIN multiplies rows when the right side has several matches. Planners usually treat EXISTS and IN equivalently; NOT EXISTS is the safe negation. Use JOIN when you need right-side columns.</p>
+<p><strong>6. What is a correlated subquery? Performance implications?</strong>
+A subquery referencing columns of the outer query, so it logically runs once per outer row. Can be O(n*m) without an index on the correlated column; often rewritten as a join to a pre-aggregated derived table or a window function.</p>
+<p><strong>7. How do you model and query a hierarchy such as employee -&gt; manager?</strong>
+Adjacency list: <code>manager_id</code> references the same table; one level via self-join; arbitrary depth via a recursive CTE (week 3).</p>
+<p><strong>8. Self-join: list each unordered pair of rows that share an attribute once.</strong>
+Join the table to itself on the shared attribute and add an inequality on the key (<code>a.id &lt; b.id</code>). The inequality removes (A,A) and the mirrored (B,A).</p>
+<p><strong>9. What happens to the top of a hierarchy in a self-join on manager?</strong>
+The root has a NULL <code>manager_id</code>, so an inner join drops it; use a LEFT JOIN to keep it with a NULL manager. Any comparison between a row and its related row is then an ordinary <code>WHERE</code> over both aliases.</p>
+<p><strong>10. Why does <code>COUNT(*)</code> after LEFT JOIN give 1 for an empty group?</strong>
+The unmatched left row is still one row (with NULLs on the right). Use <code>COUNT(right.pk)</code>, which ignores NULLs.</p>
+<p><strong>11. What is join fan-out and how do you prevent it?</strong>
+Joining a parent to two independent child tables yields (children1 x children2) rows per parent, inflating SUM/COUNT. Pre-aggregate each child table to one row per parent in a subquery/CTE, then join; or use <code>COUNT(DISTINCT ...)</code> where valid (not for SUM).</p>
+<p><strong>12. How many rows can A (n rows) JOIN B (m rows) return?</strong>
+INNER: 0 to n<em>m. LEFT: at least n. CROSS: exactly n</em>m. For a 1:N foreign key join with an inner join, at most the size of the N-side.</p>
+<p><strong>13. What is a scalar subquery and what happens if it returns two rows?</strong>
+A subquery returning one row/one column, usable like a value. Two rows is an error in Postgres/MySQL; SQLite silently uses the first row, which hides bugs. Zero rows yields NULL.</p>
+<p><strong>14. UNION vs UNION ALL?</strong>
+UNION removes duplicate rows (requires a sort/hash, slower); UNION ALL keeps all rows. Default to UNION ALL when duplicates are impossible or acceptable.</p>
+<p><strong>15. How do you get rows present in A but not in B (whole row)?</strong>
+<code>EXCEPT</code> (or <code>MINUS</code> in Oracle), or <code>NOT EXISTS</code> for key-based comparison. EXCEPT treats NULLs as equal, which <code>NOT IN</code>/<code>=</code> do not.</p>
+<p><strong>16. Scenario: "report units sold per product for all products, 0 for none."</strong>
+Start from the product table with a LEFT JOIN to the sales table, wrap the sum in <code>COALESCE(..., 0)</code>, and group by the product key. Filters on the sales table (e.g. a date range) must go in ON, not WHERE.</p>
+<p><strong>17. Scenario: "list every entity with each period, even if nothing happened."</strong>
+CROSS JOIN the entities with a list of periods to build the grid, then LEFT JOIN the facts on (entity, period), COALESCE sums to 0.</p>
+<p><strong>18. Scenario: you join orders to order_items and payments and your revenue doubled. Why?</strong>
+Fan-out: each order row is repeated for each (item, payment) pair. Aggregate items and payments separately per order first, then join.</p>
+<p><strong>19. Can you join on a NULL key?</strong>
+<code>NULL = NULL</code> is unknown, so rows with NULL keys never match in an ordinary equi-join. Use a null-safe comparison (<code>IS</code>, <code>IS NOT DISTINCT FROM</code>, <code>&lt;=&gt;</code>) only when you mean it; usually it signals bad data.</p>
+<p><strong>20. When would you use a derived table or CTE instead of a correlated subquery?</strong>
+When you need the aggregate for many rows at once (per-department average joined back), for readability, or when the planner does a poor job with the correlated form.</p>
+</article><div class="pager"><a class="prev" href="../../06-sql/week-02-joins-subqueries/lesson.html">← Week 2 · Joins and subqueries: Lesson</a><a class="next" href="../../06-sql/week-02-joins-subqueries/exercises.py.html">Week 2 · Joins and subqueries: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

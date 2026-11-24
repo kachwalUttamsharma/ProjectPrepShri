@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 14: Binary search trees (BSTs) | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-14-bsts/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-14-bsts/lesson.html">Week 14 · Binary search trees</a> / <span>Lesson</span></nav><button id="mark-done" data-id="03-dsa/week-14-bsts/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-14-binary-search-trees-bsts">Week 14: Binary search trees (BSTs)</h1>
+<h2 id="1-concept">1. Concept</h2>
+<p>A BST keeps this invariant at <strong>every</strong> node: all values in the left subtree are smaller, all values in
+the right subtree are larger. Consequences:</p>
+<ul>
+<li>Search / insert / delete follow a single root-to-leaf path: O(h). Balanced h = log n, skewed h = n.</li>
+<li><strong>Inorder traversal visits values in sorted order.</strong> This one fact solves a huge share of BST problems.</li>
+<li>Python has no built-in balanced BST. In interviews you use a plain (possibly unbalanced) BST, or
+  <code>bisect</code> on a sorted list, or <code>sortedcontainers.SortedList</code> if allowed (ask).</li>
+</ul>
+<h2 id="2-how-to-recognize-the-pattern">2. How to recognize the pattern</h2>
+<ul>
+<li>"Given a BST ..." -&gt; use the ordering; do NOT do a full O(n) search when O(h) is possible.</li>
+<li>"k-th smallest", "next/previous", "range", "sorted output" -&gt; inorder traversal.</li>
+<li>"Validate" -&gt; bounds passed down (or inorder strictly increasing).</li>
+<li>"Build balanced from sorted" -&gt; pick the middle as the root.</li>
+<li>"Iterator over tree" -&gt; explicit stack of the leftmost path (controlled recursion).</li>
+<li>"Two nodes swapped" -&gt; find inorder inversions.</li>
+</ul>
+<h2 id="3-templates">3. Templates</h2>
+<h3 id="search-closest-value-iterative-o1-space">Search / closest value (iterative, O(1) space)</h3>
+<div class="highlight"><pre><span></span><code><span class="n">cur</span> <span class="o">=</span> <span class="n">root</span>
+<span class="k">while</span> <span class="n">cur</span> <span class="ow">and</span> <span class="n">cur</span><span class="o">.</span><span class="n">val</span> <span class="o">!=</span> <span class="n">target</span><span class="p">:</span>
+    <span class="n">cur</span> <span class="o">=</span> <span class="n">cur</span><span class="o">.</span><span class="n">left</span> <span class="k">if</span> <span class="n">target</span> <span class="o">&lt;</span> <span class="n">cur</span><span class="o">.</span><span class="n">val</span> <span class="k">else</span> <span class="n">cur</span><span class="o">.</span><span class="n">right</span>
+</code></pre></div>
+
+<h3 id="insert-iterative">Insert (iterative)</h3>
+<div class="highlight"><pre><span></span><code><span class="k">if</span> <span class="ow">not</span> <span class="n">root</span><span class="p">:</span> <span class="k">return</span> <span class="n">TreeNode</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+<span class="n">cur</span> <span class="o">=</span> <span class="n">root</span>
+<span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">val</span> <span class="o">&lt;</span> <span class="n">cur</span><span class="o">.</span><span class="n">val</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">cur</span><span class="o">.</span><span class="n">left</span><span class="p">:</span> <span class="n">cur</span><span class="o">.</span><span class="n">left</span> <span class="o">=</span> <span class="n">TreeNode</span><span class="p">(</span><span class="n">val</span><span class="p">);</span> <span class="k">break</span>
+        <span class="n">cur</span> <span class="o">=</span> <span class="n">cur</span><span class="o">.</span><span class="n">left</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">cur</span><span class="o">.</span><span class="n">right</span><span class="p">:</span> <span class="n">cur</span><span class="o">.</span><span class="n">right</span> <span class="o">=</span> <span class="n">TreeNode</span><span class="p">(</span><span class="n">val</span><span class="p">);</span> <span class="k">break</span>
+        <span class="n">cur</span> <span class="o">=</span> <span class="n">cur</span><span class="o">.</span><span class="n">right</span>
+<span class="k">return</span> <span class="n">root</span>
+</code></pre></div>
+
+<h3 id="validate-with-bounds">Validate with bounds</h3>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">ok</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">lo</span><span class="p">,</span> <span class="n">hi</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">n</span><span class="p">:</span> <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">lo</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">n</span><span class="o">.</span><span class="n">val</span> <span class="o">&lt;=</span> <span class="n">lo</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">hi</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">n</span><span class="o">.</span><span class="n">val</span> <span class="o">&gt;=</span> <span class="n">hi</span><span class="p">):</span> <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="n">ok</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">left</span><span class="p">,</span> <span class="n">lo</span><span class="p">,</span> <span class="n">n</span><span class="o">.</span><span class="n">val</span><span class="p">)</span> <span class="ow">and</span> <span class="n">ok</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">right</span><span class="p">,</span> <span class="n">n</span><span class="o">.</span><span class="n">val</span><span class="p">,</span> <span class="n">hi</span><span class="p">)</span>
+</code></pre></div>
+
+<h3 id="delete-three-cases">Delete (three cases)</h3>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">delete</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">n</span><span class="p">:</span> <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">key</span> <span class="o">&lt;</span> <span class="n">n</span><span class="o">.</span><span class="n">val</span><span class="p">:</span>   <span class="n">n</span><span class="o">.</span><span class="n">left</span>  <span class="o">=</span> <span class="n">delete</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">left</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">key</span> <span class="o">&gt;</span> <span class="n">n</span><span class="o">.</span><span class="n">val</span><span class="p">:</span> <span class="n">n</span><span class="o">.</span><span class="n">right</span> <span class="o">=</span> <span class="n">delete</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">right</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">n</span><span class="o">.</span><span class="n">left</span><span class="p">:</span>  <span class="k">return</span> <span class="n">n</span><span class="o">.</span><span class="n">right</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">n</span><span class="o">.</span><span class="n">right</span><span class="p">:</span> <span class="k">return</span> <span class="n">n</span><span class="o">.</span><span class="n">left</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="n">n</span><span class="o">.</span><span class="n">right</span>
+        <span class="k">while</span> <span class="n">s</span><span class="o">.</span><span class="n">left</span><span class="p">:</span> <span class="n">s</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">left</span>          <span class="c1"># inorder successor</span>
+        <span class="n">n</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">val</span>
+        <span class="n">n</span><span class="o">.</span><span class="n">right</span> <span class="o">=</span> <span class="n">delete</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">right</span><span class="p">,</span> <span class="n">s</span><span class="o">.</span><span class="n">val</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">n</span>
+</code></pre></div>
+
+<h3 id="controlled-inorder-iterator-early-stop">Controlled inorder (iterator / early stop)</h3>
+<div class="highlight"><pre><span></span><code><span class="n">stack</span><span class="p">,</span> <span class="n">cur</span> <span class="o">=</span> <span class="p">[],</span> <span class="n">root</span>
+<span class="k">while</span> <span class="n">cur</span> <span class="ow">or</span> <span class="n">stack</span><span class="p">:</span>
+    <span class="k">while</span> <span class="n">cur</span><span class="p">:</span> <span class="n">stack</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cur</span><span class="p">);</span> <span class="n">cur</span> <span class="o">=</span> <span class="n">cur</span><span class="o">.</span><span class="n">left</span>
+    <span class="n">cur</span> <span class="o">=</span> <span class="n">stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+    <span class="c1"># visit cur; may stop here for k-th smallest</span>
+    <span class="n">cur</span> <span class="o">=</span> <span class="n">cur</span><span class="o">.</span><span class="n">right</span>
+</code></pre></div>
+
+<h3 id="balanced-bst-from-sorted-array">Balanced BST from sorted array</h3>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">build</span><span class="p">(</span><span class="n">lo</span><span class="p">,</span> <span class="n">hi</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">lo</span> <span class="o">&gt;</span> <span class="n">hi</span><span class="p">:</span> <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">mid</span> <span class="o">=</span> <span class="p">(</span><span class="n">lo</span> <span class="o">+</span> <span class="n">hi</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+    <span class="k">return</span> <span class="n">TreeNode</span><span class="p">(</span><span class="n">nums</span><span class="p">[</span><span class="n">mid</span><span class="p">],</span> <span class="n">build</span><span class="p">(</span><span class="n">lo</span><span class="p">,</span> <span class="n">mid</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span> <span class="n">build</span><span class="p">(</span><span class="n">mid</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">hi</span><span class="p">))</span>
+</code></pre></div>
+
+<h2 id="4-complexity">4. Complexity</h2>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Balanced</th>
+<th>Worst (skewed)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>search / insert / delete</td>
+<td>O(log n)</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>k-th smallest</td>
+<td>O(h + k)</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>validate</td>
+<td>O(n)</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>build from sorted</td>
+<td>O(n)</td>
+<td>-</td>
+</tr>
+<tr>
+<td>iterator next()</td>
+<td>amortized O(1), O(h) memory</td>
+<td></td>
+</tr>
+<tr>
+<td>Space for recursion is O(h).</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="5-common-mistakes">5. Common mistakes</h2>
+<ul>
+<li><strong>Validating only parent vs child.</strong> <code>[5, 4, 6, None, None, 3, 7]</code> passes the local check but 3 is in 5's right subtree.</li>
+<li>Using <code>&lt;</code>/<code>&gt;</code> instead of strict bounds, or initializing bounds with <code>-inf/inf</code> and breaking on values equal to INT_MIN. Prefer <code>None</code> bounds.</li>
+<li>Delete with two children: forgetting to delete the successor from the right subtree afterwards.</li>
+<li>Doing full-tree DFS on a BST problem (O(n)) when O(h) is expected.</li>
+<li>Slicing arrays in <code>sorted_array_to_bst</code> (<code>nums[:mid]</code>) makes it O(n log n) / extra memory.</li>
+<li>Iterator that flattens the whole tree into a list breaks the O(h) memory requirement.</li>
+<li>Recover-tree: assuming the swapped nodes are non-adjacent; adjacent swaps produce only ONE inversion.</li>
+</ul>
+<h2 id="6-interview-tips">6. Interview tips</h2>
+<ul>
+<li>Ask about duplicates (left? right? disallowed?) and whether the tree is balanced.</li>
+<li>State complexity in terms of h and mention it degrades to O(n) when skewed.</li>
+<li>"Inorder successor/predecessor" and "range sum" are very common warm-ups; both are small variations of the search walk.</li>
+<li>Know the follow-up: convert BST &lt;-&gt; sorted doubly linked list, serialize a BST (preorder only suffices), Morris traversal for O(1) space.</li>
+<li>If asked to support insertions with rank queries at scale, mention self-balancing trees (AVL / red-black) or augmenting nodes with subtree sizes.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code> (10 problems), then run <code>cd 03-dsa/week-14-bsts &amp;&amp; ../../.venv/bin/pytest -q</code>.</p>
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-13-binary-trees/test_exercises.py.html">← Week 13 · Binary trees: Tests (code)</a><a class="next" href="../../03-dsa/week-14-bsts/exercises.py.html">Week 14 · Binary search trees: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

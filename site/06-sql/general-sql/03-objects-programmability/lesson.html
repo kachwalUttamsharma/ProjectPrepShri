@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Part 03: Database objects and programmability | Study Hub</title><link rel="stylesheet" href="../../../assets/style.css"><link rel="stylesheet" href="../../../assets/pygments.css"></head>
+<body data-root="../../../" data-page-id="06-sql/general-sql/03-objects-programmability/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../../index.html">Home</a> / <a href="../../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../../06-sql/general-sql/README.html">General SQL</a> / <a href="../../../06-sql/general-sql/03-objects-programmability/lesson.html">Part 3 · Objects and programmability</a> / <span>Lesson</span></nav><button id="mark-done" data-id="06-sql/general-sql/03-objects-programmability/lesson">Mark as done</button></div><article class="doc">
+<h1 id="part-03-database-objects-and-programmability">Part 03: Database objects and programmability</h1>
+<p>Goal: know every kind of object a database holds besides tables, what each is for, and how the major dialects differ.
+Prerequisites: <a href="../../week-01-select-filter-aggregate/lesson.html">week-01 lesson</a> (querying), <a href="../../week-04-schema-indexes-transactions/lesson.html">week-04 lesson</a> (constraints, indexes, transactions). Not repeated here.</p>
+<p>Setup: <code>sqlite3 part03.db ".read setup.sql"</code>, then <code>sqlite3 part03.db</code>. Sections marked <strong>SQLite (run)</strong> were executed; sections marked <strong>not run here, verify</strong> (Postgres/MySQL/SQL Server) were not, because <code>psql</code> and <code>mysql</code> are not installed on this machine. Version-dependent details: check current docs.</p>
+<h2 id="1-views">1. Views</h2>
+<p>A view is a stored, named SELECT. It stores no rows (in the ordinary kind); each query on it expands the definition (the optimizer usually inlines it).</p>
+<p>Uses: hide join complexity, give a stable interface when tables change, restrict columns/rows for security, name a business concept once.</p>
+<p><strong>SQLite (run):</strong></p>
+<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">VIEW</span><span class="w"> </span><span class="n">order_totals</span><span class="w"> </span><span class="k">AS</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">order_id</span><span class="p">,</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="n">name</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">customer</span><span class="p">,</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="n">status</span><span class="p">,</span><span class="w"> </span><span class="k">SUM</span><span class="p">(</span><span class="n">oi</span><span class="p">.</span><span class="n">qty</span><span class="o">*</span><span class="n">oi</span><span class="p">.</span><span class="n">unit_price</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">total</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="n">o</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">customers</span><span class="w"> </span><span class="k">c</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="n">id</span><span class="o">=</span><span class="n">o</span><span class="p">.</span><span class="n">customer_id</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">order_items</span><span class="w"> </span><span class="n">oi</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">oi</span><span class="p">.</span><span class="n">order_id</span><span class="o">=</span><span class="n">o</span><span class="p">.</span><span class="n">id</span>
+<span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="n">status</span><span class="p">;</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">order_totals</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">order_id</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>order_id  customer  status   total
+--------  --------  -------  -----
+       1  Asha      paid        90
+       2  Asha      shipped    200
+       3  Ben       paid        45
+       4  Chen      new        100
+</code></pre></div>
+
+<p>Views can be built on views (<code>customer_spend</code> over <code>order_totals</code> gives Asha 290, Ben 45). Deep stacks hurt readability and plans.</p>
+<p>Updatable views: a simple view (one table, no aggregates/DISTINCT/GROUP BY) is auto-updatable in Postgres and MySQL; <code>WITH CHECK OPTION</code> rejects writes that would make the row vanish from the view. Complex views are read-only unless you add <code>INSTEAD OF</code> triggers (Postgres, SQL Server, SQLite). SQLite views are always read-only without them.</p>
+<p>Postgres extras (not run here, verify): <code>CREATE OR REPLACE VIEW</code>, <code>security_barrier</code> views, <code>security_invoker</code> option (recent versions; check current docs). Dropping a table used by a view fails unless <code>CASCADE</code>.</p>
+<h2 id="2-materialized-views">2. Materialized views</h2>
+<p>A view whose result is physically stored and refreshed on demand. Trade: fast reads, stale data.</p>
+<ul>
+<li>Postgres (not run here, verify): <code>CREATE MATERIALIZED VIEW mv AS SELECT ...; REFRESH MATERIALIZED VIEW mv;</code> and <code>REFRESH MATERIALIZED VIEW CONCURRENTLY mv;</code> (needs a unique index on the mv; avoids blocking readers). No automatic incremental refresh in core Postgres.</li>
+<li>Oracle: rich support (fast refresh, query rewrite). SQL Server: "indexed views" are the analogue and are maintained automatically (with restrictions). </li>
+<li>MySQL and SQLite: no native materialized views. Emulate with a summary table refreshed by a job or triggers.</li>
+<li>Warehouses (BigQuery, Snowflake) have materialized views with automatic refresh and limits on allowed SQL; check current docs.</li>
+</ul>
+<p>Rule of thumb: use when an expensive aggregate is read far more than the source changes and staleness is acceptable.</p>
+<h2 id="3-generating-keys-sequences-auto-increment-identity-uuids">3. Generating keys: sequences, auto-increment, identity, UUIDs</h2>
+<table>
+<thead>
+<tr>
+<th>Mechanism</th>
+<th>Where</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>INTEGER PRIMARY KEY</code></td>
+<td>SQLite</td>
+<td>alias of rowid; reuses max+1. <code>AUTOINCREMENT</code> guarantees never reusing ids, costs a bookkeeping table</td>
+</tr>
+<tr>
+<td><code>AUTO_INCREMENT</code></td>
+<td>MySQL</td>
+<td>per-table counter; InnoDB may leave gaps (rolled-back inserts, bulk inserts)</td>
+</tr>
+<tr>
+<td><code>GENERATED ... AS IDENTITY</code></td>
+<td>Postgres 10+, Oracle, SQL Server (<code>IDENTITY(1,1)</code>)</td>
+<td>SQL-standard form; preferred over <code>SERIAL</code> in new Postgres code</td>
+</tr>
+<tr>
+<td><code>SEQUENCE</code> object</td>
+<td>Postgres, Oracle, SQL Server, MariaDB</td>
+<td>independent counter: <code>CREATE SEQUENCE s; SELECT nextval('s');</code></td>
+</tr>
+<tr>
+<td>UUID</td>
+<td>all (type differs)</td>
+<td>Postgres <code>uuid</code>, MySQL <code>BINARY(16)</code>/<code>CHAR(36)</code>, SQL Server <code>UNIQUEIDENTIFIER</code></td>
+</tr>
+</tbody>
+</table>
+<p>Postgres sequences (not run here, verify):</p>
+<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="n">SEQUENCE</span><span class="w"> </span><span class="n">invoice_no</span><span class="w"> </span><span class="k">START</span><span class="w"> </span><span class="mi">1000</span><span class="w"> </span><span class="k">INCREMENT</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">nextval</span><span class="p">(</span><span class="s1">'invoice_no'</span><span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="p">(</span><span class="n">id</span><span class="w"> </span><span class="nb">bigint</span><span class="w"> </span><span class="k">GENERATED</span><span class="w"> </span><span class="n">ALWAYS</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="k">IDENTITY</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="nb">text</span><span class="p">);</span>
+</code></pre></div>
+
+<p>Key facts interviewers like: sequences are non-transactional (a rollback does not give the number back), so gaps are normal; never promise gapless numbers from a sequence. After insert, fetch the new id with <code>RETURNING id</code> (Postgres, SQLite 3.35+), <code>LAST_INSERT_ID()</code> (MySQL), <code>OUTPUT inserted.id</code> (SQL Server).</p>
+<p>UUID trade-offs: globally unique, can be generated client-side, no hot spot on the last page, hard to guess. Cost: 16 bytes, poor locality. Random UUIDv4 as a clustered primary key in MySQL InnoDB fragments the B-tree and bloats secondary indexes (they carry the PK). Time-ordered variants (UUIDv7, ULID) reduce this; Postgres native support for generating v7 depends on version, check current docs.</p>
+<p>SQLite demo (run): a random 16-byte hex token default and autoincrement id:</p>
+<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">ids_demo</span><span class="w"> </span><span class="p">(</span><span class="n">id</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="n">AUTOINCREMENT</span><span class="p">,</span>
+<span class="w">                       </span><span class="n">token</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="p">(</span><span class="k">lower</span><span class="p">(</span><span class="n">hex</span><span class="p">(</span><span class="n">randomblob</span><span class="p">(</span><span class="mi">16</span><span class="p">)))));</span>
+<span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">ids_demo</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="k">VALUES</span><span class="p">;</span><span class="w"> </span><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">ids_demo</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="k">VALUES</span><span class="p">;</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="k">length</span><span class="p">(</span><span class="n">token</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">toklen</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">ids_demo</span><span class="p">;</span><span class="w">   </span><span class="c1">-- (1,32) and (2,32)</span>
+</code></pre></div>
+
+<h2 id="4-triggers">4. Triggers</h2>
+<p>A trigger runs a body automatically on INSERT/UPDATE/DELETE, <code>BEFORE</code>, <code>AFTER</code>, or <code>INSTEAD OF</code> (views). Granularity: row-level (all three major open-source DBs) vs statement-level (Postgres, SQL Server, Oracle; MySQL and SQLite are row-level only).</p>
+<p>Typical uses: audit trails, maintaining derived/denormalised columns, enforcing rules a CHECK cannot express, making views writable.</p>
+<p><strong>SQLite (run)</strong>: audit price changes, only when the value actually changes.</p>
+<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TRIGGER</span><span class="w"> </span><span class="n">trg_price_audit</span><span class="w"> </span><span class="k">AFTER</span><span class="w"> </span><span class="k">UPDATE</span><span class="w"> </span><span class="k">OF</span><span class="w"> </span><span class="n">price</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">products</span>
+<span class="k">WHEN</span><span class="w"> </span><span class="k">OLD</span><span class="p">.</span><span class="n">price</span><span class="w"> </span><span class="o">&lt;&gt;</span><span class="w"> </span><span class="k">NEW</span><span class="p">.</span><span class="n">price</span>
+<span class="k">BEGIN</span>
+<span class="w">  </span><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">price_audit</span><span class="p">(</span><span class="n">product_id</span><span class="p">,</span><span class="w"> </span><span class="n">old_price</span><span class="p">,</span><span class="w"> </span><span class="n">new_price</span><span class="p">)</span><span class="w"> </span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="k">OLD</span><span class="p">.</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="k">OLD</span><span class="p">.</span><span class="n">price</span><span class="p">,</span><span class="w"> </span><span class="k">NEW</span><span class="p">.</span><span class="n">price</span><span class="p">);</span>
+<span class="k">END</span><span class="p">;</span>
+<span class="k">UPDATE</span><span class="w"> </span><span class="n">products</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">price</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">55</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="o">=</span><span class="mi">1</span><span class="p">;</span>
+<span class="k">UPDATE</span><span class="w"> </span><span class="n">products</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">price</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">55</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="o">=</span><span class="mi">1</span><span class="p">;</span><span class="w">   </span><span class="c1">-- no change, WHEN false, no audit row</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">product_id</span><span class="p">,</span><span class="w"> </span><span class="n">old_price</span><span class="p">,</span><span class="w"> </span><span class="n">new_price</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">price_audit</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>product_id  old_price  new_price
+----------  ---------  ---------
+         1         50         55
+</code></pre></div>
+
+<p>Stock guard and decrement (run). Inserting an item that fits works; one that does not aborts the whole statement:</p>
+<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TRIGGER</span><span class="w"> </span><span class="n">trg_stock</span><span class="w"> </span><span class="k">AFTER</span><span class="w"> </span><span class="k">INSERT</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">order_items</span>
+<span class="k">BEGIN</span><span class="w"> </span><span class="k">UPDATE</span><span class="w"> </span><span class="n">products</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">stock</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">stock</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="k">NEW</span><span class="p">.</span><span class="n">qty</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">NEW</span><span class="p">.</span><span class="n">product_id</span><span class="p">;</span><span class="w"> </span><span class="k">END</span><span class="p">;</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">TRIGGER</span><span class="w"> </span><span class="n">trg_stock_guard</span><span class="w"> </span><span class="k">BEFORE</span><span class="w"> </span><span class="k">INSERT</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">order_items</span>
+<span class="k">WHEN</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="n">stock</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">products</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">NEW</span><span class="p">.</span><span class="n">product_id</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="k">NEW</span><span class="p">.</span><span class="n">qty</span>
+<span class="k">BEGIN</span><span class="w"> </span><span class="k">SELECT</span><span class="w"> </span><span class="n">RAISE</span><span class="p">(</span><span class="k">ABORT</span><span class="p">,</span><span class="w"> </span><span class="s1">'insufficient stock'</span><span class="p">);</span><span class="w"> </span><span class="k">END</span><span class="p">;</span>
+<span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">order_items</span><span class="w"> </span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="mi">4</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">200</span><span class="p">);</span><span class="w">   </span><span class="c1">-- Monitor stock 5 -&gt; 4</span>
+<span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">order_items</span><span class="w"> </span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="mi">4</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">500</span><span class="p">,</span><span class="mi">5</span><span class="p">);</span><span class="w">   </span><span class="c1">-- Error: insufficient stock; Cable stays 100</span>
+</code></pre></div>
+
+<p>Dialect syntax differences: Postgres triggers call a separate function (<code>CREATE FUNCTION ... RETURNS trigger</code>, then <code>CREATE TRIGGER ... EXECUTE FUNCTION f()</code>, using <code>NEW</code>/<code>OLD</code>); MySQL puts the body inline (<code>BEGIN ... END</code> with <code>DELIMITER</code>), error via <code>SIGNAL SQLSTATE '45000'</code>; SQL Server uses pseudo-tables <code>inserted</code>/<code>deleted</code> and fires once per statement (so write set-based bodies). Not run here, verify.</p>
+<p>Cautions: triggers are invisible logic (surprising side effects), hurt bulk-load speed, can cascade or recurse, and make debugging hard. Prefer constraints and explicit application/procedure logic; keep triggers for auditing and invariants.</p>
+<h2 id="5-stored-procedures-and-functions">5. Stored procedures and functions</h2>
+<p>Code stored and run inside the database.</p>
+<ul>
+<li><strong>Function</strong>: returns a value or table; callable inside SQL (<code>SELECT f(x)</code>). </li>
+<li><strong>Procedure</strong>: invoked with <code>CALL</code>; may control transactions (Postgres 11+ allows <code>COMMIT</code> inside procedures; functions cannot). SQL Server uses <code>EXEC</code>.</li>
+<li>Languages: Postgres PL/pgSQL (also PL/Python, SQL, etc.), MySQL its own SQL/PSM, SQL Server T-SQL, Oracle PL/SQL. SQLite has none (register functions from the host language instead).</li>
+</ul>
+<p>Postgres (not run here, verify):</p>
+<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">FUNCTION</span><span class="w"> </span><span class="n">order_total</span><span class="p">(</span><span class="n">p_order</span><span class="w"> </span><span class="nb">bigint</span><span class="p">)</span><span class="w"> </span><span class="k">RETURNS</span><span class="w"> </span><span class="nb">numeric</span>
+<span class="k">LANGUAGE</span><span class="w"> </span><span class="k">sql</span><span class="w"> </span><span class="k">STABLE</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="err">$$</span>
+<span class="w">  </span><span class="k">SELECT</span><span class="w"> </span><span class="k">COALESCE</span><span class="p">(</span><span class="k">SUM</span><span class="p">(</span><span class="n">qty</span><span class="o">*</span><span class="n">unit_price</span><span class="p">),</span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">order_items</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">order_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p_order</span>
+<span class="err">$$</span><span class="p">;</span>
+
+<span class="k">CREATE</span><span class="w"> </span><span class="k">PROCEDURE</span><span class="w"> </span><span class="n">ship_order</span><span class="p">(</span><span class="n">p_order</span><span class="w"> </span><span class="nb">bigint</span><span class="p">)</span><span class="w"> </span><span class="k">LANGUAGE</span><span class="w"> </span><span class="n">plpgsql</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="err">$$</span>
+<span class="k">BEGIN</span>
+<span class="w">  </span><span class="k">UPDATE</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">status</span><span class="o">=</span><span class="s1">'shipped'</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p_order</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">status</span><span class="o">=</span><span class="s1">'paid'</span><span class="p">;</span>
+<span class="w">  </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">FOUND</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">RAISE</span><span class="w"> </span><span class="k">EXCEPTION</span><span class="w"> </span><span class="s1">'order % not shippable'</span><span class="p">,</span><span class="w"> </span><span class="n">p_order</span><span class="p">;</span><span class="w"> </span><span class="k">END</span><span class="w"> </span><span class="k">IF</span><span class="p">;</span>
+<span class="k">END</span><span class="w"> </span><span class="err">$$</span><span class="p">;</span>
+<span class="k">CALL</span><span class="w"> </span><span class="n">ship_order</span><span class="p">(</span><span class="mi">3</span><span class="p">);</span>
+</code></pre></div>
+
+<p>MySQL (not run here, verify):</p>
+<div class="highlight"><pre><span></span><code><span class="k">DELIMITER</span><span class="w"> </span><span class="o">//</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">PROCEDURE</span><span class="w"> </span><span class="n">ship_order</span><span class="p">(</span><span class="k">IN</span><span class="w"> </span><span class="n">p_order</span><span class="w"> </span><span class="nb">BIGINT</span><span class="p">)</span>
+<span class="k">BEGIN</span>
+<span class="w">  </span><span class="k">UPDATE</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">status</span><span class="o">=</span><span class="s1">'shipped'</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p_order</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">status</span><span class="o">=</span><span class="s1">'paid'</span><span class="p">;</span>
+<span class="w">  </span><span class="k">IF</span><span class="w"> </span><span class="k">ROW_COUNT</span><span class="p">()</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">SIGNAL</span><span class="w"> </span><span class="k">SQLSTATE</span><span class="w"> </span><span class="s1">'45000'</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="k">MESSAGE_TEXT</span><span class="o">=</span><span class="s1">'not shippable'</span><span class="p">;</span><span class="w"> </span><span class="k">END</span><span class="w"> </span><span class="k">IF</span><span class="p">;</span>
+<span class="k">END</span><span class="o">//</span>
+<span class="k">DELIMITER</span><span class="w"> </span><span class="p">;</span>
+</code></pre></div>
+
+<p>Volatility labels in Postgres (<code>IMMUTABLE</code>, <code>STABLE</code>, <code>VOLATILE</code>) tell the planner what it may cache or inline; required <code>IMMUTABLE</code> for functions used in index expressions.</p>
+<p>Pros: fewer round trips, one place for rules, permission control (callers get EXECUTE, not table access; <code>SECURITY DEFINER</code> in Postgres runs with the owner's rights, so set <code>search_path</code> carefully). Cons: harder to version/test, ties you to one vendor, business logic splits across layers, scales on the DB server (the hardest tier to scale).</p>
+<h2 id="6-temporary-tables-and-other-scratch-structures">6. Temporary tables and other scratch structures</h2>
+<p>Temp tables live for the session (or transaction) and are invisible to others.</p>
+<p><strong>SQLite (run):</strong></p>
+<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="n">TEMP</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">big_orders</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="k">SELECT</span><span class="w"> </span><span class="n">order_id</span><span class="p">,</span><span class="w"> </span><span class="n">total</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">order_totals</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">total</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">100</span><span class="p">;</span>
+</code></pre></div>
+
+<p>Postgres/MySQL: <code>CREATE TEMP[ORARY] TABLE</code>; SQL Server <code>#name</code> (session) and <code>##name</code> (global). Postgres can <code>ON COMMIT DROP</code>. You can index a temp table and <code>ANALYZE</code> it, which is why people use them to break a huge query into steps and give the planner real statistics, something CTEs do not do. In Postgres 12+ a CTE referenced once is inlined; <code>MATERIALIZED</code> forces a barrier (check current docs). Compare with CTEs in <a href="../../week-03-cte-window-case-dates/lesson.html">week-03</a>. Beware: temp-table churn creates catalog bloat in Postgres; and with connection pooling in transaction mode, session-level temp tables may vanish or leak across clients.</p>
+<h2 id="7-user-defined-types">7. User-defined types</h2>
+<p>Postgres (not run here, verify):</p>
+<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TYPE</span><span class="w"> </span><span class="n">order_status</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">ENUM</span><span class="w"> </span><span class="p">(</span><span class="s1">'new'</span><span class="p">,</span><span class="s1">'paid'</span><span class="p">,</span><span class="s1">'shipped'</span><span class="p">,</span><span class="s1">'cancelled'</span><span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">DOMAIN</span><span class="w"> </span><span class="n">positive_int</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="nb">integer</span><span class="w"> </span><span class="k">CHECK</span><span class="w"> </span><span class="p">(</span><span class="n">VALUE</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">TYPE</span><span class="w"> </span><span class="n">money_pair</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span><span class="n">amount</span><span class="w"> </span><span class="nb">numeric</span><span class="p">,</span><span class="w"> </span><span class="n">currency</span><span class="w"> </span><span class="nb">char</span><span class="p">(</span><span class="mi">3</span><span class="p">));</span>
+</code></pre></div>
+
+<ul>
+<li>ENUM: stored compactly, ordered by declared order; adding values is easy (<code>ALTER TYPE ... ADD VALUE</code>), removing is not. A lookup table with FK is more flexible.</li>
+<li>DOMAIN: a base type plus constraints, reusable across tables. </li>
+<li>Composite types: row-like values, rarely used for stored columns.
+MySQL: inline <code>ENUM('a','b')</code> and <code>SET</code> column types (ordering by index position, altering is a table change). SQL Server: alias types and CLR types. SQLite: no types are enforced beyond affinity (STRICT tables in 3.37+ enforce them); use CHECK.</li>
+</ul>
+<h2 id="8-schemas-namespaces">8. Schemas (namespaces)</h2>
+<p>A schema groups objects inside a database: <code>schema.table</code>.</p>
+<ul>
+<li>Postgres/SQL Server/Oracle: database &gt; schema &gt; object. Postgres resolves unqualified names through <code>search_path</code> (default <code>"$user", public</code>). Tip: revoke CREATE on <code>public</code> from PUBLIC (default changed in Postgres 15, check current docs).</li>
+<li>MySQL: "schema" is a synonym for "database"; there is no extra level. </li>
+<li>SQLite: "databases" via <code>ATTACH DATABASE 'other.db' AS other;</code> then <code>other.table</code>; <code>main</code> and <code>temp</code> are built in.</li>
+</ul>
+<p>Uses: multi-tenant separation (schema-per-tenant, with migration cost), separating app/reporting/staging, permission boundaries.</p>
+<p>SQLite (run-able): </p>
+<div class="highlight"><pre><span></span><code><span class="n">ATTACH</span><span class="w"> </span><span class="k">DATABASE</span><span class="w"> </span><span class="s1">':memory:'</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">archive</span><span class="p">;</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">archive</span><span class="p">.</span><span class="n">old_orders</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">main</span><span class="p">.</span><span class="n">orders</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">status</span><span class="o">=</span><span class="s1">'shipped'</span><span class="p">;</span>
+</code></pre></div>
+
+<h2 id="9-roles-grant-revoke-dcl">9. Roles, GRANT, REVOKE (DCL)</h2>
+<p>Principle of least privilege: the application should not connect as a superuser or schema owner.</p>
+<p>Postgres (not run here, verify):</p>
+<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">ROLE</span><span class="w"> </span><span class="n">app_ro</span><span class="w"> </span><span class="n">NOLOGIN</span><span class="p">;</span>
+<span class="k">GRANT</span><span class="w"> </span><span class="k">USAGE</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="k">SCHEMA</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="k">TO</span><span class="w"> </span><span class="n">app_ro</span><span class="p">;</span>
+<span class="k">GRANT</span><span class="w"> </span><span class="k">SELECT</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="k">ALL</span><span class="w"> </span><span class="n">TABLES</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="k">SCHEMA</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="k">TO</span><span class="w"> </span><span class="n">app_ro</span><span class="p">;</span>
+<span class="k">ALTER</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="k">PRIVILEGES</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="k">SCHEMA</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="k">GRANT</span><span class="w"> </span><span class="k">SELECT</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">TABLES</span><span class="w"> </span><span class="k">TO</span><span class="w"> </span><span class="n">app_ro</span><span class="p">;</span><span class="w">  </span><span class="c1">-- future tables</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">ROLE</span><span class="w"> </span><span class="n">alice</span><span class="w"> </span><span class="n">LOGIN</span><span class="w"> </span><span class="n">PASSWORD</span><span class="w"> </span><span class="s1">'...'</span><span class="w"> </span><span class="p">;</span>
+<span class="k">GRANT</span><span class="w"> </span><span class="n">app_ro</span><span class="w"> </span><span class="k">TO</span><span class="w"> </span><span class="n">alice</span><span class="p">;</span><span class="w">              </span><span class="c1">-- role membership</span>
+<span class="k">REVOKE</span><span class="w"> </span><span class="k">INSERT</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">alice</span><span class="p">;</span>
+<span class="k">GRANT</span><span class="w"> </span><span class="k">SELECT</span><span class="w"> </span><span class="p">(</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">)</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">customers</span><span class="w"> </span><span class="k">TO</span><span class="w"> </span><span class="n">app_ro</span><span class="p">;</span><span class="w">  </span><span class="c1">-- column-level</span>
+</code></pre></div>
+
+<p>Postgres has only roles (users are roles with LOGIN). MySQL (8.0+ has roles): <code>CREATE USER 'a'@'host' IDENTIFIED BY '...'; GRANT SELECT ON shop.* TO 'a'@'host';</code> the host is part of the account identity. SQL Server: logins (server) map to users (database), plus database roles. SQLite: no users or privileges at all; protect the file with the OS.</p>
+<p>Pattern: group roles (<code>app_ro</code>, <code>app_rw</code>, <code>migrator</code>), grant to roles, assign people to roles. Views plus GRANT on the view expose only chosen columns/rows. </p>
+<h2 id="10-row-level-security-rls">10. Row-level security (RLS)</h2>
+<p>Restrict which rows a role sees, enforced by the database, not by app WHERE clauses. Postgres (not run here, verify):</p>
+<div class="highlight"><pre><span></span><code><span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="n">ENABLE</span><span class="w"> </span><span class="k">ROW</span><span class="w"> </span><span class="k">LEVEL</span><span class="w"> </span><span class="k">SECURITY</span><span class="p">;</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="n">POLICY</span><span class="w"> </span><span class="n">tenant_isolation</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">orders</span>
+<span class="w">  </span><span class="k">USING</span><span class="w"> </span><span class="p">(</span><span class="n">tenant_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">current_setting</span><span class="p">(</span><span class="s1">'app.tenant_id'</span><span class="p">)::</span><span class="nb">int</span><span class="p">)</span>
+<span class="w">  </span><span class="k">WITH</span><span class="w"> </span><span class="k">CHECK</span><span class="w"> </span><span class="p">(</span><span class="n">tenant_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">current_setting</span><span class="p">(</span><span class="s1">'app.tenant_id'</span><span class="p">)::</span><span class="nb">int</span><span class="p">);</span>
+<span class="c1">-- app does per request:  SET app.tenant_id = '42';   (or SET LOCAL inside a transaction)</span>
+</code></pre></div>
+
+<p>Table owners and superusers bypass RLS unless <code>FORCE ROW LEVEL SECURITY</code> (owners) is set; superusers and <code>BYPASSRLS</code> roles always bypass. Policies add a filter to every query, so index the policy column. With transaction-mode pooling use <code>SET LOCAL</code> so the setting does not leak. SQL Server has Row-Level Security via security policies and inline table-valued predicate functions. MySQL has no native RLS (use views with <code>SQL SECURITY</code> and a session variable, or the app layer). SQLite none.</p>
+<h2 id="11-dialect-snapshot">11. Dialect snapshot</h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>SQLite</th>
+<th>Postgres</th>
+<th>MySQL (InnoDB)</th>
+<th>SQL Server</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Views</td>
+<td>yes (read-only)</td>
+<td>yes, updatable</td>
+<td>yes, updatable (simple)</td>
+<td>yes, indexed views</td>
+</tr>
+<tr>
+<td>Materialized views</td>
+<td>no</td>
+<td>yes (manual refresh)</td>
+<td>no</td>
+<td>indexed views</td>
+</tr>
+<tr>
+<td>Sequences</td>
+<td>no (rowid)</td>
+<td>yes</td>
+<td>no (AUTO_INCREMENT); MariaDB yes</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Triggers</td>
+<td>row-level</td>
+<td>row + statement</td>
+<td>row-level</td>
+<td>statement-level</td>
+</tr>
+<tr>
+<td>Procedures</td>
+<td>no</td>
+<td>yes (11+)</td>
+<td>yes</td>
+<td>yes (T-SQL)</td>
+</tr>
+<tr>
+<td>Roles/GRANT</td>
+<td>no</td>
+<td>yes</td>
+<td>yes (8.0+ roles)</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>RLS</td>
+<td>no</td>
+<td>yes</td>
+<td>no</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Schemas</td>
+<td>ATTACH</td>
+<td>yes</td>
+<td>= database</td>
+<td>yes</td>
+</tr>
+</tbody>
+</table>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li>Expecting a view to speed things up (it does not, unless materialized/indexed).</li>
+<li>Using <code>SELECT *</code> in a view: columns are frozen at creation in several engines.</li>
+<li>Relying on sequences for gapless invoice numbers.</li>
+<li>Triggers that update the same table recursively.</li>
+<li>Application connecting as the owner/superuser, making RLS and GRANT moot.</li>
+<li>Forgetting <code>ALTER DEFAULT PRIVILEGES</code>, so new tables are unreadable to the read-only role.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<ol>
+<li><code>.read setup.sql</code>, then work through <a href="practice.sql.html">practice.sql</a>.</li>
+<li>Answer <a href="interview-qa.html">interview-qa.md</a> aloud before reading the model answers.</li>
+<li>If you start Postgres via the Docker one-liner in the folder README, run every "not run here, verify" snippet and fix any syntax I got wrong for your version.</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../../06-sql/general-sql/02-set-ops-functions-json/practice.sql.html">← Part 2 · Set ops, functions, JSON: practice.sql (code)</a><a class="next" href="../../../06-sql/general-sql/03-objects-programmability/interview-qa.html">Part 3 · Objects and programmability: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../../assets/data.js"></script><script src="../../../assets/app.js"></script></body></html>

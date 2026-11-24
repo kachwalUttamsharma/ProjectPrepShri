@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>test_exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="11-lld/problem-05-seat-booking/test_exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../11-lld/README.html">Low-Level Design</a> / <a href="../../11-lld/problem-05-seat-booking/lesson.html">Problem 5 · Seat booking</a> / <span>Tests (code)</span></nav><button id="mark-done" data-id="11-lld/problem-05-seat-booking/test_exercises.py">Mark as done</button></div><article class="doc">
+<h1>test_exercises.py</h1><p class="code-path"><code>11-lld/problem-05-seat-booking/test_exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">dataclasses</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">FakeClock</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">now</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">now</span> <span class="o">=</span> <span class="n">now</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">now</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">advance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">seconds</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">now</span> <span class="o">+=</span> <span class="n">seconds</span>
+
+
+<span class="n">SEATS</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">,</span> <span class="s2">"A2"</span><span class="p">,</span> <span class="s2">"A3"</span><span class="p">,</span> <span class="s2">"B1"</span><span class="p">,</span> <span class="s2">"B2"</span><span class="p">]</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">clock</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">FakeClock</span><span class="p">()</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">svc</span><span class="p">(</span><span class="n">clock</span><span class="p">):</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="n">BookingService</span><span class="p">(</span><span class="n">clock</span><span class="p">,</span> <span class="n">hold_ttl</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
+    <span class="n">s</span><span class="o">.</span><span class="n">add_show</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="n">SEATS</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">s</span>
+
+
+<span class="c1"># ---- exceptions / data types</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_exception_hierarchy</span><span class="p">():</span>
+    <span class="k">for</span> <span class="n">exc</span> <span class="ow">in</span> <span class="p">(</span><span class="n">UnknownShowError</span><span class="p">,</span> <span class="n">UnknownSeatError</span><span class="p">,</span> <span class="n">SeatUnavailableError</span><span class="p">,</span>
+                <span class="n">HoldExpiredError</span><span class="p">,</span> <span class="n">InvalidHoldError</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">exc</span><span class="p">,</span> <span class="n">BookingError</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">BookingError</span><span class="p">,</span> <span class="ne">Exception</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_seat_status_members</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="p">{</span><span class="n">s</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">SeatStatus</span><span class="p">}</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"AVAILABLE"</span><span class="p">,</span> <span class="s2">"HELD"</span><span class="p">,</span> <span class="s2">"BOOKED"</span><span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_hold_and_booking_are_frozen_dataclasses</span><span class="p">(</span><span class="n">svc</span><span class="p">):</span>
+    <span class="n">h</span> <span class="o">=</span> <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A2"</span><span class="p">,</span> <span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"u1"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">is_dataclass</span><span class="p">(</span><span class="n">h</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">dataclasses</span><span class="o">.</span><span class="n">FrozenInstanceError</span><span class="p">):</span>
+        <span class="n">h</span><span class="o">.</span><span class="n">user_id</span> <span class="o">=</span> <span class="s2">"x"</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">svc</span><span class="o">.</span><span class="n">confirm</span><span class="p">(</span><span class="n">h</span><span class="o">.</span><span class="n">hold_id</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">is_dataclass</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">dataclasses</span><span class="o">.</span><span class="n">FrozenInstanceError</span><span class="p">):</span>
+        <span class="n">b</span><span class="o">.</span><span class="n">user_id</span> <span class="o">=</span> <span class="s2">"x"</span>
+
+
+<span class="c1"># ---- setup validation</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_ttl_must_be_positive</span><span class="p">(</span><span class="n">clock</span><span class="p">):</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">BookingService</span><span class="p">(</span><span class="n">clock</span><span class="p">,</span> <span class="n">hold_ttl</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_add_show_validation</span><span class="p">(</span><span class="n">svc</span><span class="p">):</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">svc</span><span class="o">.</span><span class="n">add_show</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"Z1"</span><span class="p">])</span>  <span class="c1"># duplicate show</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">svc</span><span class="o">.</span><span class="n">add_show</span><span class="p">(</span><span class="s2">"s2"</span><span class="p">,</span> <span class="p">[])</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">svc</span><span class="o">.</span><span class="n">add_show</span><span class="p">(</span><span class="s2">"s2"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A"</span><span class="p">,</span> <span class="s2">"A"</span><span class="p">])</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_unknown_show_and_seat</span><span class="p">(</span><span class="n">svc</span><span class="p">):</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">UnknownShowError</span><span class="p">):</span>
+        <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"nope"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"u"</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">UnknownShowError</span><span class="p">):</span>
+        <span class="n">svc</span><span class="o">.</span><span class="n">available_seats</span><span class="p">(</span><span class="s2">"nope"</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">UnknownSeatError</span><span class="p">):</span>
+        <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"Z9"</span><span class="p">],</span> <span class="s2">"u"</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">UnknownSeatError</span><span class="p">):</span>
+        <span class="n">svc</span><span class="o">.</span><span class="n">seat_status</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="s2">"Z9"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_hold_argument_validation</span><span class="p">(</span><span class="n">svc</span><span class="p">):</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[],</span> <span class="s2">"u"</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">,</span> <span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"u"</span><span class="p">)</span>
+
+
+<span class="c1"># ---- holding</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_initial_state_all_available</span><span class="p">(</span><span class="n">svc</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">svc</span><span class="o">.</span><span class="n">available_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">)</span> <span class="o">==</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">SEATS</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="n">svc</span><span class="o">.</span><span class="n">seat_status</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span> <span class="ow">is</span> <span class="n">SeatStatus</span><span class="o">.</span><span class="n">AVAILABLE</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">SEATS</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_hold_returns_hold_with_sorted_seats_and_expiry</span><span class="p">(</span><span class="n">svc</span><span class="p">,</span> <span class="n">clock</span><span class="p">):</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">now</span> <span class="o">=</span> <span class="mi">10</span>
+    <span class="n">h</span> <span class="o">=</span> <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"B1"</span><span class="p">,</span> <span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"alice"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">h</span><span class="o">.</span><span class="n">show_id</span> <span class="o">==</span> <span class="s2">"show1"</span> <span class="ow">and</span> <span class="n">h</span><span class="o">.</span><span class="n">user_id</span> <span class="o">==</span> <span class="s2">"alice"</span>
+    <span class="k">assert</span> <span class="n">h</span><span class="o">.</span><span class="n">seat_ids</span> <span class="o">==</span> <span class="p">(</span><span class="s2">"A1"</span><span class="p">,</span> <span class="s2">"B1"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">h</span><span class="o">.</span><span class="n">expires_at</span> <span class="o">==</span> <span class="mi">110</span>
+    <span class="k">assert</span> <span class="n">svc</span><span class="o">.</span><span class="n">seat_status</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="s2">"A1"</span><span class="p">)</span> <span class="ow">is</span> <span class="n">SeatStatus</span><span class="o">.</span><span class="n">HELD</span>
+    <span class="k">assert</span> <span class="n">svc</span><span class="o">.</span><span class="n">seat_status</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="s2">"B1"</span><span class="p">)</span> <span class="ow">is</span> <span class="n">SeatStatus</span><span class="o">.</span><span class="n">HELD</span>
+    <span class="k">assert</span> <span class="n">svc</span><span class="o">.</span><span class="n">available_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"A2"</span><span class="p">,</span> <span class="s2">"A3"</span><span class="p">,</span> <span class="s2">"B2"</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_hold_ids_are_unique_and_increasing</span><span class="p">(</span><span class="n">svc</span><span class="p">):</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"u"</span><span class="p">)</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A2"</span><span class="p">],</span> <span class="s2">"u"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">a</span><span class="o">.</span><span class="n">hold_id</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">b</span><span class="o">.</span><span class="n">hold_id</span> <span class="o">==</span> <span class="mi">2</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_held_seat_cannot_be_held_again</span><span class="p">(</span><span class="n">svc</span><span class="p">):</span>
+    <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"alice"</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">SeatUnavailableError</span><span class="p">):</span>
+        <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"bob"</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">SeatUnavailableError</span><span class="p">):</span>
+        <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"alice"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_hold_is_all_or_nothing</span><span class="p">(</span><span class="n">svc</span><span class="p">):</span>
+    <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A2"</span><span class="p">],</span> <span class="s2">"alice"</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">SeatUnavailableError</span><span class="p">):</span>
+        <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">,</span> <span class="s2">"A2"</span><span class="p">,</span> <span class="s2">"A3"</span><span class="p">],</span> <span class="s2">"bob"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">svc</span><span class="o">.</span><span class="n">seat_status</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="s2">"A1"</span><span class="p">)</span> <span class="ow">is</span> <span class="n">SeatStatus</span><span class="o">.</span><span class="n">AVAILABLE</span>
+    <span class="k">assert</span> <span class="n">svc</span><span class="o">.</span><span class="n">seat_status</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="s2">"A3"</span><span class="p">)</span> <span class="ow">is</span> <span class="n">SeatStatus</span><span class="o">.</span><span class="n">AVAILABLE</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_failed_hold_does_not_consume_id</span><span class="p">(</span><span class="n">svc</span><span class="p">):</span>
+    <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"u"</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">SeatUnavailableError</span><span class="p">):</span>
+        <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"v"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A2"</span><span class="p">],</span> <span class="s2">"v"</span><span class="p">)</span><span class="o">.</span><span class="n">hold_id</span> <span class="o">==</span> <span class="mi">2</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_shows_are_independent</span><span class="p">(</span><span class="n">svc</span><span class="p">):</span>
+    <span class="n">svc</span><span class="o">.</span><span class="n">add_show</span><span class="p">(</span><span class="s2">"show2"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">])</span>
+    <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"u"</span><span class="p">)</span>
+    <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show2"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"v"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">svc</span><span class="o">.</span><span class="n">seat_status</span><span class="p">(</span><span class="s2">"show2"</span><span class="p">,</span> <span class="s2">"A1"</span><span class="p">)</span> <span class="ow">is</span> <span class="n">SeatStatus</span><span class="o">.</span><span class="n">HELD</span>
+
+
+<span class="c1"># ---- expiry (lazy)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_hold_expires_at_exact_ttl</span><span class="p">(</span><span class="n">svc</span><span class="p">,</span> <span class="n">clock</span><span class="p">):</span>
+    <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"alice"</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">99</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">svc</span><span class="o">.</span><span class="n">seat_status</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="s2">"A1"</span><span class="p">)</span> <span class="ow">is</span> <span class="n">SeatStatus</span><span class="o">.</span><span class="n">HELD</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">svc</span><span class="o">.</span><span class="n">seat_status</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="s2">"A1"</span><span class="p">)</span> <span class="ow">is</span> <span class="n">SeatStatus</span><span class="o">.</span><span class="n">AVAILABLE</span>
+    <span class="k">assert</span> <span class="s2">"A1"</span> <span class="ow">in</span> <span class="n">svc</span><span class="o">.</span><span class="n">available_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_expired_seat_can_be_held_by_someone_else</span><span class="p">(</span><span class="n">svc</span><span class="p">,</span> <span class="n">clock</span><span class="p">):</span>
+    <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"alice"</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span>
+    <span class="n">h</span> <span class="o">=</span> <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"bob"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">h</span><span class="o">.</span><span class="n">user_id</span> <span class="o">==</span> <span class="s2">"bob"</span>
+    <span class="k">assert</span> <span class="n">svc</span><span class="o">.</span><span class="n">seat_status</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="s2">"A1"</span><span class="p">)</span> <span class="ow">is</span> <span class="n">SeatStatus</span><span class="o">.</span><span class="n">HELD</span>
+
+
+<span class="c1"># ---- confirm</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_confirm_books_seats</span><span class="p">(</span><span class="n">svc</span><span class="p">):</span>
+    <span class="n">h</span> <span class="o">=</span> <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">,</span> <span class="s2">"A2"</span><span class="p">],</span> <span class="s2">"alice"</span><span class="p">)</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">svc</span><span class="o">.</span><span class="n">confirm</span><span class="p">(</span><span class="n">h</span><span class="o">.</span><span class="n">hold_id</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">b</span><span class="o">.</span><span class="n">booking_id</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">b</span><span class="o">.</span><span class="n">show_id</span> <span class="o">==</span> <span class="s2">"show1"</span> <span class="ow">and</span> <span class="n">b</span><span class="o">.</span><span class="n">user_id</span> <span class="o">==</span> <span class="s2">"alice"</span>
+    <span class="k">assert</span> <span class="n">b</span><span class="o">.</span><span class="n">seat_ids</span> <span class="o">==</span> <span class="p">(</span><span class="s2">"A1"</span><span class="p">,</span> <span class="s2">"A2"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">svc</span><span class="o">.</span><span class="n">seat_status</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="s2">"A1"</span><span class="p">)</span> <span class="ow">is</span> <span class="n">SeatStatus</span><span class="o">.</span><span class="n">BOOKED</span>
+    <span class="k">assert</span> <span class="n">svc</span><span class="o">.</span><span class="n">available_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"A3"</span><span class="p">,</span> <span class="s2">"B1"</span><span class="p">,</span> <span class="s2">"B2"</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_booked_seats_never_expire</span><span class="p">(</span><span class="n">svc</span><span class="p">,</span> <span class="n">clock</span><span class="p">):</span>
+    <span class="n">h</span> <span class="o">=</span> <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"alice"</span><span class="p">)</span>
+    <span class="n">svc</span><span class="o">.</span><span class="n">confirm</span><span class="p">(</span><span class="n">h</span><span class="o">.</span><span class="n">hold_id</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">10_000</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">svc</span><span class="o">.</span><span class="n">seat_status</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="s2">"A1"</span><span class="p">)</span> <span class="ow">is</span> <span class="n">SeatStatus</span><span class="o">.</span><span class="n">BOOKED</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">SeatUnavailableError</span><span class="p">):</span>
+        <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"bob"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_confirm_expired_hold_raises_and_frees_seats</span><span class="p">(</span><span class="n">svc</span><span class="p">,</span> <span class="n">clock</span><span class="p">):</span>
+    <span class="n">h</span> <span class="o">=</span> <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"alice"</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">HoldExpiredError</span><span class="p">):</span>
+        <span class="n">svc</span><span class="o">.</span><span class="n">confirm</span><span class="p">(</span><span class="n">h</span><span class="o">.</span><span class="n">hold_id</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">svc</span><span class="o">.</span><span class="n">seat_status</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="s2">"A1"</span><span class="p">)</span> <span class="ow">is</span> <span class="n">SeatStatus</span><span class="o">.</span><span class="n">AVAILABLE</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_confirm_stale_hold_after_seat_taken_by_other</span><span class="p">(</span><span class="n">svc</span><span class="p">,</span> <span class="n">clock</span><span class="p">):</span>
+    <span class="n">old</span> <span class="o">=</span> <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"alice"</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span>
+    <span class="n">new</span> <span class="o">=</span> <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"bob"</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">HoldExpiredError</span><span class="p">):</span>
+        <span class="n">svc</span><span class="o">.</span><span class="n">confirm</span><span class="p">(</span><span class="n">old</span><span class="o">.</span><span class="n">hold_id</span><span class="p">)</span>
+    <span class="c1"># bob's hold must be untouched</span>
+    <span class="k">assert</span> <span class="n">svc</span><span class="o">.</span><span class="n">seat_status</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="s2">"A1"</span><span class="p">)</span> <span class="ow">is</span> <span class="n">SeatStatus</span><span class="o">.</span><span class="n">HELD</span>
+    <span class="k">assert</span> <span class="n">svc</span><span class="o">.</span><span class="n">confirm</span><span class="p">(</span><span class="n">new</span><span class="o">.</span><span class="n">hold_id</span><span class="p">)</span><span class="o">.</span><span class="n">user_id</span> <span class="o">==</span> <span class="s2">"bob"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_confirm_unknown_or_reused_hold</span><span class="p">(</span><span class="n">svc</span><span class="p">):</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">InvalidHoldError</span><span class="p">):</span>
+        <span class="n">svc</span><span class="o">.</span><span class="n">confirm</span><span class="p">(</span><span class="mi">999</span><span class="p">)</span>
+    <span class="n">h</span> <span class="o">=</span> <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"u"</span><span class="p">)</span>
+    <span class="n">svc</span><span class="o">.</span><span class="n">confirm</span><span class="p">(</span><span class="n">h</span><span class="o">.</span><span class="n">hold_id</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">InvalidHoldError</span><span class="p">):</span>
+        <span class="n">svc</span><span class="o">.</span><span class="n">confirm</span><span class="p">(</span><span class="n">h</span><span class="o">.</span><span class="n">hold_id</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_booking_ids_increase_across_shows</span><span class="p">(</span><span class="n">svc</span><span class="p">):</span>
+    <span class="n">svc</span><span class="o">.</span><span class="n">add_show</span><span class="p">(</span><span class="s2">"show2"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"X1"</span><span class="p">])</span>
+    <span class="n">b1</span> <span class="o">=</span> <span class="n">svc</span><span class="o">.</span><span class="n">confirm</span><span class="p">(</span><span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"u"</span><span class="p">)</span><span class="o">.</span><span class="n">hold_id</span><span class="p">)</span>
+    <span class="n">b2</span> <span class="o">=</span> <span class="n">svc</span><span class="o">.</span><span class="n">confirm</span><span class="p">(</span><span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show2"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"X1"</span><span class="p">],</span> <span class="s2">"u"</span><span class="p">)</span><span class="o">.</span><span class="n">hold_id</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">(</span><span class="n">b1</span><span class="o">.</span><span class="n">booking_id</span><span class="p">,</span> <span class="n">b2</span><span class="o">.</span><span class="n">booking_id</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_bookings_for_user</span><span class="p">(</span><span class="n">svc</span><span class="p">):</span>
+    <span class="n">svc</span><span class="o">.</span><span class="n">confirm</span><span class="p">(</span><span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"alice"</span><span class="p">)</span><span class="o">.</span><span class="n">hold_id</span><span class="p">)</span>
+    <span class="n">svc</span><span class="o">.</span><span class="n">confirm</span><span class="p">(</span><span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A2"</span><span class="p">],</span> <span class="s2">"bob"</span><span class="p">)</span><span class="o">.</span><span class="n">hold_id</span><span class="p">)</span>
+    <span class="n">svc</span><span class="o">.</span><span class="n">confirm</span><span class="p">(</span><span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A3"</span><span class="p">],</span> <span class="s2">"alice"</span><span class="p">)</span><span class="o">.</span><span class="n">hold_id</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">b</span><span class="o">.</span><span class="n">seat_ids</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">svc</span><span class="o">.</span><span class="n">bookings_for</span><span class="p">(</span><span class="s2">"alice"</span><span class="p">)]</span> <span class="o">==</span> <span class="p">[(</span><span class="s2">"A1"</span><span class="p">,),</span> <span class="p">(</span><span class="s2">"A3"</span><span class="p">,)]</span>
+    <span class="k">assert</span> <span class="n">svc</span><span class="o">.</span><span class="n">bookings_for</span><span class="p">(</span><span class="s2">"nobody"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="c1"># ---- release</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_release_frees_seats</span><span class="p">(</span><span class="n">svc</span><span class="p">):</span>
+    <span class="n">h</span> <span class="o">=</span> <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">,</span> <span class="s2">"A2"</span><span class="p">],</span> <span class="s2">"alice"</span><span class="p">)</span>
+    <span class="n">svc</span><span class="o">.</span><span class="n">release</span><span class="p">(</span><span class="n">h</span><span class="o">.</span><span class="n">hold_id</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">svc</span><span class="o">.</span><span class="n">available_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">)</span> <span class="o">==</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">SEATS</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">InvalidHoldError</span><span class="p">):</span>
+        <span class="n">svc</span><span class="o">.</span><span class="n">confirm</span><span class="p">(</span><span class="n">h</span><span class="o">.</span><span class="n">hold_id</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_release_twice_or_unknown</span><span class="p">(</span><span class="n">svc</span><span class="p">):</span>
+    <span class="n">h</span> <span class="o">=</span> <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"u"</span><span class="p">)</span>
+    <span class="n">svc</span><span class="o">.</span><span class="n">release</span><span class="p">(</span><span class="n">h</span><span class="o">.</span><span class="n">hold_id</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">InvalidHoldError</span><span class="p">):</span>
+        <span class="n">svc</span><span class="o">.</span><span class="n">release</span><span class="p">(</span><span class="n">h</span><span class="o">.</span><span class="n">hold_id</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">InvalidHoldError</span><span class="p">):</span>
+        <span class="n">svc</span><span class="o">.</span><span class="n">release</span><span class="p">(</span><span class="mi">12345</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_release_after_confirm_is_invalid_and_keeps_booking</span><span class="p">(</span><span class="n">svc</span><span class="p">):</span>
+    <span class="n">h</span> <span class="o">=</span> <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"u"</span><span class="p">)</span>
+    <span class="n">svc</span><span class="o">.</span><span class="n">confirm</span><span class="p">(</span><span class="n">h</span><span class="o">.</span><span class="n">hold_id</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">InvalidHoldError</span><span class="p">):</span>
+        <span class="n">svc</span><span class="o">.</span><span class="n">release</span><span class="p">(</span><span class="n">h</span><span class="o">.</span><span class="n">hold_id</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">svc</span><span class="o">.</span><span class="n">seat_status</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="s2">"A1"</span><span class="p">)</span> <span class="ow">is</span> <span class="n">SeatStatus</span><span class="o">.</span><span class="n">BOOKED</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_release_expired_hold_does_not_free_new_holders_seat</span><span class="p">(</span><span class="n">svc</span><span class="p">,</span> <span class="n">clock</span><span class="p">):</span>
+    <span class="n">old</span> <span class="o">=</span> <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"alice"</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span>
+    <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"bob"</span><span class="p">)</span>
+    <span class="n">svc</span><span class="o">.</span><span class="n">release</span><span class="p">(</span><span class="n">old</span><span class="o">.</span><span class="n">hold_id</span><span class="p">)</span>  <span class="c1"># must not raise, must not free bob's seat</span>
+    <span class="k">assert</span> <span class="n">svc</span><span class="o">.</span><span class="n">seat_status</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="s2">"A1"</span><span class="p">)</span> <span class="ow">is</span> <span class="n">SeatStatus</span><span class="o">.</span><span class="n">HELD</span>
+
+
+<span class="c1"># ---- concurrency (deterministic: Barrier, no sleeps)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_run_threads</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">fn</span><span class="p">):</span>
+    <span class="n">barrier</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Barrier</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">n</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">worker</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+        <span class="n">barrier</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">results</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"ok"</span><span class="p">,</span> <span class="n">fn</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
+            <span class="n">results</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"err"</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+
+    <span class="n">threads</span> <span class="o">=</span> <span class="p">[</span><span class="n">threading</span><span class="o">.</span><span class="n">Thread</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">worker</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">(</span><span class="n">i</span><span class="p">,))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)]</span>
+    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">threads</span><span class="p">:</span>
+        <span class="n">t</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">threads</span><span class="p">:</span>
+        <span class="n">t</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="n">r</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">results</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">results</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_concurrent_hold_same_seat_exactly_one_wins</span><span class="p">(</span><span class="n">svc</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">20</span><span class="p">):</span>
+        <span class="n">svc</span><span class="o">.</span><span class="n">add_show</span><span class="p">(</span><span class="sa">f</span><span class="s2">"s</span><span class="si">{</span><span class="n">_</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">])</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">20</span><span class="p">):</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="n">_run_threads</span><span class="p">(</span><span class="mi">16</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">k</span><span class="p">,</span> <span class="n">i</span><span class="o">=</span><span class="n">i</span><span class="p">:</span> <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="sa">f</span><span class="s2">"s</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">],</span> <span class="sa">f</span><span class="s2">"u</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">"</span><span class="p">))</span>
+        <span class="n">winners</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">res</span> <span class="k">if</span> <span class="n">r</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"ok"</span><span class="p">]</span>
+        <span class="n">losers</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">res</span> <span class="k">if</span> <span class="n">r</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"err"</span><span class="p">]</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">winners</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+        <span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">SeatUnavailableError</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">losers</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_concurrent_overlapping_holds_never_double_book</span><span class="p">(</span><span class="n">svc</span><span class="p">):</span>
+    <span class="n">svc</span><span class="o">.</span><span class="n">add_show</span><span class="p">(</span><span class="s2">"big"</span><span class="p">,</span> <span class="p">[</span><span class="sa">f</span><span class="s2">"S</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">6</span><span class="p">)])</span>
+    <span class="n">sets</span> <span class="o">=</span> <span class="p">[[</span><span class="s2">"S0"</span><span class="p">,</span> <span class="s2">"S1"</span><span class="p">,</span> <span class="s2">"S2"</span><span class="p">],</span> <span class="p">[</span><span class="s2">"S2"</span><span class="p">,</span> <span class="s2">"S3"</span><span class="p">,</span> <span class="s2">"S4"</span><span class="p">],</span> <span class="p">[</span><span class="s2">"S4"</span><span class="p">,</span> <span class="s2">"S5"</span><span class="p">,</span> <span class="s2">"S0"</span><span class="p">],</span> <span class="p">[</span><span class="s2">"S1"</span><span class="p">,</span> <span class="s2">"S3"</span><span class="p">,</span> <span class="s2">"S5"</span><span class="p">]]</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="n">_run_threads</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">k</span><span class="p">:</span> <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"big"</span><span class="p">,</span> <span class="n">sets</span><span class="p">[</span><span class="n">k</span><span class="p">],</span> <span class="sa">f</span><span class="s2">"u</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">"</span><span class="p">))</span>
+    <span class="n">held</span> <span class="o">=</span> <span class="p">[</span><span class="n">seat</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">res</span> <span class="k">if</span> <span class="n">r</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"ok"</span> <span class="k">for</span> <span class="n">seat</span> <span class="ow">in</span> <span class="n">r</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">seat_ids</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">held</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">held</span><span class="p">))</span>  <span class="c1"># no seat in two holds</span>
+    <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">res</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">r</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"err"</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">r</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">SeatUnavailableError</span><span class="p">)</span>
+    <span class="c1"># state agrees with holds: every held seat reports HELD, others AVAILABLE</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">6</span><span class="p">):</span>
+        <span class="n">expected</span> <span class="o">=</span> <span class="n">SeatStatus</span><span class="o">.</span><span class="n">HELD</span> <span class="k">if</span> <span class="sa">f</span><span class="s2">"S</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">"</span> <span class="ow">in</span> <span class="n">held</span> <span class="k">else</span> <span class="n">SeatStatus</span><span class="o">.</span><span class="n">AVAILABLE</span>
+        <span class="k">assert</span> <span class="n">svc</span><span class="o">.</span><span class="n">seat_status</span><span class="p">(</span><span class="s2">"big"</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"S</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span> <span class="ow">is</span> <span class="n">expected</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_concurrent_confirm_same_hold_exactly_one_booking</span><span class="p">(</span><span class="n">svc</span><span class="p">):</span>
+    <span class="n">h</span> <span class="o">=</span> <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"show1"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"A1"</span><span class="p">],</span> <span class="s2">"alice"</span><span class="p">)</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="n">_run_threads</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">k</span><span class="p">:</span> <span class="n">svc</span><span class="o">.</span><span class="n">confirm</span><span class="p">(</span><span class="n">h</span><span class="o">.</span><span class="n">hold_id</span><span class="p">))</span>
+    <span class="k">assert</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">res</span> <span class="k">if</span> <span class="n">r</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"ok"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">r</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">InvalidHoldError</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">res</span> <span class="k">if</span> <span class="n">r</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"err"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">svc</span><span class="o">.</span><span class="n">bookings_for</span><span class="p">(</span><span class="s2">"alice"</span><span class="p">))</span> <span class="o">==</span> <span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_concurrent_disjoint_holds_all_succeed</span><span class="p">(</span><span class="n">svc</span><span class="p">):</span>
+    <span class="n">svc</span><span class="o">.</span><span class="n">add_show</span><span class="p">(</span><span class="s2">"many"</span><span class="p">,</span> <span class="p">[</span><span class="sa">f</span><span class="s2">"S</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">32</span><span class="p">)])</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="n">_run_threads</span><span class="p">(</span><span class="mi">32</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">k</span><span class="p">:</span> <span class="n">svc</span><span class="o">.</span><span class="n">hold_seats</span><span class="p">(</span><span class="s2">"many"</span><span class="p">,</span> <span class="p">[</span><span class="sa">f</span><span class="s2">"S</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">"</span><span class="p">],</span> <span class="sa">f</span><span class="s2">"u</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">"</span><span class="p">))</span>
+    <span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="n">r</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"ok"</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">res</span><span class="p">)</span>
+    <span class="n">ids</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">hold_id</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">res</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">ids</span><span class="p">))</span> <span class="o">==</span> <span class="mi">32</span>
+    <span class="k">assert</span> <span class="n">svc</span><span class="o">.</span><span class="n">available_seats</span><span class="p">(</span><span class="s2">"many"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../11-lld/problem-05-seat-booking/exercises.py.html">← Problem 5 · Seat booking: Exercises (code)</a><a class="next" href="../../11-lld/problem-06-game-engine/lesson.html">Problem 6 · Game engine: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

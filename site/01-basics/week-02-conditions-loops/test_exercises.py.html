@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>test_exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="01-basics/week-02-conditions-loops/test_exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../01-basics/week-01-first-steps/lesson.html">Python Basics</a> / <a href="../../01-basics/week-02-conditions-loops/lesson.html">Week 2 · Conditions and loops</a> / <span>Tests (code)</span></nav><button id="mark-done" data-id="01-basics/week-02-conditions-loops/test_exercises.py">Mark as done</button></div><article class="doc">
+<h1>test_exercises.py</h1><p class="code-path"><code>01-basics/week-02-conditions-loops/test_exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_sign</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">sign</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"positive"</span>
+    <span class="k">assert</span> <span class="n">sign</span><span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"negative"</span>
+    <span class="k">assert</span> <span class="n">sign</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"zero"</span>
+    <span class="k">assert</span> <span class="n">sign</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"positive"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_grade</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">grade</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"A"</span>
+    <span class="k">assert</span> <span class="n">grade</span><span class="p">(</span><span class="mi">90</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"A"</span>
+    <span class="k">assert</span> <span class="n">grade</span><span class="p">(</span><span class="mi">89</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"B"</span>
+    <span class="k">assert</span> <span class="n">grade</span><span class="p">(</span><span class="mi">80</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"B"</span>
+    <span class="k">assert</span> <span class="n">grade</span><span class="p">(</span><span class="mi">79</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"C"</span>
+    <span class="k">assert</span> <span class="n">grade</span><span class="p">(</span><span class="mi">70</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"C"</span>
+    <span class="k">assert</span> <span class="n">grade</span><span class="p">(</span><span class="mi">69</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"D"</span>
+    <span class="k">assert</span> <span class="n">grade</span><span class="p">(</span><span class="mi">60</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"D"</span>
+    <span class="k">assert</span> <span class="n">grade</span><span class="p">(</span><span class="mi">59</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"F"</span>
+    <span class="k">assert</span> <span class="n">grade</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"F"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_sum_to_n</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">sum_to_n</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">sum_to_n</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">sum_to_n</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span> <span class="o">==</span> <span class="mi">55</span>
+    <span class="k">assert</span> <span class="n">sum_to_n</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span> <span class="o">==</span> <span class="mi">5050</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_count_vowels</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">count_vowels</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">count_vowels</span><span class="p">(</span><span class="s2">"rhythm"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">count_vowels</span><span class="p">(</span><span class="s2">"Hello World"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="n">count_vowels</span><span class="p">(</span><span class="s2">"AEIOUaeiou"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">10</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_fizzbuzz</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">fizzbuzz</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="n">fizzbuzz</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"1"</span><span class="p">,</span> <span class="s2">"2"</span><span class="p">,</span> <span class="s2">"Fizz"</span><span class="p">,</span> <span class="s2">"4"</span><span class="p">,</span> <span class="s2">"Buzz"</span><span class="p">]</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">fizzbuzz</span><span class="p">(</span><span class="mi">15</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">)</span> <span class="o">==</span> <span class="mi">15</span>
+    <span class="k">assert</span> <span class="n">result</span><span class="p">[</span><span class="mi">14</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"FizzBuzz"</span>
+    <span class="k">assert</span> <span class="n">result</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"Fizz"</span>
+    <span class="k">assert</span> <span class="n">result</span><span class="p">[</span><span class="mi">9</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"Buzz"</span>
+    <span class="k">assert</span> <span class="n">result</span><span class="p">[</span><span class="mi">10</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"11"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_factorial</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">factorial</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">factorial</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">factorial</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span> <span class="o">==</span> <span class="mi">120</span>
+    <span class="k">assert</span> <span class="n">factorial</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3628800</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_is_prime</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">is_prime</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="n">is_prime</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="n">is_prime</span><span class="p">(</span><span class="o">-</span><span class="mi">7</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="n">is_prime</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span>
+    <span class="k">assert</span> <span class="n">is_prime</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span>
+    <span class="k">assert</span> <span class="n">is_prime</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="n">is_prime</span><span class="p">(</span><span class="mi">17</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span>
+    <span class="k">assert</span> <span class="n">is_prime</span><span class="p">(</span><span class="mi">21</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="n">is_prime</span><span class="p">(</span><span class="mi">97</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_collatz_steps</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">collatz_steps</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">collatz_steps</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">collatz_steps</span><span class="p">(</span><span class="mi">6</span><span class="p">)</span> <span class="o">==</span> <span class="mi">8</span>
+    <span class="k">assert</span> <span class="n">collatz_steps</span><span class="p">(</span><span class="mi">27</span><span class="p">)</span> <span class="o">==</span> <span class="mi">111</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_first_repeated_char</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">first_repeated_char</span><span class="p">(</span><span class="s2">"abcba"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"b"</span>
+    <span class="k">assert</span> <span class="n">first_repeated_char</span><span class="p">(</span><span class="s2">"abc"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="k">assert</span> <span class="n">first_repeated_char</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="k">assert</span> <span class="n">first_repeated_char</span><span class="p">(</span><span class="s2">"aab"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"a"</span>
+    <span class="k">assert</span> <span class="n">first_repeated_char</span><span class="p">(</span><span class="s2">"abba"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"b"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_right_triangle</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">right_triangle</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">==</span> <span class="s2">""</span>
+    <span class="k">assert</span> <span class="n">right_triangle</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"*"</span>
+    <span class="k">assert</span> <span class="n">right_triangle</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"*</span><span class="se">\n</span><span class="s2">**</span><span class="se">\n</span><span class="s2">***"</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../01-basics/week-02-conditions-loops/exercises.py.html">← Week 2 · Conditions and loops: Exercises (code)</a><a class="next" href="../../01-basics/week-03-functions/lesson.html">Week 3 · Functions: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

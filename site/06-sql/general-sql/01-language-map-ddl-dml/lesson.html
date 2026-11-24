@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Part 01: SQL language map, DDL and DML | Study Hub</title><link rel="stylesheet" href="../../../assets/style.css"><link rel="stylesheet" href="../../../assets/pygments.css"></head>
+<body data-root="../../../" data-page-id="06-sql/general-sql/01-language-map-ddl-dml/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../../index.html">Home</a> / <a href="../../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../../06-sql/general-sql/README.html">General SQL</a> / <a href="../../../06-sql/general-sql/01-language-map-ddl-dml/lesson.html">Part 1 · Language map, DDL and DML</a> / <span>Lesson</span></nav><button id="mark-done" data-id="06-sql/general-sql/01-language-map-ddl-dml/lesson">Mark as done</button></div><article class="doc">
+<h1 id="part-01-sql-language-map-ddl-and-dml">Part 01: SQL language map, DDL and DML</h1>
+<p>Goal: see SQL as a language with sub-languages and dialects (not "a Python thing"), and master the statements that
+change schema and data. Weeks 1-4 covered SELECT, joins, CTEs, windows, basic constraints and transactions; this part
+fills in what they skipped: dialect differences, ALTER/DROP, upsert, MERGE, TRUNCATE, RETURNING.</p>
+<p>Already covered (read, do not repeat): SELECT/WHERE/NULL/GROUP BY in
+<a href="../../week-01-select-filter-aggregate/lesson.html">week-01</a>; keys, constraints, normalization, indexes, transactions in
+<a href="../../week-04-schema-indexes-transactions/lesson.html">week-04</a>.</p>
+<p>Setup: <code>sqlite3 mydb.db &lt; setup.sql</code> then <code>sqlite3 mydb.db</code>. All outputs below were produced with SQLite 3.54 on this
+machine. Snippets marked <strong>(not run here, verify)</strong> are Postgres/MySQL/SQL Server syntax; <code>psql</code> and <code>mysql</code> are not
+installed here. Version-dependent facts: check current docs.</p>
+<h2 id="1-sql-is-a-family-of-sub-languages">1. SQL is a family of sub-languages</h2>
+<table>
+<thead>
+<tr>
+<th>Sub-language</th>
+<th>Purpose</th>
+<th>Statements</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DDL (Data Definition)</td>
+<td>define structure</td>
+<td>CREATE, ALTER, DROP, TRUNCATE, RENAME</td>
+<td>MySQL commits implicitly after DDL; Postgres and SQL Server DDL is transactional; SQLite DDL is transactional too</td>
+</tr>
+<tr>
+<td>DML (Data Manipulation)</td>
+<td>change rows</td>
+<td>INSERT, UPDATE, DELETE, MERGE</td>
+<td></td>
+</tr>
+<tr>
+<td>DQL (Data Query)</td>
+<td>read rows</td>
+<td>SELECT</td>
+<td>some books fold this into DML</td>
+</tr>
+<tr>
+<td>DCL (Data Control)</td>
+<td>permissions</td>
+<td>GRANT, REVOKE</td>
+<td>see part 03; SQLite has none (file permissions only)</td>
+</tr>
+<tr>
+<td>TCL (Transaction Control)</td>
+<td>group statements</td>
+<td>BEGIN/START TRANSACTION, COMMIT, ROLLBACK, SAVEPOINT</td>
+<td>see part 05</td>
+</tr>
+</tbody>
+</table>
+<p>Interview shortcut: DDL = shape, DML = data, DQL = read, DCL = who, TCL = when it becomes permanent.</p>
+<h2 id="2-standard-sql-vs-dialects">2. Standard SQL vs dialects</h2>
+<p>SQL is an ISO/ANSI standard (SQL-92, SQL:1999 added CTEs/triggers, SQL:2003 windows/MERGE, SQL:2016 JSON, and later
+revisions). No engine implements all of it and every engine adds extensions. Typical dialect splits:</p>
+<ul>
+<li>Quoting identifiers: <code>"name"</code> standard (Postgres, SQLite, Oracle); <code>`name`</code> MySQL; <code>[name]</code> SQL Server (and SQLite tolerates all three).</li>
+<li>String literals always use single quotes: <code>'abc'</code>. Double quotes are identifiers in standard SQL (MySQL treats them as strings by default unless ANSI_QUOTES).</li>
+<li>Row limiting: <code>LIMIT n</code> (Postgres, MySQL, SQLite), <code>FETCH FIRST n ROWS ONLY</code> (standard, Postgres, Oracle 12c+, SQL Server with OFFSET), <code>TOP n</code> (SQL Server).</li>
+<li>String concat: <code>||</code> (standard, Postgres, SQLite); <code>CONCAT()</code> (MySQL; <code>||</code> means OR there by default); <code>+</code> or CONCAT in SQL Server.</li>
+<li>Identity columns: see section 5.</li>
+</ul>
+<p>More in <a href="../cheatsheet.html">../cheatsheet.md</a>.</p>
+<h2 id="3-data-types-across-dialects">3. Data types across dialects</h2>
+<table>
+<thead>
+<tr>
+<th>Concept</th>
+<th>Standard / Postgres</th>
+<th>MySQL</th>
+<th>SQLite</th>
+<th>SQL Server</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small/normal/big int</td>
+<td>SMALLINT / INTEGER / BIGINT</td>
+<td>TINYINT.. BIGINT</td>
+<td>INTEGER (1-8 bytes, dynamic)</td>
+<td>TINYINT.. BIGINT</td>
+</tr>
+<tr>
+<td>Exact decimal</td>
+<td>NUMERIC(p,s)</td>
+<td>DECIMAL(p,s)</td>
+<td>NUMERIC affinity (stored as int or float!)</td>
+<td>DECIMAL(p,s)</td>
+</tr>
+<tr>
+<td>Float</td>
+<td>REAL, DOUBLE PRECISION</td>
+<td>FLOAT, DOUBLE</td>
+<td>REAL</td>
+<td>REAL, FLOAT</td>
+</tr>
+<tr>
+<td>Text</td>
+<td>TEXT, VARCHAR(n), CHAR(n)</td>
+<td>VARCHAR(n), TEXT</td>
+<td>TEXT</td>
+<td>VARCHAR(n), NVARCHAR(n) (Unicode)</td>
+</tr>
+<tr>
+<td>Boolean</td>
+<td>BOOLEAN</td>
+<td>BOOLEAN = TINYINT(1) alias</td>
+<td>no type; 0/1 integers (TRUE/FALSE keywords exist)</td>
+<td>BIT</td>
+</tr>
+<tr>
+<td>Date/time</td>
+<td>DATE, TIME, TIMESTAMP [WITH TIME ZONE]</td>
+<td>DATE, DATETIME, TIMESTAMP</td>
+<td>no type; store TEXT ISO-8601, REAL or INTEGER</td>
+<td>DATE, DATETIME2, DATETIMEOFFSET</td>
+</tr>
+<tr>
+<td>JSON</td>
+<td>JSON, JSONB</td>
+<td>JSON</td>
+<td>TEXT + json1 functions</td>
+<td>NVARCHAR + JSON functions (newer versions add a native type; check current docs)</td>
+</tr>
+<tr>
+<td>UUID</td>
+<td>UUID</td>
+<td>CHAR(36) or BINARY(16)</td>
+<td>TEXT/BLOB</td>
+<td>UNIQUEIDENTIFIER</td>
+</tr>
+<tr>
+<td>Binary</td>
+<td>BYTEA</td>
+<td>BLOB, VARBINARY</td>
+<td>BLOB</td>
+<td>VARBINARY</td>
+</tr>
+<tr>
+<td>Auto id</td>
+<td>GENERATED ... AS IDENTITY, SERIAL</td>
+<td>AUTO_INCREMENT</td>
+<td>INTEGER PRIMARY KEY (rowid alias)</td>
+<td>IDENTITY(1,1)</td>
+</tr>
+</tbody>
+</table>
+<p>Rules of thumb:</p>
+<ul>
+<li>Money: exact decimals (NUMERIC/DECIMAL) or integer cents. Never FLOAT.</li>
+<li>Postgres: prefer TEXT or VARCHAR (same speed); <code>TIMESTAMPTZ</code> for instants. Postgres is strictly typed.</li>
+<li>MySQL: <code>TIMESTAMP</code> has a limited range and time-zone conversion semantics, <code>DATETIME</code> does not; check current docs for ranges.</li>
+<li>SQLite is dynamically typed: the declared type is only an "affinity". Real output:</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">);</span>
+<span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="mi">42</span><span class="p">),</span><span class="w"> </span><span class="p">(</span><span class="s1">'abc'</span><span class="p">),</span><span class="w"> </span><span class="p">(</span><span class="s1">'7'</span><span class="p">);</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">typeof</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="k">type</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">t</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code> n    type
+---  -------
+ 42  integer
+abc  text
+  7  integer
+</code></pre></div>
+
+<p><code>'abc'</code> was happily stored in an INTEGER column; <code>'7'</code> was converted. Postgres would reject <code>'abc'</code>. (Newer SQLite supports <code>CREATE TABLE ... STRICT</code> to enforce types; check current docs.)</p>
+<h2 id="4-create-alter-drop">4. CREATE, ALTER, DROP</h2>
+<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">courses</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="n">id</span><span class="w">      </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
+<span class="w">    </span><span class="n">code</span><span class="w">    </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">UNIQUE</span><span class="p">,</span>
+<span class="w">    </span><span class="n">title</span><span class="w">   </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="n">credits</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="k">CHECK</span><span class="w"> </span><span class="p">(</span><span class="n">credits</span><span class="w"> </span><span class="k">BETWEEN</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="mi">10</span><span class="p">)</span>
+<span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="p">...;</span><span class="w">          </span><span class="c1">-- idempotent scripts</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="k">copy</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="k">SELECT</span><span class="w"> </span><span class="p">...;</span><span class="w">         </span><span class="c1">-- CTAS: copies data, NOT constraints/indexes (SQL Server: SELECT ... INTO)</span>
+</code></pre></div>
+
+<h3 id="alter-table">ALTER TABLE</h3>
+<div class="highlight"><pre><span></span><code><span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">students</span><span class="w"> </span><span class="k">ADD</span><span class="w"> </span><span class="k">COLUMN</span><span class="w"> </span><span class="n">phone</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">;</span><span class="w">            </span><span class="c1">-- works everywhere</span>
+<span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">students</span><span class="w"> </span><span class="k">RENAME</span><span class="w"> </span><span class="k">COLUMN</span><span class="w"> </span><span class="n">phone</span><span class="w"> </span><span class="k">TO</span><span class="w"> </span><span class="n">mobile</span><span class="p">;</span><span class="w">    </span><span class="c1">-- Postgres, MySQL 8, SQLite 3.25+</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="k">type</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">pragma_table_info</span><span class="p">(</span><span class="s1">'students'</span><span class="p">);</span><span class="w">  </span><span class="c1">-- SQLite introspection</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>  name      type
+---------  -------
+id         INTEGER
+email      TEXT
+full_name  TEXT
+city       TEXT
+joined_on  TEXT
+mobile     TEXT
+</code></pre></div>
+
+<p>Dialect-specific (not run here, verify):</p>
+<div class="highlight"><pre><span></span><code><span class="c1">-- Postgres</span>
+<span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">students</span><span class="w"> </span><span class="k">ALTER</span><span class="w"> </span><span class="k">COLUMN</span><span class="w"> </span><span class="n">city</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">;</span>
+<span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">students</span><span class="w"> </span><span class="k">ALTER</span><span class="w"> </span><span class="k">COLUMN</span><span class="w"> </span><span class="n">city</span><span class="w"> </span><span class="k">TYPE</span><span class="w"> </span><span class="nb">VARCHAR</span><span class="p">(</span><span class="mi">100</span><span class="p">);</span>
+<span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">students</span><span class="w"> </span><span class="k">DROP</span><span class="w"> </span><span class="k">COLUMN</span><span class="w"> </span><span class="n">mobile</span><span class="p">;</span>
+<span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">students</span><span class="w"> </span><span class="k">ADD</span><span class="w"> </span><span class="k">CONSTRAINT</span><span class="w"> </span><span class="n">uq_email</span><span class="w"> </span><span class="k">UNIQUE</span><span class="w"> </span><span class="p">(</span><span class="n">email</span><span class="p">);</span>
+<span class="c1">-- MySQL</span>
+<span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">students</span><span class="w"> </span><span class="k">MODIFY</span><span class="w"> </span><span class="k">COLUMN</span><span class="w"> </span><span class="n">city</span><span class="w"> </span><span class="nb">VARCHAR</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">;</span>
+<span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">students</span><span class="w"> </span><span class="k">DROP</span><span class="w"> </span><span class="k">COLUMN</span><span class="w"> </span><span class="n">mobile</span><span class="p">;</span>
+<span class="c1">-- SQL Server</span>
+<span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">students</span><span class="w"> </span><span class="k">ALTER</span><span class="w"> </span><span class="k">COLUMN</span><span class="w"> </span><span class="n">city</span><span class="w"> </span><span class="n">NVARCHAR</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">;</span>
+<span class="k">EXEC</span><span class="w"> </span><span class="n">sp_rename</span><span class="w"> </span><span class="s1">'students.mobile'</span><span class="p">,</span><span class="w"> </span><span class="s1">'phone'</span><span class="p">,</span><span class="w"> </span><span class="s1">'COLUMN'</span><span class="p">;</span>
+</code></pre></div>
+
+<p>SQLite supports ADD/RENAME/DROP COLUMN (DROP since 3.35) but cannot change a column's type or constraints; the recipe is: create new table, copy rows, drop old, rename new.</p>
+<p>Operational warning: some ALTERs rewrite the whole table and hold a strong lock (changing a type; in older Postgres adding a column with a DEFAULT; many MySQL operations unless ALGORITHM=INSTANT/INPLACE). Which are cheap depends on the version: check current docs. See part 05 (migrations without downtime).</p>
+<h3 id="drop">DROP</h3>
+<div class="highlight"><pre><span></span><code><span class="k">DROP</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">t</span><span class="p">;</span>
+<span class="k">DROP</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">parent</span><span class="w"> </span><span class="k">CASCADE</span><span class="p">;</span><span class="w">     </span><span class="c1">-- Postgres: also drops dependent objects (views, FKs). Dangerous.</span>
+</code></pre></div>
+
+<p>Dropping a table referenced by a foreign key fails (Postgres/MySQL) unless you CASCADE or drop the FK first.</p>
+<h2 id="5-constraints-beyond-week-4">5. Constraints (beyond week 4)</h2>
+<p>Week 4 introduced PK / UNIQUE / NOT NULL / CHECK / FK; here are the details people miss. Real error messages from SQLite:</p>
+<div class="highlight"><pre><span></span><code><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">courses</span><span class="w"> </span><span class="p">(</span><span class="n">code</span><span class="p">,</span><span class="n">title</span><span class="p">,</span><span class="n">credits</span><span class="p">)</span><span class="w"> </span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="s1">'X1'</span><span class="p">,</span><span class="s1">'Bad'</span><span class="p">,</span><span class="mi">99</span><span class="p">);</span>
+<span class="c1">-- CHECK constraint failed: credits BETWEEN 1 AND 10</span>
+<span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">enrollments</span><span class="w"> </span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">99</span><span class="p">,</span><span class="w"> </span><span class="mi">50</span><span class="p">);</span>
+<span class="c1">-- FOREIGN KEY constraint failed</span>
+<span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">students</span><span class="w"> </span><span class="p">(</span><span class="n">email</span><span class="p">,</span><span class="w"> </span><span class="n">full_name</span><span class="p">)</span><span class="w"> </span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="s1">'z@example.com'</span><span class="p">,</span><span class="w"> </span><span class="k">NULL</span><span class="p">);</span>
+<span class="c1">-- NOT NULL constraint failed: students.full_name</span>
+<span class="k">DELETE</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">courses</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w">        </span><span class="c1">-- ON DELETE RESTRICT, course 1 has enrollments</span>
+<span class="c1">-- FOREIGN KEY constraint failed</span>
+</code></pre></div>
+
+<ul>
+<li><strong>FK actions</strong>: <code>ON DELETE CASCADE | RESTRICT | NO ACTION | SET NULL | SET DEFAULT</code>. Delete a student and their enrollments vanish:</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="k">DELETE</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">students</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="n">RETURNING</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">full_name</span><span class="p">;</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="k">count</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">enrollments_left</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">enrollments</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>id  full_name
+--  ---------
+ 3  Chen Li
+enrollments_left
+----------------
+               4
+</code></pre></div>
+
+<p>(it was 5; student 3's row was cascaded.)</p>
+<ul>
+<li><strong>SQLite FK gotcha</strong>: enforcement is off unless <code>PRAGMA foreign_keys = ON</code> on each connection. Postgres/MySQL(InnoDB) always enforce.</li>
+<li><strong>NULL and UNIQUE</strong>: NULLs are distinct, so a UNIQUE column may hold many NULLs (SQLite, Postgres by default, MySQL). Real output with two NULL inserts into a UNIQUE column: <code>null_rows_in_unique = 2</code>. SQL Server allows only one NULL in a UNIQUE constraint. Postgres 15+ has <code>UNIQUE NULLS NOT DISTINCT</code> (check current docs).</li>
+<li><strong>CHECK passes on NULL</strong>: a CHECK evaluating to UNKNOWN is accepted (the grade column accepts NULL despite <code>BETWEEN 0 AND 100</code>). Add NOT NULL if you mean it. MySQL enforces CHECK only from 8.0.16; older versions parse and ignore it.</li>
+<li><strong>Composite keys</strong>: <code>PRIMARY KEY (student_id, course_id)</code> in <code>enrollments</code> makes duplicate pairs impossible.</li>
+<li><strong>Deferrable constraints</strong> (Postgres, SQLite, Oracle): <code>DEFERRABLE INITIALLY DEFERRED</code> checks the FK at COMMIT, handy for circular inserts. Not in MySQL.</li>
+<li><strong>Exclusion constraints</strong> (Postgres only): "no two bookings overlap" via <code>EXCLUDE USING gist</code>. Not run here, verify.</li>
+<li><strong>DEFAULT</strong>: constant or expression (<code>DEFAULT CURRENT_TIMESTAMP</code>). Postgres <code>DEFAULT now()</code>.</li>
+<li><strong>Generated columns</strong>: <code>full AS (a || b) STORED</code> in several engines; syntax differs, check current docs.</li>
+</ul>
+<p>Auto-generated keys, by dialect (not run here, verify):</p>
+<div class="highlight"><pre><span></span><code><span class="c1">-- Postgres / standard (preferred over SERIAL on new schemas)</span>
+<span class="n">id</span><span class="w"> </span><span class="nb">BIGINT</span><span class="w"> </span><span class="k">GENERATED</span><span class="w"> </span><span class="n">ALWAYS</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="k">IDENTITY</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span>
+<span class="c1">-- MySQL</span>
+<span class="n">id</span><span class="w"> </span><span class="nb">BIGINT</span><span class="w"> </span><span class="n">AUTO_INCREMENT</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span>
+<span class="c1">-- SQL Server</span>
+<span class="n">id</span><span class="w"> </span><span class="nb">BIGINT</span><span class="w"> </span><span class="k">IDENTITY</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span>
+<span class="c1">-- SQLite</span>
+<span class="n">id</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w">            </span><span class="c1">-- alias of rowid; AUTOINCREMENT only prevents id reuse</span>
+</code></pre></div>
+
+<p>Sequences and UUIDs are explored in part 03.</p>
+<h2 id="6-insert-update-delete">6. INSERT, UPDATE, DELETE</h2>
+<div class="highlight"><pre><span></span><code><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">students</span><span class="w"> </span><span class="p">(</span><span class="n">email</span><span class="p">,</span><span class="w"> </span><span class="n">full_name</span><span class="p">)</span><span class="w"> </span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="s1">'eve@example.com'</span><span class="p">,</span><span class="w"> </span><span class="s1">'Eve'</span><span class="p">);</span><span class="w">          </span><span class="c1">-- always list columns</span>
+<span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">students</span><span class="w"> </span><span class="p">(</span><span class="n">email</span><span class="p">,</span><span class="w"> </span><span class="n">full_name</span><span class="p">)</span><span class="w"> </span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="s1">'a@x.com'</span><span class="p">,</span><span class="s1">'A'</span><span class="p">),</span><span class="w"> </span><span class="p">(</span><span class="s1">'b@x.com'</span><span class="p">,</span><span class="s1">'B'</span><span class="p">);</span><span class="w">    </span><span class="c1">-- multi-row: one statement, much faster</span>
+<span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">archive_students</span><span class="w"> </span><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">students</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">joined_on</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="s1">'2024-03-01'</span><span class="p">;</span><span class="w"> </span><span class="c1">-- INSERT ... SELECT</span>
+</code></pre></div>
+
+<p>Column omitted =&gt; its DEFAULT (or NULL). <code>INSERT ... VALUES</code> without a column list breaks when someone adds a column.</p>
+<div class="highlight"><pre><span></span><code><span class="k">UPDATE</span><span class="w"> </span><span class="n">courses</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">credits</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">credits</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">code</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'PY101'</span><span class="p">;</span>
+<span class="k">UPDATE</span><span class="w"> </span><span class="n">enrollments</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">grade</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">grade</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">5</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">course_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">grade</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">;</span>
+</code></pre></div>
+
+<p><strong>Always write the WHERE first.</strong> <code>UPDATE</code>/<code>DELETE</code> without WHERE touches every row. Habit: run a <code>SELECT</code> with the same WHERE, then change the verb; or wrap in a transaction and check the "rows affected" count:</p>
+<div class="highlight"><pre><span></span><code><span class="k">BEGIN</span><span class="p">;</span>
+<span class="k">DELETE</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">enrollments</span><span class="p">;</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="k">count</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">inside_tx</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">enrollments</span><span class="p">;</span><span class="w">   </span><span class="c1">-- 0</span>
+<span class="k">ROLLBACK</span><span class="p">;</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="k">count</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">after_rollback</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">enrollments</span><span class="p">;</span><span class="w">  </span><span class="c1">-- 4 here (5 in a fresh setup.sql)</span>
+</code></pre></div>
+
+<p>(Real output: <code>inside_tx 0</code>, <code>after_rollback 4</code> in the session where student 3 had already been deleted.)</p>
+<p>UPDATE with data from another table (dialects differ, not run here, verify):</p>
+<div class="highlight"><pre><span></span><code><span class="c1">-- Postgres / SQL Server-ish</span>
+<span class="k">UPDATE</span><span class="w"> </span><span class="n">enrollments</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">grade</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">students</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">student_id</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">city</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NULL</span><span class="p">;</span><span class="w">   </span><span class="c1">-- Postgres</span>
+<span class="c1">-- MySQL</span>
+<span class="k">UPDATE</span><span class="w"> </span><span class="n">enrollments</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">students</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">student_id</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">grade</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">city</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NULL</span><span class="p">;</span>
+<span class="c1">-- Portable: correlated subquery</span>
+<span class="k">UPDATE</span><span class="w"> </span><span class="n">enrollments</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">grade</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">student_id</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">students</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">city</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NULL</span><span class="p">);</span>
+</code></pre></div>
+
+<h3 id="returning">RETURNING</h3>
+<p>Get the affected rows back without a second query. Postgres, SQLite 3.35+, MariaDB 10.5+ (INSERT/DELETE); not in MySQL. SQL Server uses <code>OUTPUT inserted.col</code>. Real output:</p>
+<div class="highlight"><pre><span></span><code><span class="k">UPDATE</span><span class="w"> </span><span class="n">courses</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">credits</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">credits</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">code</span><span class="o">=</span><span class="s1">'PY101'</span><span class="w"> </span><span class="n">RETURNING</span><span class="w"> </span><span class="n">code</span><span class="p">,</span><span class="w"> </span><span class="n">credits</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>code   credits
+-----  -------
+PY101        4
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">students</span><span class="w"> </span><span class="p">(</span><span class="n">email</span><span class="p">,</span><span class="w"> </span><span class="n">full_name</span><span class="p">)</span><span class="w"> </span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="s1">'eve@example.com'</span><span class="p">,</span><span class="s1">'Eve'</span><span class="p">)</span><span class="w"> </span><span class="n">RETURNING</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">joined_on</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>id  joined_on
+--  ----------
+ 5  2024-01-01
+</code></pre></div>
+
+<p>This is the right way to get a generated id (not <code>SELECT MAX(id)</code>, which races). MySQL: <code>LAST_INSERT_ID()</code>. SQL Server: <code>INSERT ... OUTPUT inserted.id VALUES ...</code> (not run here, verify).</p>
+<h2 id="7-upsert">7. Upsert</h2>
+<p>"Insert, or if the key already exists, update." Never implement as SELECT-then-INSERT in application code: two concurrent sessions both see "missing" and one fails (or duplicates).</p>
+<p>Postgres and SQLite (identical syntax; real output from SQLite):</p>
+<div class="highlight"><pre><span></span><code><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">students</span><span class="w"> </span><span class="p">(</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">email</span><span class="p">,</span><span class="w"> </span><span class="n">full_name</span><span class="p">,</span><span class="w"> </span><span class="n">city</span><span class="p">)</span><span class="w"> </span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="mi">9</span><span class="p">,</span><span class="w"> </span><span class="s1">'asha@example.com'</span><span class="p">,</span><span class="w"> </span><span class="s1">'Asha R. Rao'</span><span class="p">,</span><span class="w"> </span><span class="s1">'Mumbai'</span><span class="p">)</span>
+<span class="k">ON</span><span class="w"> </span><span class="n">CONFLICT</span><span class="w"> </span><span class="p">(</span><span class="n">email</span><span class="p">)</span><span class="w"> </span><span class="k">DO</span><span class="w"> </span><span class="k">UPDATE</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">full_name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">excluded</span><span class="p">.</span><span class="n">full_name</span><span class="p">,</span><span class="w"> </span><span class="n">city</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">excluded</span><span class="p">.</span><span class="n">city</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>id  email             full_name    city
+--  ----------------  -----------  ------
+ 1  asha@example.com  Asha R. Rao  Mumbai
+ 2  ben@example.com   Ben Carter   Austin
+ 3  chen@example.com  Chen Li
+ 4  dina@example.com  Dina Ortiz   Austin
+</code></pre></div>
+
+<p>The conflict on <code>email</code> was detected, row 1 updated in place, no id 9 created. <code>excluded</code> = the row you tried to insert.
+<code>ON CONFLICT DO NOTHING</code> skips silently (real output: student count stays at 4).</p>
+<p>MySQL (not run here, verify):</p>
+<div class="highlight"><pre><span></span><code><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">students</span><span class="w"> </span><span class="p">(</span><span class="n">email</span><span class="p">,</span><span class="w"> </span><span class="n">full_name</span><span class="p">,</span><span class="w"> </span><span class="n">city</span><span class="p">)</span><span class="w"> </span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="s1">'asha@example.com'</span><span class="p">,</span><span class="s1">'Asha R. Rao'</span><span class="p">,</span><span class="s1">'Mumbai'</span><span class="p">)</span>
+<span class="k">ON</span><span class="w"> </span><span class="n">DUPLICATE</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="k">UPDATE</span><span class="w"> </span><span class="n">full_name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">VALUES</span><span class="p">(</span><span class="n">full_name</span><span class="p">),</span><span class="w"> </span><span class="n">city</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">VALUES</span><span class="p">(</span><span class="n">city</span><span class="p">);</span><span class="w">   </span><span class="c1">-- newer: use a row alias, check current docs</span>
+<span class="k">INSERT</span><span class="w"> </span><span class="k">IGNORE</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="p">...;</span><span class="w">    </span><span class="c1">-- ignores ALL errors of certain kinds, not just duplicates: prefer ON DUPLICATE KEY UPDATE id=id</span>
+</code></pre></div>
+
+<p>MySQL fires on ANY unique key, you cannot name which one. Rows-affected quirk: 1 = inserted, 2 = updated, 0 = unchanged.</p>
+<h2 id="8-merge">8. MERGE</h2>
+<p>Standard SQL:2003. Supported by SQL Server, Oracle, and Postgres 15+ (check current docs). Not in MySQL or SQLite. Not run here, verify:</p>
+<div class="highlight"><pre><span></span><code><span class="n">MERGE</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">students</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">t</span>
+<span class="k">USING</span><span class="w"> </span><span class="n">staging_students</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="n">email</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">email</span>
+<span class="k">WHEN</span><span class="w"> </span><span class="n">MATCHED</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">full_name</span><span class="w"> </span><span class="o">&lt;&gt;</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="n">full_name</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="k">UPDATE</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">full_name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">full_name</span><span class="p">,</span><span class="w"> </span><span class="n">city</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">city</span>
+<span class="k">WHEN</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="n">MATCHED</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="k">INSERT</span><span class="w"> </span><span class="p">(</span><span class="n">email</span><span class="p">,</span><span class="w"> </span><span class="n">full_name</span><span class="p">,</span><span class="w"> </span><span class="n">city</span><span class="p">)</span><span class="w"> </span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="n">email</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">full_name</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">city</span><span class="p">)</span>
+<span class="k">WHEN</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="n">MATCHED</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="k">SOURCE</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="k">DELETE</span><span class="p">;</span><span class="w">      </span><span class="c1">-- BY SOURCE is SQL Server only</span>
+</code></pre></div>
+
+<p>Use for bulk sync from a staging table. SQL Server's MERGE has a history of concurrency bugs; many teams prefer separate statements there (check current guidance). In Postgres MERGE, concurrent inserts may still raise unique violations; ON CONFLICT is safer for single-row upserts.</p>
+<h2 id="9-delete-vs-truncate-vs-drop">9. DELETE vs TRUNCATE vs DROP</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>DELETE</th>
+<th>TRUNCATE</th>
+<th>DROP TABLE</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Category</td>
+<td>DML</td>
+<td>DDL (treated as DDL)</td>
+<td>DDL</td>
+</tr>
+<tr>
+<td>WHERE clause</td>
+<td>yes</td>
+<td>no</td>
+<td>no</td>
+</tr>
+<tr>
+<td>Removes</td>
+<td>chosen rows</td>
+<td>all rows, keeps table</td>
+<td>rows and table</td>
+</tr>
+<tr>
+<td>Speed on big tables</td>
+<td>slow (row by row, logs each)</td>
+<td>fast (deallocates pages, minimal logging)</td>
+<td>fast</td>
+</tr>
+<tr>
+<td>Triggers fire</td>
+<td>yes (row triggers)</td>
+<td>no (Postgres has TRUNCATE triggers only)</td>
+<td>no</td>
+</tr>
+<tr>
+<td>Resets identity/auto-increment</td>
+<td>no</td>
+<td>yes in MySQL, SQL Server; Postgres only with <code>RESTART IDENTITY</code></td>
+<td>n/a</td>
+</tr>
+<tr>
+<td>Transactional / rollback</td>
+<td>yes</td>
+<td>Postgres, SQL Server: yes; MySQL, Oracle: implicit commit, no</td>
+<td>Postgres: yes; MySQL: no</td>
+</tr>
+<tr>
+<td>With FK references</td>
+<td>works if children handled</td>
+<td>fails (MySQL, SQL Server) unless <code>CASCADE</code> (Postgres)</td>
+<td>needs CASCADE</td>
+</tr>
+<tr>
+<td>Locks</td>
+<td>row locks</td>
+<td>table lock (Postgres ACCESS EXCLUSIVE)</td>
+<td>table lock</td>
+</tr>
+</tbody>
+</table>
+<p>SQLite has no TRUNCATE; <code>DELETE FROM t;</code> is optimized into a truncate when there's no WHERE (and triggers).
+Postgres: <code>TRUNCATE a, b RESTART IDENTITY CASCADE;</code> (not run here, verify).</p>
+<h2 id="10-transactions-around-ddldml-recap-dialect-hooks">10. Transactions around DDL/DML (recap + dialect hooks)</h2>
+<p>Concept in <a href="../../week-04-schema-indexes-transactions/lesson.html">week-04 section 5</a>. New points: Postgres and SQLite allow DDL inside a transaction, so a failed migration rolls back wholly; MySQL commits implicitly before and after most DDL, so a half-applied migration is possible. Always run migrations in a tool that records versions (Flyway, Liquibase, Alembic, Prisma Migrate).</p>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li><code>UPDATE</code>/<code>DELETE</code> without WHERE; not checking "rows affected".</li>
+<li><code>INSERT</code> without a column list.</li>
+<li>FLOAT for money; storing dates as free-form text.</li>
+<li>Relying on SQLite's leniency (types, FK off, aliases in WHERE) then deploying on Postgres.</li>
+<li><code>SELECT MAX(id)</code> instead of RETURNING / LAST_INSERT_ID.</li>
+<li>App-level check-then-insert instead of a UNIQUE constraint plus upsert.</li>
+<li>Thinking CHECK rejects NULL.</li>
+<li>Expecting TRUNCATE to roll back on MySQL.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<ol>
+<li><code>sqlite3 mydb.db &lt; setup.sql</code>.</li>
+<li>Work through <code>practice.sql</code> (write each query under its task, run with <code>sqlite3 mydb.db &lt; practice.sql</code> or paste into the shell).</li>
+<li>Read <code>interview-qa.md</code> aloud, answering before reading the model answer.</li>
+<li>Optional: run Postgres via Docker (see ../README.md) and retype the dialect snippets above; note what differs.</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../../06-sql/general-sql/README.html">← General SQL: Overview</a><a class="next" href="../../../06-sql/general-sql/01-language-map-ddl-dml/interview-qa.html">Part 1 · Language map, DDL and DML: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../../assets/data.js"></script><script src="../../../assets/app.js"></script></body></html>

@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="04-fastapi/week-02-pydantic-validation/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../04-fastapi/week-01-first-endpoints/lesson.html">FastAPI</a> / <a href="../../04-fastapi/week-02-pydantic-validation/lesson.html">Week 2 · Pydantic and validation</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="04-fastapi/week-02-pydantic-validation/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>04-fastapi/week-02-pydantic-validation/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 2 exercises: Pydantic models, validation, response_model, errors.</span>
+
+<span class="sd">Replace each `...` with your code. Part A: models. Part B: routes that use them.</span>
+<span class="sd">Run by hand:  ../../.venv/bin/uvicorn exercises:app --reload   then open /docs</span>
+<span class="sd">"""</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">date</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">FastAPI</span><span class="p">,</span> <span class="n">HTTPException</span><span class="p">,</span> <span class="n">Query</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">Field</span><span class="p">,</span> <span class="n">field_validator</span><span class="p">,</span> <span class="n">model_validator</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">"Week 2 API"</span><span class="p">)</span>
+
+<span class="n">PRODUCTS</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="n">USERS</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">reset_state</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Provided: tests call this between tests. Do not change."""</span>
+    <span class="n">PRODUCTS</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+    <span class="n">USERS</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+
+
+<span class="c1"># ======================= Part A: models =================================</span>
+
+<span class="c1"># Exercise 1 -------------------------------------------------------------</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ProductCreate</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""TODO: fields</span>
+<span class="sd">        name: str, 1..50 characters</span>
+<span class="sd">        price: float, strictly greater than 0</span>
+<span class="sd">        quantity: int, &gt;= 0, default 0</span>
+<span class="sd">        tags: list[str], default empty list</span>
+<span class="sd">    Hint: Field(min_length=1, max_length=50), Field(gt=0), Field(default=0, ge=0),</span>
+<span class="sd">    Field(default_factory=list).</span>
+<span class="sd">    """</span>
+
+
+<span class="c1"># Exercise 2 -------------------------------------------------------------</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ProductRead</span><span class="p">(</span><span class="n">ProductCreate</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""TODO: same as ProductCreate plus `id: int`. (Inheritance keeps it DRY.)"""</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ProductUpdate</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""TODO: for PATCH. Every field optional with default None:</span>
+<span class="sd">    name (1..50), price (&gt; 0), quantity (&gt;= 0), tags (list[str]).</span>
+<span class="sd">    Hint: `name: str | None = Field(default=None, min_length=1, max_length=50)`</span>
+<span class="sd">    """</span>
+
+
+<span class="c1"># Exercise 3 -------------------------------------------------------------</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Customer</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""TODO: fields</span>
+<span class="sd">        name: str  -- stripped of surrounding whitespace; must not be empty after stripping</span>
+<span class="sd">        email: str -- stripped and lowercased; must contain exactly one '@' and the part</span>
+<span class="sd">                      after '@' must contain a '.'  (else ValueError)</span>
+<span class="sd">        age: int | None = None -- if given must be 0..120</span>
+<span class="sd">    Hint: @field_validator("email") with @classmethod. Use mode="before" if you</span>
+<span class="sd">    need to see the raw value; here the default ("after") works since it's already a str.</span>
+<span class="sd">    Raising ValueError inside a validator becomes a validation error.</span>
+<span class="sd">    """</span>
+
+
+<span class="c1"># Exercise 4 -------------------------------------------------------------</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">DateRange</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""TODO: fields start: date, end: date.</span>
+<span class="sd">    - end must not be before start (ValueError otherwise). Hint: @model_validator(mode="after")</span>
+<span class="sd">      which receives/returns self.</span>
+<span class="sd">    - add a property `days` -&gt; inclusive number of days: (end - start).days + 1</span>
+<span class="sd">    Pydantic parses "2024-01-31" strings into date objects for you.</span>
+<span class="sd">    """</span>
+
+
+<span class="c1"># Exercise 5 -------------------------------------------------------------</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">UserIn</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""TODO: email: str (stripped + lowercased, must contain '@'), password: str (min 8 chars)."""</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">UserOut</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""TODO: id: int, email: str. NO password -- this is what clients may see."""</span>
+
+
+<span class="c1"># ======================= Part B: routes ==================================</span>
+
+<span class="c1"># Exercise 6 -------------------------------------------------------------</span>
+<span class="nd">@app</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/products"</span><span class="p">,</span> <span class="n">status_code</span><span class="o">=</span><span class="mi">201</span><span class="p">,</span> <span class="n">response_model</span><span class="o">=</span><span class="n">ProductRead</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">create_product</span><span class="p">(</span><span class="n">product</span><span class="p">:</span> <span class="n">ProductCreate</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""TODO: store the product in PRODUCTS under id = max(ids, default=0) + 1 and</span>
+<span class="sd">    return it with its id. Store plain dicts: {"id": id, **product.model_dump()}.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 7 -------------------------------------------------------------</span>
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/products/</span><span class="si">{product_id}</span><span class="s2">"</span><span class="p">,</span> <span class="n">response_model</span><span class="o">=</span><span class="n">ProductRead</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_product</span><span class="p">(</span><span class="n">product_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""TODO: return the product or raise HTTPException(404, "Product not found")."""</span>
+    <span class="o">...</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/products"</span><span class="p">,</span> <span class="n">response_model</span><span class="o">=</span><span class="nb">list</span><span class="p">[</span><span class="n">ProductRead</span><span class="p">])</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">list_products</span><span class="p">(</span>
+    <span class="n">min_price</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">max_price</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">tag</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">"""TODO: return products ordered by id, keeping only those that match every</span>
+<span class="sd">    filter that was given: price &gt;= min_price, price &lt;= max_price, tag in product tags.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 8 -------------------------------------------------------------</span>
+<span class="nd">@app</span><span class="o">.</span><span class="n">patch</span><span class="p">(</span><span class="s2">"/products/</span><span class="si">{product_id}</span><span class="s2">"</span><span class="p">,</span> <span class="n">response_model</span><span class="o">=</span><span class="n">ProductRead</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">update_product</span><span class="p">(</span><span class="n">product_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">changes</span><span class="p">:</span> <span class="n">ProductUpdate</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""TODO: partial update. Only fields the client actually sent change.</span>
+<span class="sd">    Hint: changes.model_dump(exclude_unset=True) -- a field set to None explicitly</span>
+<span class="sd">    is "set", a field not sent is not. 404 if product missing. Return the updated product.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 9 -------------------------------------------------------------</span>
+<span class="nd">@app</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/users"</span><span class="p">,</span> <span class="n">status_code</span><span class="o">=</span><span class="mi">201</span><span class="p">,</span> <span class="n">response_model</span><span class="o">=</span><span class="n">UserOut</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">create_user</span><span class="p">(</span><span class="n">user</span><span class="p">:</span> <span class="n">UserIn</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""TODO: emails are unique (already lowercased by UserIn). If one exists raise</span>
+<span class="sd">    HTTPException(409, "Email already registered"). Otherwise store in USERS with</span>
+<span class="sd">    id = max+1 as {"id", "email", "password_hash"} where password_hash is</span>
+<span class="sd">    hashlib.sha256(password.encode()).hexdigest() (real apps use argon2/bcrypt!).</span>
+<span class="sd">    Return the stored dict -- response_model=UserOut must strip password_hash.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 10 ------------------------------------------------------------</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">OutOfStock</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Provided. Raised when a purchase asks for more than we have."""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">product_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">requested</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">available</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">product_id</span> <span class="o">=</span> <span class="n">product_id</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">requested</span> <span class="o">=</span> <span class="n">requested</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">available</span> <span class="o">=</span> <span class="n">available</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">exception_handler</span><span class="p">(</span><span class="n">OutOfStock</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">out_of_stock_handler</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">exc</span><span class="p">:</span> <span class="n">OutOfStock</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""TODO: respond 409 with JSON</span>
+<span class="sd">        {"error": "out_of_stock", "product_id": ..., "requested": ..., "available": ...}</span>
+<span class="sd">    Hint: return JSONResponse(status_code=409, content={...}) (import it from fastapi.responses).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/products/</span><span class="si">{product_id}</span><span class="s2">/purchase"</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">purchase</span><span class="p">(</span><span class="n">product_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">qty</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">Query</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">)):</span>
+<span class="w">    </span><span class="sd">"""TODO: 404 if the product is missing. If qty &gt; quantity in stock,</span>
+<span class="sd">    `raise OutOfStock(product_id, qty, available)` (the handler above formats it).</span>
+<span class="sd">    Otherwise decrease the stock and return {"id": product_id, "quantity": remaining}.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../04-fastapi/week-02-pydantic-validation/lesson.html">← Week 2 · Pydantic and validation: Lesson</a><a class="next" href="../../04-fastapi/week-02-pydantic-validation/test_exercises.py.html">Week 2 · Pydantic and validation: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

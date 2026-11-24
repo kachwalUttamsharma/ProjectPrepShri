@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>practice.sql | Study Hub</title><link rel="stylesheet" href="../../../assets/style.css"><link rel="stylesheet" href="../../../assets/pygments.css"></head>
+<body data-root="../../../" data-page-id="06-sql/general-sql/05-concurrency-reliability/practice.sql" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../../index.html">Home</a> / <a href="../../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../../06-sql/general-sql/README.html">General SQL</a> / <a href="../../../06-sql/general-sql/05-concurrency-reliability/lesson.html">Part 5 · Concurrency and reliability</a> / <span>practice.sql (code)</span></nav><button id="mark-done" data-id="06-sql/general-sql/05-concurrency-reliability/practice.sql">Mark as done</button></div><article class="doc">
+<h1>practice.sql</h1><p class="code-path"><code>06-sql/general-sql/05-concurrency-reliability/practice.sql</code></p>
+<div class="highlight"><pre><span></span><span class="c1">-- Part 05 practice. Load schema: sqlite3 bank.db &lt; setup.sql</span>
+<span class="c1">-- Tasks 1-4 and 10-11 are two-session scenarios: open two terminals.</span>
+<span class="c1">--   SQLite:   sqlite3 bank.db   in both terminals (single writer; observe SQLITE_BUSY "database is locked").</span>
+<span class="c1">--   Postgres: two psql sessions (not run here, verify; Docker one-liner in ../README.md). Adapt setup.sql types if needed.</span>
+<span class="c1">-- Write your answers/notes in the blank spaces.</span>
+
+<span class="c1">-- TASK 1 (SQLite, two terminals): In A run BEGIN IMMEDIATE; UPDATE accounts SET balance = balance - 10 WHERE id = 1;</span>
+<span class="c1">-- In B run BEGIN IMMEDIATE;  What happens? Then try a plain SELECT in B. Write what you saw and why.</span>
+
+
+
+<span class="c1">-- TASK 2 (SQLite): Repeat Task 1 after PRAGMA journal_mode=WAL; in both. What changes for B's SELECT? Why?</span>
+
+
+
+<span class="c1">-- TASK 3 (Postgres, two sessions): Demonstrate a non-repeatable read at READ COMMITTED.</span>
+<span class="c1">-- Write the exact statements for session A and session B, in order, as comments + SQL.</span>
+
+
+
+<span class="c1">-- TASK 4 (Postgres, two sessions): Repeat Task 3 at REPEATABLE READ. Then make both sessions</span>
+<span class="c1">-- UPDATE the same row; which one errors and with what message?</span>
+
+
+
+<span class="c1">-- TASK 5: Optimistic locking. Reader R1 read account 1 with version = 1.</span>
+<span class="c1">-- Write the UPDATE that subtracts 30 only if the version is unchanged, bumps the version, then</span>
+<span class="c1">-- the statement that tells you whether it worked.</span>
+
+
+
+<span class="c1">-- TASK 6: A second reader R2 also read version = 1 earlier and now subtracts 10 the same way. Write it,</span>
+<span class="c1">-- and say what the "rows affected" value is and what R2 must do next.</span>
+
+
+
+<span class="c1">-- TASK 7: Lost update. Write the single statement that adds 5 to bob's balance without reading it first.</span>
+<span class="c1">-- Explain in a comment why this cannot lose updates.</span>
+
+
+
+<span class="c1">-- TASK 8: Job queue. Write a single statement that claims the lowest-id queued job for worker 'w1' and</span>
+<span class="c1">-- returns its id and payload (SQLite 3.35+ supports RETURNING).</span>
+
+
+
+<span class="c1">-- TASK 9: Write a transaction that tries to take 500 from bob (balance 50). What stops it?</span>
+<span class="c1">-- Show BEGIN ... ROLLBACK. Then say what you would check in application code.</span>
+
+
+
+<span class="c1">-- TASK 10 (Postgres, not run here, verify): Rewrite Task 8 for many concurrent workers using FOR UPDATE SKIP LOCKED.</span>
+<span class="c1">-- Why does plain "SELECT ... LIMIT 1" followed by UPDATE hand the same job to two workers?</span>
+
+
+
+<span class="c1">-- TASK 11 (Postgres, two sessions): Write skew. Table oncall(dr_a=1, dr_b=1). Each session checks</span>
+<span class="c1">-- "SELECT COUNT(*) FROM oncall WHERE on_call = 1" &gt; 1 then sets its own doctor to 0.</span>
+<span class="c1">-- (a) Show the interleaving that leaves nobody on call under REPEATABLE READ.</span>
+<span class="c1">-- (b) Give two different fixes.</span>
+
+
+
+<span class="c1">-- TASK 12: Deadlock design. Two transfers: 1-&gt;2 and 2-&gt;1 run concurrently, each updating its source row first.</span>
+<span class="c1">-- Explain the cycle, then rewrite the transfer so it cannot deadlock (hint: order of locking).</span>
+
+
+
+<span class="c1">-- TASK 13 (reading): Write a 5-step expand/contract plan for renaming accounts.owner to accounts.owner_name</span>
+<span class="c1">-- on a live system with zero downtime.</span>
+
+
+
+<span class="c1">-- TASK 14 (reading): Your company needs RPO 5 minutes, RTO 30 minutes on Postgres. Which backup + log</span>
+<span class="c1">-- archiving + replica setup would you propose, and what do you test monthly?</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../../06-sql/general-sql/05-concurrency-reliability/setup.sql.html">← Part 5 · Concurrency and reliability: setup.sql (code)</a><a class="next" href="../../../06-sql/general-sql/06-engines-warehouses-modeling/lesson.html">Part 6 · Engines, warehouses, modeling: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../../assets/data.js"></script><script src="../../../assets/app.js"></script></body></html>

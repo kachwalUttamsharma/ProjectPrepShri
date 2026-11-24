@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>11 - Low-Level Design (LLD) interview practice | Study Hub</title><link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/pygments.css"></head>
+<body data-root="../" data-page-id="11-lld/README" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../index.html">Home</a> / <a href="../11-lld/README.html">Low-Level Design</a> / <span>11 - Low-Level Design (LLD) interview practice</span></nav><button id="mark-done" data-id="11-lld/README">Mark as done</button></div><article class="doc">
+<h1 id="11-low-level-design-lld-interview-practice">11 - Low-Level Design (LLD) interview practice</h1>
+<p>Eight classic LLD problems, each with a <code>lesson.md</code> (how to talk it through), <code>exercises.py</code> (stubs to fill in) and <code>test_exercises.py</code> (deterministic tests, injected clocks, no sleeps).</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Problem</th>
+<th>Core ideas</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>01</td>
+<td>LRU cache</td>
+<td>dict + doubly-linked list, O(1), sentinels</td>
+</tr>
+<tr>
+<td>02</td>
+<td>Rate limiter</td>
+<td>Strategy, token bucket, sliding window, injectable clock, locks</td>
+</tr>
+<tr>
+<td>03</td>
+<td>Elevator system</td>
+<td>state machine, scheduling strategy</td>
+</tr>
+<tr>
+<td>04</td>
+<td>Vending machine</td>
+<td>State pattern, change-making</td>
+</tr>
+<tr>
+<td>05</td>
+<td>Seat booking</td>
+<td>concurrency, holds with TTL, double-booking prevention</td>
+</tr>
+<tr>
+<td>06</td>
+<td>Game engine</td>
+<td>extensible rules, Strategy, Command</td>
+</tr>
+<tr>
+<td>07</td>
+<td>Pub-sub / notifications</td>
+<td>Observer, retry, dead-letter, channel strategy</td>
+</tr>
+<tr>
+<td>08</td>
+<td>Expense sharing</td>
+<td>split strategies, balances, debt simplification</td>
+</tr>
+</tbody>
+</table>
+<p>Run one: <code>.venv/bin/pytest 11-lld/problem-01-lru-cache -v</code> (from the repo root). Tests start red; your job is to make them green, then rehearse the lesson out loud.</p>
+<h2 id="the-45-minute-framework">The 45-minute framework</h2>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Minutes</th>
+<th>What you do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. Clarify requirements</td>
+<td>5</td>
+<td>Ask questions, state assumptions, fix scope (in / out)</td>
+</tr>
+<tr>
+<td>2. Entities and relationships</td>
+<td>5</td>
+<td>Nouns to classes, verbs to methods; has-a vs is-a</td>
+</tr>
+<tr>
+<td>3. Public API</td>
+<td>5</td>
+<td>Write method signatures first; agree them with the interviewer</td>
+</tr>
+<tr>
+<td>4. Class diagram</td>
+<td>5</td>
+<td>Boxes and arrows; mark the patterns</td>
+</tr>
+<tr>
+<td>5. Code the core</td>
+<td>15</td>
+<td>Happy path first, then edge cases; keep methods short</td>
+</tr>
+<tr>
+<td>6. Walk through / test</td>
+<td>5</td>
+<td>Trace one example by hand; mention edge cases</td>
+</tr>
+<tr>
+<td>7. Extensions and concurrency</td>
+<td>5</td>
+<td>Follow-ups: what changes, what does not</td>
+</tr>
+</tbody>
+</table>
+<p>Rules of thumb:</p>
+<ul>
+<li>Never start coding before the API is agreed.</li>
+<li>Say trade-offs out loud ("I chose X over Y because...").</li>
+<li>Keep time/clock/randomness injected; it shows you think about testability.</li>
+<li>Prefer a small correct core to a sprawling design.</li>
+<li>Name what you are NOT building.</li>
+</ul>
+<h2 id="requirement-clarification-checklist">Requirement-clarification checklist</h2>
+<ul>
+<li>Who are the actors? Scale (single process vs distributed)?</li>
+<li>Core operations and their complexity expectations?</li>
+<li>Error behavior: raise, return False, return None?</li>
+<li>Concurrency: single thread or multi-thread? Ordering guarantees?</li>
+<li>Persistence, time, money (use ints), ids?</li>
+<li>Extensions likely to be asked (so you leave seams, not code).</li>
+</ul>
+<h2 id="solid-checklist">SOLID checklist</h2>
+<ul>
+<li><strong>S</strong> - each class has one reason to change (e.g. the cache does not know how time works).</li>
+<li><strong>O</strong> - new behavior = new class (new strategy, new state, new rule), not edits to <code>if/elif</code> chains.</li>
+<li><strong>L</strong> - subclasses honor the base contract (every <code>Limiter</code> obeys <code>allow</code>).</li>
+<li><strong>I</strong> - small interfaces (a <code>Subscriber</code> only needs <code>on_message</code>).</li>
+<li><strong>D</strong> - depend on abstractions, inject collaborators (clock, strategy, notifier).</li>
+</ul>
+<h2 id="pattern-cheat-sheet">Pattern cheat sheet</h2>
+<table>
+<thead>
+<tr>
+<th>Pattern</th>
+<th>Use when</th>
+<th>Seen in</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Strategy</td>
+<td>interchangeable algorithms</td>
+<td>rate limiter algorithms, elevator scheduling, split types, pricing</td>
+</tr>
+<tr>
+<td>State</td>
+<td>behavior depends on a mode, many transitions</td>
+<td>vending machine, elevator</td>
+</tr>
+<tr>
+<td>Observer / Pub-Sub</td>
+<td>one event, many listeners</td>
+<td>notifications</td>
+</tr>
+<tr>
+<td>Command</td>
+<td>operations as objects (undo, queue, log)</td>
+<td>game moves</td>
+</tr>
+<tr>
+<td>Factory</td>
+<td>construct the right subclass from config</td>
+<td>limiter / channel creation</td>
+</tr>
+<tr>
+<td>Template Method</td>
+<td>fixed skeleton, varying steps</td>
+<td>split validation then compute</td>
+</tr>
+<tr>
+<td>Singleton</td>
+<td>exactly one shared instance (use sparingly, hurts tests)</td>
+<td>usually say "inject instead"</td>
+</tr>
+<tr>
+<td>Decorator</td>
+<td>add behavior by wrapping</td>
+<td>retrying subscriber, logging notifier</td>
+</tr>
+<tr>
+<td>Builder</td>
+<td>many optional constructor params</td>
+<td>complex configuration</td>
+</tr>
+<tr>
+<td>Facade</td>
+<td>simple front for a subsystem</td>
+<td><code>ElevatorController</code>, <code>BookingService</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="concurrency-cheat-sheet-python">Concurrency cheat sheet (Python)</h2>
+<ul>
+<li>A <code>threading.Lock</code> around check-then-act sequences; keep the critical section small.</li>
+<li>Lock per resource (per show, per key) beats one global lock; always acquire in a fixed order to avoid deadlock.</li>
+<li><code>dict</code> operations are atomic individually, but check-then-set is not.</li>
+<li>Compute expiry lazily with an injected clock instead of timer threads.</li>
+<li>Mention for distributed versions: DB row locks / optimistic version column, Redis <code>SET NX</code>, idempotency keys.</li>
+</ul>
+<h2 id="common-mistakes-across-all-problems">Common mistakes across all problems</h2>
+<ul>
+<li>Coding before clarifying; silent assumptions.</li>
+<li>God class holding all logic; no seams for the follow-up.</li>
+<li>Reading <code>time.time()</code> directly (untestable).</li>
+<li>Floats for money.</li>
+<li>Check-then-act without a lock.</li>
+<li>Ignoring error cases and invalid input.</li>
+<li>Pattern name-dropping without a reason.</li>
+</ul>
+<h2 id="self-review-before-you-say-done">Self-review before you say "done"</h2>
+<ul>
+<li>[ ] Requirements and assumptions stated</li>
+<li>[ ] Public API written before the bodies</li>
+<li>[ ] Each class has a single responsibility</li>
+<li>[ ] New variants add classes rather than edit old ones</li>
+<li>[ ] Time and randomness injected</li>
+<li>[ ] Errors are a small, named hierarchy</li>
+<li>[ ] I can state complexity of each operation</li>
+<li>[ ] I traced an example by hand and one edge case</li>
+<li>[ ] I can answer the concurrency question</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../13-llm-ai-concepts/mock-interview.html">← LLM and AI Concepts: Mock interview</a><a class="next" href="../11-lld/problem-01-lru-cache/lesson.html">Problem 1 · LRU cache: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../assets/data.js"></script><script src="../assets/app.js"></script></body></html>

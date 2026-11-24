@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 7: Comprehensions, lambda, iterators and generators | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="01-basics/week-07-comprehensions-generators/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../01-basics/week-01-first-steps/lesson.html">Python Basics</a> / <a href="../../01-basics/week-07-comprehensions-generators/lesson.html">Week 7 · Comprehensions and generators</a> / <span>Lesson</span></nav><button id="mark-done" data-id="01-basics/week-07-comprehensions-generators/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-7-comprehensions-lambda-iterators-and-generators">Week 7: Comprehensions, lambda, iterators and generators</h1>
+<h2 id="1-list-comprehensions">1. List comprehensions</h2>
+<p>A short way to build a list from a loop.</p>
+<div class="highlight"><pre><span></span><code><span class="n">squares</span> <span class="o">=</span> <span class="p">[</span><span class="n">n</span> <span class="o">*</span> <span class="n">n</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">)]</span>            <span class="c1"># [0, 1, 4, 9, 16]</span>
+<span class="n">evens</span>   <span class="o">=</span> <span class="p">[</span><span class="n">n</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span> <span class="k">if</span> <span class="n">n</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span> <span class="c1"># filter with `if`</span>
+<span class="n">labels</span>  <span class="o">=</span> <span class="p">[</span><span class="s2">"even"</span> <span class="k">if</span> <span class="n">n</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="s2">"odd"</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">)]</span>  <span class="c1"># if/else goes BEFORE `for`</span>
+<span class="n">pairs</span>   <span class="o">=</span> <span class="p">[(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="s2">"ab"</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)]</span>               <span class="c1"># nested loops</span>
+</code></pre></div>
+
+<p>Same as the loop: <code>result = []; for n in ...: if ...: result.append(expr)</code>. If it gets hard to read, use a normal loop.</p>
+<h2 id="2-dict-and-set-comprehensions">2. Dict and set comprehensions</h2>
+<div class="highlight"><pre><span></span><code><span class="p">{</span><span class="n">w</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">w</span><span class="p">)</span> <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"bb"</span><span class="p">]}</span>   <span class="c1"># {'a': 1, 'bb': 2}</span>
+<span class="p">{</span><span class="n">n</span> <span class="o">%</span> <span class="mi">3</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">)}</span>         <span class="c1"># {0, 1, 2}</span>
+</code></pre></div>
+
+<h2 id="3-lambda">3. lambda</h2>
+<p>A tiny anonymous one-expression function.</p>
+<div class="highlight"><pre><span></span><code><span class="n">double</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="o">*</span> <span class="mi">2</span>
+<span class="n">double</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>             <span class="c1"># 8</span>
+</code></pre></div>
+
+<p>Mostly used as a <code>key=</code> argument or inside <code>map</code>/<code>filter</code>. For anything longer, use <code>def</code>.</p>
+<h2 id="4-sorted-with-key">4. sorted with key=</h2>
+<div class="highlight"><pre><span></span><code><span class="n">words</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"pear"</span><span class="p">,</span> <span class="s2">"fig"</span><span class="p">,</span> <span class="s2">"banana"</span><span class="p">]</span>
+<span class="nb">sorted</span><span class="p">(</span><span class="n">words</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="nb">len</span><span class="p">)</span>                       <span class="c1"># ['fig', 'pear', 'banana']</span>
+<span class="nb">sorted</span><span class="p">(</span><span class="n">words</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">w</span><span class="p">:</span> <span class="n">w</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>           <span class="c1"># by last letter</span>
+<span class="n">people</span> <span class="o">=</span> <span class="p">[(</span><span class="s2">"ann"</span><span class="p">,</span> <span class="mi">30</span><span class="p">),</span> <span class="p">(</span><span class="s2">"bob"</span><span class="p">,</span> <span class="mi">25</span><span class="p">)]</span>
+<span class="nb">sorted</span><span class="p">(</span><span class="n">people</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>           <span class="c1"># by age</span>
+<span class="nb">sorted</span><span class="p">(</span><span class="n">words</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">w</span><span class="p">:</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">w</span><span class="p">),</span> <span class="n">w</span><span class="p">))</span>     <span class="c1"># by length, then alphabetically (tuple key)</span>
+<span class="nb">sorted</span><span class="p">(</span><span class="n">words</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Sorting is stable: ties keep their original order. <code>min</code> and <code>max</code> also accept <code>key=</code>.</p>
+<h2 id="5-enumerate-and-zip">5. enumerate and zip</h2>
+<div class="highlight"><pre><span></span><code><span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">ch</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="s2">"abc"</span><span class="p">):</span>           <span class="c1"># (0,'a') (1,'b') (2,'c')</span>
+<span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">ch</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="s2">"abc"</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>  <span class="c1"># start counting at 1</span>
+<span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span> <span class="s2">"xyz"</span><span class="p">):</span>       <span class="c1"># (1,'x') (2,'y') (3,'z')</span>
+<span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">([</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">],</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]))</span>            <span class="c1"># {'a': 1, 'b': 2}</span>
+</code></pre></div>
+
+<p><code>zip</code> stops at the shortest input.</p>
+<h2 id="6-map-filter-any-all">6. map, filter, any, all</h2>
+<div class="highlight"><pre><span></span><code><span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]))</span>                   <span class="c1"># ['1', '2']</span>
+<span class="nb">list</span><span class="p">(</span><span class="nb">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">n</span><span class="p">:</span> <span class="n">n</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">,</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]))</span> <span class="c1"># [2, 3]</span>
+<span class="nb">any</span><span class="p">(</span><span class="n">n</span> <span class="o">&gt;</span> <span class="mi">2</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>            <span class="c1"># True</span>
+<span class="nb">all</span><span class="p">(</span><span class="n">n</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>            <span class="c1"># True</span>
+</code></pre></div>
+
+<p><code>map</code> and <code>filter</code> return lazy objects; wrap in <code>list(...)</code> to see them. A comprehension is usually clearer.</p>
+<h2 id="7-iterators-and-generators">7. Iterators and generators</h2>
+<p>An <strong>iterable</strong> is anything you can loop over (list, str, dict, file). An <strong>iterator</strong> hands out one item at a time with <code>next()</code>.</p>
+<p>A <strong>generator</strong> function uses <code>yield</code> instead of <code>return</code>. It pauses after each <code>yield</code> and continues on the next request, so it produces values lazily without storing them all.</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">countdown</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+    <span class="k">while</span> <span class="n">n</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">yield</span> <span class="n">n</span>
+        <span class="n">n</span> <span class="o">-=</span> <span class="mi">1</span>
+
+<span class="nb">list</span><span class="p">(</span><span class="n">countdown</span><span class="p">(</span><span class="mi">3</span><span class="p">))</span>      <span class="c1"># [3, 2, 1]</span>
+<span class="n">gen</span> <span class="o">=</span> <span class="n">countdown</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="nb">next</span><span class="p">(</span><span class="n">gen</span><span class="p">)</span>               <span class="c1"># 2</span>
+<span class="nb">next</span><span class="p">(</span><span class="n">gen</span><span class="p">)</span>               <span class="c1"># 1</span>
+<span class="nb">next</span><span class="p">(</span><span class="n">gen</span><span class="p">)</span>               <span class="c1"># StopIteration</span>
+</code></pre></div>
+
+<p>A generator expression is like a list comprehension with parentheses: <code>sum(n * n for n in range(1000000))</code> uses almost no memory. Generators can be infinite; take a few with <code>itertools.islice(gen, 5)</code>. A generator can be used only once.</p>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li>Writing <code>[x for x in data if x else 0]</code> (an <code>else</code> needs to go before <code>for</code>).</li>
+<li>Packing too much logic into one comprehension.</li>
+<li>Printing a <code>map</code>/generator object instead of <code>list(...)</code> of it.</li>
+<li>Reusing an exhausted generator (it's empty the second time).</li>
+<li><code>sorted(...)</code> returns a new list; <code>.sort()</code> changes in place and returns <code>None</code>.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run:
+<code>.venv/bin/pytest 01-basics/week-07-comprehensions-generators -v</code></p>
+</article><div class="pager"><a class="prev" href="../../01-basics/week-06-files-errors-modules/test_exercises.py.html">← Week 6 · Files, errors, modules: Tests (code)</a><a class="next" href="../../01-basics/week-07-comprehensions-generators/exercises.py.html">Week 7 · Comprehensions and generators: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

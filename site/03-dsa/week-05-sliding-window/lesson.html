@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 5: Sliding window | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-05-sliding-window/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-05-sliding-window/lesson.html">Week 5 · Sliding window</a> / <span>Lesson</span></nav><button id="mark-done" data-id="03-dsa/week-05-sliding-window/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-5-sliding-window">Week 5: Sliding window</h1>
+<h2 id="1-the-idea">1. The idea</h2>
+<p>A window is a contiguous slice <code>nums[l..r]</code>. Instead of recomputing a property (sum, distinct
+count, frequencies) for every slice, you <strong>update it incrementally</strong> as <code>r</code> moves right
+(add one element) and <code>l</code> moves right (remove one element). Each index enters and leaves the
+window at most once, so total work is O(n) even though there is a loop inside a loop.</p>
+<h2 id="2-how-to-recognise-it">2. How to recognise it</h2>
+<ul>
+<li>"Longest / shortest / maximum / minimum <strong>contiguous</strong> subarray or substring such that ..."</li>
+<li>"Every window of size k", "substring containing all of ...", "at most k distinct / zeros".</li>
+<li>The constraint is monotonic: growing the window can only make it "more full", shrinking can
+  only make it "less full" (this is why positive numbers matter for sum problems).</li>
+<li>Negative numbers with a "sum equals k" condition: window does NOT work, use prefix sums (week 6).</li>
+</ul>
+<h2 id="3-template-a-fixed-size-k">3. Template A: fixed size k</h2>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">fixed</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+    <span class="n">cur</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">nums</span><span class="p">[:</span><span class="n">k</span><span class="p">])</span>
+    <span class="n">best</span> <span class="o">=</span> <span class="n">cur</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)):</span>
+        <span class="n">cur</span> <span class="o">+=</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">-</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="n">k</span><span class="p">]</span>     <span class="c1"># add entering, remove leaving</span>
+        <span class="n">best</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">best</span><span class="p">,</span> <span class="n">cur</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">best</span>
+</code></pre></div>
+
+<h2 id="4-template-b-variable-size-find-the-longest-valid-window">4. Template B: variable size, find the LONGEST valid window</h2>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">longest</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+    <span class="n">l</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">state</span> <span class="o">=</span> <span class="p">{}</span>                      <span class="c1"># whatever you need: counts, sum, zeros...</span>
+    <span class="n">best</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+        <span class="n">add</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>               <span class="c1"># expand</span>
+        <span class="k">while</span> <span class="n">invalid</span><span class="p">(</span><span class="n">state</span><span class="p">):</span>       <span class="c1"># shrink until valid again</span>
+            <span class="n">remove</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">s</span><span class="p">[</span><span class="n">l</span><span class="p">])</span>
+            <span class="n">l</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">best</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">best</span><span class="p">,</span> <span class="n">r</span> <span class="o">-</span> <span class="n">l</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="c1"># window is valid here</span>
+    <span class="k">return</span> <span class="n">best</span>
+</code></pre></div>
+
+<h2 id="5-template-c-variable-size-find-the-shortest-valid-window">5. Template C: variable size, find the SHORTEST valid window</h2>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">shortest</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
+    <span class="n">l</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">cur</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">best</span> <span class="o">=</span> <span class="n">INF</span>
+    <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+        <span class="n">cur</span> <span class="o">+=</span> <span class="n">x</span>
+        <span class="k">while</span> <span class="n">valid</span><span class="p">(</span><span class="n">cur</span><span class="p">):</span>           <span class="c1"># shrink WHILE still valid, record each time</span>
+            <span class="n">best</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">best</span><span class="p">,</span> <span class="n">r</span> <span class="o">-</span> <span class="n">l</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">cur</span> <span class="o">-=</span> <span class="n">nums</span><span class="p">[</span><span class="n">l</span><span class="p">]</span>
+            <span class="n">l</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">best</span>
+</code></pre></div>
+
+<p>Longest: record after shrinking. Shortest: record inside the shrink loop. This is the most
+common source of off-by-one bugs.</p>
+<h2 id="6-helpers-you-need">6. Helpers you need</h2>
+<ul>
+<li><code>dict</code> / <code>collections.Counter</code> for counts. Delete keys whose count reaches 0 if you compare
+  <code>len(dict)</code> or compare two Counters.</li>
+<li><code>collections.deque</code> as a <strong>monotonic deque</strong> for window max/min: store indices, keep values
+  decreasing, pop front when out of window, pop back while smaller than the new value. Each index
+  is pushed and popped once, so O(n).</li>
+<li>A "missing" / "matches" counter makes the validity check O(1) (see <code>min_window</code>).</li>
+</ul>
+<h2 id="7-complexity">7. Complexity</h2>
+<p>Time O(n) (each pointer moves at most n times). Space O(1), O(alphabet) or O(k) depending on the
+state. <code>Counter == Counter</code> comparison costs O(alphabet), which is fine for 26 letters but say so.</p>
+<h2 id="8-common-mistakes">8. Common mistakes</h2>
+<ul>
+<li>Using <code>if</code> instead of <code>while</code> when shrinking (window stays invalid).</li>
+<li>Recording the answer at the wrong place (see templates B vs C).</li>
+<li>Forgetting to delete zero-count keys, then <code>len(count)</code> overstates distinct characters.</li>
+<li>Slicing in the loop (<code>s[l:r+1]</code>) which silently makes it O(n^2).</li>
+<li>Moving <code>l</code> backwards when jumping past a repeat (use <code>l = max(l, last[ch] + 1)</code> or check
+  <code>last[ch] &gt;= l</code>).</li>
+<li>Applying a window to arrays with negatives and a sum constraint.</li>
+<li><code>character_replacement</code>: <code>max_count</code> never needs to decrease; a stale larger value can only
+  fail to shrink the window, and the window only matters when it beats the previous best.</li>
+</ul>
+<h2 id="9-interview-tips">9. Interview tips</h2>
+<ul>
+<li>Say "window", define what it represents and its invariant before coding.</li>
+<li>State why it's O(n) despite the nested loop (amortised: each element enters/leaves once).</li>
+<li>Clarify: lowercase only? Unicode? Can k be 0 or larger than n? Empty input?</li>
+<li>Typical follow-ups: "what if the stream is infinite?" (state is O(1)/O(k), process online),
+  "return the window itself, not the length" (track best_l), "exactly k" = atMost(k) - atMost(k-1).</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run <code>pytest -q</code> in this folder. ~2 hrs on the templates (re-derive
+each one on paper), ~5 hrs on problems. Do <code>min_window</code> and <code>max_sliding_window</code> last.</p>
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-04-two-pointers/test_exercises.py.html">← Week 4 · Two pointers: Tests (code)</a><a class="next" href="../../03-dsa/week-05-sliding-window/exercises.py.html">Week 5 · Sliding window: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

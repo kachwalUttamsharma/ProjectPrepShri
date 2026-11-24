@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>practice.sql | Study Hub</title><link rel="stylesheet" href="../../../assets/style.css"><link rel="stylesheet" href="../../../assets/pygments.css"></head>
+<body data-root="../../../" data-page-id="06-sql/general-sql/02-set-ops-functions-json/practice.sql" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../../index.html">Home</a> / <a href="../../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../../06-sql/general-sql/README.html">General SQL</a> / <a href="../../../06-sql/general-sql/02-set-ops-functions-json/lesson.html">Part 2 · Set ops, functions, JSON</a> / <span>practice.sql (code)</span></nav><button id="mark-done" data-id="06-sql/general-sql/02-set-ops-functions-json/practice.sql">Mark as done</button></div><article class="doc">
+<h1>practice.sql</h1><p class="code-path"><code>06-sql/general-sql/02-set-ops-functions-json/practice.sql</code></p>
+<div class="highlight"><pre><span></span><span class="c1">-- Part 02 practice. Setup: sqlite3 practice.db ".read setup.sql" then open practice.db and write your answers below.</span>
+<span class="c1">-- Or in one go: sqlite3 :memory: ".read setup.sql" ".read practice.sql"</span>
+<span class="c1">-- Tip: .headers on and .mode column make output readable. Solutions are NOT in this repo.</span>
+<span class="c1">-- Tasks 17-21 use SQLite json1; also write the Postgres/MySQL equivalent as a comment (cannot run here).</span>
+
+<span class="c1">-- 1. Combine names+emails of customers_2023 and customers_2024 with duplicates removed, sorted by name.</span>
+
+
+
+
+<span class="c1">-- 2. Count how many rows you get when you stack ids of both customer tables WITHOUT removing duplicates.</span>
+
+
+
+
+<span class="c1">-- 3. Customers (id, name) present in BOTH years.</span>
+
+
+
+
+<span class="c1">-- 4. Customers (id, name) present in 2023 but NOT in 2024.</span>
+
+
+
+
+<span class="c1">-- 5. Ids that are in exactly one of the two years (symmetric difference), using only set operators.</span>
+
+
+
+
+<span class="c1">-- 6. Join the two customer tables on email so that Cy (NULL email) matches Cy. Use a NULL-safe comparison.</span>
+
+
+
+
+<span class="c1">-- 7. For each product: id and final price = price * (1 - discount), treating NULL discount as 0, rounded to 2 places.</span>
+
+
+
+
+<span class="c1">-- 8. Return product id and note, but turn empty-string notes into NULL (keep NULL as NULL).</span>
+
+
+
+
+<span class="c1">-- 9. Return product id, upper-cased trimmed name, and trimmed name length.</span>
+
+
+
+
+<span class="c1">-- 10. Total qty sold per month ('YYYY-MM'), ordered by month.</span>
+
+
+
+
+<span class="c1">-- 11. For every sale, return the last day of its month.</span>
+
+
+
+
+<span class="c1">-- 12. Pagination by OFFSET: page 3 of size 4 of sales ordered by id (ids only).</span>
+
+
+
+
+<span class="c1">-- 13. Keyset pagination: the next 4 sales (id, sold_on) AFTER the row (sold_on='2024-03-01', id=7), ordered by sold_on, id.</span>
+
+
+
+
+<span class="c1">-- 14. Pivot: one row per product name with columns north and south holding total qty (0 when none).</span>
+
+
+
+
+<span class="c1">-- 15. Unpivot your pivot result from task 14 (or recompute per product_id) back into rows (product_id, region, qty).</span>
+
+
+
+
+<span class="c1">-- 16. Latest 2 sales (by sold_on, then id) per product. (This is what LATERAL / CROSS APPLY does in other dialects.)</span>
+
+
+
+
+<span class="c1">-- 17. events: return id and the user name as plain text (not JSON-quoted).</span>
+
+
+
+
+<span class="c1">-- 18. events: id and amount for events whose action is 'buy'.</span>
+
+
+
+
+<span class="c1">-- 19. events: one row per tag (id, tag) using json_each; events without tags produce no rows.</span>
+
+
+
+
+<span class="c1">-- 20. events: total amount per user, treating missing amount as 0.</span>
+
+
+
+
+<span class="c1">-- 21. products: build a single JSON array of objects {id, name} with trimmed names.</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../../06-sql/general-sql/02-set-ops-functions-json/setup.sql.html">← Part 2 · Set ops, functions, JSON: setup.sql (code)</a><a class="next" href="../../../06-sql/general-sql/03-objects-programmability/lesson.html">Part 3 · Objects and programmability: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../../assets/data.js"></script><script src="../../../assets/app.js"></script></body></html>

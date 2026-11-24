@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Design 3: News Feed / Twitter Timeline | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="08-system-design/week-06-hld-designs/03-news-feed" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../08-system-design/README.html">System Design</a> / <a href="../../08-system-design/week-06-hld-designs/framework.html">Week 6 · HLD designs</a> / <span>Design 3: News Feed / Twitter Timeline</span></nav><button id="mark-done" data-id="08-system-design/week-06-hld-designs/03-news-feed">Mark as done</button></div><article class="doc">
+<h1 id="design-3-news-feed-twitter-timeline">Design 3: News Feed / Twitter Timeline</h1>
+<p>Framework: <a href="framework.html">framework.md</a>. Background: <a href="../week-02-data-storage/lesson.html">sharding and replication</a>, <a href="../week-03-coordination-messaging/lesson.html">queues and Kafka</a>, <a href="../week-01-fundamentals/lesson.html">caching</a>.</p>
+<h2 id="1-clarify-requirements">1. Clarify requirements</h2>
+<p>Functional</p>
+<ul>
+<li>Post a tweet/post (text, optional media).</li>
+<li>Follow/unfollow users.</li>
+<li>Home timeline: reverse-chronological (or ranked) feed of posts from people I follow, paginated.</li>
+<li>User timeline: a user's own posts.</li>
+<li>Out of scope: search, trends, DMs, ads, detailed ranking ML (mention a ranking stage).</li>
+</ul>
+<p>Non-functional</p>
+<ul>
+<li>Feed reads are far more frequent than writes. Read latency p99 &lt; 200 ms.</li>
+<li>Highly available; eventual consistency is fine (a post may appear in followers' feeds seconds later).</li>
+<li>Handle celebrity accounts with tens of millions of followers.</li>
+<li>Durability for posts.</li>
+</ul>
+<h2 id="2-estimate">2. Estimate</h2>
+<ul>
+<li>300M DAU, each opens feed ~10 times/day: 3B feed reads/day = ~35K reads/s avg, ~100K+/s peak.</li>
+<li>100M posts/day = ~1,200 posts/s avg, peak ~3-5K/s.</li>
+<li>Average follower count ~200 (heavily skewed; celebs at 50M+).</li>
+<li>Fan-out on write cost: 1,200 posts/s x 200 followers = 240K feed inserts/s average. Celebs make this spiky: one post from a 50M-follower account = 50M inserts.</li>
+<li>Post storage: 100M/day x 300 B (text+metadata) = 30 GB/day = ~11 TB/year; media goes to object store + CDN (assume 20% of posts x 1 MB = 20 TB/day, blob storage and CDN dominate cost).</li>
+<li>Feed cache: store the latest ~800 post IDs per active user. 300M x 800 x 8 B = ~1.9 TB in Redis (across a cluster), because only IDs are stored. Reasonable.</li>
+</ul>
+<h2 id="3-api">3. API</h2>
+<div class="highlight"><pre><span></span><code>POST /v1/posts                { "text": "...", "media_ids": [...] }       -&gt; 201 {post_id}
+GET  /v1/feed?cursor=&lt;opaque&gt;&amp;limit=20     -&gt; { posts: [...], next_cursor }
+GET  /v1/users/{id}/posts?cursor=...
+POST /v1/users/{id}/follow    DELETE /v1/users/{id}/follow
+</code></pre></div>
+
+<p>Pagination: cursor-based (last seen post ID/time-sortable ID), not offset. Offsets break when new posts arrive and are slow at depth.</p>
+<h2 id="4-data-model">4. Data model</h2>
+<div class="highlight"><pre><span></span><code>users(user_id PK, name, ...)
+posts(post_id PK [time-sortable, Snowflake-style], author_id, text, media_urls, created_at)
+   -- partition by post_id (or author_id for user timeline), store in Cassandra/DynamoDB/sharded MySQL
+follows(follower_id, followee_id)   -- two tables/indexes: followers_of(followee) and following_of(follower)
+   -- graph store or KV; sharded by user
+feed_cache: Redis list/sorted set per user: user_id -&gt; [post_id ...] (newest first, capped ~800)
+user_timeline: (author_id, post_id desc) -- clustering by time
+</code></pre></div>
+
+<p>Snowflake-style IDs (timestamp + machine + sequence, 64-bit) give roughly time-ordered unique IDs without coordination, so sorting by ID is sorting by time.</p>
+<h2 id="5-high-level-diagram">5. High-level diagram</h2>
+<div class="highlight"><pre><span></span><code> WRITE PATH
+ Client -&gt; LB -&gt; [Post service] -&gt; [Posts DB]
+                      |
+                      +--&gt; [Kafka: new_post] --&gt; [Fan-out workers]
+                                                    |  get followers (from graph/follow store)
+                                                    v
+                                            [Feed cache (Redis)]  LPUSH post_id into each follower's list
+                                                    (skip celebrities)
+ READ PATH
+ Client -&gt; LB -&gt; [Feed service]
+                   1. read my feed list (post_ids) from Redis
+                   2. merge in recent posts from celebrities I follow (pull at read time)
+                   3. hydrate: batch-get posts, authors, counts (post cache / DB)
+                   4. (optional) rank, filter blocked/muted
+                   -&gt; response
+ Media: Client -&gt; upload to [Blob store S3] -&gt; CDN
+</code></pre></div>
+
+<h2 id="6-deep-dives">6. Deep dives</h2>
+<h3 id="a-fan-out-on-write-push-vs-fan-out-on-read-pull-vs-hybrid">a) Fan-out on write (push) vs fan-out on read (pull) vs hybrid</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Push (write)</th>
+<th>Pull (read)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>On post</td>
+<td>Insert post ID into every follower's feed</td>
+<td>Just store the post</td>
+</tr>
+<tr>
+<td>On read</td>
+<td>Read precomputed list: very fast</td>
+<td>Fetch recent posts from all followees, merge, sort</td>
+</tr>
+<tr>
+<td>Pros</td>
+<td>Fast reads, which dominate</td>
+<td>Cheap writes, no wasted work for inactive users</td>
+</tr>
+<tr>
+<td>Cons</td>
+<td>Huge write amplification for celebs; wasted work for inactive users</td>
+<td>Slow reads, N queries per feed load</td>
+</tr>
+</tbody>
+</table>
+<p>Hybrid (what Twitter did, per their public talks): push for normal users; for celebrities (follower count above a threshold, e.g. 100K-1M), do not fan out. At read time, merge the user's precomputed feed with posts pulled from the followed celebrities' timelines (small set per user). Also fan out only to active users (logged in within N days); rebuild an inactive user's feed on demand from pull.</p>
+<h3 id="b-fan-out-service-mechanics">b) Fan-out service mechanics</h3>
+<ul>
+<li>Post service writes the post durably, then publishes an event to Kafka (or via the outbox pattern so the DB write and event are atomic, see <a href="../week-03-coordination-messaging/lesson.html">outbox</a>).</li>
+<li>Workers consume partitioned by author or post ID, look up followers in pages, and batch-write into Redis. Idempotent: pushing the same post_id twice into a sorted set (score = post_id) is naturally deduped.</li>
+<li>Lag is acceptable (seconds); monitor consumer lag as an SLI.</li>
+</ul>
+<h3 id="c-feed-storage">c) Feed storage</h3>
+<ul>
+<li>Redis sorted set or list per user holding IDs only (small), capped; older items fall back to a DB query (cold path: fan-in from follows + posts DB).</li>
+<li>Hydration needs a multi-get of post bodies: a second cache of hot posts (celebrity posts get cached heavily, with high hit rate).</li>
+</ul>
+<h3 id="d-ranking">d) Ranking</h3>
+<ul>
+<li>Reverse-chronological is simplest. Ranked feeds: a candidate-generation stage (the merged IDs), then a lightweight ML scorer using features (affinity, recency, engagement), then filtering/diversity. Keep it a separate service with a latency budget (~50 ms) and a fallback to chronological.</li>
+</ul>
+<h3 id="e-counters-likes-retweets-views">e) Counters (likes, retweets, views)</h3>
+<ul>
+<li>Hot counters need sharded counters or approximate counting; write via a stream and aggregate asynchronously. Display counts are eventually consistent.</li>
+</ul>
+<h3 id="f-deletes-and-privacy">f) Deletes and privacy</h3>
+<ul>
+<li>Deleting a post: tombstone in the DB; the feed hydration step filters missing/deleted posts, so we need not remove IDs from millions of feeds. Block/mute likewise are filtered at read time.</li>
+</ul>
+<h3 id="g-follow-graph-storage">g) Follow graph storage</h3>
+<ul>
+<li>followers_of can be huge (50M). Store as paged, sharded rows (user_id, bucket). Reading followers for fan-out is a scan; do it in batches via workers.</li>
+</ul>
+<h2 id="7-bottlenecks-and-failure-modes">7. Bottlenecks and failure modes</h2>
+<ul>
+<li>Celebrity post burst: write amplification spike; hybrid approach avoids it. Also thundering reads on that post: CDN/cache with request coalescing.</li>
+<li>Redis memory pressure: cap list length, TTL on inactive users, only store IDs.</li>
+<li>Fan-out lag after worker outage: Kafka retains events; replay catches up. Users see stale feeds but never wrong ones.</li>
+<li>Hot partition on author_id in posts DB for celebs: cache; replicate hot rows.</li>
+<li>New user cold start: feed empty. Build on first request via pull, then cache.</li>
+<li>Cache loss: rebuild lazily using pull. Make sure the DB can survive the rebuild stampede (rate limit and coalesce).</li>
+</ul>
+<h2 id="8-tradeoffs">8. Tradeoffs</h2>
+<ul>
+<li>Push vs pull vs hybrid (write cost vs read latency vs complexity).</li>
+<li>Storing IDs vs full posts in feed (memory vs hydration cost and freshness of edits/deletes).</li>
+<li>Strict ordering vs eventual: feed order may differ slightly per replica; users tolerate it.</li>
+<li>Cassandra/DynamoDB (write-heavy, wide rows) vs relational (rich queries, but sharding burden).</li>
+<li>Ranking quality vs latency.</li>
+</ul>
+<h2 id="9-what-to-say-out-loud">9. What to say out loud</h2>
+<ul>
+<li>"The read:write ratio is about 30:1 in requests, but fan-out multiplies write cost, so the fan-out strategy is the core decision."</li>
+<li>"I will push to followers for normal accounts and pull for celebrities, merging at read time; that bounds write amplification."</li>
+<li>"The feed stores only post IDs, hydrated at read, so deletes and edits are consistent without rewriting millions of lists."</li>
+<li>"Cursor pagination on a time-sortable ID so new posts do not shift pages."</li>
+</ul>
+<h2 id="10-follow-up-questions-to-practice">10. Follow-up questions to practice</h2>
+<ol>
+<li>How do you choose the celebrity threshold? (follower count, fan-out cost, make it dynamic)</li>
+<li>What if a user follows 5,000 celebrities? (cap pull set, or sample/rank)</li>
+<li>How do you guarantee a user sees their own post immediately? (read-your-writes: insert into own feed synchronously, or merge own recent posts at read time)</li>
+<li>How would you add "For You" recommendations? (candidate generation + ranking service)</li>
+<li>How do you handle edits and deletes? (hydration-time filtering, tombstones)</li>
+<li>How do you shard the follow graph?</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../08-system-design/week-06-hld-designs/02-rate-limiter.html">← Week 6 · HLD designs: Rate limiter</a><a class="next" href="../../08-system-design/week-06-hld-designs/04-chat-system.html">Week 6 · HLD designs: Chat system →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 8: Two small projects and Stage 1 review | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="01-basics/week-08-projects-review/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../01-basics/week-01-first-steps/lesson.html">Python Basics</a> / <a href="../../01-basics/week-08-projects-review/lesson.html">Week 8 · Projects and review</a> / <span>Lesson</span></nav><button id="mark-done" data-id="01-basics/week-08-projects-review/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-8-two-small-projects-and-stage-1-review">Week 8: Two small projects and Stage 1 review</h1>
+<p>This week you combine everything from weeks 1-7. Take your time: planning before coding is the real skill. For each project, first read the spec, then write in plain words (or comments) the steps each function needs, then code.</p>
+<p>Work function by function. Run the tests often:
+<code>.venv/bin/pytest 01-basics/week-08-projects-review -v</code>
+Use <code>-k todo</code> or <code>-k word</code> to run one project only, or <code>-x</code> to stop at the first failure.</p>
+<hr />
+<h2 id="project-a-todo-list-command-line">Project A: Todo list (command line)</h2>
+<p>A task is a dict: <code>{"id": 1, "title": "buy milk", "done": False}</code>. The task list is a plain <code>list</code> of such dicts. Functions take the list as a parameter and change it in place (like a tiny database). There is no <code>input()</code> in the functions, so they are easy to test. After the tests pass you can add a <code>main()</code> loop at the bottom that reads a line with <code>input()</code> and prints <code>handle_command(...)</code>.</p>
+<p>Functions (full details in the docstrings):
+| Function | What it does |
+|---|---|
+| <code>add_task(tasks, title)</code> | Adds a task with the next free id (max id + 1, starting at 1). Blank title -&gt; <code>ValueError</code>. Returns the new task. |
+| <code>complete_task(tasks, task_id)</code> | Marks done. Unknown id -&gt; <code>ValueError</code>. |
+| <code>remove_task(tasks, task_id)</code> | Deletes it. Unknown id -&gt; <code>ValueError</code>. |
+| <code>list_tasks(tasks, show_done=True)</code> | Returns display lines like <code>[ ] 1: buy milk</code> / <code>[x] 2: call mom</code>. |
+| <code>save_tasks(path, tasks)</code> / <code>load_tasks(path)</code> | JSON persistence. Missing file -&gt; <code>[]</code>. |
+| <code>handle_command(tasks, line)</code> | Parses <code>add buy milk</code>, <code>done 1</code>, <code>remove 1</code>, <code>list</code> and returns a message string. |</p>
+<p>Ideas to practice: <code>line.split(maxsplit=1)</code>, <code>try/except ValueError</code> around <code>int(...)</code>, never using an id after a task is removed (ids are not reused for existing tasks).</p>
+<h2 id="project-b-word-frequency-analyzer">Project B: Word-frequency analyzer</h2>
+<p>Read a text file and report which words are most common.</p>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tokenize(text)</code></td>
+<td>Lowercase words. A word is a run of letters or apostrophes; leading/trailing apostrophes are removed. <code>"Don't stop!"</code> -&gt; <code>["don't", "stop"]</code></td>
+</tr>
+<tr>
+<td><code>count_words(words)</code></td>
+<td><code>{word: count}</code></td>
+</tr>
+<tr>
+<td><code>top_words(counts, n)</code></td>
+<td><code>n</code> pairs <code>(word, count)</code>, highest count first, ties alphabetical.</td>
+</tr>
+<tr>
+<td><code>remove_stop_words(words, stop_words)</code></td>
+<td>Drops common words like "the" (case-insensitive on the stop list).</td>
+</tr>
+<tr>
+<td><code>word_stats(words)</code></td>
+<td>Dict with <code>total</code>, <code>unique</code>, <code>longest</code> (first one on ties) and <code>average_length</code> (rounded to 2 decimals; <code>0</code> and <code>None</code> for empty input).</td>
+</tr>
+<tr>
+<td><code>analyze_file(path, n=3, stop_words=())</code></td>
+<td>Reads the file, returns the stats dict plus a <code>"top"</code> list.</td>
+</tr>
+<tr>
+<td><code>format_report(stats)</code></td>
+<td>Turns that dict into a printable multi-line string (format in the docstring).</td>
+</tr>
+</tbody>
+</table>
+<h2 id="stage-1-review-checklist">Stage 1 review checklist</h2>
+<p>Tick these off honestly. If you can't do one without looking, re-read that week and redo its exercises from a blank file.</p>
+<p><strong>Week 1 - basics</strong></p>
+<ul>
+<li>[ ] I can explain variables, <code>int/float/str/bool</code>, and convert between them.</li>
+<li>[ ] I know <code>/</code>, <code>//</code>, <code>%</code>, <code>**</code> and use <code>%</code> for even/odd and wrap-around.</li>
+<li>[ ] I can index and slice strings, including negative indexes and <code>[::-1]</code>.</li>
+</ul>
+<p><strong>Week 2 - control flow</strong></p>
+<ul>
+<li>[ ] I can write if/elif/else chains in the right order.</li>
+<li>[ ] I know when to use <code>for</code> vs <code>while</code>, and what <code>range(a, b, step)</code> produces.</li>
+<li>[ ] I can use <code>break</code>, <code>continue</code> and the accumulator pattern.</li>
+</ul>
+<p><strong>Week 3 - functions</strong></p>
+<ul>
+<li>[ ] I understand parameters vs arguments, <code>return</code> vs <code>print</code>, default args, <code>*args</code>, <code>**kwargs</code>.</li>
+<li>[ ] I can explain local scope and the mutable-default trap.</li>
+<li>[ ] I can write a recursive function with a base case.</li>
+</ul>
+<p><strong>Week 4 - lists, tuples, strings</strong></p>
+<ul>
+<li>[ ] I can slice, sort (<code>sorted</code> vs <code>.sort()</code>), and explain copy vs reference.</li>
+<li>[ ] I know the common string methods (<code>split</code>, <code>join</code>, <code>strip</code>, <code>replace</code>).</li>
+<li>[ ] I can work with nested lists (grids) safely.</li>
+</ul>
+<p><strong>Week 5 - dicts, sets</strong></p>
+<ul>
+<li>[ ] I can count and group with a dict.</li>
+<li>[ ] I can use set union/intersection/difference.</li>
+<li>[ ] I can explain why <code>x in set</code> is faster than <code>x in list</code>.</li>
+</ul>
+<p><strong>Week 6 - files, errors, modules</strong></p>
+<ul>
+<li>[ ] I can read/write files with <code>with open</code>, and use <code>pathlib</code>.</li>
+<li>[ ] I can <code>try/except</code> a specific error and <code>raise</code> my own.</li>
+<li>[ ] I can import modules and read/write JSON.</li>
+</ul>
+<p><strong>Week 7 - comprehensions and generators</strong></p>
+<ul>
+<li>[ ] I can write list/dict/set comprehensions and know when a loop is clearer.</li>
+<li>[ ] I can use <code>sorted(key=...)</code>, <code>enumerate</code>, <code>zip</code>, <code>lambda</code>.</li>
+<li>[ ] I can write a generator with <code>yield</code> and explain why it saves memory.</li>
+</ul>
+<p><strong>Interview readiness for Stage 1</strong></p>
+<ul>
+<li>[ ] I can solve FizzBuzz, reverse a string, check a palindrome, count characters, and two-sum from a blank file.</li>
+<li>[ ] I can say out loud what my code does, step by step, and test it with an empty input, one item and a repeated item.</li>
+<li>[ ] I know how to debug: read the error from the bottom up, add <code>print</code>, run the failing test alone with <code>-k</code>.</li>
+</ul>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li>Writing everything first and testing at the end. Do one function, run its test.</li>
+<li>Forgetting empty input (<code>""</code>, <code>[]</code>, missing file).</li>
+<li>Changing a list while looping over it (build a new one instead).</li>
+<li>Printing inside functions instead of returning.</li>
+<li>Mixing up <code>id</code> (int) and the text typed by the user (str): convert with <code>int(...)</code>.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code> (both projects), make all tests pass, then tick the checklist. Stage 2 (OOP) comes next.</p>
+</article><div class="pager"><a class="prev" href="../../01-basics/week-07-comprehensions-generators/test_exercises.py.html">← Week 7 · Comprehensions and generators: Tests (code)</a><a class="next" href="../../01-basics/week-08-projects-review/exercises.py.html">Week 8 · Projects and review: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

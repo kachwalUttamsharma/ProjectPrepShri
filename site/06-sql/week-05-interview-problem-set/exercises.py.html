@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="06-sql/week-05-interview-problem-set/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../06-sql/week-05-interview-problem-set/lesson.html">Week 5 · Interview problem set</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="06-sql/week-05-interview-problem-set/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>06-sql/week-05-interview-problem-set/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 5: classic SQL interview problems. Replace each `...` with `return "&lt;your SQL&gt;"`.</span>
+
+<span class="sd">Tables are described at the top of schema.py. Tests compare rows AND column names.</span>
+<span class="sd">Row order matters only where the docstring says "ordered by".</span>
+<span class="sd">Many of these are famous (LeetCode / interview-bank) problems: solve them without</span>
+<span class="sd">looking things up first, then compare with the patterns in lesson.md.</span>
+<span class="sd">Time yourself: an interview slot is ~15-20 minutes per problem.</span>
+<span class="sd">"""</span>
+
+
+<span class="c1"># ---------------------------------------------------------------- Easy / warm-up</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">second_highest_salary</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Second highest DISTINCT salary in employees (ties count once).</span>
+<span class="sd">    Columns: second_highest</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">duplicate_emails</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Emails that appear more than once in people, with how many times.</span>
+<span class="sd">    Columns: email, cnt</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">duplicate_ids_to_delete</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""People rows you would DELETE to keep only the lowest id per email.</span>
+<span class="sd">    (Return a SELECT of the ids to delete; do not delete anything.)</span>
+<span class="sd">    Columns: id</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">earn_more_than_manager</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Employees who earn more than their manager.</span>
+<span class="sd">    Columns: name</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">managers_with_three_reports</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Managers with at least 3 direct reports.</span>
+<span class="sd">    Columns: name</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">customers_bought_every_category</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Customers who bought from EVERY category that appears in purchases (relational division).</span>
+<span class="sd">    Columns: customer</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># ------------------------------------------------------- Top-N / ranking / medians</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">department_top_earners</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""In every department, the employee(s) with the highest salary (ties all returned).</span>
+<span class="sd">    Columns: dept, employee, salary          (dept = department name)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">top2_products_per_category</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""For each category, the 2 products with the highest total revenue (sum of amount).</span>
+<span class="sd">    Columns: category, product, revenue      (ordered by category ASC, revenue DESC)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">median_salary_per_dept</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Median salary per department (average of the two middle values when the count is even).</span>
+<span class="sd">    SQLite has no MEDIAN: use ROW_NUMBER and COUNT window functions.</span>
+<span class="sd">    Columns: dept, median                    (dept = department name)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">first_order_per_customer</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Each customer's first order (earliest order_date).</span>
+<span class="sd">    Columns: customer, order_date, amount</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">best_customer_each_month</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""For each month ('YYYY-MM') the customer with the highest total amount that month.</span>
+<span class="sd">    Columns: month, customer, total          (ordered by month ASC)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># ------------------------------------------------ Gaps and islands / consecutive</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">consecutive_login_users</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Users who logged in on at least 3 consecutive calendar days (duplicate rows for the same</span>
+<span class="sd">    day must not count twice).</span>
+<span class="sd">    Columns: user_id</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">longest_login_streak</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Longest run of consecutive login days per user (distinct days).</span>
+<span class="sd">    Columns: user_id, longest_streak</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">id_islands</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Collapse log_ids into islands of consecutive integers.</span>
+<span class="sd">    Columns: start_id, end_id                (ordered by start_id ASC)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">missing_id_ranges</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""The gaps: ranges of integers missing between the smallest and largest log_ids.</span>
+<span class="sd">    Columns: gap_start, gap_end              (ordered by gap_start ASC)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">sessions_per_user</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Sessionization: a new session starts when the gap since the user's previous event is</span>
+<span class="sd">    MORE than 30 minutes (exactly 30 minutes stays in the same session).</span>
+<span class="sd">    Hint: strftime('%s', ts) gives integer seconds; LAG + SUM/COUNT of 'new session' flags.</span>
+<span class="sd">    Columns: user_id, sessions</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># ------------------------------------------------- Time series / growth / running</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">running_balance</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Running balance per account ordered by pay_date.</span>
+<span class="sd">    Columns: id, account, amount, balance    (ordered by account ASC, pay_date ASC)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">rolling_7day_average</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""7-day rolling average of revenue (current day + 6 previous days), rounded to 2 decimals,</span>
+<span class="sd">    only for days that have a FULL 7-day window.</span>
+<span class="sd">    Columns: day, avg7                       (ordered by day ASC)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">month_over_month_growth</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Monthly revenue from product_sales (month 'YYYY-MM') with growth % versus the previous</span>
+<span class="sd">    month, rounded to 1 decimal; NULL for the first month.</span>
+<span class="sd">    Columns: month, revenue, growth_pct      (ordered by month ASC)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">avg_days_between_orders</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""For customers with at least 2 orders: average number of days between consecutive orders,</span>
+<span class="sd">    rounded to 2 decimals.</span>
+<span class="sd">    Columns: customer, avg_gap_days</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># ---------------------------------------------------------- Product analytics</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">day1_retention</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Day-1 retention per signup cohort: users who were active EXACTLY one day after signing up.</span>
+<span class="sd">    retention_pct = retained / users * 100, rounded to 1 decimal.</span>
+<span class="sd">    Columns: cohort, users, retained, retention_pct   (ordered by cohort ASC)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">purchase_funnel</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Funnel: distinct users reaching each step, and that as a % of users at 'view' (1 decimal).</span>
+<span class="sd">    Columns: step, users, pct_of_first        (ordered view, cart, purchase)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># --------------------------------------------------- Reshaping / reporting / misc</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">pivot_quarterly_sales</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Pivot: one row per category, one column per quarter of 2024 (q1 = Jan-Mar, q2 = Apr-Jun,</span>
+<span class="sd">    q3 = Jul-Sep) with the summed amount.</span>
+<span class="sd">    Columns: category, q1, q2, q3</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">revenue_share_pct</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Each product's share of total revenue as a percentage, rounded to 1 decimal.</span>
+<span class="sd">    Columns: product, revenue, pct</span>
+<span class="sd">    Hint: SUM(SUM(amount)) OVER () or a scalar subquery.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">swap_adjacent_seats</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Swap the students of seats (1,2), (3,4), ...; if the number of seats is odd the last</span>
+<span class="sd">    seat keeps its student. (Famous 'exchange seats' problem.)</span>
+<span class="sd">    Columns: id, student                      (ordered by id ASC)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">salary_histogram</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Count employees per salary band: '&lt;60k' (&lt; 60000), '60-80k' (60000-79999),</span>
+<span class="sd">    '80-100k' (80000-99999), '100k+' (&gt;= 100000).</span>
+<span class="sd">    Columns: band, n</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../06-sql/week-05-interview-problem-set/cheatsheet.html">← Week 5 · Interview problem set: Cheatsheet</a><a class="next" href="../../06-sql/week-05-interview-problem-set/test_exercises.py.html">Week 5 · Interview problem set: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

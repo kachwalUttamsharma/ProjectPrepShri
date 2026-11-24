@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 3 - Storage and Databases | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="07-aws/week-03-storage-databases/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../07-aws/README.html">AWS</a> / <a href="../../07-aws/week-03-storage-databases/lesson.html">Week 3 · Storage and databases</a> / <span>Lesson</span></nav><button id="mark-done" data-id="07-aws/week-03-storage-databases/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-3-storage-and-databases">Week 3 - Storage and Databases</h1>
+<hr />
+<h2 id="1-s3-simple-storage-service">1. S3 (Simple Storage Service)</h2>
+<p><strong>What:</strong> Regional object store (key -&gt; object + metadata) in buckets. Designed for 99.999999999% (11 9s) durability; objects stored across &gt;=3 AZs (except One Zone classes).</p>
+<h3 id="key-facts-limits-check-current-docs">Key facts / limits (check current docs)</h3>
+<ul>
+<li>Object size 0 B - 5 TB. Single PUT max 5 GB; use multipart upload (recommended &gt; 100 MB; parts 5 MB - 5 GB, up to 10,000 parts).</li>
+<li>Bucket names globally unique; ~10,000 buckets per account default (raisable). Unlimited objects.</li>
+<li>Request rates: at least 3,500 PUT/COPY/POST/DELETE and 5,500 GET/HEAD per second PER PREFIX; scale by spreading across prefixes. (No need for random prefixes anymore.)</li>
+<li><strong>Consistency:</strong> strong read-after-write and list consistency for all operations (since Dec 2020).</li>
+<li>Flat namespace; "folders" are key prefixes.</li>
+</ul>
+<h3 id="storage-classes">Storage classes</h3>
+<table>
+<thead>
+<tr>
+<th>Class</th>
+<th>Use</th>
+<th>Retrieval</th>
+<th>Min duration</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Standard</td>
+<td>hot data</td>
+<td>ms</td>
+<td>none</td>
+</tr>
+<tr>
+<td>Intelligent-Tiering</td>
+<td>unknown/changing access; auto-tiers, small monitoring fee</td>
+<td>ms (opt. archive tiers)</td>
+<td>none</td>
+</tr>
+<tr>
+<td>Standard-IA</td>
+<td>infrequent, rapid access</td>
+<td>ms, retrieval fee</td>
+<td>30 d</td>
+</tr>
+<tr>
+<td>One Zone-IA</td>
+<td>re-creatable infrequent data, single AZ</td>
+<td>ms</td>
+<td>30 d</td>
+</tr>
+<tr>
+<td>Glacier Instant Retrieval</td>
+<td>archive, rare access, ms</td>
+<td>ms</td>
+<td>90 d</td>
+</tr>
+<tr>
+<td>Glacier Flexible Retrieval</td>
+<td>archive, minutes-hours</td>
+<td>1 min-12 h</td>
+<td>90 d</td>
+</tr>
+<tr>
+<td>Glacier Deep Archive</td>
+<td>cheapest, compliance</td>
+<td>12-48 h</td>
+<td>180 d</td>
+</tr>
+<tr>
+<td>Express One Zone</td>
+<td>single-digit ms, high-perf, directory buckets (ML, analytics)</td>
+<td>ms</td>
+<td>none</td>
+</tr>
+<tr>
+<td>Min object-size charges apply for IA classes (128 KB).</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="features">Features</h3>
+<ul>
+<li><strong>Versioning:</strong> keeps all versions; deletes create delete markers; protects from overwrite/delete; once enabled can only be suspended. Combine with MFA Delete / Object Lock.</li>
+<li><strong>Lifecycle rules:</strong> transition (Standard -&gt; IA -&gt; Glacier) and expiration, incl. noncurrent versions, abort incomplete multipart uploads (important cost leak).</li>
+<li><strong>Replication:</strong> CRR (cross-region) / SRR (same-region), requires versioning, async, not retroactive (use Batch Replication for existing objects).</li>
+<li><strong>Object Lock</strong> (WORM; governance vs compliance mode, legal hold).</li>
+<li><strong>Security layers:</strong> IAM policies, bucket policies, Block Public Access (on by default for new buckets), ACLs disabled by default (Object Ownership = bucket owner enforced), encryption at rest always on (SSE-S3 default; SSE-KMS; SSE-C; DSSE-KMS), TLS in transit (enforce with <code>aws:SecureTransport</code>), VPC gateway endpoint + <code>aws:SourceVpce</code> condition, Access Points, Access Analyzer, Macie (PII discovery), CloudTrail data events.</li>
+<li><strong>Presigned URLs:</strong> time-limited URL signed with the signer's credentials granting GET/PUT of one object without AWS creds. Expiry up to 7 days with IAM user keys (shorter if signed with temporary role creds - bounded by the session). Pattern: client uploads directly to S3 -&gt; API never proxies big files.</li>
+<li><strong>Events:</strong> S3 -&gt; EventBridge/SNS/SQS/Lambda on object create.</li>
+<li><strong>Static website hosting</strong> (use CloudFront + OAC for HTTPS).</li>
+<li><strong>S3 Select/Athena/Glue</strong> for querying data in place; <strong>Transfer Acceleration</strong> (edge-upload), <strong>Multi-Region Access Points</strong>, <strong>Batch Operations</strong>, <strong>Storage Lens</strong>.</li>
+<li>Pricing: GB-month by class + requests + retrieval + data transfer out (+ cross-region replication). Requests on tiny objects can dominate cost.</li>
+<li>Gotchas: public bucket leaks (Block Public Access), <code>ListBucket</code> vs <code>GetObject</code> ARNs, delete markers hide versions but still cost, small-files problem for analytics, 503 SlowDown when hot prefix, KMS request-rate throttling (use S3 Bucket Keys), versioned bucket + lifecycle must expire noncurrent versions.</li>
+<li>Alternatives: EFS/EBS (not objects), GCS/Azure Blob, MinIO (self-hosted), R2/B2 (cheaper egress).</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="n">s3</span> <span class="o">=</span> <span class="n">boto3</span><span class="o">.</span><span class="n">client</span><span class="p">(</span><span class="s2">"s3"</span><span class="p">)</span>
+<span class="n">url</span> <span class="o">=</span> <span class="n">s3</span><span class="o">.</span><span class="n">generate_presigned_url</span><span class="p">(</span><span class="s2">"put_object"</span><span class="p">,</span>
+        <span class="n">Params</span><span class="o">=</span><span class="p">{</span><span class="s2">"Bucket"</span><span class="p">:</span> <span class="s2">"my-bucket"</span><span class="p">,</span> <span class="s2">"Key"</span><span class="p">:</span> <span class="s2">"uploads/a.pdf"</span><span class="p">,</span> <span class="s2">"ContentType"</span><span class="p">:</span> <span class="s2">"application/pdf"</span><span class="p">},</span>
+        <span class="n">ExpiresIn</span><span class="o">=</span><span class="mi">900</span><span class="p">)</span>
+<span class="c1"># client: requests.put(url, data=..., headers={"Content-Type": "application/pdf"})</span>
+</code></pre></div>
+
+<hr />
+<h2 id="2-ebs-efs-fsx-summary">2. EBS / EFS / FSx (summary)</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Type</th>
+<th>Scope</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>EBS</td>
+<td>block</td>
+<td>single AZ, 1 instance (Multi-Attach io1/io2 aside)</td>
+<td>boot/DB disks</td>
+</tr>
+<tr>
+<td>EFS</td>
+<td>NFS (Linux) file, elastic, POSIX</td>
+<td>multi-AZ regional, thousands of clients; Standard/IA/Archive tiers; Bursting vs Elastic/Provisioned throughput</td>
+<td>shared content, CMS, ML datasets, Lambda/Fargate shared storage</td>
+</tr>
+<tr>
+<td>FSx for Windows</td>
+<td>SMB, AD integrated</td>
+<td>Single/Multi-AZ</td>
+<td>Windows file shares</td>
+</tr>
+<tr>
+<td>FSx for Lustre</td>
+<td>HPC parallel FS, S3-linked</td>
+<td></td>
+<td>ML training, HPC</td>
+</tr>
+<tr>
+<td>FSx for NetApp ONTAP</td>
+<td>NFS/SMB/iSCSI, snapshots, multiprotocol</td>
+<td></td>
+<td>lift-and-shift NetApp</td>
+</tr>
+<tr>
+<td>FSx for OpenZFS</td>
+<td>NFS, low-latency</td>
+<td></td>
+<td>Linux migrations</td>
+</tr>
+<tr>
+<td>Also: Storage Gateway (hybrid), DataSync (bulk transfer), Transfer Family (SFTP to S3), Snow family (offline), AWS Backup (centralized backup).</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>EFS pricing is per GB-month, more than S3 (roughly 10x+ Standard S3) and several times EBS; EBS billed on provisioned size, EFS on used.</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="3-relational-rds-and-aurora">3. Relational: RDS and Aurora</h2>
+<p><strong>RDS:</strong> managed MySQL, MariaDB, PostgreSQL, Oracle, SQL Server (and Db2). AWS handles provisioning, patching, backups (automated 1-35 days + PITR; manual snapshots), failover. No OS/SSH access (RDS Custom exists for Oracle/SQL Server). Storage autoscaling; storage max 64 TiB (check docs). Encryption at rest via KMS (must choose at creation; to encrypt existing: snapshot -&gt; copy encrypted -&gt; restore).</p>
+<h3 id="multi-az-vs-read-replicas-classic-interview-question">Multi-AZ vs Read Replicas (classic interview question)</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Multi-AZ</th>
+<th>Read replica</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Purpose</td>
+<td>HA / failover</td>
+<td>Read scaling (and DR/cross-region)</td>
+</tr>
+<tr>
+<td>Replication</td>
+<td>Synchronous</td>
+<td>Asynchronous (lag)</td>
+</tr>
+<tr>
+<td>Readable?</td>
+<td>Standby not readable (Multi-AZ instance); the Multi-AZ DB <em>cluster</em> option has 2 readable standbys</td>
+<td>Yes, own endpoint</td>
+</tr>
+<tr>
+<td>Failover</td>
+<td>Automatic, DNS endpoint flips (~60-120 s)</td>
+<td>Manual promotion (becomes standalone)</td>
+</tr>
+<tr>
+<td>Region</td>
+<td>Same region, different AZ</td>
+<td>Same or cross-region (up to 15 for MySQL/Postgres/MariaDB, check docs)</td>
+</tr>
+<tr>
+<td>Backups</td>
+<td>taken from standby</td>
+<td>independent</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Aurora:</strong> MySQL/PostgreSQL-compatible, cloud-native. Storage separated from compute: 6 copies across 3 AZs, auto-grows in 10 GB chunks up to 128 TiB, continuous backup to S3. Up to 15 low-lag read replicas sharing the same storage; failover typically &lt; 30 s. Cluster endpoint (writer), reader endpoint (load-balanced), custom endpoints. Aurora Serverless v2 (scales in ACUs, fine-grained, can scale down to 0 ACUs in newer versions - check docs). Aurora Global Database (cross-region &lt;1 s replication lag typical, RPO ~1 s, fast promote). Backtrack (MySQL), parallel query, zero-ETL to Redshift, Data API, pgvector extension for embeddings (Aurora PostgreSQL), I/O-Optimized vs Standard pricing.
+Aurora vs RDS: Aurora costs more per instance (but I/O-Optimized helps) yet gives faster failover, more replicas, bigger storage; RDS cheaper for small/simple.</p>
+<p>RDS Proxy: connection pooling, faster failover, IAM auth - needed for Lambda.
+Gotchas: connection limits depend on instance memory; parameter groups need reboot for static params; Multi-AZ does not give read scaling; replica lag; major version upgrades have downtime/planning; stopped RDS instances auto-start after 7 days; snapshots persist and cost.</p>
+<p>When not RDS: key-value at huge scale (DynamoDB), analytics (Redshift/Athena), graph (Neptune), documents (DocumentDB).</p>
+<hr />
+<h2 id="4-dynamodb">4. DynamoDB</h2>
+<p><strong>What:</strong> Serverless, fully managed key-value/document NoSQL; single-digit ms latency at any scale; multi-AZ by default.</p>
+<ul>
+<li><strong>Keys:</strong> Partition key (hash) alone, or partition + sort key (range). Item max 400 KB. Design access patterns first, then keys; avoid hot partitions (choose high-cardinality PK; write sharding).</li>
+<li><strong>Per-partition limits (check docs):</strong> ~3,000 RCU and 1,000 WCU per partition (adaptive capacity helps).</li>
+<li><strong>Capacity:</strong> 1 RCU = one strongly consistent read of up to 4 KB/s (eventually consistent = half; transactional = 2x). 1 WCU = one write up to 1 KB/s (transactional = 2x).</li>
+<li><strong>Modes:</strong> Provisioned (+ auto scaling; cheaper at predictable load, reserved capacity) vs On-Demand (pay per request, instant scaling, good for unknown/spiky; more expensive at steady high load). Can switch modes (limited frequency). Table classes: Standard vs Standard-IA.</li>
+<li><strong>Indexes:</strong> LSI: same PK, different SK; must be created at table creation; max 5; shares table capacity; limits 10 GB per partition key value (item collection). GSI: different PK/SK; anytime; default max 20; own capacity; eventually consistent only; can be projected attributes.</li>
+<li><strong>Query vs Scan:</strong> Query uses key (efficient); Scan reads everything (avoid). Filter expressions don't reduce RCU consumed.</li>
+<li><strong>Features:</strong> TTL (free deletes), Streams (24 h change log -&gt; Lambda), PITR (35 days) + on-demand backups, Global Tables (multi-region active-active, last-writer-wins), transactions (up to 100 items / 4 MB), conditional writes (optimistic locking), DAX (in-memory cache, microsecond reads), PartiQL, export to S3, batch ops (25 writes/100 reads per call), encryption always on (KMS).</li>
+<li><strong>Pricing:</strong> per request (on-demand) or per provisioned capacity-hour, storage GB-month, plus options (streams, backups, global tables replicated writes).</li>
+<li><strong>Use:</strong> sessions, carts, IoT, leaderboards, metadata, high-scale known access patterns. <strong>Not:</strong> ad-hoc queries/joins/aggregations, complex relational/analytics, items &gt; 400 KB (store in S3, pointer in DDB).</li>
+<li>Gotchas: throttling (ProvisionedThroughputExceeded) from hot keys; scan cost; GSI backpressure throttles base table writes; single-table design learning curve; no cross-item joins.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="n">tbl</span> <span class="o">=</span> <span class="n">boto3</span><span class="o">.</span><span class="n">resource</span><span class="p">(</span><span class="s2">"dynamodb"</span><span class="p">)</span><span class="o">.</span><span class="n">Table</span><span class="p">(</span><span class="s2">"Orders"</span><span class="p">)</span>
+<span class="n">tbl</span><span class="o">.</span><span class="n">put_item</span><span class="p">(</span><span class="n">Item</span><span class="o">=</span><span class="p">{</span><span class="s2">"pk"</span><span class="p">:</span> <span class="s2">"USER#42"</span><span class="p">,</span> <span class="s2">"sk"</span><span class="p">:</span> <span class="s2">"ORDER#2026-01-01#9"</span><span class="p">,</span> <span class="s2">"total"</span><span class="p">:</span> <span class="mi">30</span><span class="p">},</span>
+             <span class="n">ConditionExpression</span><span class="o">=</span><span class="s2">"attribute_not_exists(pk)"</span><span class="p">)</span>
+<span class="n">tbl</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">KeyConditionExpression</span><span class="o">=</span><span class="n">Key</span><span class="p">(</span><span class="s2">"pk"</span><span class="p">)</span><span class="o">.</span><span class="n">eq</span><span class="p">(</span><span class="s2">"USER#42"</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">Key</span><span class="p">(</span><span class="s2">"sk"</span><span class="p">)</span><span class="o">.</span><span class="n">begins_with</span><span class="p">(</span><span class="s2">"ORDER#"</span><span class="p">))</span>
+</code></pre></div>
+
+<hr />
+<h2 id="5-elasticache-memorydb">5. ElastiCache / MemoryDB</h2>
+<ul>
+<li>ElastiCache engines: Redis OSS / Valkey (data structures, persistence, replication, Multi-AZ failover, cluster mode sharding, pub/sub, Lua) vs Memcached (simple, multithreaded, no persistence/replication). Also serverless option.</li>
+<li>Patterns: cache-aside (lazy load; app checks cache, falls back to DB, writes to cache with TTL), write-through, TTL + eviction (LRU). Use for session store, rate limiting, leaderboards, DB offload.</li>
+<li>MemoryDB: Redis-compatible durable primary DB (multi-AZ transaction log). DAX only for DynamoDB.</li>
+<li>Gotchas: cache invalidation, thundering herd, must be in VPC (no public access), data must be tolerant of loss unless MemoryDB.</li>
+</ul>
+<hr />
+<h2 id="6-redshift-and-analytics-neighbors">6. Redshift (and analytics neighbors)</h2>
+<ul>
+<li>Redshift: columnar MPP data warehouse (OLAP); provisioned (RA3 nodes with managed storage) or Serverless; Spectrum queries S3; concurrency scaling; materialized views; zero-ETL from Aurora/DynamoDB. Not for OLTP, high-frequency single-row writes.</li>
+<li>Athena: serverless SQL on S3 (pay ~$5/TB scanned); use Parquet + partitioning to cut cost. Glue: ETL + Data Catalog. Lake Formation: governance. EMR: Spark/Hadoop. OpenSearch: search/log analytics/vector search.</li>
+<li>Other DBs: DocumentDB (Mongo-compatible), Neptune (graph), Keyspaces (Cassandra), Timestream (time series), QLDB (ledger; being retired - check), RDS Custom.</li>
+</ul>
+<h2 id="7-choosing-a-database">7. Choosing a database</h2>
+<div class="highlight"><pre><span></span><code> Relational, transactions, joins? --&gt; RDS / Aurora (Aurora for HA + scale; Postgres w/ pgvector for RAG)
+ Key-value/document, massive scale, known access patterns, serverless? --&gt; DynamoDB
+ Sub-ms cache / sessions / rate limit? --&gt; ElastiCache (Redis/Valkey)
+ Analytics / BI on TBs-PBs? --&gt; Redshift (warehouse) or Athena on S3 (ad hoc)
+ Search / logs / vectors? --&gt; OpenSearch
+ Graph --&gt; Neptune ; Wide column --&gt; Keyspaces ; Time series --&gt; Timestream
+ Files/blobs --&gt; S3 (objects), EFS (shared POSIX), EBS (block)
+</code></pre></div>
+
+<h2 id="8-architecture-example-image-upload-service">8. Architecture example: image upload service</h2>
+<div class="highlight"><pre><span></span><code> Client -&gt; API (Fargate) : POST /upload -&gt; returns presigned PUT URL (S3)
+ Client -&gt; S3 (direct upload) -&gt; S3 event -&gt; SQS -&gt; Lambda (thumbnail) -&gt; S3 /thumbs
+                                        \-&gt; DynamoDB (metadata: user, key, status)
+ Reads: CloudFront (OAC) -&gt; S3
+ Lifecycle: originals -&gt; Standard-IA after 30d -&gt; Glacier after 180d
+</code></pre></div>
+</article><div class="pager"><a class="prev" href="../../07-aws/week-02-compute/labs.html">← Week 2 · Compute: Labs</a><a class="next" href="../../07-aws/week-03-storage-databases/interview-qa.html">Week 3 · Storage and databases: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

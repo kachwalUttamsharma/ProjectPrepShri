@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Design 8: GDPR Deletion / Right to Erasure Across a Lakehouse | Study Hub</title><link rel="stylesheet" href="../../../assets/style.css"><link rel="stylesheet" href="../../../assets/pygments.css"></head>
+<body data-root="../../../" data-page-id="14-data-engineering/week-07-pipeline-design/designs/08-gdpr-erasure" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../../index.html">Home</a> / <a href="../../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../../14-data-engineering/week-07-pipeline-design/designs/01-clickstream-analytics.html">Week 7 · Pipeline design</a> / <a href="../../../14-data-engineering/week-07-pipeline-design/designs/01-clickstream-analytics.html">Designs</a> / <span>Design 8: GDPR Deletion / Right to Erasure Across a Lakehouse</span></nav><button id="mark-done" data-id="14-data-engineering/week-07-pipeline-design/designs/08-gdpr-erasure">Mark as done</button></div><article class="doc">
+<h1 id="design-8-gdpr-deletion-right-to-erasure-across-a-lakehouse">Design 8: GDPR Deletion / Right to Erasure Across a Lakehouse</h1>
+<p>Prompt: "A user asks us to delete their personal data. Our data is in OLTP databases, Kafka, a lakehouse with bronze/silver/gold tables of petabytes, derived datasets, ML features, and backups. Design the deletion system."</p>
+<p>This is a legal-adjacent topic. State assumptions and say "confirm with legal/privacy counsel" for retention exceptions and deadlines (GDPR generally requires action without undue delay and within one month, extendable in some cases; check current regulation and counsel).</p>
+<h2 id="requirements">Requirements</h2>
+<p>Functional</p>
+<ul>
+<li>Accept deletion requests (from privacy portal/support), verify identity, create a tracked request.</li>
+<li>Delete or anonymize the subject's personal data in all systems of record and derived stores, or document the legal exemption (for example legal retention of invoices).</li>
+<li>Provide proof: audit trail showing what was deleted, where, when, by which job.</li>
+<li>Also support related rights: access/export, restriction, consent withdrawal (mention).</li>
+</ul>
+<p>Non-functional</p>
+<ul>
+<li>SLA: complete within 30 days (internal target 14 days); request volume 5,000/day average, spikes after news events.</li>
+<li>Do not break analytics: aggregates and models remain valid; downstream consumers are notified.</li>
+<li>Safe: never delete the wrong person's data; idempotent; reversible window only before the execution step (deletions are irreversible, so use staged soft-delete first for a short grace period where legally acceptable).</li>
+<li>Efficient: do not rewrite petabytes per request, so batch requests.</li>
+<li>Out of scope: legal determination of what must be retained.</li>
+</ul>
+<h2 id="capacity-estimates">Capacity estimates</h2>
+<ul>
+<li>5,000 requests/day; a lakehouse with 2,000 tables, of which 400 contain personal data identifiers; total 5 PB.</li>
+<li>Naive per-request delete rewrites every file containing that user's rows. If each request touched 400 tables x 1 file each of 256 MB, that's 100 GB rewrite per request x 5,000 = 500 TB/day: too expensive. Batching: accumulate requests for 24 h (or 7 days) and run one MERGE/DELETE per table with the whole set of ids. Cost becomes about one scan of the touched partitions per table per batch, so tens of TB per run for tables not clustered by user id; far less with data layout by user key or deletion vectors.</li>
+<li>Backups and retention windows: delete in backups by expiry (for example 35-day backup retention) rather than rewriting; document it.</li>
+</ul>
+<h2 id="architecture">Architecture</h2>
+<pre class="mermaid">flowchart TB
+  P[Privacy portal / support] --&gt; RQ[(Erasure request registry)]
+  RQ --&gt; ID[Identity resolution: map user to all identifiers]
+  ID --&gt; IDX[(PII index: identifier -&gt; systems/tables/partitions)]
+  ID --&gt; ORCH[Deletion orchestrator]
+  ORCH --&gt; OLTP[OLTP services: delete via APIs/jobs]
+  ORCH --&gt; KAF[Kafka: tombstones for compacted topics; short retention for others]
+  ORCH --&gt; LH[Lakehouse purge jobs: batched MERGE / DELETE per table]
+  ORCH --&gt; ML[Feature store, model data: delete rows, flag for retrain]
+  ORCH --&gt; SAAS[3rd parties: email, analytics, vendors via API]
+  LH --&gt; VAC[Compaction + VACUUM / expire snapshots]
+  ORCH --&gt; VER[Verification scans]
+  VER --&gt; AUD[(Immutable audit log: who/what/when, no PII)]
+  CAT[Catalog: PII tags per column] -.-&gt; IDX
+  SUP[Suppression list: do-not-reload hashes] -.-&gt; ING[Ingestion jobs]</pre>
+<h2 id="data-model">Data model</h2>
+<ul>
+<li><code>erasure_request(request_id, subject_ref, status [received|verified|planned|executing|verifying|completed|exempt], received_at, due_at, legal_hold_flag)</code>.</li>
+<li><code>subject_identifiers(request_id, id_type [user_id, email_hash, device_id, ...], value_hash)</code>; resolve all identifiers a subject may appear under.</li>
+<li><code>pii_inventory(system, table, column, id_type, tag, erasure_action [delete_row|nullify|pseudonymize|retain_with_exemption], owner)</code>; maintained from catalog column tags and verified by scanners.</li>
+<li><code>erasure_task(request_id, system, table, status, rows_affected, snapshot_before/after, completed_at)</code>.</li>
+<li><code>suppression_list(identifier_hash, added_at)</code>, a minimal record used to avoid re-ingestion of deleted subjects (store only a salted hash and document the legal basis).</li>
+</ul>
+<h2 id="step-by-step-flow">Step-by-step flow</h2>
+<ol>
+<li>Intake and verification: authenticate the requester, create the request, and set the due date.</li>
+<li>Identity resolution: collect all identifiers (user id, emails, device ids, customer ids in partner systems) from the identity graph.</li>
+<li>Planning: consult the PII inventory to enumerate every table/topic/store holding these identifiers; mark legal retention exceptions (for example finance records keep minimal fields and pseudonymize).</li>
+<li>Staging: add identifiers to the day's deletion batch table; write to the suppression list.</li>
+<li>Execute in OLTP: delete or anonymize via service APIs (source of truth first, otherwise CDC will re-propagate data).</li>
+<li>Execute in lakehouse per table in batch:
+   - <code>DELETE FROM silver.events WHERE user_id IN (SELECT user_id FROM erasure_batch)</code> or <code>MERGE</code> with delete; for pseudonymized datasets, delete the mapping key (crypto-shredding) to make the data unlinkable.
+   - Table formats with copy-on-write rewrite files immediately; with merge-on-read/deletion vectors the data persists in old files until compaction and snapshot expiry, so you must run compaction and expire snapshots/VACUUM within the SLA (details vary by Delta/Iceberg/Hudi and version, check current docs).
+   - Bronze raw data often keeps original payloads: delete there too, or never store raw PII in bronze (tokenize at ingest).</li>
+<li>Kafka: topics with short retention expire naturally within the SLA; compacted topics receive tombstones; long-retention topics are avoided for PII or use field-level encryption.</li>
+<li>Derived stores: feature store, search indices, caches, BI extracts, notebooks, reports; delete or rebuild; ML training sets and models: flag for next retrain; document the policy (many teams accept that already trained model weights are not retrained per request, but this is a legal question).</li>
+<li>Verification: scan for the identifiers across tables (using hashed lookup or the PII index); sample-based search of unstructured storage; anything remaining raises an exception.</li>
+<li>Backups: rely on expiry; any restore from backup must re-apply the erasure log before use ("replay deletions after restore").</li>
+<li>Close: write an immutable audit record (without PII), confirm to the user.</li>
+</ol>
+<h2 id="failure-modes">Failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Failure</th>
+<th>Handling</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PII in unknown places (ad hoc copies, notebooks)</td>
+<td>Catalog scanning and tagging, ban on uncontrolled copies, retention on sandboxes</td>
+</tr>
+<tr>
+<td>Deleting the wrong subject (identity collision)</td>
+<td>Strong verification, exact-match identifiers, dry-run counts, staged soft delete for a grace window</td>
+</tr>
+<tr>
+<td>Data reappears from replay/backfill/restore</td>
+<td>Suppression list at ingestion and restore procedures that re-apply the erasure log</td>
+</tr>
+<tr>
+<td>Deleted logically but files still physically present</td>
+<td>Compaction + snapshot expiry/VACUUM in SLA; verify at storage level</td>
+</tr>
+<tr>
+<td>Job partial failure</td>
+<td>Per-table idempotent tasks, retries, status tracking, alert on overdue requests</td>
+</tr>
+<tr>
+<td>Expensive full-table scans</td>
+<td>Batch requests; cluster/sort by user key; deletion vectors; partition by something useful; PII index to prune files</td>
+</tr>
+<tr>
+<td>Downstream breakage (FK, aggregates)</td>
+<td>Replace with pseudonymous tombstone ids; aggregates retained when irreversibly anonymous</td>
+</tr>
+<tr>
+<td>Third-party processors not deleting</td>
+<td>Contracts, API-based deletion, confirmation tracking</td>
+</tr>
+<tr>
+<td>Legal hold conflicts</td>
+<td>Registry flag blocks deletion; privacy team resolves</td>
+</tr>
+</tbody>
+</table>
+<h2 id="trade-offs">Trade-offs</h2>
+<ul>
+<li>Hard delete vs pseudonymize vs crypto-shredding: hard deletes are certain but expensive; crypto-shredding (per-user key deleted so all copies become unreadable) is fast across backups and bronze but requires key management and encryption-at-write design from the start. Legal acceptance varies (check with counsel).</li>
+<li>Batching windows: longer windows save cost but approach the deadline; choose 1-7 days with a priority path.</li>
+<li>Design for deletion up front: store PII in a few tokenized tables (a "PII vault") and use surrogate keys elsewhere; erasure then deletes one place, and analytics stay pseudonymous.</li>
+<li>Table format differences: copy-on-write simplifies physical deletion; merge-on-read is cheaper to write but needs extra purge steps.</li>
+<li>Retention as erasure: short retention on raw/bronze reduces the surface area.</li>
+</ul>
+<h2 id="follow-up-questions">Follow-up questions</h2>
+<ol>
+<li>How do you delete from immutable Parquet files in a table format? (rewrite files without the rows, new snapshot, expire old snapshots/VACUUM so old files are removed)</li>
+<li>What about time travel? (expiring snapshots removes old versions; set retention shorter than SLA for PII tables)</li>
+<li>How do you avoid rewriting petabytes per request? (batching, clustering by user key, PII vault + surrogate keys, deletion vectors plus compaction)</li>
+<li>How do you handle ML models trained on deleted data? (policy decision; retrain cadence; machine unlearning is research-level, check current guidance)</li>
+<li>How do you prove deletion to a regulator? (immutable audit trail, verification scans, evidence of table snapshot versions)</li>
+<li>How would you design the ingestion path so erasure is cheap from day one? (tokenize at the edge, field-level encryption with per-subject keys, PII tagging in contracts)</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../../14-data-engineering/week-07-pipeline-design/designs/07-fraud-detection.html">← Design 7: Real-Time Fraud / Anomaly Detection Pipeline</a><a class="next" href="../../../14-data-engineering/week-07-pipeline-design/lesson.html">Week 7 · Pipeline design: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../../assets/data.js"></script><script src="../../../assets/app.js"></script></body></html>

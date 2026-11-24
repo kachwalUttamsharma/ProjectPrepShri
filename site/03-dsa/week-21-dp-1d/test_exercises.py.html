@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>test_exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-21-dp-1d/test_exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-21-dp-1d/lesson.html">Week 21 · 1-D dynamic programming</a> / <span>Tests (code)</span></nav><button id="mark-done" data-id="03-dsa/week-21-dp-1d/test_exercises.py">Mark as done</button></div><article class="doc">
+<h1>test_exercises.py</h1><p class="code-path"><code>03-dsa/week-21-dp-1d/test_exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">itertools</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">random</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+
+
+<span class="c1"># ---------- climb_stairs ----------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_climb_examples</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">climb_stairs</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">climb_stairs</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="n">climb_stairs</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span> <span class="o">==</span> <span class="mi">8</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_climb_base_cases</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">climb_stairs</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">climb_stairs</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_climb_large_no_recursion_blowup</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">climb_stairs</span><span class="p">(</span><span class="mi">45</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1836311903</span>
+    <span class="k">assert</span> <span class="n">climb_stairs</span><span class="p">(</span><span class="mi">90</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4660046610375530309</span>  <span class="c1"># fib(91)</span>
+
+
+<span class="c1"># ---------- house_robber ----------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_rob_examples</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">house_robber</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span> <span class="o">==</span> <span class="mi">12</span>
+    <span class="k">assert</span> <span class="n">house_robber</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span> <span class="o">==</span> <span class="mi">4</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_rob_edges</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">house_robber</span><span class="p">([])</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">house_robber</span><span class="p">([</span><span class="mi">5</span><span class="p">])</span> <span class="o">==</span> <span class="mi">5</span>
+    <span class="k">assert</span> <span class="n">house_robber</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">house_robber</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span> <span class="o">==</span> <span class="mi">0</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_rob_skip_two_houses_is_best</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">house_robber</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">])</span> <span class="o">==</span> <span class="mi">4</span>
+    <span class="k">assert</span> <span class="n">house_robber</span><span class="p">([</span><span class="mi">100</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">100</span><span class="p">])</span> <span class="o">==</span> <span class="mi">200</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_rob_matches_bruteforce</span><span class="p">():</span>
+    <span class="n">rng</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">Random</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">60</span><span class="p">):</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="p">[</span><span class="n">rng</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">rng</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">))]</span>
+        <span class="n">best</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">mask</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="n">mask</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">mask</span> <span class="o">&gt;&gt;</span> <span class="mi">1</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="n">best</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">best</span><span class="p">,</span> <span class="nb">sum</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="p">))</span> <span class="k">if</span> <span class="n">mask</span> <span class="o">&gt;&gt;</span> <span class="n">i</span> <span class="o">&amp;</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="k">assert</span> <span class="n">house_robber</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="o">==</span> <span class="n">best</span>
+
+
+<span class="c1"># ---------- house_robber_circular ----------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_rob_circular_examples</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">house_robber_circular</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">])</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="n">house_robber_circular</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span> <span class="o">==</span> <span class="mi">4</span>
+    <span class="k">assert</span> <span class="n">house_robber_circular</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span> <span class="o">==</span> <span class="mi">3</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_rob_circular_edges</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">house_robber_circular</span><span class="p">([</span><span class="mi">5</span><span class="p">])</span> <span class="o">==</span> <span class="mi">5</span>
+    <span class="k">assert</span> <span class="n">house_robber_circular</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">9</span><span class="p">])</span> <span class="o">==</span> <span class="mi">9</span>
+    <span class="k">assert</span> <span class="n">house_robber_circular</span><span class="p">([</span><span class="mi">0</span><span class="p">])</span> <span class="o">==</span> <span class="mi">0</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_rob_circular_matches_bruteforce</span><span class="p">():</span>
+    <span class="n">rng</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">Random</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">60</span><span class="p">):</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="p">[</span><span class="n">rng</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">rng</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">))]</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+        <span class="n">best</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">mask</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="n">n</span><span class="p">):</span>
+            <span class="n">ok</span> <span class="o">=</span> <span class="nb">all</span><span class="p">(</span><span class="ow">not</span> <span class="p">(</span><span class="n">mask</span> <span class="o">&gt;&gt;</span> <span class="n">i</span> <span class="o">&amp;</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">mask</span> <span class="o">&gt;&gt;</span> <span class="p">((</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="n">n</span><span class="p">)</span> <span class="o">&amp;</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="k">if</span> <span class="n">n</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">ok</span><span class="p">:</span>
+                <span class="n">best</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">best</span><span class="p">,</span> <span class="nb">sum</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="k">if</span> <span class="n">mask</span> <span class="o">&gt;&gt;</span> <span class="n">i</span> <span class="o">&amp;</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="k">assert</span> <span class="n">house_robber_circular</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="o">==</span> <span class="n">best</span>
+
+
+<span class="c1"># ---------- max_subarray ----------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_max_subarray_examples</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">max_subarray</span><span class="p">([</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">5</span><span class="p">,</span> <span class="mi">4</span><span class="p">])</span> <span class="o">==</span> <span class="mi">6</span>
+    <span class="k">assert</span> <span class="n">max_subarray</span><span class="p">([</span><span class="mi">1</span><span class="p">])</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">max_subarray</span><span class="p">([</span><span class="mi">5</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">8</span><span class="p">])</span> <span class="o">==</span> <span class="mi">23</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_max_subarray_all_negative</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">max_subarray</span><span class="p">([</span><span class="o">-</span><span class="mi">3</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">])</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">max_subarray</span><span class="p">([</span><span class="o">-</span><span class="mi">5</span><span class="p">])</span> <span class="o">==</span> <span class="o">-</span><span class="mi">5</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_max_subarray_matches_bruteforce</span><span class="p">():</span>
+    <span class="n">rng</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">Random</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">80</span><span class="p">):</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="p">[</span><span class="n">rng</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="o">-</span><span class="mi">9</span><span class="p">,</span> <span class="mi">9</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">rng</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">12</span><span class="p">))]</span>
+        <span class="n">best</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="n">i</span><span class="p">:</span><span class="n">j</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="p">))</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="k">assert</span> <span class="n">max_subarray</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="o">==</span> <span class="n">best</span>
+
+
+<span class="c1"># ---------- max_product_subarray ----------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_max_product_examples</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">max_product_subarray</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">])</span> <span class="o">==</span> <span class="mi">6</span>
+    <span class="k">assert</span> <span class="n">max_product_subarray</span><span class="p">([</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">max_product_subarray</span><span class="p">([</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="o">-</span><span class="mi">4</span><span class="p">])</span> <span class="o">==</span> <span class="mi">24</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_max_product_edges</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">max_product_subarray</span><span class="p">([</span><span class="o">-</span><span class="mi">3</span><span class="p">])</span> <span class="o">==</span> <span class="o">-</span><span class="mi">3</span>
+    <span class="k">assert</span> <span class="n">max_product_subarray</span><span class="p">([</span><span class="mi">0</span><span class="p">])</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">max_product_subarray</span><span class="p">([</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="mi">3</span><span class="p">,</span> <span class="o">-</span><span class="mi">4</span><span class="p">])</span> <span class="o">==</span> <span class="mi">12</span>
+    <span class="k">assert</span> <span class="n">max_product_subarray</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">])</span> <span class="o">==</span> <span class="mi">2</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_max_product_matches_bruteforce</span><span class="p">():</span>
+    <span class="n">rng</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">Random</span><span class="p">(</span><span class="mi">6</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">100</span><span class="p">):</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="p">[</span><span class="n">rng</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="o">-</span><span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">rng</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">9</span><span class="p">))]</span>
+        <span class="n">best</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span>
+            <span class="n">math</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="n">i</span><span class="p">:</span><span class="n">j</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="p">))</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="k">assert</span> <span class="n">max_product_subarray</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="o">==</span> <span class="n">best</span>
+
+
+<span class="c1"># ---------- coin_change ----------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_coin_change_examples</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">coin_change</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">5</span><span class="p">],</span> <span class="mi">11</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="n">coin_change</span><span class="p">([</span><span class="mi">2</span><span class="p">],</span> <span class="mi">3</span><span class="p">)</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">coin_change</span><span class="p">([</span><span class="mi">1</span><span class="p">],</span> <span class="mi">0</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_coin_change_greedy_fails</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">coin_change</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="mi">6</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">coin_change</span><span class="p">([</span><span class="mi">186</span><span class="p">,</span> <span class="mi">419</span><span class="p">,</span> <span class="mi">83</span><span class="p">,</span> <span class="mi">408</span><span class="p">],</span> <span class="mi">6249</span><span class="p">)</span> <span class="o">==</span> <span class="mi">20</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_coin_change_edges</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">coin_change</span><span class="p">([],</span> <span class="mi">0</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">coin_change</span><span class="p">([</span><span class="mi">5</span><span class="p">],</span> <span class="mi">5</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">coin_change</span><span class="p">([</span><span class="mi">2</span><span class="p">],</span> <span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">coin_change</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">5</span><span class="p">],</span> <span class="mi">100</span><span class="p">)</span> <span class="o">==</span> <span class="mi">20</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_coin_change_matches_bruteforce_small</span><span class="p">():</span>
+    <span class="n">rng</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">Random</span><span class="p">(</span><span class="mi">7</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">40</span><span class="p">):</span>
+        <span class="n">coins</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">9</span><span class="p">),</span> <span class="n">rng</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+        <span class="n">amt</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span>
+        <span class="n">best</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">cnt</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">amt</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">==</span> <span class="n">amt</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">itertools</span><span class="o">.</span><span class="n">combinations_with_replacement</span><span class="p">(</span><span class="n">coins</span><span class="p">,</span> <span class="n">cnt</span><span class="p">)):</span>
+                <span class="n">best</span> <span class="o">=</span> <span class="n">cnt</span>
+                <span class="k">break</span>
+        <span class="k">assert</span> <span class="n">coin_change</span><span class="p">(</span><span class="n">coins</span><span class="p">,</span> <span class="n">amt</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span> <span class="k">if</span> <span class="n">best</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">best</span><span class="p">)</span>
+
+
+<span class="c1"># ---------- coin_change_ways ----------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_coin_ways_examples</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">coin_change_ways</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">5</span><span class="p">])</span> <span class="o">==</span> <span class="mi">4</span>
+    <span class="k">assert</span> <span class="n">coin_change_ways</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="p">[</span><span class="mi">2</span><span class="p">])</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">coin_change_ways</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="p">[</span><span class="mi">10</span><span class="p">])</span> <span class="o">==</span> <span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_coin_ways_zero_amount</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">coin_change_ways</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">])</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">coin_change_ways</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="p">[])</span> <span class="o">==</span> <span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_coin_ways_combinations_not_permutations</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">coin_change_ways</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span> <span class="o">==</span> <span class="mi">4</span>  <span class="c1"># 1111,112,22,13</span>
+    <span class="k">assert</span> <span class="n">coin_change_ways</span><span class="p">(</span><span class="mi">100</span><span class="p">,</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">25</span><span class="p">])</span> <span class="o">==</span> <span class="mi">242</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_coin_ways_no_coins</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">coin_change_ways</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="p">[])</span> <span class="o">==</span> <span class="mi">0</span>
+
+
+<span class="c1"># ---------- length_of_lis ----------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_lis_examples</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">length_of_lis</span><span class="p">([</span><span class="mi">10</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">101</span><span class="p">,</span> <span class="mi">18</span><span class="p">])</span> <span class="o">==</span> <span class="mi">4</span>
+    <span class="k">assert</span> <span class="n">length_of_lis</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span> <span class="o">==</span> <span class="mi">4</span>
+    <span class="k">assert</span> <span class="n">length_of_lis</span><span class="p">([</span><span class="mi">7</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">7</span><span class="p">])</span> <span class="o">==</span> <span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_lis_edges</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">length_of_lis</span><span class="p">([])</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">length_of_lis</span><span class="p">([</span><span class="mi">4</span><span class="p">])</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">length_of_lis</span><span class="p">([</span><span class="mi">5</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">length_of_lis</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">100</span><span class="p">)))</span> <span class="o">==</span> <span class="mi">100</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_lis_tails_trick_pitfall</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">length_of_lis</span><span class="p">([</span><span class="mi">4</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">9</span><span class="p">])</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="n">length_of_lis</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">])</span> <span class="o">==</span> <span class="mi">6</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_lis_matches_n2</span><span class="p">():</span>
+    <span class="n">rng</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">Random</span><span class="p">(</span><span class="mi">8</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">60</span><span class="p">):</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="p">[</span><span class="n">rng</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="o">-</span><span class="mi">10</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">rng</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">25</span><span class="p">))]</span>
+        <span class="n">dp</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="p">)):</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">a</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">a</span><span class="p">[</span><span class="n">i</span><span class="p">]:</span>
+                    <span class="n">dp</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">dp</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">dp</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">length_of_lis</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="o">==</span> <span class="nb">max</span><span class="p">(</span><span class="n">dp</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_lis_large_input_is_fast</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">length_of_lis</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">20000</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">))</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">20000</span><span class="p">)))</span> <span class="o">==</span> <span class="mi">20000</span>
+
+
+<span class="c1"># ---------- word_break ----------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_word_break_examples</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">word_break</span><span class="p">(</span><span class="s2">"leetcode"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"leet"</span><span class="p">,</span> <span class="s2">"code"</span><span class="p">])</span> <span class="ow">is</span> <span class="kc">True</span>
+    <span class="k">assert</span> <span class="n">word_break</span><span class="p">(</span><span class="s2">"applepenapple"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"apple"</span><span class="p">,</span> <span class="s2">"pen"</span><span class="p">])</span> <span class="ow">is</span> <span class="kc">True</span>
+    <span class="k">assert</span> <span class="n">word_break</span><span class="p">(</span><span class="s2">"catsandog"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"cats"</span><span class="p">,</span> <span class="s2">"dog"</span><span class="p">,</span> <span class="s2">"sand"</span><span class="p">,</span> <span class="s2">"and"</span><span class="p">,</span> <span class="s2">"cat"</span><span class="p">])</span> <span class="ow">is</span> <span class="kc">False</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_word_break_edges</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">word_break</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">])</span> <span class="ow">is</span> <span class="kc">True</span>
+    <span class="k">assert</span> <span class="n">word_break</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"b"</span><span class="p">])</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="n">word_break</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="p">[])</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="n">word_break</span><span class="p">(</span><span class="s2">""</span><span class="p">,</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">])</span> <span class="ow">is</span> <span class="kc">True</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_word_break_overlapping_prefix_words</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">word_break</span><span class="p">(</span><span class="s2">"aaaaaaa"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"aaaa"</span><span class="p">,</span> <span class="s2">"aaa"</span><span class="p">])</span> <span class="ow">is</span> <span class="kc">True</span>
+    <span class="k">assert</span> <span class="n">word_break</span><span class="p">(</span><span class="s2">"aaaaa"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"aaaa"</span><span class="p">,</span> <span class="s2">"aaa"</span><span class="p">])</span> <span class="ow">is</span> <span class="kc">False</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_word_break_exponential_trap</span><span class="p">():</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="s2">"a"</span> <span class="o">*</span> <span class="mi">60</span> <span class="o">+</span> <span class="s2">"b"</span>
+    <span class="k">assert</span> <span class="n">word_break</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"aa"</span><span class="p">,</span> <span class="s2">"aaa"</span><span class="p">,</span> <span class="s2">"aaaa"</span><span class="p">])</span> <span class="ow">is</span> <span class="kc">False</span>
+
+
+<span class="c1"># ---------- num_decodings ----------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_decode_examples</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">num_decodings</span><span class="p">(</span><span class="s2">"12"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">num_decodings</span><span class="p">(</span><span class="s2">"226"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="n">num_decodings</span><span class="p">(</span><span class="s2">"06"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_decode_zeros</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">num_decodings</span><span class="p">(</span><span class="s2">"0"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">num_decodings</span><span class="p">(</span><span class="s2">"10"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">num_decodings</span><span class="p">(</span><span class="s2">"20"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">num_decodings</span><span class="p">(</span><span class="s2">"30"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">num_decodings</span><span class="p">(</span><span class="s2">"100"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">num_decodings</span><span class="p">(</span><span class="s2">"2101"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">num_decodings</span><span class="p">(</span><span class="s2">"27"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_decode_single_and_runs</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">num_decodings</span><span class="p">(</span><span class="s2">"1"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">num_decodings</span><span class="p">(</span><span class="s2">"11111"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">8</span>  <span class="c1"># fibonacci</span>
+    <span class="k">assert</span> <span class="n">num_decodings</span><span class="p">(</span><span class="s2">"9"</span> <span class="o">*</span> <span class="mi">30</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_decode_long_input</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">num_decodings</span><span class="p">(</span><span class="s2">"1"</span> <span class="o">*</span> <span class="mi">40</span><span class="p">)</span> <span class="o">==</span> <span class="mi">165580141</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-21-dp-1d/exercises.py.html">← Week 21 · 1-D dynamic programming: Exercises (code)</a><a class="next" href="../../03-dsa/week-22-dp-2d/lesson.html">Week 22 · 2-D dynamic programming: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

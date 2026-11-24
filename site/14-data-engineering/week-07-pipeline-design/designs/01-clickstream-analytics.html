@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Design 1: Clickstream / Event Analytics Pipeline | Study Hub</title><link rel="stylesheet" href="../../../assets/style.css"><link rel="stylesheet" href="../../../assets/pygments.css"></head>
+<body data-root="../../../" data-page-id="14-data-engineering/week-07-pipeline-design/designs/01-clickstream-analytics" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../../index.html">Home</a> / <a href="../../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../../14-data-engineering/week-07-pipeline-design/designs/01-clickstream-analytics.html">Week 7 · Pipeline design</a> / <a href="../../../14-data-engineering/week-07-pipeline-design/designs/01-clickstream-analytics.html">Designs</a> / <span>Design 1: Clickstream / Event Analytics Pipeline</span></nav><button id="mark-done" data-id="14-data-engineering/week-07-pipeline-design/designs/01-clickstream-analytics">Mark as done</button></div><article class="doc">
+<h1 id="design-1-clickstream-event-analytics-pipeline">Design 1: Clickstream / Event Analytics Pipeline</h1>
+<p>Prompt: "Design the pipeline that collects web and mobile events from 50M daily active users and powers product analytics (funnels, retention, sessions) and executive dashboards."</p>
+<h2 id="requirements">Requirements</h2>
+<p>Functional</p>
+<ul>
+<li>Collect page views, clicks, and custom events from web, iOS, Android.</li>
+<li>Sessionize, enrich (geo, device, user attributes), and join with user dimensions.</li>
+<li>Serve: (a) analyst SQL on full history, (b) dashboards with data under 5 minutes old, (c) funnel and retention queries.</li>
+</ul>
+<p>Non-functional</p>
+<ul>
+<li>Freshness: dashboards under 5 min; analyst tables hourly is acceptable.</li>
+<li>Loss tolerance: very low (under 0.1% loss), duplicates must be removed downstream.</li>
+<li>Late events: mobile clients batch offline; up to 48 h late.</li>
+<li>Privacy: consent flag respected, IP truncated, user ids pseudonymous; deletion supported (see design 8).</li>
+<li>Out of scope: ad attribution, A/B stats engine.</li>
+</ul>
+<h2 id="capacity-estimates">Capacity estimates</h2>
+<ul>
+<li>50M DAU x 60 events/day = 3B events/day.</li>
+<li>Average = 3B / 86,400 = about 35K events/s. Peak 3x = about 100K events/s.</li>
+<li>Raw event about 1 KB JSON; Avro/Parquet compresses to about 150-250 bytes. Raw JSON/day = 3 TB; columnar = about 0.6 TB/day, about 220 TB/year before replication.</li>
+<li>Kafka (assume about 300 bytes/event compressed on the wire): average 35K/s x 300 B = about 10 MB/s, peak about 30 MB/s. Storage: 10 MB/s x 86,400 = about 0.9 TB/day; 7-day retention x replication 3 = about 18 TB. Partitions: 30 MB/s at about 5 MB/s per partition = at least 6; use 64-128 for consumer parallelism and headroom.</li>
+<li>Hot serving store: last 90 days pre-aggregated, a few TB.</li>
+</ul>
+<h2 id="architecture">Architecture</h2>
+<pre class="mermaid">flowchart LR
+  C[Web/iOS/Android SDK] --&gt;|batched HTTPS| G[Collector gateway - stateless]
+  G --&gt;|validate, add server ts, drop bots| K[(Kafka: events_raw)]
+  K --&gt; S3[Sink connector -&gt; Bronze Iceberg]
+  K --&gt; F[Flink: sessionize + enrich + dedupe]
+  F --&gt; K2[(Kafka: events_enriched)]
+  K2 --&gt; OL[Pinot / ClickHouse realtime table]
+  S3 --&gt; SP[Spark hourly job: dedupe, late data merge]
+  SP --&gt; SV[(Silver events)]
+  SV --&gt; GD[(Gold: sessions, daily_active, funnels)]
+  GD --&gt; WH[Warehouse / BI]
+  OL --&gt; DB[Realtime dashboards]
+  SR[Schema registry] -.-&gt; G
+  SR -.-&gt; K
+  DQ[Quality + lag monitoring] -.-&gt; F</pre>
+<h2 id="data-model">Data model</h2>
+<p>Bronze <code>events_raw</code> (append-only, partitioned by <code>ingest_date</code>, <code>ingest_hour</code>):
+<code>event_id (uuid from client), event_name, user_id, anonymous_id, session_hint, event_ts_client, received_ts_server, props (map/JSON), app_version, platform, ip_trunc, consent</code>.</p>
+<p>Silver <code>events</code> (partitioned by <code>event_date</code> derived from corrected event time): typed props for top events, <code>event_id</code> unique, <code>event_ts</code> = client ts clamped to server ts if clock skew exceeds a bound.</p>
+<p>Gold: <code>sessions(session_id, user_id, start_ts, end_ts, n_events, landing_page, ...)</code>, <code>daily_user_activity</code>, <code>funnel_steps</code>. OLAP table: <code>events_agg(minute, event_name, platform, country, count, uniq_hll)</code>.</p>
+<h2 id="step-by-step-flow">Step-by-step flow</h2>
+<ol>
+<li>SDK batches events, retries with the same <code>event_id</code> (client generated) so server dedupe works.</li>
+<li>Gateway validates against schema registry, adds <code>received_ts</code>, rejects oversize payloads, writes to Kafka keyed by <code>anonymous_id</code>/<code>user_id</code> (keeps a user's events in-partition for ordering and sessionization).</li>
+<li>Kafka sink writes Bronze files (Parquet) every few minutes; compaction job merges small files.</li>
+<li>Flink job: event-time windows with watermark (for example 2 min bounded out-of-orderness), session windows with 30-min gap, enrich with a broadcast user-dimension snapshot, drop duplicates using keyed state with TTL (about 1 h) on <code>event_id</code>.</li>
+<li>Enriched stream goes to OLAP real-time ingestion for the 5-minute dashboards. These numbers are provisional.</li>
+<li>Hourly Spark job reads Bronze for <code>[t-48h, t]</code>, dedupes by <code>event_id</code> globally, recomputes sessions for affected users/dates, and MERGEs into Silver/Gold. This is the source of truth; dashboards converge to it.</li>
+<li>Orchestrator publishes Gold when quality checks pass; a freshness metric is emitted.</li>
+</ol>
+<h2 id="failure-modes">Failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Failure</th>
+<th>Handling</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Duplicates from client retries or at-least-once Kafka</td>
+<td><code>event_id</code> dedupe in stream (bounded TTL) and in batch (global)</td>
+</tr>
+<tr>
+<td>Late events (48 h)</td>
+<td>Batch reprocess window; stream numbers are provisional, corrected on next batch merge</td>
+</tr>
+<tr>
+<td>Bot/spam traffic spike</td>
+<td>Rate limit at gateway, bot filter, quota per key; keep raw in quarantine topic</td>
+</tr>
+<tr>
+<td>Schema change in SDK</td>
+<td>Schema registry with backward compatibility; unknown fields into <code>props</code> map</td>
+</tr>
+<tr>
+<td>Kafka consumer lag after deploy</td>
+<td>Autoscale consumers up to partition count; checkpointed restart; alert on lag seconds not message count</td>
+</tr>
+<tr>
+<td>Hot partition (one giant user/bot)</td>
+<td>Key by <code>anonymous_id</code> and cap per-key rates; salt for non-session aggregates</td>
+</tr>
+<tr>
+<td>Clock skew in clients</td>
+<td>Use server received time as upper bound; clamp</td>
+</tr>
+<tr>
+<td>Flink state loss</td>
+<td>Checkpoints to object storage; bronze replay as last resort</td>
+</tr>
+</tbody>
+</table>
+<h2 id="trade-offs">Trade-offs</h2>
+<ul>
+<li>Dual path (stream + batch) gives speed and correctness but two code paths. Mitigation: share transformation logic as a library, or use one engine in two modes; accept dashboards being "approximately right, then corrected".</li>
+<li>Exactly-once in Flink needs transactional or idempotent sinks; at this volume dedupe by <code>event_id</code> is simpler and more robust.</li>
+<li>OLAP store (Pinot/ClickHouse/Druid) vs warehouse for dashboards: OLAP wins on sub-second high-concurrency; costs extra system to run. If dashboards tolerate 30 s and low concurrency, serve from the warehouse.</li>
+<li>Sessionize in stream vs batch: stream is fresh but complex with late data; many teams only do batch sessionization and show stream-only counts.</li>
+<li>Approximate distinct counts (HyperLogLog) save storage but cannot be re-grouped exactly across all dimensions without sketches.</li>
+</ul>
+<h2 id="follow-up-questions">Follow-up questions</h2>
+<ol>
+<li>How do you handle a 2-hour outage of the gateway? (client-side buffering, SDK retry with jitter, replay)</li>
+<li>How do you compute 30-day retention efficiently? (daily active bitmaps or per-user first-seen cohort table, avoid scanning events)</li>
+<li>How would you add GDPR deletion? (pseudonymous ids, deletion index, rewrite partitions; see design 8)</li>
+<li>How do you stop one event type from blowing up cardinality in OLAP? (dimension allow-list, cardinality limits, drop to bronze only)</li>
+<li>How do you validate that the stream and batch numbers agree? (hourly diff job with tolerance, alert on drift)</li>
+<li>How would you change this for 10x volume? (more partitions, tiered Kafka storage, sample or pre-aggregate at edge, cheaper cold storage)</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../../14-data-engineering/week-06-quality-governance/test_exercises.py.html">← Week 6 · Quality and governance: Tests (code)</a><a class="next" href="../../../14-data-engineering/week-07-pipeline-design/designs/02-cdc-to-lakehouse.html">Design 2: CDC from an OLTP Database to a Warehouse / Lakehouse →</a></div></main><aside id="toc"></aside></div>
+<script src="../../../assets/data.js"></script><script src="../../../assets/app.js"></script></body></html>

@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>schema.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="06-sql/week-01-select-filter-aggregate/schema.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">Week 1 · SELECT, filter, aggregate</a> / <span>schema.py</span></nav><button id="mark-done" data-id="06-sql/week-01-select-filter-aggregate/schema.py">Mark as done</button></div><article class="doc">
+<h1>schema.py</h1><p class="code-path"><code>06-sql/week-01-select-filter-aggregate/schema.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Sample database for Week 1. `make_db()` returns a fresh in-memory SQLite DB.</span>
+
+<span class="sd">You can explore it yourself:</span>
+
+<span class="sd">    .venv/bin/python -i 06-sql/week-01-select-filter-aggregate/schema.py</span>
+<span class="sd">    &gt;&gt;&gt; db = make_db()</span>
+<span class="sd">    &gt;&gt;&gt; db.execute("SELECT * FROM employees LIMIT 3").fetchall()</span>
+
+<span class="sd">Tables</span>
+<span class="sd">------</span>
+<span class="sd">employees(id, name, dept, salary, hire_date, city, bonus)</span>
+<span class="sd">    dept, salary, city and bonus can be NULL (on purpose!).</span>
+<span class="sd">orders(id, customer, amount, status, order_date)</span>
+<span class="sd">    amount can be NULL.</span>
+<span class="sd">"""</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sqlite3</span>
+
+<span class="n">EMPLOYEES</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s2">"Alice"</span><span class="p">,</span> <span class="s2">"Engineering"</span><span class="p">,</span> <span class="mi">120000</span><span class="p">,</span> <span class="s2">"2019-03-15"</span><span class="p">,</span> <span class="s2">"NYC"</span><span class="p">,</span> <span class="mi">5000</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="s2">"Bob"</span><span class="p">,</span> <span class="s2">"Engineering"</span><span class="p">,</span> <span class="mi">95000</span><span class="p">,</span> <span class="s2">"2020-07-01"</span><span class="p">,</span> <span class="s2">"SF"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="s2">"Carol"</span><span class="p">,</span> <span class="s2">"Engineering"</span><span class="p">,</span> <span class="mi">105000</span><span class="p">,</span> <span class="s2">"2018-01-20"</span><span class="p">,</span> <span class="s2">"NYC"</span><span class="p">,</span> <span class="mi">8000</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="s2">"Dave"</span><span class="p">,</span> <span class="s2">"Sales"</span><span class="p">,</span> <span class="mi">70000</span><span class="p">,</span> <span class="s2">"2021-02-11"</span><span class="p">,</span> <span class="s2">"Austin"</span><span class="p">,</span> <span class="mi">3000</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="s2">"Eve"</span><span class="p">,</span> <span class="s2">"Sales"</span><span class="p">,</span> <span class="mi">65000</span><span class="p">,</span> <span class="s2">"2022-05-30"</span><span class="p">,</span> <span class="s2">"Austin"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">6</span><span class="p">,</span> <span class="s2">"Frank"</span><span class="p">,</span> <span class="s2">"Sales"</span><span class="p">,</span> <span class="mi">82000</span><span class="p">,</span> <span class="s2">"2017-09-05"</span><span class="p">,</span> <span class="s2">"NYC"</span><span class="p">,</span> <span class="mi">6000</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="s2">"Grace"</span><span class="p">,</span> <span class="s2">"HR"</span><span class="p">,</span> <span class="mi">60000</span><span class="p">,</span> <span class="s2">"2020-11-12"</span><span class="p">,</span> <span class="s2">"SF"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="s2">"Heidi"</span><span class="p">,</span> <span class="s2">"HR"</span><span class="p">,</span> <span class="mi">72000</span><span class="p">,</span> <span class="s2">"2019-06-25"</span><span class="p">,</span> <span class="s2">"NYC"</span><span class="p">,</span> <span class="mi">2000</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">9</span><span class="p">,</span> <span class="s2">"Ivan"</span><span class="p">,</span> <span class="s2">"Engineering"</span><span class="p">,</span> <span class="mi">95000</span><span class="p">,</span> <span class="s2">"2023-01-09"</span><span class="p">,</span> <span class="s2">"SF"</span><span class="p">,</span> <span class="mi">1000</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="s2">"Judy"</span><span class="p">,</span> <span class="s2">"Marketing"</span><span class="p">,</span> <span class="mi">68000</span><span class="p">,</span> <span class="s2">"2021-08-18"</span><span class="p">,</span> <span class="s2">"Austin"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">11</span><span class="p">,</span> <span class="s2">"Mallory"</span><span class="p">,</span> <span class="s2">"Marketing"</span><span class="p">,</span> <span class="mi">68000</span><span class="p">,</span> <span class="s2">"2022-10-03"</span><span class="p">,</span> <span class="s2">"NYC"</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="s2">"Niaj"</span><span class="p">,</span> <span class="s2">"Sales"</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">"2024-02-01"</span><span class="p">,</span> <span class="s2">"Austin"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">13</span><span class="p">,</span> <span class="s2">"Oleg"</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">50000</span><span class="p">,</span> <span class="s2">"2024-03-01"</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+<span class="p">]</span>
+
+<span class="n">ORDERS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s2">"acme"</span><span class="p">,</span> <span class="mf">250.00</span><span class="p">,</span> <span class="s2">"shipped"</span><span class="p">,</span> <span class="s2">"2024-01-05"</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="s2">"acme"</span><span class="p">,</span> <span class="mf">100.00</span><span class="p">,</span> <span class="s2">"shipped"</span><span class="p">,</span> <span class="s2">"2024-01-20"</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="s2">"globex"</span><span class="p">,</span> <span class="mf">75.50</span><span class="p">,</span> <span class="s2">"cancelled"</span><span class="p">,</span> <span class="s2">"2024-01-22"</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="s2">"globex"</span><span class="p">,</span> <span class="mf">300.00</span><span class="p">,</span> <span class="s2">"shipped"</span><span class="p">,</span> <span class="s2">"2024-02-02"</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="s2">"initech"</span><span class="p">,</span> <span class="mf">50.00</span><span class="p">,</span> <span class="s2">"pending"</span><span class="p">,</span> <span class="s2">"2024-02-10"</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">6</span><span class="p">,</span> <span class="s2">"initech"</span><span class="p">,</span> <span class="mf">125.00</span><span class="p">,</span> <span class="s2">"shipped"</span><span class="p">,</span> <span class="s2">"2024-02-14"</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="s2">"acme"</span><span class="p">,</span> <span class="mf">400.00</span><span class="p">,</span> <span class="s2">"shipped"</span><span class="p">,</span> <span class="s2">"2024-03-01"</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="s2">"umbrella"</span><span class="p">,</span> <span class="mf">20.00</span><span class="p">,</span> <span class="s2">"cancelled"</span><span class="p">,</span> <span class="s2">"2024-03-03"</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">9</span><span class="p">,</span> <span class="s2">"umbrella"</span><span class="p">,</span> <span class="mf">220.00</span><span class="p">,</span> <span class="s2">"shipped"</span><span class="p">,</span> <span class="s2">"2024-03-09"</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="s2">"hooli"</span><span class="p">,</span> <span class="mf">90.00</span><span class="p">,</span> <span class="s2">"pending"</span><span class="p">,</span> <span class="s2">"2024-03-12"</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">11</span><span class="p">,</span> <span class="s2">"globex"</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">"pending"</span><span class="p">,</span> <span class="s2">"2024-03-15"</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="s2">"hooli"</span><span class="p">,</span> <span class="mf">150.00</span><span class="p">,</span> <span class="s2">"shipped"</span><span class="p">,</span> <span class="s2">"2024-03-20"</span><span class="p">),</span>
+<span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">make_db</span><span class="p">():</span>
+    <span class="n">conn</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">":memory:"</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">executescript</span><span class="p">(</span>
+<span class="w">        </span><span class="sd">"""</span>
+<span class="sd">        CREATE TABLE employees (</span>
+<span class="sd">            id INTEGER PRIMARY KEY, name TEXT NOT NULL, dept TEXT,</span>
+<span class="sd">            salary INTEGER, hire_date TEXT NOT NULL, city TEXT, bonus INTEGER);</span>
+<span class="sd">        CREATE TABLE orders (</span>
+<span class="sd">            id INTEGER PRIMARY KEY, customer TEXT NOT NULL, amount REAL,</span>
+<span class="sd">            status TEXT NOT NULL, order_date TEXT NOT NULL);</span>
+<span class="sd">        """</span>
+    <span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">executemany</span><span class="p">(</span><span class="s2">"INSERT INTO employees VALUES (?,?,?,?,?,?,?)"</span><span class="p">,</span> <span class="n">EMPLOYEES</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">executemany</span><span class="p">(</span><span class="s2">"INSERT INTO orders VALUES (?,?,?,?,?)"</span><span class="p">,</span> <span class="n">ORDERS</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"PRAGMA query_only = ON"</span><span class="p">)</span>  <span class="c1"># exercises may only read</span>
+    <span class="k">return</span> <span class="n">conn</span>
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Test helpers (you do not need to edit anything below this line)</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="n">sql</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Execute `sql` on `conn`; return (lowercased column names, rows)."""</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">sql</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">sql</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span>
+            <span class="s2">"Exercise not implemented: the function must return a SQL string."</span>
+        <span class="p">)</span>
+    <span class="n">cur</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">sql</span><span class="p">)</span>
+    <span class="n">cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">cur</span><span class="o">.</span><span class="n">description</span><span class="p">]</span> <span class="k">if</span> <span class="n">cur</span><span class="o">.</span><span class="n">description</span> <span class="k">else</span> <span class="p">[]</span>
+    <span class="k">return</span> <span class="n">cols</span><span class="p">,</span> <span class="n">cur</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_norm</span><span class="p">(</span><span class="n">v</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">round</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">float</span><span class="p">)</span> <span class="k">else</span> <span class="n">v</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_key</span><span class="p">(</span><span class="n">row</span><span class="p">):</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">row</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">)):</span>
+            <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="s2">"</span><span class="si">%020.4f</span><span class="s2">"</span> <span class="o">%</span> <span class="nb">float</span><span class="p">(</span><span class="n">v</span><span class="p">)))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)))</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">out</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">assert_result</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="n">sql</span><span class="p">,</span> <span class="n">columns</span><span class="p">,</span> <span class="n">expected</span><span class="p">,</span> <span class="n">ordered</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Run `sql`; compare column names and rows with the expected ones.</span>
+
+<span class="sd">    Row order only matters when ordered=True (i.e. the task requires ORDER BY).</span>
+<span class="sd">    Floats are compared after rounding to 2 decimals.</span>
+<span class="sd">    """</span>
+    <span class="n">cols</span><span class="p">,</span> <span class="n">rows</span> <span class="o">=</span> <span class="n">run</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="n">sql</span><span class="p">)</span>
+    <span class="n">want_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">cols</span> <span class="o">==</span> <span class="n">want_cols</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"Expected columns </span><span class="si">{</span><span class="n">want_cols</span><span class="si">}</span><span class="s2">, got </span><span class="si">{</span><span class="n">cols</span><span class="si">}</span><span class="s2">"</span>
+    <span class="n">got</span> <span class="o">=</span> <span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="n">_norm</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">r</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">]</span>
+    <span class="n">exp</span> <span class="o">=</span> <span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="n">_norm</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">r</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">expected</span><span class="p">]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">ordered</span><span class="p">:</span>
+        <span class="n">got</span><span class="p">,</span> <span class="n">exp</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">got</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">_key</span><span class="p">),</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">exp</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">_key</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">got</span> <span class="o">==</span> <span class="n">exp</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"</span><span class="se">\n</span><span class="s2">Expected rows: </span><span class="si">{</span><span class="n">exp</span><span class="si">}</span><span class="se">\n</span><span class="s2">Got rows:      </span><span class="si">{</span><span class="n">got</span><span class="si">}</span><span class="s2">"</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../06-sql/week-01-select-filter-aggregate/test_exercises.py.html">← Week 1 · SELECT, filter, aggregate: Tests (code)</a><a class="next" href="../../06-sql/week-02-joins-subqueries/lesson.html">Week 2 · Joins and subqueries: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

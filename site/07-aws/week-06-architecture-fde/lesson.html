@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 6 - Architecture and the Forward-Deployed-Engineer Angle | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="07-aws/week-06-architecture-fde/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../07-aws/README.html">AWS</a> / <a href="../../07-aws/week-06-architecture-fde/lesson.html">Week 6 · Architecture and FDE angle</a> / <span>Lesson</span></nav><button id="mark-done" data-id="07-aws/week-06-architecture-fde/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-6-architecture-and-the-forward-deployed-engineer-angle">Week 6 - Architecture and the Forward-Deployed-Engineer Angle</h1>
+<hr />
+<h2 id="1-well-architected-framework-6-pillars">1. Well-Architected Framework (6 pillars)</h2>
+<table>
+<thead>
+<tr>
+<th>Pillar</th>
+<th>Core question</th>
+<th>Typical practices</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Operational Excellence</td>
+<td>Can we run and evolve it?</td>
+<td>IaC, CI/CD, runbooks, observability, game days, small reversible changes</td>
+</tr>
+<tr>
+<td>Security</td>
+<td>Is data and access protected?</td>
+<td>Least privilege, identity foundation, encryption, traceability, automate response, defense in depth</td>
+</tr>
+<tr>
+<td>Reliability</td>
+<td>Does it recover and scale?</td>
+<td>Multi-AZ, health checks, retries with backoff, quotas, backups, test recovery, loose coupling</td>
+</tr>
+<tr>
+<td>Performance Efficiency</td>
+<td>Right resources for the job?</td>
+<td>Right-size, serverless where fit, caching, CDN, measure and experiment</td>
+</tr>
+<tr>
+<td>Cost Optimization</td>
+<td>Are we paying only for value?</td>
+<td>Right-size, pricing models, tagging, turn off idle, data transfer awareness, FinOps</td>
+</tr>
+<tr>
+<td>Sustainability</td>
+<td>Minimizing environmental impact</td>
+<td>Graviton, utilization, managed services, region choice, less data</td>
+</tr>
+<tr>
+<td>Tools: Well-Architected Tool (reviews), lenses (Serverless, SaaS, ML, GenAI), Trusted Advisor, Compute Optimizer.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Interview framing: "I trade pillars off explicitly: e.g. Multi-Region improves Reliability but hurts Cost and Operational complexity."</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="2-ha-and-dr">2. HA and DR</h2>
+<ul>
+<li><strong>RTO</strong> = max acceptable time to restore service. <strong>RPO</strong> = max acceptable data loss window (time).</li>
+<li><strong>HA</strong> (within region, minutes/no downtime): Multi-AZ everything stateful and stateless; <strong>DR</strong> (region loss).</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Strategy</th>
+<th>RTO</th>
+<th>RPO</th>
+<th>Cost</th>
+<th>How</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Backup &amp; Restore</td>
+<td>hours</td>
+<td>hours</td>
+<td>$</td>
+<td>Backups/snapshots copied cross-region (AWS Backup), rebuild with IaC</td>
+</tr>
+<tr>
+<td>Pilot Light</td>
+<td>tens of min - hours</td>
+<td>minutes</td>
+<td>$$</td>
+<td>Data replicated (Aurora Global/cross-region replica), minimal core running; scale up on failover</td>
+</tr>
+<tr>
+<td>Warm Standby</td>
+<td>minutes</td>
+<td>seconds-minutes</td>
+<td>$$$</td>
+<td>Scaled-down full copy running; scale up + switch DNS</td>
+</tr>
+<tr>
+<td>Multi-site Active-Active</td>
+<td>near zero</td>
+<td>near zero/seconds</td>
+<td>$$$$</td>
+<td>Both regions serve traffic (DynamoDB Global Tables, Aurora Global write-forwarding, Route 53 latency/GA)</td>
+</tr>
+<tr>
+<td>Practices: define RTO/RPO per workload with the business; automate failover and test it (game days); remember data-plane vs control-plane dependencies (use data-plane actions, pre-provision) ; keep configs/AMIs/secrets replicated; Route 53 ARC.</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Single-region HA reference: ALB across 3 AZs -&gt; ASG/ECS across 3 AZs -&gt; Aurora Multi-AZ + ElastiCache replica -&gt; S3 (11 9s) ; static assets via CloudFront.</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Common failure answers: AZ failure = handled by Multi-AZ; region failure = DR plan; human error/ransomware = backups, versioning, Object Lock, separate backup account; bad deploy = blue/green + rollback.</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="3-cost-optimization-toolbox">3. Cost optimization toolbox</h2>
+<ol>
+<li>Visibility: tags + cost allocation tags, Cost Explorer, Budgets, CUR, Anomaly Detection.</li>
+<li>Right-size: Compute Optimizer, Graviton, gp3 over gp2, delete idle (EBS, EIP, ELB, NAT).</li>
+<li>Commit: Savings Plans (compute), RIs (RDS/ElastiCache/Redshift/OpenSearch reserved), Spot for fault-tolerant.</li>
+<li>Architecture: serverless for spiky, scale to zero, caching/CDN, S3 lifecycle/Intelligent-Tiering, VPC endpoints, compress, avoid cross-AZ/region chatter.</li>
+<li>LLM-specific: choose smaller model per task, prompt caching, batch inference (discount), limit max tokens, cache responses, provisioned throughput only at sustained volume.
+Top surprise bills: NAT Gateway data, cross-AZ transfer, CloudWatch logs ingestion, idle load balancers, orphaned snapshots, public IPv4, Provisioned IOPS, Bedrock/LLM token usage with no limits, DynamoDB on-demand scans.</li>
+</ol>
+<hr />
+<h2 id="4-serverless-vs-containers-vs-vms">4. Serverless vs containers vs VMs</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Lambda (serverless)</th>
+<th>ECS Fargate</th>
+<th>EKS</th>
+<th>EC2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ops burden</td>
+<td>lowest</td>
+<td>low</td>
+<td>high</td>
+<td>highest</td>
+</tr>
+<tr>
+<td>Scale to zero</td>
+<td>yes</td>
+<td>no (min 1 task; or scale to 0 via app autoscaling manually)</td>
+<td>no</td>
+<td>no</td>
+</tr>
+<tr>
+<td>Max run time</td>
+<td>15 min</td>
+<td>unlimited</td>
+<td>unlimited</td>
+<td>unlimited</td>
+</tr>
+<tr>
+<td>Cost at steady high load</td>
+<td>high</td>
+<td>medium</td>
+<td>lower</td>
+<td>lowest</td>
+</tr>
+<tr>
+<td>Startup</td>
+<td>cold start ms-s</td>
+<td>task start 10s of seconds</td>
+<td>pod seconds</td>
+<td>minutes</td>
+</tr>
+<tr>
+<td>Portability</td>
+<td>low</td>
+<td>medium</td>
+<td>high</td>
+<td>high</td>
+</tr>
+<tr>
+<td>Best for</td>
+<td>events, glue, bursty APIs</td>
+<td>web services, workers</td>
+<td>K8s platform teams</td>
+<td>special needs/optimization</td>
+</tr>
+<tr>
+<td>Rule of thumb: start serverless/managed; move to containers when you hit limits (duration, cold start, runtime, cost at sustained throughput); choose EKS only with a reason.</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="5-fde-style-walkthrough-fastapi-llmrag-app-on-aws">5. FDE-style walkthrough: FastAPI + LLM/RAG app on AWS</h2>
+<h3 id="requirements-clarify-first">Requirements (clarify first)</h3>
+<p>Users? latency target? data sensitivity (PII, region residency)? documents volume/updating cadence? model choice (Bedrock vs external API)? budget? auth (SSO)? availability target?</p>
+<h3 id="reference-architecture">Reference architecture</h3>
+<div class="highlight"><pre><span></span><code>                      Route 53 -&gt; CloudFront (+WAF) -&gt; ALB (public subnets, ACM TLS)
+                                                          |
+   Cognito/OIDC (JWT) ----------------------------&gt; ECS Fargate service "api" (FastAPI + uvicorn)
+                                                    private subnets, 2+ AZs, autoscale on ALB req/target + CPU
+                                                          |
+        +----------------------+-----------------+--------+-----------------+
+        |                      |                 |                          |
+   RDS/Aurora Postgres     S3 (docs, uploads)  Secrets Manager        Amazon Bedrock (via VPC interface endpoint)
+   (+pgvector index)       presigned URLs       (DB creds, 3rd-party)  - embeddings (Titan/Cohere)  - LLM (Claude etc.)
+        |                                                              - Guardrails (optional)
+   OR OpenSearch (Serverless/managed) for vector + hybrid BM25 search
+
+ Ingestion path (async): S3 upload -&gt; EventBridge/S3 event -&gt; SQS -&gt; ECS worker/Lambda:
+     parse -&gt; chunk -&gt; embed (Bedrock) -&gt; upsert into pgvector/OpenSearch ; status in DB ; DLQ on failure
+ Observability: CloudWatch Logs/metrics/alarms, X-Ray/OTel traces, token/cost metrics per tenant ; CloudTrail, Config
+ CI/CD: GitHub Actions (OIDC role) -&gt; ECR -&gt; ECS rolling/blue-green ; IaC: Terraform/CDK
+</code></pre></div>
+
+<h3 id="key-design-decisions-and-tradeoffs">Key design decisions and tradeoffs</h3>
+<ul>
+<li><strong>Compute:</strong> ECS Fargate vs Lambda. Fargate chosen because LLM calls/streaming can exceed API Gateway's 29 s, FastAPI is a long-running ASGI app, no cold start, easy containers. Lambda + function URL streaming viable for low traffic/cost. EKS overkill unless the customer is K8s-standard.</li>
+<li><strong>Streaming:</strong> use SSE/WebSocket via ALB (idle timeout raise from 60 s e.g. to 120-300 s). CloudFront must allow streaming (don't buffer).</li>
+<li><strong>Vector store options:</strong>
+  | Option | Pros | Cons |
+  |---|---|---|
+  | Aurora/RDS Postgres + pgvector | One DB for relational + vectors, SQL filters/joins, transactional, simple ops, cheap at small-medium scale (HNSW/IVFFlat indexes) | Scale limits at very large (100M+ vectors), tuning index memory, limited hybrid search |
+  | OpenSearch (managed/Serverless) | k-NN + BM25 hybrid, scale-out, rich filtering | More cost (OpenSearch Serverless has minimum OCU cost - check docs), more ops |
+  | Bedrock Knowledge Bases | Managed ingest/chunk/embed/retrieve (backed by OpenSearch Serverless, Aurora pgvector, S3 Vectors, etc. - check current list) | Less control over chunking/ranking, vendor coupling |
+  | S3 Vectors / others | Very low-cost storage for large, infrequent-query corpora (check GA status/limits) | Latency/features differ |
+  Default pitch: pgvector on Aurora for most FDE pilots (fewer moving parts); OpenSearch when hybrid search or scale demands.</li>
+<li><strong>Bedrock vs direct API:</strong> Bedrock keeps data in AWS account boundary, IAM auth (no API keys), VPC endpoints/PrivateLink, no training on customer data by default, CloudTrail logging, Guardrails, multiple models behind one API, regional availability and quotas (tokens/min, requests/min; cross-region inference profiles for capacity). Direct Anthropic/OpenAI API: newest models/features first, sometimes cheaper/more features; needs egress via NAT and key management. Say which fits customer compliance.</li>
+<li><strong>Secrets:</strong> DB creds in Secrets Manager with rotation; injected via task definition <code>secrets</code>; Bedrock needs no key (task role with <code>bedrock:InvokeModel*</code> on specific model ARNs).</li>
+<li><strong>Data/security:</strong> private subnets for tasks and DB; SG chain; S3 Block Public Access + SSE-KMS; encrypt RDS; per-tenant isolation (row-level security / tenant_id filter on vector queries - enforce in the DB layer, not just prompts); PII redaction/Guardrails; audit logs of prompts/responses with retention policy; WAF; rate limiting per user/tenant.</li>
+<li><strong>Reliability:</strong> Multi-AZ Aurora, 2+ Fargate tasks across AZs, health checks <code>/healthz</code>, timeouts and retries with backoff + jitter on Bedrock (<code>ThrottlingException</code>), circuit breaker, fallback model, async ingestion with DLQ, idempotent upserts.</li>
+<li><strong>Cost levers:</strong> Smaller model (Haiku-class) for routing/classification, bigger model for synthesis; limit top-k and context size; prompt caching; cache frequent answers (ElastiCache); batch embeddings; cheaper embeddings model; scale Fargate off-hours (dev); NAT avoidance via endpoints.</li>
+<li><strong>Evaluation/ops:</strong> log retrieval hits, groundedness evals, golden question set, regression tests per prompt/model change; feature flag model IDs; version prompts.</li>
+<li><strong>Environments:</strong> separate accounts (dev/stage/prod), Terraform/CDK modules, per-env Bedrock quotas.</li>
+</ul>
+<h3 id="fastapi-snippet-illustrative-no-account-needed-to-read">FastAPI snippet (illustrative; no account needed to read)</h3>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">json</span><span class="o">,</span><span class="w"> </span><span class="nn">boto3</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">FastAPI</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">fastapi.responses</span><span class="w"> </span><span class="kn">import</span> <span class="n">StreamingResponse</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">()</span>
+<span class="n">brt</span> <span class="o">=</span> <span class="n">boto3</span><span class="o">.</span><span class="n">client</span><span class="p">(</span><span class="s2">"bedrock-runtime"</span><span class="p">)</span>          <span class="c1"># creds come from ECS task role</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/ask"</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">ask</span><span class="p">(</span><span class="n">q</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="c1"># 1) embed query 2) SELECT ... ORDER BY embedding &lt;=&gt; :qvec LIMIT 5 (pgvector) 3) call LLM</span>
+    <span class="n">resp</span> <span class="o">=</span> <span class="n">brt</span><span class="o">.</span><span class="n">converse</span><span class="p">(</span><span class="n">modelId</span><span class="o">=</span><span class="s2">"&lt;model-id-or-inference-profile&gt;"</span><span class="p">,</span>
+        <span class="n">messages</span><span class="o">=</span><span class="p">[{</span><span class="s2">"role"</span><span class="p">:</span> <span class="s2">"user"</span><span class="p">,</span> <span class="s2">"content"</span><span class="p">:</span> <span class="p">[{</span><span class="s2">"text"</span><span class="p">:</span> <span class="n">q</span><span class="p">}]}],</span>
+        <span class="n">inferenceConfig</span><span class="o">=</span><span class="p">{</span><span class="s2">"maxTokens"</span><span class="p">:</span> <span class="mi">512</span><span class="p">})</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"answer"</span><span class="p">:</span> <span class="n">resp</span><span class="p">[</span><span class="s2">"output"</span><span class="p">][</span><span class="s2">"message"</span><span class="p">][</span><span class="s2">"content"</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="s2">"text"</span><span class="p">]}</span>
+</code></pre></div>
+
+<p>(Use <code>converse_stream</code> for token streaming; check the Bedrock docs for current model IDs.)</p>
+<hr />
+<h2 id="6-explaining-tradeoffs-to-a-customer-fde-communication-skills">6. Explaining tradeoffs to a customer (FDE communication skills)</h2>
+<ol>
+<li><strong>Start with their goal and constraints</strong>, not services: users, SLA, data sensitivity, budget, team skills, timeline.</li>
+<li><strong>Offer 2-3 options with a recommendation</strong>: "Option A (fastest, managed), B (cheaper at scale), C (most control). I recommend A for the pilot because..., revisit at X load."</li>
+<li><strong>Quantify</strong>: rough monthly cost ranges, latency numbers, RTO/RPO, team-weeks of effort. State assumptions and what would change the answer.</li>
+<li><strong>Use their language</strong>: "if us-east-1 loses an AZ, you lose nothing; if the whole region fails, you're down ~4 hrs unless you pay roughly +60% for warm standby".</li>
+<li><strong>Name the risks and reversibility</strong>: two-way-door decisions (move fast) vs one-way (data model, region, account structure).</li>
+<li><strong>Pilot -&gt; production path</strong>: what we'd harden (auth, observability, quotas, DR, evals, cost guardrails).</li>
+<li><strong>Be honest about unknowns</strong>: "check quotas with Bedrock; model availability varies by region."</li>
+<li>Leave a diagram + a one-page decision record (ADR).
+Anti-patterns: jargon dumps, over-engineering for a pilot (EKS + multi-region on day 1), ignoring their existing stack/skills, unquantified claims.</li>
+</ol>
+<hr />
+<h2 id="7-anti-pattern-spotting-list-review-exercise">7. Anti-pattern spotting list (review exercise)</h2>
+<p>Public S3 buckets; DB in public subnet; one big NAT with cross-AZ traffic; access keys in env vars; no DLQ; synchronous chains; single AZ; unbounded Lambda concurrency onto RDS; no budget alarms; hardcoded model keys; secrets in git; no log retention; manual console changes; no tagging.</p>
+</article><div class="pager"><a class="prev" href="../../07-aws/week-05-integration-ops-security/labs.html">← Week 5 · Integration, ops, security: Labs</a><a class="next" href="../../07-aws/week-06-architecture-fde/interview-qa.html">Week 6 · Architecture and FDE angle: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

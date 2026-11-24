@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 11: Recursion and Backtracking | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-11-recursion/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-11-recursion/lesson.html">Week 11 · Recursion</a> / <span>Lesson</span></nav><button id="mark-done" data-id="03-dsa/week-11-recursion/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-11-recursion-and-backtracking">Week 11: Recursion and Backtracking</h1>
+<h2 id="1-concept">1. Concept</h2>
+<p>A recursive function solves a problem by solving smaller copies of it. Every
+recursion needs:</p>
+<ol>
+<li><strong>Base case</strong>: input small enough to answer directly.</li>
+<li><strong>Recursive case</strong>: reduce the input and combine the results.</li>
+<li><strong>Progress</strong>: each call must move toward the base case.</li>
+</ol>
+<p>Backtracking = recursion that builds a candidate step by step, <strong>chooses</strong>, <strong>explores</strong>,
+then <strong>un-chooses</strong> (undo) to try the next option. It walks a decision tree and prunes
+branches that cannot lead to a solution.</p>
+<h2 id="2-how-to-recognize-the-pattern">2. How to recognize the pattern</h2>
+<ul>
+<li>"Return ALL subsets / permutations / combinations / paths / arrangements".</li>
+<li>"Count the ways" where choices interact (N-Queens, word search).</li>
+<li>Input is small (n &lt;= ~15-20) - exponential solutions are expected.</li>
+<li>The problem has self-similar structure (tree, divide in halves, x^n from x^(n/2)).</li>
+<li>Overlapping subproblems (fib) -&gt; add memoization (the bridge to DP in later weeks).</li>
+</ul>
+<h2 id="3-template-code">3. Template code</h2>
+<p><strong>Plain recursion with memo</strong></p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">cache</span>
+<span class="nd">@cache</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">fib</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">n</span> <span class="k">if</span> <span class="n">n</span> <span class="o">&lt;</span> <span class="mi">2</span> <span class="k">else</span> <span class="n">fib</span><span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">fib</span><span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="mi">2</span><span class="p">)</span>
+</code></pre></div>
+
+<p><strong>Backtracking skeleton</strong></p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">solve</span><span class="p">(</span><span class="n">choices</span><span class="p">):</span>
+    <span class="n">res</span><span class="p">,</span> <span class="n">cur</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">go</span><span class="p">(</span><span class="n">start</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">is_complete</span><span class="p">(</span><span class="n">cur</span><span class="p">):</span>
+            <span class="n">res</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cur</span><span class="p">[:])</span>        <span class="c1"># COPY - cur keeps changing</span>
+            <span class="k">return</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">choices</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">valid</span><span class="p">(</span><span class="n">choices</span><span class="p">[</span><span class="n">i</span><span class="p">]):</span>  <span class="c1"># prune early</span>
+                <span class="k">continue</span>
+            <span class="n">cur</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">choices</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>     <span class="c1"># choose</span>
+            <span class="n">go</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>                  <span class="c1"># explore (i for reuse, 0/used[] for permutations)</span>
+            <span class="n">cur</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>                  <span class="c1"># un-choose</span>
+    <span class="n">go</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">res</span>
+</code></pre></div>
+
+<p>Which "next index" to pass:</p>
+<ul>
+<li>Subsets/combinations (order irrelevant, no reuse): <code>go(i + 1)</code>.</li>
+<li>Reuse allowed (combination sum): <code>go(i)</code>.</li>
+<li>Permutations (order matters): loop over all, skip <code>used</code>.</li>
+<li>Duplicates in input: sort, then <code>if i &gt; start and nums[i] == nums[i-1]: continue</code>.</li>
+</ul>
+<p><strong>Include/exclude style</strong> (subsets): <code>go(i+1)</code> without nums[i], then with it.</p>
+<h2 id="4-complexity">4. Complexity</h2>
+<p>Think "number of nodes in the decision tree x work per node".</p>
+<ul>
+<li>Subsets: O(n * 2^n). Permutations: O(n * n!). Combinations C(n,k): O(k * C(n,k)).</li>
+<li>Parentheses: Catalan number ~ 4^n / n^1.5. N-Queens: ~O(n!) with pruning.</li>
+<li>Space: recursion depth (call stack) plus output. Fast power: O(log n) depth.</li>
+<li>Python's default recursion limit is 1000; depth of ~n for linear recursion on big n
+  will crash (<code>RecursionError</code>). Fine for backtracking depth &lt;= ~30.</li>
+</ul>
+<h2 id="5-common-mistakes">5. Common mistakes</h2>
+<ul>
+<li>Appending <code>cur</code> instead of <code>cur[:]</code> / <code>list(cur)</code>: all results alias one list.</li>
+<li>Forgetting to undo the choice (<code>pop</code>, restoring the grid cell, <code>set.remove</code>).</li>
+<li>Missing or wrong base case -&gt; infinite recursion; base case order matters
+  (check "found" before "out of bounds" or vice versa deliberately).</li>
+<li>Duplicate results from not using a <code>start</code> index.</li>
+<li>Mutating the input (word search) without restoring it.</li>
+<li>Using a mutable default argument for accumulators.</li>
+<li>Exponential recursion without memo (naive fib) when subproblems overlap.</li>
+</ul>
+<h2 id="6-interview-tips">6. Interview tips</h2>
+<ul>
+<li>Draw the decision tree for a size-2 or size-3 input before coding.</li>
+<li>State what the recursion function means in one sentence ("go(i) = all ways to finish
+  from index i").</li>
+<li>Prune early (remaining sum &lt; 0, not enough elements left, column already used) and
+  mention it - interviewers look for it.</li>
+<li>Ask whether the input has duplicates and whether output order matters.</li>
+<li>Mention the recursion limit and the iterative alternative when depth could be large.</li>
+<li>If you see overlapping subproblems, say "this can be memoized" - then do it.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run <code>.venv/bin/pytest 03-dsa/week-11-recursion -q</code>.
+Budget: ~2 hrs tracing the templates by hand, ~5 hrs on problems.</p>
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-10-binary-search/test_exercises.py.html">← Week 10 · Binary search: Tests (code)</a><a class="next" href="../../03-dsa/week-11-recursion/exercises.py.html">Week 11 · Recursion: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

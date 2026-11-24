@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 21: 1-D Dynamic Programming | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-21-dp-1d/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-21-dp-1d/lesson.html">Week 21 · 1-D dynamic programming</a> / <span>Lesson</span></nav><button id="mark-done" data-id="03-dsa/week-21-dp-1d/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-21-1-d-dynamic-programming">Week 21: 1-D Dynamic Programming</h1>
+<p>Time budget: ~7-8 hrs. Lesson (1h), problems 1-5 (3h), problems 6-10 (3h), review (1h).</p>
+<h2 id="1-concept">1. Concept</h2>
+<p>DP = recursion with <strong>overlapping subproblems</strong> + <strong>optimal substructure</strong>, where you store
+each subproblem's answer so it is computed once. Two equivalent styles:</p>
+<ul>
+<li><strong>Top-down (memoization):</strong> write the recursion, cache with <code>functools.cache</code>.</li>
+<li><strong>Bottom-up (tabulation):</strong> fill <code>dp[0..n]</code> in dependency order; often compressible to O(1) space.</li>
+</ul>
+<p>A 5-step recipe that works in interviews:</p>
+<ol>
+<li><strong>State:</strong> what does <code>dp[i]</code> mean? Write it in one English sentence.</li>
+<li><strong>Transition:</strong> express <code>dp[i]</code> through smaller states.</li>
+<li><strong>Base cases:</strong> <code>dp[0]</code> (and <code>dp[1]</code>).</li>
+<li><strong>Order:</strong> which direction fills the table so dependencies are ready.</li>
+<li><strong>Answer:</strong> <code>dp[n]</code>, or <code>max(dp)</code> if the state is "ending at i".</li>
+</ol>
+<h2 id="2-how-to-recognize-the-pattern">2. How to recognize the pattern</h2>
+<ul>
+<li>"Number of ways to ...", "minimum cost / coins / steps to reach ...", "longest ...",
+  "can you form ...?" over a <strong>sequence or a number line</strong>.</li>
+<li>A brute-force recursion branches 2+ ways at each step and revisits the same arguments.</li>
+<li>Greedy fails on a small counterexample (coins [1,3,4], amount 6).</li>
+<li>Typical 1-D families:
+  | Family | Transition | Problems |
+  |---|---|---|
+  | Fibonacci-like | <code>dp[i] = dp[i-1] + dp[i-2]</code> | climb stairs, decode ways |
+  | Take-or-skip | <code>dp[i] = max(dp[i-1], dp[i-2] + x)</code> | house robber |
+  | Best ending at i | <code>dp[i] = max(x, dp[i-1] + x)</code> | Kadane, max product |
+  | Unbounded knapsack on amount | <code>dp[a] = min(dp[a-c] + 1)</code> | coin change |
+  | Prefix feasibility | <code>dp[i] = any(dp[j] and s[j:i] in set)</code> | word break |
+  | Subsequence | <code>dp[i] = 1 + max(dp[j])</code> for <code>j &lt; i</code>, <code>a[j] &lt; a[i]</code> | LIS |</li>
+</ul>
+<h2 id="3-template-code">3. Template code</h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">cache</span>
+
+<span class="c1"># top-down</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">f</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+    <span class="nd">@cache</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">go</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">go</span><span class="p">(</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">go</span><span class="p">(</span><span class="n">i</span> <span class="o">-</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">go</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+
+<span class="c1"># bottom-up with O(1) space</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">climb</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+    <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">b</span><span class="p">,</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
+    <span class="k">return</span> <span class="n">b</span>
+
+<span class="c1"># unbounded knapsack / coin change (min coins)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">coin_change</span><span class="p">(</span><span class="n">coins</span><span class="p">,</span> <span class="n">amount</span><span class="p">):</span>
+    <span class="n">INF</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">"inf"</span><span class="p">)</span>
+    <span class="n">dp</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">INF</span><span class="p">]</span> <span class="o">*</span> <span class="n">amount</span>
+    <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">amount</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">coins</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">c</span> <span class="o">&lt;=</span> <span class="n">a</span><span class="p">:</span>
+                <span class="n">dp</span><span class="p">[</span><span class="n">a</span><span class="p">]</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">dp</span><span class="p">[</span><span class="n">a</span><span class="p">],</span> <span class="n">dp</span><span class="p">[</span><span class="n">a</span> <span class="o">-</span> <span class="n">c</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="o">-</span><span class="mi">1</span> <span class="k">if</span> <span class="n">dp</span><span class="p">[</span><span class="n">amount</span><span class="p">]</span> <span class="o">==</span> <span class="n">INF</span> <span class="k">else</span> <span class="n">dp</span><span class="p">[</span><span class="n">amount</span><span class="p">]</span>
+</code></pre></div>
+
+<p>O(n log n) LIS: keep <code>tails</code>, where <code>tails[k]</code> is the smallest tail of an increasing
+subsequence of length <code>k + 1</code>; use <code>bisect_left</code>.</p>
+<h2 id="4-complexity">4. Complexity</h2>
+<ul>
+<li>Time = (#states) x (work per transition). Climb/rob/Kadane: O(n). Coin change: O(amount * #coins).</li>
+<li>Word break: O(n^2) substring checks (O(n^2 * L) with hashing cost). LIS: O(n^2) or O(n log n).</li>
+<li>Space: O(n), compressible to O(1) when <code>dp[i]</code> only needs the previous 1-2 states.</li>
+</ul>
+<h2 id="5-common-mistakes">5. Common mistakes</h2>
+<ul>
+<li>Not defining the state precisely (is <code>dp[i]</code> "using first i items" or "ending at item i"?).</li>
+<li>Wrong loop order for <strong>coin change counting</strong>: coins in the outer loop counts combinations;
+  amount in the outer loop counts permutations.</li>
+<li>Kadane for max product needs both a running <strong>max and min</strong> (negatives flip signs).</li>
+<li>Circular house robber: run the linear solution twice (exclude first / exclude last) and
+  handle <code>n == 1</code> separately.</li>
+<li>Decode ways: '0' can only be part of "10" or "20"; "06" is invalid.</li>
+<li><code>dp = [[0]] * n</code> style aliasing bugs; use list comprehensions.</li>
+<li>Mixing up the <code>-1</code> sentinel and <code>inf</code> in min problems.</li>
+<li>LIS: <code>bisect_left</code> for strictly increasing, <code>bisect_right</code> for non-decreasing.</li>
+</ul>
+<h2 id="6-interview-tips">6. Interview tips</h2>
+<ul>
+<li>Start with the brute-force recursion, point at the repeated subproblems, add <code>@cache</code>,
+  then offer bottom-up and the space optimization. This shows the full thought process.</li>
+<li>Always state the DP meaning in words before writing code.</li>
+<li>Check small cases (n = 0, 1, 2) aloud; most bugs live in the base cases.</li>
+<li>Follow-ups: "return the actual solution" (keep parent pointers or reconstruct backwards),
+  "reduce space", "what if the numbers are huge" (then DP over the amount is too slow).</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run <code>.venv/bin/pytest 03-dsa/week-21-dp-1d</code>.</p>
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-20-backtracking/test_exercises.py.html">← Week 20 · Backtracking: Tests (code)</a><a class="next" href="../../03-dsa/week-21-dp-1d/exercises.py.html">Week 21 · 1-D dynamic programming: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

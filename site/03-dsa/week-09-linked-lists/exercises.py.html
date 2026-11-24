@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-09-linked-lists/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-09-linked-lists/lesson.html">Week 9 · Linked lists</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="03-dsa/week-09-linked-lists/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>03-dsa/week-09-linked-lists/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 9 exercises: linked lists. Replace each `...` with your code.</span>
+
+<span class="sd">Run tests from the repo root:  .venv/bin/pytest 03-dsa/week-09-linked-lists -q</span>
+<span class="sd">Lists are given by their head node (None = empty list). Prefer iterative</span>
+<span class="sd">solutions: inputs can have 100,000 nodes, which would overflow Python recursion.</span>
+<span class="sd">"""</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ListNode</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="nb">next</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">val</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="nb">next</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">reverse_list</span><span class="p">(</span><span class="n">head</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 206. Reverse a singly linked list and return the new head.</span>
+
+<span class="sd">    1-&gt;2-&gt;3-&gt;4-&gt;5  -&gt;  5-&gt;4-&gt;3-&gt;2-&gt;1      1-&gt;2 -&gt; 2-&gt;1      [] -&gt; []   (None -&gt; None)</span>
+<span class="sd">    Hint: three pointers prev / cur / nxt.</span>
+<span class="sd">    Time O(n), Space O(1).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">middle_node</span><span class="p">(</span><span class="n">head</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 876. Return the middle node of the list (the node itself, not</span>
+<span class="sd">    its value). With two middle nodes return the SECOND one.</span>
+
+<span class="sd">    1-&gt;2-&gt;3-&gt;4-&gt;5 -&gt; node 3      1-&gt;2-&gt;3-&gt;4 -&gt; node 3      1 -&gt; node 1</span>
+<span class="sd">    Hint: slow moves 1 step, fast moves 2.</span>
+<span class="sd">    Time O(n), Space O(1). Assume the list is non-empty.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">merge_two_lists</span><span class="p">(</span><span class="n">l1</span><span class="p">,</span> <span class="n">l2</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 21. Merge two sorted lists into one sorted list by splicing the</span>
+<span class="sd">    existing nodes together. Return the head.</span>
+
+<span class="sd">    1-&gt;2-&gt;4 and 1-&gt;3-&gt;4 -&gt; 1-&gt;1-&gt;2-&gt;3-&gt;4-&gt;4      [] and [] -&gt; []      [] and 0 -&gt; 0</span>
+<span class="sd">    Hint: dummy head + tail pointer. Keep it stable (take l1 on ties).</span>
+<span class="sd">    Time O(n + m), Space O(1).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">has_cycle</span><span class="p">(</span><span class="n">head</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 141. Return True if the list contains a cycle (some node's</span>
+<span class="sd">    `next` points back to an earlier node), else False.</span>
+
+<span class="sd">    3-&gt;2-&gt;0-&gt;-4-&gt;(back to 2) -&gt; True      1-&gt;2 -&gt; False      None -&gt; False</span>
+<span class="sd">    Hint: Floyd's tortoise and hare. Do not use a set (aim for O(1) space).</span>
+<span class="sd">    Time O(n), Space O(1).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">is_palindrome_list</span><span class="p">(</span><span class="n">head</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 234. Return True if the list reads the same forwards and</span>
+<span class="sd">    backwards.</span>
+
+<span class="sd">    1-&gt;2-&gt;2-&gt;1 -&gt; True      1-&gt;2 -&gt; False      1 -&gt; True      None -&gt; True</span>
+<span class="sd">    1-&gt;2-&gt;3-&gt;2-&gt;1 -&gt; True</span>
+<span class="sd">    Hint: find the middle, reverse the second half, compare. Aim for O(1) space</span>
+<span class="sd">    (you may restore the list afterwards, but it is not required).</span>
+<span class="sd">    Time O(n), Space O(1).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">remove_nth_from_end</span><span class="p">(</span><span class="n">head</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 19. Remove the n-th node from the END of the list (1-indexed)</span>
+<span class="sd">    and return the head. 1 &lt;= n &lt;= length.</span>
+
+<span class="sd">    1-&gt;2-&gt;3-&gt;4-&gt;5, n=2 -&gt; 1-&gt;2-&gt;3-&gt;5      1, n=1 -&gt; None      1-&gt;2, n=1 -&gt; 1</span>
+<span class="sd">    1-&gt;2, n=2 -&gt; 2</span>
+<span class="sd">    Hint: dummy node + two pointers separated by n nodes. One pass.</span>
+<span class="sd">    Time O(n), Space O(1).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">detect_cycle_start</span><span class="p">(</span><span class="n">head</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 142. Return the node where the cycle begins, or None if there is</span>
+<span class="sd">    no cycle (return the node object itself, not its value).</span>
+
+<span class="sd">    3-&gt;2-&gt;0-&gt;-4-&gt;(back to 2) -&gt; node 2      1-&gt;2-&gt;(back to 1) -&gt; node 1</span>
+<span class="sd">    1-&gt;2 -&gt; None      None -&gt; None      1-&gt;(self loop) -&gt; node 1</span>
+<span class="sd">    Hint: Floyd phase 1 finds a meeting point; phase 2 restarts one pointer at</span>
+<span class="sd">    head and moves both one step at a time until they meet.</span>
+<span class="sd">    Time O(n), Space O(1).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">add_two_numbers</span><span class="p">(</span><span class="n">l1</span><span class="p">,</span> <span class="n">l2</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 2. Two non-empty lists represent non-negative integers with the</span>
+<span class="sd">    digits stored in REVERSE order (least significant digit first). Return the</span>
+<span class="sd">    sum as a list in the same format.</span>
+
+<span class="sd">    2-&gt;4-&gt;3 + 5-&gt;6-&gt;4 -&gt; 7-&gt;0-&gt;8   (342 + 465 = 807)</span>
+<span class="sd">    0 + 0 -&gt; 0      9-&gt;9-&gt;9-&gt;9 + 1 -&gt; 0-&gt;0-&gt;0-&gt;0-&gt;1      1 + 9-&gt;9 -&gt; 0-&gt;0-&gt;1</span>
+<span class="sd">    Hint: dummy head, carry; loop while l1 or l2 or carry.</span>
+<span class="sd">    Time O(max(n, m)), Space O(1) extra (the output list does not count).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">reorder_list</span><span class="p">(</span><span class="n">head</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 143. Reorder L0-&gt;L1-&gt;...-&gt;Ln-1-&gt;Ln into</span>
+<span class="sd">    L0-&gt;Ln-&gt;L1-&gt;Ln-1-&gt;L2-&gt;Ln-2-&gt;... IN PLACE. Return nothing (modify the list).</span>
+
+<span class="sd">    1-&gt;2-&gt;3-&gt;4 -&gt; 1-&gt;4-&gt;2-&gt;3      1-&gt;2-&gt;3-&gt;4-&gt;5 -&gt; 1-&gt;5-&gt;2-&gt;4-&gt;3</span>
+<span class="sd">    1 -&gt; 1      1-&gt;2 -&gt; 1-&gt;2      None -&gt; None</span>
+<span class="sd">    Hint: find the middle, reverse the second half, then interleave the halves.</span>
+<span class="sd">    Remember to cut the first half (`mid.next = None`) or you create a cycle.</span>
+<span class="sd">    Time O(n), Space O(1).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">reverse_k_group</span><span class="p">(</span><span class="n">head</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 25 (Hard). Reverse the nodes of the list k at a time and return</span>
+<span class="sd">    the head. If the number of remaining nodes is less than k, leave them as is.</span>
+<span class="sd">    Only node links may change (not values). k &gt;= 1.</span>
+
+<span class="sd">    1-&gt;2-&gt;3-&gt;4-&gt;5, k=2 -&gt; 2-&gt;1-&gt;4-&gt;3-&gt;5      1-&gt;2-&gt;3-&gt;4-&gt;5, k=3 -&gt; 3-&gt;2-&gt;1-&gt;4-&gt;5</span>
+<span class="sd">    1-&gt;2-&gt;3, k=1 -&gt; 1-&gt;2-&gt;3      1-&gt;2, k=5 -&gt; 1-&gt;2      None -&gt; None</span>
+<span class="sd">    Hint: check k nodes exist, reverse that segment, connect it to the previous</span>
+<span class="sd">    group's tail and recurse/loop on the rest. Use a dummy node.</span>
+<span class="sd">    Time O(n), Space O(1).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">merge_k_sorted_lists</span><span class="p">(</span><span class="n">lists</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 23 (Hard). Merge k sorted linked lists into one sorted list and</span>
+<span class="sd">    return its head. `lists` may be empty or contain None entries.</span>
+
+<span class="sd">    [1-&gt;4-&gt;5, 1-&gt;3-&gt;4, 2-&gt;6] -&gt; 1-&gt;1-&gt;2-&gt;3-&gt;4-&gt;4-&gt;5-&gt;6      [] -&gt; None      [None] -&gt; None</span>
+<span class="sd">    Hint: min-heap of (value, list_index, node) -- the index breaks ties so Python</span>
+<span class="sd">    never compares ListNodes. Or divide and conquer with merge_two_lists logic.</span>
+<span class="sd">    Time O(N log k), Space O(k).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-09-linked-lists/lesson.html">← Week 9 · Linked lists: Lesson</a><a class="next" href="../../03-dsa/week-09-linked-lists/test_exercises.py.html">Week 9 · Linked lists: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

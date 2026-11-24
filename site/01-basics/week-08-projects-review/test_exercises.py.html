@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>test_exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="01-basics/week-08-projects-review/test_exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../01-basics/week-01-first-steps/lesson.html">Python Basics</a> / <a href="../../01-basics/week-08-projects-review/lesson.html">Week 8 · Projects and review</a> / <span>Tests (code)</span></nav><button id="mark-done" data-id="01-basics/week-08-projects-review/test_exercises.py">Mark as done</button></div><article class="doc">
+<h1>test_exercises.py</h1><p class="code-path"><code>01-basics/week-08-projects-review/test_exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+
+
+<span class="c1"># ----------------------------- Project A: todo -----------------------------</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_todo_add_task</span><span class="p">():</span>
+    <span class="n">tasks</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">t</span> <span class="o">=</span> <span class="n">add_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"  buy milk "</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">t</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"title"</span><span class="p">:</span> <span class="s2">"buy milk"</span><span class="p">,</span> <span class="s2">"done"</span><span class="p">:</span> <span class="kc">False</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">tasks</span> <span class="o">==</span> <span class="p">[</span><span class="n">t</span><span class="p">]</span>
+    <span class="n">t2</span> <span class="o">=</span> <span class="n">add_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"call mom"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">t2</span><span class="p">[</span><span class="s2">"id"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">tasks</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_todo_add_task_blank_raises</span><span class="p">():</span>
+    <span class="n">tasks</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">add_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">add_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"   "</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">tasks</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_todo_ids_after_removal</span><span class="p">():</span>
+    <span class="n">tasks</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">add_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">)</span>
+    <span class="n">add_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">)</span>
+    <span class="n">add_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">)</span>
+    <span class="n">remove_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">add_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"d"</span><span class="p">)[</span><span class="s2">"id"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span>  <span class="c1"># max id + 1</span>
+    <span class="n">remove_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">add_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"e"</span><span class="p">)[</span><span class="s2">"id"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">4</span>  <span class="c1"># does not reuse ids below max</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_todo_complete_task</span><span class="p">():</span>
+    <span class="n">tasks</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">add_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">)</span>
+    <span class="n">add_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">)</span>
+    <span class="n">complete_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">t</span><span class="p">[</span><span class="s2">"done"</span><span class="p">]</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">tasks</span><span class="p">]</span> <span class="o">==</span> <span class="p">[</span><span class="kc">False</span><span class="p">,</span> <span class="kc">True</span><span class="p">]</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">"no such task"</span><span class="p">):</span>
+        <span class="n">complete_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="mi">99</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_todo_remove_task</span><span class="p">():</span>
+    <span class="n">tasks</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">add_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">)</span>
+    <span class="n">add_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">)</span>
+    <span class="n">remove_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">t</span><span class="p">[</span><span class="s2">"title"</span><span class="p">]</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">tasks</span><span class="p">]</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"b"</span><span class="p">]</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">"no such task"</span><span class="p">):</span>
+        <span class="n">remove_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_todo_list_tasks</span><span class="p">():</span>
+    <span class="n">tasks</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="n">list_tasks</span><span class="p">(</span><span class="n">tasks</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="n">add_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"buy milk"</span><span class="p">)</span>
+    <span class="n">add_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"call mom"</span><span class="p">)</span>
+    <span class="n">complete_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">list_tasks</span><span class="p">(</span><span class="n">tasks</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"[ ] 1: buy milk"</span><span class="p">,</span> <span class="s2">"[x] 2: call mom"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">list_tasks</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="n">show_done</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"[ ] 1: buy milk"</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_todo_save_and_load</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">):</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">tmp_path</span> <span class="o">/</span> <span class="s2">"tasks.json"</span>
+    <span class="k">assert</span> <span class="n">load_tasks</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="n">tasks</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">add_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">)</span>
+    <span class="n">add_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">)</span>
+    <span class="n">complete_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">save_tasks</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">tasks</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">read_text</span><span class="p">())</span> <span class="o">==</span> <span class="n">tasks</span>
+    <span class="k">assert</span> <span class="n">load_tasks</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">==</span> <span class="n">tasks</span>
+    <span class="n">save_tasks</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="p">[])</span>
+    <span class="k">assert</span> <span class="n">load_tasks</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_todo_handle_command_flow</span><span class="p">():</span>
+    <span class="n">tasks</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="n">handle_command</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"add buy milk"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"Added 1: buy milk"</span>
+    <span class="k">assert</span> <span class="n">handle_command</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"ADD call mom"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"Added 2: call mom"</span>
+    <span class="k">assert</span> <span class="n">handle_command</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"done 1"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"Completed 1"</span>
+    <span class="k">assert</span> <span class="n">handle_command</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"list"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"[x] 1: buy milk</span><span class="se">\n</span><span class="s2">[ ] 2: call mom"</span>
+    <span class="k">assert</span> <span class="n">handle_command</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"remove 1"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"Removed 1"</span>
+    <span class="k">assert</span> <span class="n">handle_command</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"list"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"[ ] 2: call mom"</span>
+    <span class="k">assert</span> <span class="n">handle_command</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"remove 2"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"Removed 2"</span>
+    <span class="k">assert</span> <span class="n">handle_command</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"list"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"No tasks"</span>
+    <span class="k">assert</span> <span class="n">tasks</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_todo_handle_command_errors</span><span class="p">():</span>
+    <span class="n">tasks</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="n">handle_command</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"add"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"Error: title required"</span>
+    <span class="k">assert</span> <span class="n">handle_command</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"add   "</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"Error: title required"</span>
+    <span class="k">assert</span> <span class="n">handle_command</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"done"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"Error: invalid id"</span>
+    <span class="k">assert</span> <span class="n">handle_command</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"done abc"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"Error: invalid id"</span>
+    <span class="k">assert</span> <span class="n">handle_command</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"remove x"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"Error: invalid id"</span>
+    <span class="k">assert</span> <span class="n">handle_command</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"done 5"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"Error: no such task"</span>
+    <span class="k">assert</span> <span class="n">handle_command</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"remove 5"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"Error: no such task"</span>
+    <span class="k">assert</span> <span class="n">handle_command</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">"dance now"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"Unknown command: dance now"</span>
+    <span class="k">assert</span> <span class="n">handle_command</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"Unknown command: "</span>
+    <span class="k">assert</span> <span class="n">tasks</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="c1"># -------------------------- Project B: word frequency -----------------------</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_word_tokenize</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">tokenize</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="n">tokenize</span><span class="p">(</span><span class="s2">"Hello, World... hello"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"hello"</span><span class="p">,</span> <span class="s2">"world"</span><span class="p">,</span> <span class="s2">"hello"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">tokenize</span><span class="p">(</span><span class="s2">"Don't stop!"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"don't"</span><span class="p">,</span> <span class="s2">"stop"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">tokenize</span><span class="p">(</span><span class="s2">"'quoted' words"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"quoted"</span><span class="p">,</span> <span class="s2">"words"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">tokenize</span><span class="p">(</span><span class="s2">"a1b 22 c"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">tokenize</span><span class="p">(</span><span class="s2">"  ... ''' "</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="n">tokenize</span><span class="p">(</span><span class="s2">"end."</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"end"</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_word_count_words</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">count_words</span><span class="p">([])</span> <span class="o">==</span> <span class="p">{}</span>
+    <span class="k">assert</span> <span class="n">count_words</span><span class="p">([</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">])</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_word_top_words</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">top_words</span><span class="p">({</span><span class="s2">"b"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">:</span> <span class="mi">1</span><span class="p">},</span> <span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="p">[(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)]</span>
+    <span class="k">assert</span> <span class="n">top_words</span><span class="p">({</span><span class="s2">"b"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">:</span> <span class="mi">1</span><span class="p">},</span> <span class="mi">10</span><span class="p">)</span> <span class="o">==</span> <span class="p">[(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="s2">"c"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)]</span>
+    <span class="k">assert</span> <span class="n">top_words</span><span class="p">({},</span> <span class="mi">3</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="n">top_words</span><span class="p">({</span><span class="s2">"a"</span><span class="p">:</span> <span class="mi">1</span><span class="p">},</span> <span class="mi">0</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="n">top_words</span><span class="p">({</span><span class="s2">"x"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"y"</span><span class="p">:</span> <span class="mi">5</span><span class="p">},</span> <span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="p">[(</span><span class="s2">"y"</span><span class="p">,</span> <span class="mi">5</span><span class="p">)]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_word_remove_stop_words</span><span class="p">():</span>
+    <span class="n">words</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"the"</span><span class="p">,</span> <span class="s2">"cat"</span><span class="p">,</span> <span class="s2">"and"</span><span class="p">,</span> <span class="s2">"the"</span><span class="p">,</span> <span class="s2">"dog"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">remove_stop_words</span><span class="p">(</span><span class="n">words</span><span class="p">,</span> <span class="p">[</span><span class="s2">"the"</span><span class="p">,</span> <span class="s2">"AND"</span><span class="p">])</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"cat"</span><span class="p">,</span> <span class="s2">"dog"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">remove_stop_words</span><span class="p">(</span><span class="n">words</span><span class="p">,</span> <span class="p">[])</span> <span class="o">==</span> <span class="n">words</span>
+    <span class="k">assert</span> <span class="n">remove_stop_words</span><span class="p">([],</span> <span class="p">[</span><span class="s2">"the"</span><span class="p">])</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="n">remove_stop_words</span><span class="p">(</span><span class="n">words</span><span class="p">,</span> <span class="p">{</span><span class="s2">"the"</span><span class="p">})</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"cat"</span><span class="p">,</span> <span class="s2">"and"</span><span class="p">,</span> <span class="s2">"dog"</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_word_stats</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">word_stats</span><span class="p">([])</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"total"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">"unique"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">"longest"</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">"average_length"</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="n">word_stats</span><span class="p">([</span><span class="s2">"hello"</span><span class="p">,</span> <span class="s2">"world"</span><span class="p">,</span> <span class="s2">"hi"</span><span class="p">])</span>
+    <span class="k">assert</span> <span class="n">s</span><span class="p">[</span><span class="s2">"total"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="n">s</span><span class="p">[</span><span class="s2">"unique"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="n">s</span><span class="p">[</span><span class="s2">"longest"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"hello"</span>  <span class="c1"># first of the longest</span>
+    <span class="k">assert</span> <span class="n">s</span><span class="p">[</span><span class="s2">"average_length"</span><span class="p">]</span> <span class="o">==</span> <span class="mf">4.0</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="n">word_stats</span><span class="p">([</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">,</span> <span class="s2">"bb"</span><span class="p">])</span>
+    <span class="k">assert</span> <span class="n">s</span><span class="p">[</span><span class="s2">"total"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span> <span class="ow">and</span> <span class="n">s</span><span class="p">[</span><span class="s2">"unique"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">s</span><span class="p">[</span><span class="s2">"longest"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"bb"</span>
+    <span class="k">assert</span> <span class="n">s</span><span class="p">[</span><span class="s2">"average_length"</span><span class="p">]</span> <span class="o">==</span> <span class="mf">1.33</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_word_analyze_file</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">):</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">tmp_path</span> <span class="o">/</span> <span class="s2">"text.txt"</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="s2">"The cat and the hat. The CAT sat!</span><span class="se">\n</span><span class="s2">A hat?</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">analyze_file</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="p">[</span><span class="s2">"total"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">10</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="p">[</span><span class="s2">"unique"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">6</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="p">[</span><span class="s2">"top"</span><span class="p">]</span> <span class="o">==</span> <span class="p">[(</span><span class="s2">"the"</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="p">(</span><span class="s2">"cat"</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="s2">"hat"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)]</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">analyze_file</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">stop_words</span><span class="o">=</span><span class="p">[</span><span class="s2">"the"</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">,</span> <span class="s2">"and"</span><span class="p">])</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="p">[</span><span class="s2">"total"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">5</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="p">[</span><span class="s2">"top"</span><span class="p">]</span> <span class="o">==</span> <span class="p">[(</span><span class="s2">"cat"</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="s2">"hat"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)]</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="p">[</span><span class="s2">"longest"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"cat"</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">FileNotFoundError</span><span class="p">):</span>
+        <span class="n">analyze_file</span><span class="p">(</span><span class="n">tmp_path</span> <span class="o">/</span> <span class="s2">"missing.txt"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_word_analyze_empty_file</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">):</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">tmp_path</span> <span class="o">/</span> <span class="s2">"empty.txt"</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">analyze_file</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="p">[</span><span class="s2">"total"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="p">[</span><span class="s2">"top"</span><span class="p">]</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="p">[</span><span class="s2">"longest"</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_word_format_report</span><span class="p">():</span>
+    <span class="n">stats</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">"total"</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span>
+        <span class="s2">"unique"</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+        <span class="s2">"longest"</span><span class="p">:</span> <span class="s2">"hello"</span><span class="p">,</span>
+        <span class="s2">"average_length"</span><span class="p">:</span> <span class="mf">4.2</span><span class="p">,</span>
+        <span class="s2">"top"</span><span class="p">:</span> <span class="p">[(</span><span class="s2">"hello"</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="s2">"world"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)],</span>
+    <span class="p">}</span>
+    <span class="k">assert</span> <span class="n">format_report</span><span class="p">(</span><span class="n">stats</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span>
+        <span class="s2">"Total words: 5</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"Unique words: 3</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"Longest word: hello</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"Average length: 4.2</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"Top words:</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"  hello: 2</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"  world: 2"</span>
+    <span class="p">)</span>
+    <span class="n">empty</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"total"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">"unique"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">"longest"</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">"average_length"</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">format_report</span><span class="p">(</span><span class="n">empty</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span>
+        <span class="s2">"Total words: 0</span><span class="se">\n</span><span class="s2">Unique words: 0</span><span class="se">\n</span><span class="s2">Longest word: -</span><span class="se">\n</span><span class="s2">Average length: 0</span><span class="se">\n</span><span class="s2">Top words:"</span>
+    <span class="p">)</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../01-basics/week-08-projects-review/exercises.py.html">← Week 8 · Projects and review: Exercises (code)</a><a class="next" href="../../02-oop/week-01-classes-objects/lesson.html">Week 1 · Classes and objects: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

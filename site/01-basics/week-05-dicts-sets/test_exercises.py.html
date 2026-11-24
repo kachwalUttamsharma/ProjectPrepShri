@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>test_exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="01-basics/week-05-dicts-sets/test_exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../01-basics/week-01-first-steps/lesson.html">Python Basics</a> / <a href="../../01-basics/week-05-dicts-sets/lesson.html">Week 5 · Dictionaries and sets</a> / <span>Tests (code)</span></nav><button id="mark-done" data-id="01-basics/week-05-dicts-sets/test_exercises.py">Mark as done</button></div><article class="doc">
+<h1>test_exercises.py</h1><p class="code-path"><code>01-basics/week-05-dicts-sets/test_exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_char_count</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">char_count</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span> <span class="o">==</span> <span class="p">{}</span>
+    <span class="k">assert</span> <span class="n">char_count</span><span class="p">(</span><span class="s2">"aab"</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">char_count</span><span class="p">(</span><span class="s2">"a a"</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">" "</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_word_count</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">word_count</span><span class="p">(</span><span class="s2">"the cat The dog"</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"the"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"cat"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"dog"</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">word_count</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span> <span class="o">==</span> <span class="p">{}</span>
+    <span class="k">assert</span> <span class="n">word_count</span><span class="p">(</span><span class="s2">"  a   a "</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">:</span> <span class="mi">2</span><span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_most_common_char</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">most_common_char</span><span class="p">(</span><span class="s2">"abca"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"a"</span>
+    <span class="k">assert</span> <span class="n">most_common_char</span><span class="p">(</span><span class="s2">"abcb"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"b"</span>
+    <span class="k">assert</span> <span class="n">most_common_char</span><span class="p">(</span><span class="s2">"abc"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"a"</span>
+    <span class="k">assert</span> <span class="n">most_common_char</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="k">assert</span> <span class="n">most_common_char</span><span class="p">(</span><span class="s2">"x"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"x"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_has_duplicates</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">has_duplicates</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="n">has_duplicates</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span> <span class="ow">is</span> <span class="kc">True</span>
+    <span class="k">assert</span> <span class="n">has_duplicates</span><span class="p">([])</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="n">has_duplicates</span><span class="p">(</span><span class="s2">"hello"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_two_sum</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">two_sum</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">15</span><span class="p">],</span> <span class="mi">9</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">two_sum</span><span class="p">([</span><span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="mi">6</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">two_sum</span><span class="p">([</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span> <span class="mi">6</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">two_sum</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span> <span class="mi">100</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="k">assert</span> <span class="n">two_sum</span><span class="p">([],</span> <span class="mi">1</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="k">assert</span> <span class="n">two_sum</span><span class="p">([</span><span class="mi">5</span><span class="p">],</span> <span class="mi">10</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>  <span class="c1"># can't reuse the same element</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_invert_dict</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">invert_dict</span><span class="p">({</span><span class="s2">"a"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">:</span> <span class="mi">2</span><span class="p">})</span> <span class="o">==</span> <span class="p">{</span><span class="mi">1</span><span class="p">:</span> <span class="s2">"a"</span><span class="p">,</span> <span class="mi">2</span><span class="p">:</span> <span class="s2">"b"</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">invert_dict</span><span class="p">({})</span> <span class="o">==</span> <span class="p">{}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_group_by_length</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">group_by_length</span><span class="p">([</span><span class="s2">"hi"</span><span class="p">,</span> <span class="s2">"yo"</span><span class="p">,</span> <span class="s2">"sup"</span><span class="p">])</span> <span class="o">==</span> <span class="p">{</span><span class="mi">2</span><span class="p">:</span> <span class="p">[</span><span class="s2">"hi"</span><span class="p">,</span> <span class="s2">"yo"</span><span class="p">],</span> <span class="mi">3</span><span class="p">:</span> <span class="p">[</span><span class="s2">"sup"</span><span class="p">]}</span>
+    <span class="k">assert</span> <span class="n">group_by_length</span><span class="p">([])</span> <span class="o">==</span> <span class="p">{}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_common_elements</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">common_elements</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">])</span> <span class="o">==</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">common_elements</span><span class="p">([</span><span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="mi">2</span><span class="p">])</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="n">common_elements</span><span class="p">([],</span> <span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_unique_to_first</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">unique_to_first</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">])</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">unique_to_first</span><span class="p">([</span><span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="n">unique_to_first</span><span class="p">([</span><span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="p">[])</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_merge_dicts_sum</span><span class="p">():</span>
+    <span class="n">d1</span><span class="p">,</span> <span class="n">d2</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">:</span> <span class="mi">2</span><span class="p">},</span> <span class="p">{</span><span class="s2">"b"</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">:</span> <span class="mi">4</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">merge_dicts_sum</span><span class="p">(</span><span class="n">d1</span><span class="p">,</span> <span class="n">d2</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">:</span> <span class="mi">4</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">d1</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">:</span> <span class="mi">2</span><span class="p">}</span> <span class="ow">and</span> <span class="n">d2</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"b"</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">:</span> <span class="mi">4</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">merge_dicts_sum</span><span class="p">({},</span> <span class="p">{})</span> <span class="o">==</span> <span class="p">{}</span>
+    <span class="k">assert</span> <span class="n">merge_dicts_sum</span><span class="p">({</span><span class="s2">"a"</span><span class="p">:</span> <span class="mi">1</span><span class="p">},</span> <span class="p">{})</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_first_unique_char</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">first_unique_char</span><span class="p">(</span><span class="s2">"leetcode"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">first_unique_char</span><span class="p">(</span><span class="s2">"loveleetcode"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">first_unique_char</span><span class="p">(</span><span class="s2">"aabb"</span><span class="p">)</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">first_unique_char</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_group_anagrams</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">group_anagrams</span><span class="p">([</span><span class="s2">"eat"</span><span class="p">,</span> <span class="s2">"tea"</span><span class="p">,</span> <span class="s2">"tan"</span><span class="p">,</span> <span class="s2">"ate"</span><span class="p">,</span> <span class="s2">"nat"</span><span class="p">,</span> <span class="s2">"bat"</span><span class="p">])</span> <span class="o">==</span> <span class="p">[</span>
+        <span class="p">[</span><span class="s2">"eat"</span><span class="p">,</span> <span class="s2">"tea"</span><span class="p">,</span> <span class="s2">"ate"</span><span class="p">],</span>
+        <span class="p">[</span><span class="s2">"tan"</span><span class="p">,</span> <span class="s2">"nat"</span><span class="p">],</span>
+        <span class="p">[</span><span class="s2">"bat"</span><span class="p">],</span>
+    <span class="p">]</span>
+    <span class="k">assert</span> <span class="n">group_anagrams</span><span class="p">([])</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="n">group_anagrams</span><span class="p">([</span><span class="s2">""</span><span class="p">])</span> <span class="o">==</span> <span class="p">[[</span><span class="s2">""</span><span class="p">]]</span>
+    <span class="k">assert</span> <span class="n">group_anagrams</span><span class="p">([</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">])</span> <span class="o">==</span> <span class="p">[[</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">],</span> <span class="p">[</span><span class="s2">"b"</span><span class="p">]]</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../01-basics/week-05-dicts-sets/exercises.py.html">← Week 5 · Dictionaries and sets: Exercises (code)</a><a class="next" href="../../01-basics/week-06-files-errors-modules/lesson.html">Week 6 · Files, errors, modules: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

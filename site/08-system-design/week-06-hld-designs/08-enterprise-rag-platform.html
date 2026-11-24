@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HLD 8 - Enterprise RAG / Chat-with-Documents Platform (FDE-style) | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="08-system-design/week-06-hld-designs/08-enterprise-rag-platform" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../08-system-design/README.html">System Design</a> / <a href="../../08-system-design/week-06-hld-designs/framework.html">Week 6 · HLD designs</a> / <span>HLD 8 - Enterprise RAG / Chat-with-Documents Platform (FDE-style)</span></nav><button id="mark-done" data-id="08-system-design/week-06-hld-designs/08-enterprise-rag-platform">Mark as done</button></div><article class="doc">
+<h1 id="hld-8-enterprise-rag-chat-with-documents-platform-fde-style">HLD 8 - Enterprise RAG / Chat-with-Documents Platform (FDE-style)</h1>
+<p>Background: <a href="../week-05-architecture-operations/lesson.html">caching, rate limiting, observability, LLM-system angle</a>, <a href="../week-03-coordination-messaging/lesson.html">queues</a>, <a href="../week-02-data-storage/lesson.html">sharding/indexes</a>. AWS context: <a href="../../07-aws/README.html">07-aws</a>. Framework: <a href="framework.html">framework.md</a>.</p>
+<p>This is the most likely prompt for a forward-deployed role: the customer has messy documents, strict security, and wants answers they can trust. Lead with <em>trust, permissions, evaluation</em>, not just "embed and search".</p>
+<h2 id="1-clarify-requirements">1. Clarify requirements</h2>
+<p>Functional</p>
+<ul>
+<li>Ingest documents from connectors (SharePoint, Drive, Confluence, S3, email, PDFs, wikis); keep them in sync.</li>
+<li>Chat Q&amp;A with citations; follow-up questions with conversation memory; feedback (thumbs).</li>
+<li>
+<p>Admin: sources, tenants/workspaces, usage and cost dashboards.
+Non-functional / questions to ask</p>
+</li>
+<li>
+<p>Tenants: how many, how big? (e.g., 500 tenants, 1k - 10M docs each.) Multi-tenant SaaS vs single-tenant VPC/on-prem deployment?</p>
+</li>
+<li><strong>Access control</strong>: user must only get answers from documents they may read (ACLs mirrored from source).</li>
+<li>Latency: time to first token &lt; ~2 s, full answer &lt; ~10 s. Freshness: new doc searchable within minutes.</li>
+<li>Data residency, no training on customer data, PII handling, audit logs, SOC2/HIPAA-style needs (check customer requirements).</li>
+<li>Accuracy bar: must say "I don't know" rather than hallucinate? Quality targets measured by evals.
+Out of scope: model training, fine-tuning (mention as later options).</li>
+</ul>
+<h2 id="2-estimate-worked">2. Estimate (worked)</h2>
+<ul>
+<li>100 tenants x 1M docs avg 10 pages = 1B pages... too big; take 20M docs total, ~10 chunks of 500 tokens each = 200M chunks.</li>
+<li>Embeddings: 1024-dim float32 = 4 KB/vector -&gt; 200M x 4 KB = 800 GB raw (+ index overhead ~1.5-2x; quantization to int8 or binary cuts 4-32x). Check chosen vector DB docs for memory vs disk index.</li>
+<li>Ingestion cost: 200M chunks x 500 tokens = 100B tokens to embed once; at embedding prices (check current pricing, often cents per million tokens) this is order of thousands of dollars, so incremental re-embedding by content hash matters.</li>
+<li>Query load: 10k users, 20 queries/user/day = 200k/day ~ 2.3/s avg, peak ~25/s. Low QPS; cost and latency per query dominate, not throughput.</li>
+<li>LLM cost per query: 6k input tokens (prompt + 5-8 chunks + history) + 500 output. At, say, $3/M input and $15/M output (illustrative; check current prices) = $0.018 + $0.0075 ~ $0.025/query -&gt; ~ $5k/day at 200k queries. Prompt caching, smaller models for routing/rewrite, and answer caching are meaningful levers.</li>
+</ul>
+<h2 id="3-api">3. API</h2>
+<div class="highlight"><pre><span></span><code>POST /v1/chat   {conversation_id?, message, filters?{source,date}, stream:true}
+     -&gt; SSE stream: tokens, then {citations:[{doc_id, title, url, chunk_id, quote}]}
+POST /v1/feedback {message_id, rating, comment}
+POST /v1/sources  {type:"sharepoint", credentials_ref, sync_schedule}   (admin)
+GET  /v1/documents/{id}/status          indexed|failed|pending
+DELETE /v1/documents/{id}                (must purge vectors, cache, derived data)
+</code></pre></div>
+
+<p>AuthN via OIDC/SAML SSO; the user's identity (and groups) flows through to retrieval.</p>
+<h2 id="4-data-model">4. Data model</h2>
+<ul>
+<li><code>documents(doc_id, tenant_id, source_id, source_uri, content_hash, acl_hash, version, status, updated_at)</code> - Postgres.</li>
+<li><code>chunks(chunk_id, doc_id, tenant_id, ord, text, metadata{title,section,page,...}, embedding)</code> - vector store (pgvector, OpenSearch, Pinecone, Qdrant, etc.) plus a keyword index (BM25) for hybrid.</li>
+<li><code>acl</code>: principals (user/group ids) allowed per doc, stored as metadata on each chunk (<code>allowed_principals</code>) <em>and</em> re-checked against source or a synced ACL table.</li>
+<li><code>conversations/messages</code>, <code>eval_sets</code>, <code>traces</code> (prompt, retrieved chunk ids, model, tokens, latency, feedback).</li>
+<li>Raw files in object storage (S3) with per-tenant prefix and KMS keys.</li>
+</ul>
+<h2 id="5-high-level-diagram">5. High-level diagram</h2>
+<div class="highlight"><pre><span></span><code> INGESTION (async, idempotent)
+ Connectors --&gt; [Sync scheduler / webhooks] --&gt; queue --&gt; [Fetcher]
+   -&gt; raw store (S3, per-tenant KMS) -&gt; [Parser: PDF/OCR/HTML/tables]
+   -&gt; [Chunker] -&gt; [Embedder (batch, rate-limited)] -&gt; [Indexer]
+        |                                                  |-&gt; Vector index (tenant-filtered)
+        |-&gt; ACL sync (users/groups) ------------------------|-&gt; BM25 index
+        `-&gt; DLQ / failure dashboard
+
+ QUERY (sync, streaming)
+ User -&gt; API GW (authN, rate limit, tenant quota)
+      -&gt; [Orchestrator]
+          1 guard input (injection/PII/policy)
+          2 rewrite query w/ history (small model)
+          3 retrieve: vector + BM25, filter tenant AND ACL  (top ~50)
+          4 rerank (cross-encoder) -&gt; top 5-8
+          5 build prompt (instructions, chunks w/ ids, history budget)
+          6 LLM (streaming)  -&gt; 7 guard output (grounding, PII, citation check)
+          8 return answer + citations; log trace
+      caches: semantic/answer cache, embedding cache, prompt cache
+      observability: traces, token/cost metrics, eval sampling
+</code></pre></div>
+
+<h2 id="6-deep-dives">6. Deep dives</h2>
+<p><strong>Chunking.</strong> Structure-aware (headings, sections, tables), ~300-800 tokens with ~10-15% overlap; prepend document title/section ("contextual chunking") so chunks are self-explanatory. Keep parent doc pointer to expand context. Tables and PDFs/OCR are where quality dies - invest in parsing and test on real customer docs.
+<strong>Embeddings and vector store.</strong> ANN indexes (HNSW: fast, memory-hungry; IVF/PQ: compact, lossy; DiskANN-type for disk). Choose by scale: pgvector fine to ~ few million vectors per tenant-sharded index; dedicated store beyond. Embedding model choice is versioned: changing models means full re-embed, so store <code>embedding_model</code> and support dual indexes during migration.
+<strong>Hybrid search + rerank.</strong> Dense vectors miss exact terms (IDs, acronyms, error codes); BM25 misses paraphrase. Merge with reciprocal rank fusion, then rerank with a cross-encoder for precision. Metadata filters (date, source) from query understanding.
+<strong>Per-tenant isolation and ACLs (critical).</strong></p>
+<ul>
+<li>Tenant isolation: separate index/namespace per tenant for strict customers (blast radius, deletion, per-tenant keys), shared index with mandatory <code>tenant_id</code> filter for small tenants. Filter is enforced in a data-access layer, never trusting the LLM or client.</li>
+<li>Document ACLs: pre-filter during retrieval (ACL as filter in vector query) rather than post-filtering top-k (post-filter leaks counts and returns too few results). Group membership changes: sync frequently; cache with short TTL; permission changes must propagate faster than content changes. Prefer failing closed.</li>
+<li>Never put unauthorized text into the prompt: the LLM cannot be trusted to withhold it.
+<strong>Freshness and deletes.</strong> Incremental sync via webhooks/delta APIs; content_hash to skip unchanged docs; deletion must cascade to chunks, caches, and backups per policy ("right to erasure").
+<strong>Caching.</strong> Exact-match answer cache keyed by (tenant, ACL-scope, normalized query, index version); semantic cache (embedding similarity) is risky across ACL scopes - scope it by permission set and be conservative. Provider prompt caching for the stable prefix (system prompt + instructions). Embedding cache for repeated queries.
+<strong>Rate limits and quotas.</strong> Per-user and per-tenant token buckets (see <a href="02-rate-limiter.html">rate limiter</a>) counting <em>tokens</em>, not just requests; global limiter to stay under provider TPM/RPM; queue and backoff on 429; model fallback (secondary provider/smaller model) with circuit breaker. Budgets with alerts per tenant.
+<strong>Cost control.</strong> Route simple queries to small models; trim context (rerank top-k small); cap output tokens; batch embedding at off-peak; dedupe chunks; quantize vectors; track $/query and $/tenant.
+<strong>Latency.</strong> Stream tokens; parallelize vector + BM25; small query-rewrite model; avoid sequential LLM calls where possible; budget: retrieval ~200 ms, rerank ~150 ms, TTFT ~ 1 s.
+<strong>Evaluation (what separates senior answers).</strong> Offline golden set per customer (question, expected answer, supporting doc). Measure retrieval (recall@k, MRR, nDCG) separately from generation (faithfulness/groundedness, answer relevance, citation accuracy), using LLM-as-judge calibrated against human labels. Run in CI on every change to chunking, prompts, models; online: feedback, sampled review, drift dashboards. Keep a regression set from past failures.
+<strong>Guardrails.</strong> Prompt-injection from documents (indirect injection): treat retrieved text as untrusted data, delimit it, no tool execution on its say-so, least-privilege tools. PII redaction in logs; output checks for citation presence and grounding; refusal when retrieval confidence low ("I could not find this in your documents"); content policy filters; audit log of who asked what.
+<strong>Observability.</strong> Trace per request: query, rewritten query, retrieved chunk ids + scores, rerank, prompt tokens, model, latency per stage, cost, feedback. Dashboards: no-answer rate, thumbs-down rate, p95 latency, 429 rate, ingestion lag, index freshness. Redact sensitive content per policy.
+<strong>Deployment constraints (FDE reality).</strong> Customer may require VPC/private deployment or on-prem: models via cloud private endpoints (e.g., Bedrock/Azure OpenAI/Vertex in the customer's account, check current availability and data-handling terms) or self-hosted open-weight models (GPU capacity, quantization, vLLM-type serving). Design components behind interfaces (LLM client, vector store, object store) so they swap per environment. Secrets in KMS/Secrets Manager, egress controls, private networking, bring-your-own-key.
+<strong>Agentic extensions (mention only).</strong> Tool use, multi-hop retrieval, query decomposition for complex questions; adds latency, cost and new failure modes.</li>
+</ul>
+<h2 id="7-bottlenecks-and-failure-modes">7. Bottlenecks and failure modes</h2>
+<ul>
+<li>Bad parsing -&gt; bad answers (garbage in). - Stale or wrongly permissioned index (security incident). - Provider rate limits/outages. - Embedding model drift/migration. - Long ingestion backlog on initial sync (backfill throttling, per-tenant fairness). - Hallucinated citations. - Cost blowup from long histories/loops. - Noisy neighbor tenant. - Prompt injection via a poisoned document.</li>
+</ul>
+<h2 id="8-tradeoffs">8. Tradeoffs</h2>
+<ul>
+<li>Per-tenant index (isolation, ops overhead) vs shared (cheap, filter bug = leak).</li>
+<li>Larger chunks (context) vs smaller (precision). - Reranker (quality, +latency/cost). - Long context stuffing vs retrieval (cost, "lost in the middle"). - Semantic cache (savings) vs correctness/ACL risk. - Managed LLM API (fast start) vs self-hosted (control, ops). - Fine-tuning vs RAG (RAG for knowledge, fine-tune for style/format).</li>
+</ul>
+<h2 id="9-what-to-say-out-loud">9. What to say out loud</h2>
+<p>"Before architecture, I want the trust model: who can see which documents, and what accuracy bar the customer needs. I will split ingestion (async, idempotent, incremental) from query (streaming). Permissions are enforced at retrieval time as a filter, so unauthorized text never reaches the model. Quality comes from hybrid retrieval and reranking and is measured with a golden set, separating retrieval metrics from generation metrics. I will control cost with caching, routing, and token-based quotas, and keep the LLM and vector store behind interfaces because the customer's deployment constraints may differ."</p>
+<h2 id="10-follow-ups">10. Follow-ups</h2>
+<ul>
+<li>A user complains the bot missed a doc they know exists. How do you debug? (trace: ACL filter? chunking? recall@k? rewrite?)</li>
+<li>How do you roll out a new embedding model with zero downtime? (dual index, shadow eval, cutover, delete)</li>
+<li>How do you prove no cross-tenant leakage? (enforced data layer, tests with canary docs, audit, pen test)</li>
+<li>How would you handle 10x tenants? (shard vector store by tenant, queue fairness, per-tenant budgets)</li>
+<li>When would you not use RAG? (small corpus -&gt; long context; structured data -&gt; text-to-SQL; need exact calc -&gt; tools)</li>
+<li>How do you present uncertainty to the end user? (citations, confidence threshold, "not found" path)</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../../08-system-design/week-06-hld-designs/07-ride-hailing-dispatch.html">← Week 6 · HLD designs: Ride-hailing dispatch</a><a class="next" href="../../08-system-design/week-06-hld-designs/mock-interview.html">Week 6 · HLD designs: Mock interview →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

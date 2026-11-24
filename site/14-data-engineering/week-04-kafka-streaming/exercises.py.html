@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="14-data-engineering/week-04-kafka-streaming/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../14-data-engineering/week-04-kafka-streaming/lesson.html">Week 4 · Kafka and streaming</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="14-data-engineering/week-04-kafka-streaming/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>14-data-engineering/week-04-kafka-streaming/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 4 exercises: Kafka and stream-processing concepts, pure stdlib.</span>
+
+<span class="sd">No Kafka needed: you model the ideas (partitioning, rebalancing, windows,</span>
+<span class="sd">watermarks, offsets, dedupe, lag, compaction, DLQ, sizing) in plain Python.</span>
+<span class="sd">Replace each `...` with your code. Run the tests with:</span>
+<span class="sd">    ../../.venv/bin/pytest -q</span>
+<span class="sd">"""</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">zlib</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">OrderedDict</span><span class="p">,</span> <span class="n">namedtuple</span>
+
+<span class="c1"># A record in the log: provided for you (used by exercises 5 and 8).</span>
+<span class="n">Record</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s2">"Record"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"offset"</span><span class="p">,</span> <span class="s2">"key"</span><span class="p">,</span> <span class="s2">"value"</span><span class="p">])</span>
+
+
+<span class="c1"># Exercise 1 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">partition_for_key</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">num_partitions</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Pick the partition for a record key, deterministically.</span>
+
+<span class="sd">    Rule: crc32 of the key's UTF-8 bytes, modulo num_partitions. (Kafka's</span>
+<span class="sd">    default partitioner uses murmur2; we use zlib.crc32 because Python's</span>
+<span class="sd">    built-in hash() of str is randomized per process and must NOT be used.)</span>
+<span class="sd">    `key` may be str or bytes. Raise ValueError if num_partitions &lt; 1.</span>
+
+<span class="sd">    &gt;&gt;&gt; partition_for_key("user-1", 6) == partition_for_key("user-1", 6)</span>
+<span class="sd">    True</span>
+<span class="sd">    Hint: str.encode("utf-8"); zlib.crc32(b) returns a non-negative int.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 2 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">assign_partitions</span><span class="p">(</span><span class="n">partitions</span><span class="p">,</span> <span class="n">consumers</span><span class="p">,</span> <span class="n">strategy</span><span class="o">=</span><span class="s2">"range"</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Assign partitions to the consumers of one group.</span>
+
+<span class="sd">    Return {consumer: [partition, ...]} with every consumer present as a key</span>
+<span class="sd">    (idle consumers get []) and each list sorted ascending. Consumers are</span>
+<span class="sd">    processed in sorted() order, partitions in sorted() order.</span>
+<span class="sd">      - "range": contiguous chunks. With n partitions and c consumers, each</span>
+<span class="sd">        consumer gets n // c, and the FIRST n % c consumers get one extra.</span>
+<span class="sd">        e.g. partitions [0..6], consumers [a, b, c] -&gt; a:[0,1,2] b:[3,4] c:[5,6]</span>
+<span class="sd">      - "round_robin": partition i (in sorted order) goes to consumer i % c.</span>
+<span class="sd">        e.g. partitions [0..4], consumers [a, b] -&gt; a:[0,2,4] b:[1,3]</span>
+<span class="sd">    No consumers -&gt; return {}. Unknown strategy -&gt; ValueError.</span>
+<span class="sd">    Hint: compute chunk sizes with divmod(n, c) for range.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 3a ------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">tumbling_window</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">size</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the (start, end) of the fixed, non-overlapping window holding ts.</span>
+<span class="sd">    Windows are half-open [start, end) and aligned to multiples of `size`.</span>
+<span class="sd">    &gt;&gt;&gt; tumbling_window(125, 60)</span>
+<span class="sd">    (120, 180)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 3b ------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">sliding_windows</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">slide</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return ALL (start, end) windows containing ts, ascending by start.</span>
+<span class="sd">    Windows have length `size`, start at multiples of `slide`, are [start, end).</span>
+<span class="sd">    An event usually belongs to size/slide windows (fewer near time 0 is NOT</span>
+<span class="sd">    special-cased: negative starts are not produced, so only starts &gt;= 0).</span>
+<span class="sd">    &gt;&gt;&gt; sliding_windows(25, 30, 10)</span>
+<span class="sd">    [(0, 30), (10, 40), (20, 50)]</span>
+<span class="sd">    Hint: the latest start is ts - ts % slide; walk backwards while</span>
+<span class="sd">    start + size &gt; ts and start &gt;= 0, then reverse.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 3c ------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">session_windows</span><span class="p">(</span><span class="n">timestamps</span><span class="p">,</span> <span class="n">gap</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Group event times into sessions separated by inactivity.</span>
+
+<span class="sd">    `timestamps` may be unsorted. Sort them; a new session starts when the</span>
+<span class="sd">    distance to the previous event is STRICTLY greater than `gap`.</span>
+<span class="sd">    Return a list of (first_ts, last_ts, count), ascending.</span>
+<span class="sd">    &gt;&gt;&gt; session_windows([1, 2, 10, 11, 30], gap=5)</span>
+<span class="sd">    [(1, 2, 2), (10, 11, 2), (30, 30, 1)]</span>
+<span class="sd">    Empty input -&gt; [].</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 4 -------------------------------------------------------------</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">WatermarkWindower</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Tumbling event-time windows closed by a bounded-out-of-orderness watermark.</span>
+
+<span class="sd">    - Window of an event = [start, end) via tumbling_window logic (size given).</span>
+<span class="sd">    - watermark = (max event timestamp seen so far) - max_delay</span>
+<span class="sd">      (before any event it is -infinity, i.e. float("-inf")).</span>
+<span class="sd">    - process(ts, value):</span>
+<span class="sd">        1. If the event's window end &lt;= the CURRENT watermark, the window has</span>
+<span class="sd">           already closed: append (ts, value) to self.late, return [].</span>
+<span class="sd">        2. Otherwise add `value` to the window's list, update max timestamp</span>
+<span class="sd">           (and so the watermark), then close every open window whose</span>
+<span class="sd">           end &lt;= the new watermark.</span>
+<span class="sd">        Return the closed windows as a list of (start, end, values) sorted</span>
+<span class="sd">        by start; values in arrival order.</span>
+<span class="sd">    - flush(): close ALL remaining open windows (end of stream), same format.</span>
+<span class="sd">    Hint: keep self.open = {start: [values]} and self.max_ts.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">max_delay</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">watermark</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">process</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ts</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">flush</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="c1"># Exercise 5 -------------------------------------------------------------</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">InMemoryLog</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""A single-partition append-only log with consumer-group offsets.</span>
+
+<span class="sd">    - append(key, value) -&gt; offset of the new record (0, 1, 2, ...).</span>
+<span class="sd">    - read(offset, max_records=None) -&gt; list of Record from `offset` on</span>
+<span class="sd">      (empty list if offset &gt;= end). Reading never removes data.</span>
+<span class="sd">    - end_offset() -&gt; offset the NEXT append will get (== len of log).</span>
+<span class="sd">    - poll(group, max_records=None) -&gt; records starting at the group's current</span>
+<span class="sd">      POSITION; advances the position past what was returned. A new group's</span>
+<span class="sd">      position and committed offset both start at 0.</span>
+<span class="sd">    - commit(group): durably save the group's current position.</span>
+<span class="sd">    - committed(group) -&gt; last committed offset (0 if never committed).</span>
+<span class="sd">    - seek(group, offset): move the group's position (replay / skip ahead).</span>
+<span class="sd">    - restart(group): simulate a crash/restart: position := committed offset.</span>
+<span class="sd">    Polling without committing, then restart(), re-delivers records</span>
+<span class="sd">    (at-least-once). Hint: two dicts, positions and committed.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">append</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">end_offset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">read</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">offset</span><span class="p">,</span> <span class="n">max_records</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">poll</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">group</span><span class="p">,</span> <span class="n">max_records</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">commit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">group</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">committed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">group</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">seek</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">group</span><span class="p">,</span> <span class="n">offset</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">restart</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">group</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="c1"># Exercise 6 -------------------------------------------------------------</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Deduper</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Turn at-least-once delivery into effectively-once processing.</span>
+
+<span class="sd">    is_duplicate(msg_id) -&gt; False the FIRST time an id is seen (and remember</span>
+<span class="sd">    it), True on every later sighting while it is still remembered.</span>
+<span class="sd">    `capacity` bounds memory: when more than `capacity` ids are remembered,</span>
+<span class="sd">    forget the least-recently-SEEN one (a duplicate sighting refreshes it).</span>
+<span class="sd">    capacity=None means unbounded.</span>
+<span class="sd">    Hint: collections.OrderedDict with move_to_end / popitem(last=False).</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">capacity</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_duplicate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg_id</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="c1"># Exercise 7 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">consumer_lag</span><span class="p">(</span><span class="n">end_offsets</span><span class="p">,</span> <span class="n">committed</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Compute lag per partition and overall.</span>
+
+<span class="sd">    end_offsets: {partition: log end offset}; committed: {partition: next</span>
+<span class="sd">    offset the group will read}. A partition missing from `committed` counts</span>
+<span class="sd">    as committed 0. Lag = max(0, end - committed).</span>
+<span class="sd">    Return {"per_partition": {p: lag}, "total": sum, "max": largest lag,</span>
+<span class="sd">    "max_partition": partition with the largest lag (smallest id on ties),</span>
+<span class="sd">    or None if there are no partitions}. "max" is 0 when empty.</span>
+<span class="sd">    &gt;&gt;&gt; consumer_lag({0: 10, 1: 5}, {0: 7})["total"]</span>
+<span class="sd">    8</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 8 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">compact_log</span><span class="p">(</span><span class="n">records</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Log compaction: keep only the latest value per key.</span>
+
+<span class="sd">    `records` is a list of (key, value) in append order; the offset of each is</span>
+<span class="sd">    its index. Return a list of Record(offset, key, value) for the surviving</span>
+<span class="sd">    records, in ORIGINAL offset order (offsets are not renumbered).</span>
+<span class="sd">    A value of None is a tombstone: the key is deleted, i.e. neither the</span>
+<span class="sd">    tombstone nor any earlier record of that key survives (real Kafka keeps</span>
+<span class="sd">    tombstones for delete.retention.ms; we drop them for simplicity).</span>
+<span class="sd">    &gt;&gt;&gt; compact_log([("a", 1), ("b", 2), ("a", 3)])</span>
+<span class="sd">    [Record(offset=1, key='b', value=2), Record(offset=2, key='a', value=3)]</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 9 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">process_with_dlq</span><span class="p">(</span><span class="n">messages</span><span class="p">,</span> <span class="n">handler</span><span class="p">,</span> <span class="n">max_attempts</span><span class="o">=</span><span class="mi">3</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Process each message with retries; park poison messages in a DLQ.</span>
+
+<span class="sd">    For each message call handler(message) up to `max_attempts` times,</span>
+<span class="sd">    stopping at the first call that does not raise. Do not stop the whole</span>
+<span class="sd">    batch when one message fails.</span>
+<span class="sd">    Return (results, dead_letters):</span>
+<span class="sd">      results: [(message, handler_result), ...] for successes, in input order</span>
+<span class="sd">      dead_letters: [{"message": m, "error": str(last_exc), "attempts": n}]</span>
+<span class="sd">        for messages that failed every attempt, in input order.</span>
+<span class="sd">    Hint: for/else, or a flag; catch Exception (not BaseException).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 10 ------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">partitions_needed</span><span class="p">(</span><span class="n">target_mb_s</span><span class="p">,</span> <span class="n">producer_mb_s_per_partition</span><span class="p">,</span>
+                      <span class="n">consumer_mb_s_per_partition</span><span class="p">,</span> <span class="n">headroom</span><span class="o">=</span><span class="mf">1.0</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Rule-of-thumb partition count: max(t/p, t/c), times headroom, rounded up.</span>
+
+<span class="sd">    target_mb_s: peak throughput you must support for the topic.</span>
+<span class="sd">    producer_mb_s_per_partition / consumer_mb_s_per_partition: what ONE</span>
+<span class="sd">    partition can sustain on the producer / consumer side.</span>
+<span class="sd">    headroom: multiplier for growth (e.g. 2.0 = double). Always at least 1.</span>
+<span class="sd">    Raise ValueError if any argument is &lt;= 0.</span>
+<span class="sd">    &gt;&gt;&gt; partitions_needed(100, 10, 20)</span>
+<span class="sd">    10</span>
+<span class="sd">    Hint: math.ceil; beware float noise: round the product to 9 places</span>
+<span class="sd">    before ceil so 3.0000000000000004 does not become 4.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../14-data-engineering/week-04-kafka-streaming/cheatsheet.html">← Week 4 · Kafka and streaming: Cheatsheet</a><a class="next" href="../../14-data-engineering/week-04-kafka-streaming/test_exercises.py.html">Week 4 · Kafka and streaming: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

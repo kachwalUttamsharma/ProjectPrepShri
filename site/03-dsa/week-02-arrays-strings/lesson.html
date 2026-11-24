@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 2: Arrays and strings | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-02-arrays-strings/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-02-arrays-strings/lesson.html">Week 2 · Arrays and strings</a> / <span>Lesson</span></nav><button id="mark-done" data-id="03-dsa/week-02-arrays-strings/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-2-arrays-and-strings">Week 2: Arrays and strings</h1>
+<h2 id="1-concept-2-hrs">1. Concept (~2 hrs)</h2>
+<p>Arrays (Python <code>list</code>) and strings are the base of most interview questions. Key facts:</p>
+<ul>
+<li><code>list</code>: O(1) index/append/pop-last; O(n) insert/delete in the middle, slicing, <code>in</code>.</li>
+<li><code>str</code> is <strong>immutable</strong>: any "modification" builds a new string (O(n)). To edit characters, convert to <code>list(s)</code>, modify, then <code>"".join(...)</code>.</li>
+<li>Slicing <code>a[i:j]</code> copies (O(j-i)). In-place problems forbid extra copies.</li>
+<li>2D grids: <code>grid[r][c]</code>, <code>len(grid)</code> rows, <code>len(grid[0])</code> cols. Never build with <code>[[0]*m]*n</code> (aliases the same row); use <code>[[0]*m for _ in range(n)]</code>.</li>
+</ul>
+<h2 id="2-how-to-recognize-the-pattern">2. How to recognize the pattern</h2>
+<ul>
+<li>"In place", "O(1) extra space" -&gt; read/write pointers or swaps.</li>
+<li>"Reverse / rotate / partition" -&gt; swap from both ends, or reverse-three-times trick.</li>
+<li>"Everything except self", "running" quantities -&gt; prefix and suffix passes.</li>
+<li>"Palindrome" -&gt; compare ends moving inward, or expand around centers.</li>
+<li>"Matrix traversal" -&gt; track boundaries (top, bottom, left, right) or use transpose + reverse.</li>
+<li>"Merge sorted in place" -&gt; fill from the back so you do not overwrite unread values.</li>
+</ul>
+<h2 id="3-templates">3. Templates</h2>
+<p>Read/write pointer (stable in-place filter):</p>
+<div class="highlight"><pre><span></span><code><span class="n">w</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)):</span>
+    <span class="k">if</span> <span class="n">keep</span><span class="p">(</span><span class="n">nums</span><span class="p">[</span><span class="n">r</span><span class="p">]):</span>
+        <span class="n">nums</span><span class="p">[</span><span class="n">w</span><span class="p">]</span> <span class="o">=</span> <span class="n">nums</span><span class="p">[</span><span class="n">r</span><span class="p">]</span>
+        <span class="n">w</span> <span class="o">+=</span> <span class="mi">1</span>
+<span class="c1"># nums[:w] is the filtered result</span>
+</code></pre></div>
+
+<p>Reverse a range in place:</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">reverse</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">):</span>
+    <span class="k">while</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">j</span><span class="p">:</span>
+        <span class="n">a</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">a</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">a</span><span class="p">[</span><span class="n">j</span><span class="p">],</span> <span class="n">a</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span><span class="p">;</span> <span class="n">j</span> <span class="o">-=</span> <span class="mi">1</span>
+</code></pre></div>
+
+<p>Rotate right by k: reverse all, reverse first k, reverse the rest (O(n) time, O(1) space).</p>
+<p>Prefix/suffix product:</p>
+<div class="highlight"><pre><span></span><code><span class="n">out</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">n</span>
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span> <span class="n">out</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">out</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">suf</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+    <span class="n">out</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*=</span> <span class="n">suf</span>
+    <span class="n">suf</span> <span class="o">*=</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+</code></pre></div>
+
+<p>Expand around center (palindromes): for each center (i,i) and (i,i+1) expand while <code>s[l]==s[r]</code>; O(n^2) time, O(1) space.</p>
+<p>Matrix rotate 90 degrees clockwise: transpose, then reverse each row.</p>
+<h2 id="4-complexity">4. Complexity</h2>
+<p>Most array/string passes are O(n) time. Two-pass is still O(n). In-place problems are O(1) extra space (the output list is not counted when it is required). Palindromic substring by expansion is O(n^2).</p>
+<h2 id="5-common-mistakes">5. Common mistakes</h2>
+<ul>
+<li>Modifying a list while iterating it by value (use indices).</li>
+<li>Off-by-one on slice bounds and loop ranges; empty and single-element inputs.</li>
+<li>Reassigning the parameter (<code>nums = nums[k:] + ...</code>) instead of mutating (<code>nums[:] = ...</code>) when asked to modify in place.</li>
+<li>Building strings with <code>+=</code> in a loop; use list + <code>join</code>.</li>
+<li>Forgetting <code>k %= n</code> for rotations, and negative numbers/zero in products.</li>
+<li>Using division for product-except-self (breaks on zeros, and is usually disallowed).</li>
+</ul>
+<h2 id="6-interview-tips">6. Interview tips</h2>
+<ul>
+<li>Ask: can I mutate the input? Is it ASCII? Case-sensitive? Empty allowed?</li>
+<li>Walk through a tiny example by hand before coding; test with <code>[]</code>, <code>[x]</code>, duplicates.</li>
+<li>Mention the slicing shortcut (<code>nums[:] = nums[-k:] + nums[:-k]</code>) but be ready to do the O(1)-space version.</li>
+<li>Writing from the back (merge sorted array) and the read/write pointer are the two tricks Google-style questions lean on.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run <code>.venv/bin/pytest 03-dsa/week-02-arrays-strings -q</code>.</p>
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-01-big-o-complexity/test_exercises.py.html">← Week 1 · Big-O and complexity: Tests (code)</a><a class="next" href="../../03-dsa/week-02-arrays-strings/exercises.py.html">Week 2 · Arrays and strings: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

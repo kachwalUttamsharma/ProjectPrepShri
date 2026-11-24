@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 3 interview Q&amp;A: CTEs, window functions, CASE, dates | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="06-sql/week-03-cte-window-case-dates/interview-qa" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../06-sql/week-03-cte-window-case-dates/lesson.html">Week 3 · CTEs, windows, CASE, dates</a> / <span>Interview Q&amp;A</span></nav><button id="mark-done" data-id="06-sql/week-03-cte-window-case-dates/interview-qa">Mark as done</button></div><article class="doc">
+<h1 id="week-3-interview-qa-ctes-window-functions-case-dates">Week 3 interview Q&amp;A: CTEs, window functions, CASE, dates</h1>
+<p><strong>1. What is a CTE and why use one?</strong>
+A named subquery defined with WITH, scoped to one statement. Gains readability, reuse within the statement, and enables recursion. It is not materialised by default in modern Postgres (inlined); it is not an index or table.</p>
+<p><strong>2. CTE vs subquery vs view vs temp table?</strong>
+Subquery/CTE: exist only inside the statement. View: stored query definition, re-run each time (a materialised view stores results). Temp table: stored rows for the session, can be indexed and reused across statements, good for expensive intermediate results.</p>
+<p><strong>3. How does a recursive CTE work?</strong>
+An anchor query seeds the working set; the recursive member joins the previous iteration's rows back to the data; iteration stops when no new rows are produced; results are unioned. Needs a termination condition (a bound or finite data); on cyclic graphs track the path or use UNION to dedupe.</p>
+<p><strong>4. Give uses of recursive CTEs.</strong>
+Org charts/category trees (descendants or ancestors), bill of materials, generating number/date series, graph reachability, parsing hierarchical paths.</p>
+<p><strong>5. Difference between window functions and GROUP BY?</strong>
+GROUP BY collapses rows to one per group. A window function computes over a set of rows related to the current row but keeps every row. Windows are evaluated after WHERE/GROUP BY/HAVING and before ORDER BY/LIMIT.</p>
+<p><strong>6. ROW_NUMBER vs RANK vs DENSE_RANK on the values 100, 90, 90, 80?</strong>
+ROW_NUMBER 1,2,3,4 (arbitrary among ties); RANK 1,2,2,4; DENSE_RANK 1,2,2,3.</p>
+<p><strong>7. How do you get the second-highest salary? What about when there are ties or fewer than two distinct salaries?</strong>
+Rank the distinct values with <code>DENSE_RANK</code> (not <code>RANK</code>, not <code>ROW_NUMBER</code>) and keep rank 2. If there is no second value the result is empty; wrap it as a scalar subquery if the spec requires NULL. There is also a no-window alternative built from the maximum of the values below the maximum, which naturally returns NULL when absent.</p>
+<p><strong>8. Top 3 earners per department, including ties?</strong>
+DENSE_RANK (or RANK) partitioned by dept ordered by salary DESC in a subquery, filter <code>&lt;= 3</code>. Use ROW_NUMBER if you need exactly 3 rows per group. Ask which the interviewer wants.</p>
+<p><strong>9. Why can't you use a window function in WHERE?</strong>
+WHERE is evaluated before windows are computed. Put the window in a subquery/CTE and filter in the outer query (or use QUALIFY where supported: Snowflake, BigQuery, Teradata, DuckDB).</p>
+<p><strong>10. What does LAG do and what are its arguments?</strong>
+<code>LAG(expr, offset=1, default=NULL) OVER (PARTITION BY ... ORDER BY ...)</code> returns expr from the row <code>offset</code> rows earlier in the partition, or default when none exists. LEAD looks forward.</p>
+<p><strong>11. How do you compute a running total? What is the default frame pitfall?</strong>
+<code>SUM(x) OVER (PARTITION BY g ORDER BY t)</code>. The default frame with ORDER BY is RANGE ... CURRENT ROW, so rows tying on t share the same running value. Add a unique tiebreaker or use <code>ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code>.</p>
+<p><strong>12. ROWS vs RANGE frames?</strong>
+ROWS counts physical rows relative to the current one; RANGE groups rows by value of the ORDER BY key (peers included, can use value offsets such as <code>RANGE BETWEEN INTERVAL '7 day' PRECEDING AND CURRENT ROW</code> in Postgres).</p>
+<p><strong>13. What does LAST_VALUE return by default and why is it surprising?</strong>
+With the default frame it ends at the current row (including peers), so it often returns the current row's value. Specify <code>ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING</code> or use FIRST_VALUE with reversed ordering.</p>
+<p><strong>14. Compute month-over-month growth percentage.</strong>
+Aggregate to monthly totals in a CTE, then use <code>LAG</code> over the aggregated rows to get the previous month, compute the change over the previous value as a percentage, protect the division with <code>NULLIF</code>, and use <code>100.0</code> to avoid integer division. First month is NULL by design. Mention months with no sales require a calendar join.</p>
+<p><strong>15. How do you pivot rows into columns?</strong>
+Conditional aggregation: <code>SUM(CASE WHEN region='East' THEN amount END) AS east</code>, grouped by the row key. Columns must be known in advance (dynamic SQL otherwise). Postgres <code>crosstab</code>, SQL Server/Oracle <code>PIVOT</code> exist.</p>
+<p><strong>16. How does CASE evaluate? What if no branch matches?</strong>
+Top to bottom; first true WHEN wins; no match and no ELSE gives NULL. Types of the branches must be compatible.</p>
+<p><strong>17. How do you de-duplicate rows keeping the latest per key?</strong>
+<code>ROW_NUMBER() OVER (PARTITION BY key ORDER BY updated_at DESC, id DESC) = 1</code> in an outer filter. To delete duplicates, delete where the id is in the set of rn &gt; 1.</p>
+<p><strong>18. How do you find the number of days between two dates in SQLite, Postgres and MySQL?</strong>
+SQLite <code>julianday(b) - julianday(a)</code>; Postgres <code>b::date - a::date</code>; MySQL <code>DATEDIFF(b, a)</code>.</p>
+<p><strong>19. Why is <code>BETWEEN</code> risky for timestamps and what do you use instead?</strong>
+It is inclusive of the upper bound at exact equality, so end-of-day values are missed or midnight values double counted across buckets. Use half-open ranges: <code>&gt;= start AND &lt; next_start</code>.</p>
+<p><strong>20. Scenario: a report must show every day in March, even days with zero orders. How?</strong>
+Build a calendar (recursive CTE, <code>generate_series</code>, or a date dimension table), <code>LEFT JOIN</code> orders on the date, <code>COALESCE(COUNT(o.id), 0)</code> with the date filter in ON. Using COUNT(*) would report 1 for empty days.</p>
+<p><strong>21. Scenario: the 7-day rolling average of daily active users.</strong>
+Aggregate to one row per day first (and fill missing days via a calendar), then an <code>AVG</code> window with a <code>ROWS</code> frame covering the current row and the 6 before it. Missing days with ROWS frames silently stretch the window, hence the calendar.</p>
+<p><strong>22. Scenario: your window query is slow on 100M rows. What do you check?</strong>
+EXPLAIN; sort cost on PARTITION BY/ORDER BY columns (a composite index on (partition_cols, order_cols) can avoid the sort); reduce rows before the window via WHERE/pre-aggregation; avoid repeating identical OVER clauses with different sorts; consider materialising intermediate results.</p>
+</article><div class="pager"><a class="prev" href="../../06-sql/week-03-cte-window-case-dates/lesson.html">← Week 3 · CTEs, windows, CASE, dates: Lesson</a><a class="next" href="../../06-sql/week-03-cte-window-case-dates/exercises.py.html">Week 3 · CTEs, windows, CASE, dates: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

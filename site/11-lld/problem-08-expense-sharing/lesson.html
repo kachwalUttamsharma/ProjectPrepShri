@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LLD 08: Splitwise-style expense sharing | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="11-lld/problem-08-expense-sharing/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../11-lld/README.html">Low-Level Design</a> / <a href="../../11-lld/problem-08-expense-sharing/lesson.html">Problem 8 · Expense sharing</a> / <span>Lesson</span></nav><button id="mark-done" data-id="11-lld/problem-08-expense-sharing/lesson">Mark as done</button></div><article class="doc">
+<h1 id="lld-08-splitwise-style-expense-sharing">LLD 08: Splitwise-style expense sharing</h1>
+<p>A favorite at Uber/Google-style rounds. It tests <strong>modeling money correctly</strong>, the <strong>Strategy</strong> pattern for split types, a clean ledger, and the <strong>debt simplification</strong> algorithm. Budget: ~45 min in an interview, ~3 hours to build here.</p>
+<h2 id="1-requirements-to-clarify-ask-these-first">1. Requirements to clarify (ask these first)</h2>
+<ul>
+<li>Who pays: one payer per expense, or several? (Assume one.)</li>
+<li>Split types: equal, exact, percent, shares? Can the payer be outside the split?</li>
+<li>Money: currency? Rounding rules? (Use <strong>integer cents</strong>; define who gets the leftover cent.)</li>
+<li>Groups: just a membership filter, or separate ledgers per group? (Here: filter; balances are global.)</li>
+<li>Do opposite debts net out between a pair? Partial settlements? Overpayment?</li>
+<li>Do we need "simplify debts", and does it change the ledger or only suggest transfers?</li>
+<li>Edit/delete expenses? History/audit? Multi-currency? Concurrency? (Out of scope; mention.)</li>
+</ul>
+<h2 id="2-entities">2. Entities</h2>
+<table>
+<thead>
+<tr>
+<th>Entity</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ExpenseManager</code></td>
+<td>users, groups, expense log, pairwise ledger, settle, simplify</td>
+</tr>
+<tr>
+<td><code>Expense</code></td>
+<td>immutable record: payer, amount, per-user shares, group</td>
+</tr>
+<tr>
+<td><code>SplitStrategy</code> (ABC)</td>
+<td><code>split(amount_cents) -&gt; {user: cents}</code>; sums exactly to amount</td>
+</tr>
+<tr>
+<td><code>EqualSplit</code> / <code>ExactSplit</code> / <code>PercentSplit</code></td>
+<td>concrete strategies, each validates itself</td>
+</tr>
+<tr>
+<td><code>Transfer</code></td>
+<td>one step of a simplified settlement plan</td>
+</tr>
+<tr>
+<td>errors</td>
+<td><code>ExpenseError</code> base + <code>UnknownUserError</code>, <code>DuplicateError</code>, <code>InvalidSplitError</code>, <code>SettlementError</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="3-class-diagram">3. Class diagram</h2>
+<pre class="mermaid">classDiagram
+    class SplitStrategy { &lt;&lt;abstract&gt;&gt; +split(amount_cents) dict }
+    class EqualSplit
+    class ExactSplit
+    class PercentSplit
+    class Expense { +expense_id +paid_by +amount_cents +shares +group_id }
+    class Transfer { +from_user +to_user +amount_cents }
+    class ExpenseManager {
+      -users -groups -expenses
+      -owes: dict[(debtor, creditor), cents]
+      +add_expense() +owes() +balances_for() +net_balances()
+      +settle_up() +simplify_debts()
+    }
+    SplitStrategy &lt;|-- EqualSplit
+    SplitStrategy &lt;|-- ExactSplit
+    SplitStrategy &lt;|-- PercentSplit
+    ExpenseManager o-- Expense
+    ExpenseManager ..&gt; SplitStrategy
+    ExpenseManager ..&gt; Transfer</pre>
+<h2 id="4-patterns-and-why">4. Patterns and why</h2>
+<ul>
+<li><strong>Strategy</strong> (<code>SplitStrategy</code>): a new split type (by shares, by item) is a new class; <code>ExpenseManager</code> never branches on split kind (OCP). The strategy also owns its validation (SRP).</li>
+<li><strong>Immutable value objects</strong> (<code>Expense</code>, <code>Transfer</code>): safe to hand out, easy to audit.</li>
+<li><strong>Ledger of pairwise net debts</strong>: store one non-negative number per ordered pair and cancel opposite directions on write, so reads are O(1).</li>
+<li><strong>Greedy simplification</strong>: reduce the problem to net balances per person, then match biggest debtor with biggest creditor.</li>
+<li><strong>Exception hierarchy</strong>: callers catch <code>ExpenseError</code> or a specific subclass.</li>
+</ul>
+<h2 id="5-extensibility-follow-ups-interviewers-ask">5. Extensibility follow-ups interviewers ask</h2>
+<ul>
+<li>Split by shares/weights or by line item; "payer also owes nothing" cases.</li>
+<li>Multiple payers per expense.</li>
+<li>Edit / delete an expense (recompute from the log or apply a reversing entry).</li>
+<li>Per-group balances and per-group simplification.</li>
+<li>Multi-currency (store <code>Money(amount, currency)</code>, convert at a rate captured at expense time).</li>
+<li>Notifications on new expense (reuse problem 07), recurring expenses, receipts.</li>
+<li>Persistence and concurrency: wrap <code>add_expense</code>/<code>settle_up</code> in a transaction/lock.</li>
+</ul>
+<h2 id="6-what-to-say-out-loud">6. What to say out loud</h2>
+<ol>
+<li>"All money is integer cents; floats cannot represent 0.10 and rounding drifts."</li>
+<li>"Every split must sum to the amount exactly. Equal split: floor share, and the first <code>amount % n</code> participants in listed order get one extra cent. I state the tie rule so results are deterministic."</li>
+<li>"I keep a pairwise net ledger and cancel opposite debts on write."</li>
+<li>"The invariant: net balances always sum to zero. I would assert it in tests."</li>
+<li>"A failed <code>add_expense</code> must be atomic: validate everything before mutating, and don't consume an id."</li>
+<li>"Simplify works on net balances: biggest debtor pays biggest creditor <code>min(debt, credit)</code>. This produces at most n-1 transfers. The true minimum is NP-hard (it is subset-sum-like), so greedy is the pragmatic answer; I can mention grouping zero-sum subsets as an optimization."</li>
+</ol>
+<h2 id="7-common-mistakes">7. Common mistakes</h2>
+<ul>
+<li>Using <code>float</code> for money (or <code>round()</code> per share and losing/creating cents).</li>
+<li>Equal split that ignores the remainder, so the shares do not add up.</li>
+<li>Treating the payer's own share as a debt to themselves.</li>
+<li>Not netting opposite debts, so <code>a owes b</code> and <code>b owes a</code> both show.</li>
+<li>Mutating state before validation completes (half-applied expense).</li>
+<li><code>isinstance(True, int)</code> slipping through as an amount.</li>
+<li>Letting <code>settle_up</code> overpay and silently flipping the debt direction.</li>
+<li>Non-deterministic simplification (dict/set iteration order decides ties).</li>
+<li>Putting <code>if split_type == "equal"</code> in the manager.</li>
+</ul>
+<h2 id="8-follow-up-qa">8. Follow-up Q&amp;A</h2>
+<p><strong>Q: Why integer cents rather than <code>Decimal</code>?</strong> Ints are exact, fast, and force an explicit rounding policy; <code>Decimal</code> is fine but you still must decide who gets the leftover cent. Currencies with other minor units need a scale per currency.</p>
+<p><strong>Q: Complexity of <code>add_expense</code>?</strong> O(k) for k participants, with O(1) dict updates per pair. <code>net_balances</code> is O(P) over pairs (or O(1) if you maintain per-user nets incrementally).</p>
+<p><strong>Q: Complexity of <code>simplify_debts</code>?</strong> O(n^2) naive (scan for max each round, at most n-1 rounds); O(n log n) with two heaps.</p>
+<p><strong>Q: Is greedy optimal?</strong> It bounds transfers by n-1 but may not minimize them. The minimum equals n minus the maximum number of zero-sum groups, which is NP-hard in general.</p>
+<p><strong>Q: How do you support editing an expense?</strong> Keep the expense log as the source of truth and recompute the ledger, or post a reversing entry then the new one. Recompute is simple; reversing entries scale.</p>
+<p><strong>Q: Why not store balances only per user?</strong> You lose "who owes whom", which the UI needs. Pairwise ledger gives that; per-user nets give simplification input. Derive nets from pairs.</p>
+<p><strong>Q: Should simplify change the ledger?</strong> No: it is a read-only suggestion. Executing it would change who owes whom without a real payment, which users did not agree to.</p>
+<p><strong>Q: Concurrency?</strong> Two simultaneous <code>add_expense</code> calls interleave updates to the same pair. Guard with a lock (or one lock per group) and keep each mutation atomic.</p>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run
+<code>.venv/bin/pytest 11-lld/problem-08-expense-sharing -v</code></p>
+<p>Checklist: all tests pass; you can explain the remainder rule and why net balances sum to zero; you can walk the greedy on a 4-person example; you can name two ways to make it thread-safe.</p>
+</article><div class="pager"><a class="prev" href="../../11-lld/problem-07-pubsub-notifications/test_exercises.py.html">← Problem 7 · Pub-sub and notifications: Tests (code)</a><a class="next" href="../../11-lld/problem-08-expense-sharing/exercises.py.html">Problem 8 · Expense sharing: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

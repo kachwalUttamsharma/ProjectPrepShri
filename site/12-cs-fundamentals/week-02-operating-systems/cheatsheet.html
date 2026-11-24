@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 2 - Operating Systems Cheatsheet | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="12-cs-fundamentals/week-02-operating-systems/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../12-cs-fundamentals/README.html">CS Fundamentals</a> / <a href="../../12-cs-fundamentals/week-02-operating-systems/lesson.html">Week 2 · Operating systems</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="12-cs-fundamentals/week-02-operating-systems/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="week-2-operating-systems-cheatsheet">Week 2 - Operating Systems Cheatsheet</h1>
+<p>Facts marked "(check current docs)" are version-dependent.</p>
+<hr />
+<h2 id="core-concepts">Core concepts</h2>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>One-liner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Kernel vs user mode</td>
+<td>Privileged vs unprivileged CPU mode; apps enter kernel via syscalls, interrupts, exceptions</td>
+</tr>
+<tr>
+<td>Syscall</td>
+<td>Trap into kernel to do privileged work (open, read, write, mmap, fork, execve)</td>
+</tr>
+<tr>
+<td>Process</td>
+<td>Program in execution with private address space, fds, PID</td>
+</tr>
+<tr>
+<td>Thread</td>
+<td>Execution unit sharing process memory; own stack and registers</td>
+</tr>
+<tr>
+<td>fork / exec</td>
+<td>fork copies process (COW); exec replaces the program image</td>
+</tr>
+<tr>
+<td>Zombie</td>
+<td>Exited child not yet wait()ed by parent; fix by reaping</td>
+</tr>
+<tr>
+<td>Orphan</td>
+<td>Parent died first; adopted by PID 1</td>
+</tr>
+<tr>
+<td>Context switch</td>
+<td>Save/restore registers (+ page table); hidden cost is cache/TLB cold start</td>
+</tr>
+<tr>
+<td>Preemption</td>
+<td>Timer interrupt takes CPU back from a running task</td>
+</tr>
+</tbody>
+</table>
+<h2 id="scheduling">Scheduling</h2>
+<table>
+<thead>
+<tr>
+<th>Algorithm</th>
+<th>One-liner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FCFS</td>
+<td>Arrival order; convoy effect</td>
+</tr>
+<tr>
+<td>SJF / SRTF</td>
+<td>Shortest first; optimal avg wait, starves long jobs</td>
+</tr>
+<tr>
+<td>Round Robin</td>
+<td>Time quantum rotation; fair, quantum tuning matters</td>
+</tr>
+<tr>
+<td>Priority</td>
+<td>Highest first; starvation (aging), inversion (inheritance)</td>
+</tr>
+<tr>
+<td>MLFQ</td>
+<td>Multi-queue, demote CPU hogs, periodic boost</td>
+</tr>
+<tr>
+<td>CFS</td>
+<td>Smallest virtual runtime first (red-black tree); EEVDF in newer kernels (check current docs)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="memory">Memory</h2>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>One-liner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Virtual memory</td>
+<td>Private address space per process; MMU translates via page tables</td>
+</tr>
+<tr>
+<td>Page / frame</td>
+<td>Fixed-size virtual / physical chunk (4 KiB typical)</td>
+</tr>
+<tr>
+<td>Page table</td>
+<td>Multi-level map page -&gt; frame + flags</td>
+</tr>
+<tr>
+<td>TLB</td>
+<td>Cache of translations; huge pages extend reach</td>
+</tr>
+<tr>
+<td>Minor fault</td>
+<td>Mapping missing, data in RAM</td>
+</tr>
+<tr>
+<td>Major fault</td>
+<td>Must read from disk</td>
+</tr>
+<tr>
+<td>Invalid fault</td>
+<td>SIGSEGV</td>
+</tr>
+<tr>
+<td>Demand paging</td>
+<td>Frames allocated on first touch</td>
+</tr>
+<tr>
+<td>COW</td>
+<td>Share pages read-only; copy on write</td>
+</tr>
+<tr>
+<td>Swap</td>
+<td>Disk area for evicted anonymous pages</td>
+</tr>
+<tr>
+<td>Thrashing</td>
+<td>Working set &gt; RAM; constant paging</td>
+</tr>
+<tr>
+<td>OOM killer</td>
+<td>Kernel SIGKILLs a victim by oom_score; container exit code 137</td>
+</tr>
+<tr>
+<td>mmap</td>
+<td>Map file/anonymous memory into address space</td>
+</tr>
+<tr>
+<td>Stack</td>
+<td>Per-thread, automatic, LIFO, small</td>
+</tr>
+<tr>
+<td>Heap</td>
+<td>Dynamic, shared, larger, leaks/fragmentation</td>
+</tr>
+<tr>
+<td>Leak vs fragmentation</td>
+<td>Leak: live memory grows; fragmentation: free memory unusable/not returned</td>
+</tr>
+<tr>
+<td>RSS vs VSZ</td>
+<td>Resident physical vs total virtual size</td>
+</tr>
+</tbody>
+</table>
+<h2 id="concurrency">Concurrency</h2>
+<table>
+<thead>
+<tr>
+<th>Primitive</th>
+<th>One-liner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mutex</td>
+<td>Exclusive, owned, sleeping lock</td>
+</tr>
+<tr>
+<td>Spinlock</td>
+<td>Busy-wait; only for very short sections</td>
+</tr>
+<tr>
+<td>Semaphore</td>
+<td>Counter; N holders; no owner; signaling</td>
+</tr>
+<tr>
+<td>Condition variable</td>
+<td>Wait for predicate; always in a <code>while</code> loop</td>
+</tr>
+<tr>
+<td>RW lock</td>
+<td>Many readers or one writer</td>
+</tr>
+<tr>
+<td>Atomic / CAS</td>
+<td>Indivisible hardware op; beware ABA</td>
+</tr>
+<tr>
+<td>Race condition</td>
+<td>Result depends on interleaving</td>
+</tr>
+<tr>
+<td>Deadlock</td>
+<td>Circular wait among holders</td>
+</tr>
+<tr>
+<td>Livelock / starvation</td>
+<td>Busy without progress / never gets resource</td>
+</tr>
+</tbody>
+</table>
+<p>Coffman conditions: mutual exclusion, hold and wait, no preemption, circular wait.</p>
+<table>
+<thead>
+<tr>
+<th>Deadlock strategy</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Prevention</td>
+<td>Global lock order, all-or-nothing acquire, trylock + backoff</td>
+</tr>
+<tr>
+<td>Avoidance</td>
+<td>Banker's algorithm</td>
+</tr>
+<tr>
+<td>Detection</td>
+<td>Wait-for graph cycle, abort victim (databases)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="ipc">IPC</h2>
+<table>
+<thead>
+<tr>
+<th>Mechanism</th>
+<th>One-liner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pipe / FIFO</td>
+<td>Unidirectional byte stream, bounded buffer</td>
+</tr>
+<tr>
+<td>Unix socket</td>
+<td>Local bidirectional, can pass fds</td>
+</tr>
+<tr>
+<td>TCP/UDP socket</td>
+<td>Across machines</td>
+</tr>
+<tr>
+<td>Shared memory</td>
+<td>Fastest, no copy, needs your own sync</td>
+</tr>
+<tr>
+<td>Message queue</td>
+<td>Discrete messages (POSIX mq, brokers)</td>
+</tr>
+<tr>
+<td>Signals</td>
+<td>SIGTERM graceful, SIGKILL/SIGSTOP uncatchable, SIGINT, SIGCHLD, SIGPIPE</td>
+</tr>
+</tbody>
+</table>
+<h2 id="file-systems">File systems</h2>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>One-liner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Inode</td>
+<td>File metadata + block pointers; no name</td>
+</tr>
+<tr>
+<td>Directory</td>
+<td>Maps names to inode numbers</td>
+</tr>
+<tr>
+<td>Hard link</td>
+<td>Extra name for same inode; same FS; freed at link count 0 and no open fds</td>
+</tr>
+<tr>
+<td>Soft link</td>
+<td>File containing a path; can dangle</td>
+</tr>
+<tr>
+<td>Page cache</td>
+<td>Kernel RAM cache of file data; write-back</td>
+</tr>
+<tr>
+<td>fsync</td>
+<td>Force data/metadata to stable storage</td>
+</tr>
+<tr>
+<td>Journaling</td>
+<td>Log intent first; crash-consistent metadata, not automatic data durability</td>
+</tr>
+<tr>
+<td>Atomic replace</td>
+<td>temp file, fsync, rename, fsync dir</td>
+</tr>
+<tr>
+<td>Inode exhaustion</td>
+<td>ENOSPC with free bytes; <code>df -i</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="io-and-python">I/O and Python</h2>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>One-liner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Blocking</td>
+<td>Thread sleeps until done</td>
+</tr>
+<tr>
+<td>Non-blocking</td>
+<td>Returns EAGAIN</td>
+</tr>
+<tr>
+<td>select / poll</td>
+<td>O(n) scan; select capped at 1024 fds</td>
+</tr>
+<tr>
+<td>epoll / kqueue</td>
+<td>Kernel interest list; O(ready); scales</td>
+</tr>
+<tr>
+<td>io_uring</td>
+<td>Linux async rings, completion model (check current docs)</td>
+</tr>
+<tr>
+<td>Event loop</td>
+<td>One thread: wait for ready fds, resume coroutines</td>
+</tr>
+<tr>
+<td>async/await</td>
+<td>Cooperative; one blocking call stalls everyone</td>
+</tr>
+<tr>
+<td>uvicorn / FastAPI</td>
+<td>ASGI loop; <code>async def</code> on loop, <code>def</code> in thread pool; scale with worker processes</td>
+</tr>
+<tr>
+<td>GIL</td>
+<td>One thread runs Python bytecode at a time (CPython); released on I/O</td>
+</tr>
+<tr>
+<td>Threads</td>
+<td>I/O-bound, blocking libs</td>
+</tr>
+<tr>
+<td>Processes</td>
+<td>CPU-bound; pickling cost; use <code>__main__</code> guard</td>
+</tr>
+<tr>
+<td>asyncio</td>
+<td>Many concurrent I/O waits</td>
+</tr>
+<tr>
+<td>Free-threaded Python</td>
+<td>PEP 703, optional build (check current docs)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="memorize">Memorize</h2>
+<ol>
+<li>Process = own address space; thread = shared memory, own stack.</li>
+<li>fork returns 0 in child; zombie = unreaped child; orphan adopted by PID 1.</li>
+<li>Context switch cost is mostly cache/TLB pollution, not register saves.</li>
+<li>Virtual -&gt; physical: page number via page table (TLB-cached) + offset.</li>
+<li>Major fault = disk; minor fault = mapping only; invalid = SIGSEGV.</li>
+<li>Exit code 137 = SIGKILL (128+9), usually OOM killer.</li>
+<li>Coffman: mutual exclusion, hold and wait, no preemption, circular wait. Break circular wait with lock ordering.</li>
+<li>Mutex has an owner; semaphore does not. Condition waits go in a while loop.</li>
+<li>Shared memory is the fastest IPC; sync is on you.</li>
+<li>Inode holds metadata, not the name; rm removes a name, not necessarily data.</li>
+<li>write != durable; need fsync (and fsync dir after rename).</li>
+<li>epoll scales because the kernel keeps the interest list and returns only ready fds.</li>
+<li>Never block the event loop; offload with <code>asyncio.to_thread</code> or a process pool.</li>
+<li>GIL: threads for I/O, processes for CPU, asyncio for massive I/O concurrency.</li>
+<li>Debug flow: CPU, memory, I/O, network, fds; then what is it waiting on.</li>
+</ol>
+<hr />
+<h2 id="key-commands">Key commands</h2>
+<table>
+<thead>
+<tr>
+<th>Goal</th>
+<th>Linux</th>
+<th>macOS</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Processes</td>
+<td><code>ps aux</code>, <code>htop</code>, <code>top</code></td>
+<td><code>ps aux</code>, <code>top -o cpu</code></td>
+</tr>
+<tr>
+<td>Zombies</td>
+<td><code>ps -eo pid,ppid,stat,comm \| grep ' Z'</code></td>
+<td>same</td>
+</tr>
+<tr>
+<td>Syscall trace</td>
+<td><code>strace -f -p PID</code>, <code>strace -c cmd</code></td>
+<td><code>sudo dtruss -f cmd</code></td>
+</tr>
+<tr>
+<td>Memory</td>
+<td><code>free -h</code>, <code>vmstat 1</code>, <code>cat /proc/meminfo</code></td>
+<td><code>vm_stat</code>, <code>memory_pressure</code></td>
+</tr>
+<tr>
+<td>Process memory map</td>
+<td><code>pmap -x PID</code>, <code>/proc/PID/smaps</code></td>
+<td><code>vmmap PID</code></td>
+</tr>
+<tr>
+<td>Page faults / peak RSS</td>
+<td><code>/usr/bin/time -v cmd</code></td>
+<td><code>/usr/bin/time -l cmd</code></td>
+</tr>
+<tr>
+<td>Context switches</td>
+<td><code>grep ctxt /proc/PID/status</code>, <code>pidstat -w</code></td>
+<td><code>top -l 1</code></td>
+</tr>
+<tr>
+<td>OOM evidence</td>
+<td><code>dmesg \| grep -i killed</code></td>
+<td>Console / <code>log show</code></td>
+</tr>
+<tr>
+<td>Open files / sockets</td>
+<td><code>lsof -p PID</code>, <code>ss -tanp</code></td>
+<td><code>lsof -p PID</code>, <code>netstat -an</code></td>
+</tr>
+<tr>
+<td>Open-but-deleted files</td>
+<td><code>lsof +L1</code></td>
+<td><code>lsof +L1</code></td>
+</tr>
+<tr>
+<td>Disk / inodes</td>
+<td><code>df -h</code>, <code>df -i</code></td>
+<td><code>df -h</code>, <code>df -i</code></td>
+</tr>
+<tr>
+<td>Disk I/O</td>
+<td><code>iostat -x 1</code></td>
+<td><code>iostat 1</code></td>
+</tr>
+<tr>
+<td>Inode / links</td>
+<td><code>ls -li</code>, <code>stat file</code>, <code>ln</code>, <code>ln -s</code></td>
+<td><code>ls -li</code>, <code>stat -x file</code></td>
+</tr>
+<tr>
+<td>Signals</td>
+<td><code>kill -TERM PID</code>, <code>kill -l</code>, <code>trap</code></td>
+<td>same</td>
+</tr>
+<tr>
+<td>Priority</td>
+<td><code>nice -n 10 cmd</code>, <code>renice</code></td>
+<td>same</td>
+</tr>
+<tr>
+<td>Python stack of live process</td>
+<td><code>py-spy dump --pid PID</code></td>
+<td>same</td>
+</tr>
+<tr>
+<td>Python memory</td>
+<td><code>tracemalloc</code>, <code>memray</code></td>
+<td>same</td>
+</tr>
+<tr>
+<td>Limits</td>
+<td><code>ulimit -a</code></td>
+<td><code>ulimit -a</code></td>
+</tr>
+</tbody>
+</table>
+<p>Python quick imports: <code>threading</code>, <code>multiprocessing</code>, <code>concurrent.futures</code>, <code>asyncio</code>, <code>mmap</code>, <code>multiprocessing.shared_memory</code>, <code>signal</code>, <code>os.fork/os.fsync</code>, <code>faulthandler</code>, <code>tracemalloc</code>.</p>
+</article><div class="pager"><a class="prev" href="../../12-cs-fundamentals/week-02-operating-systems/interview-qa.html">← Week 2 · Operating systems: Interview Q&amp;A</a><a class="next" href="../../12-cs-fundamentals/week-03-linux-shell/lesson.html">Week 3 · Linux and shell: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

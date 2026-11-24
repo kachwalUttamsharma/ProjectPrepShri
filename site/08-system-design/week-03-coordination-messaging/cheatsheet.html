@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 3 Cheatsheet - Coordination and Messaging | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="08-system-design/week-03-coordination-messaging/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../08-system-design/README.html">System Design</a> / <a href="../../08-system-design/week-03-coordination-messaging/lesson.html">Week 3 · Coordination and messaging</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="08-system-design/week-03-coordination-messaging/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="week-3-cheatsheet-coordination-and-messaging">Week 3 Cheatsheet - Coordination and Messaging</h1>
+<h2 id="queue-vs-log">Queue vs log</h2>
+<ul>
+<li>Queue (SQS/RabbitMQ): task, deleted on ack, competing consumers, visibility timeout, DLQ, no replay.</li>
+<li>Log (Kafka/Kinesis): fact, retained, partitioned, per-group offsets, replay, order per partition.</li>
+<li>Scaling: consumers &lt;= partitions per group. Order only within a partition/key.</li>
+</ul>
+<h2 id="kafka-one-liners">Kafka one-liners</h2>
+<ul>
+<li>Key -&gt; hash -&gt; partition. Leader + followers; ISR. <code>acks=all</code> + <code>min.insync.replicas=2</code> + RF=3 = durable.</li>
+<li><code>enable.idempotence=true</code> dedups producer retries; transactions + read_committed = Kafka-to-Kafka EOS.</li>
+<li>Commit offset AFTER processing = at-least-once; BEFORE = at-most-once.</li>
+<li>Retention default ~7 days (check current docs); compaction keeps latest per key.</li>
+<li>Rebalance pauses processing; avoid with fast poll loops, cooperative rebalancing, static membership.</li>
+<li>Can't reduce partitions; adding partitions remaps keys.</li>
+<li>Lag alarm; oldest-message age is better than depth.</li>
+</ul>
+<h2 id="delivery-semantics">Delivery semantics</h2>
+<div class="highlight"><pre><span></span><code> at-most-once  : may lose, no dup       (metrics)
+ at-least-once : no loss, may dup       (default) + idempotent consumer
+ exactly-once  : = at-least-once + idempotency / atomic txn (effect, not delivery)
+</code></pre></div>
+
+<h2 id="idempotency-toolkit">Idempotency toolkit</h2>
+<p>Idempotency-Key header -&gt; store result; unique-constraint dedup row in same txn as effect; upsert / SET not INCR; conditional write (version); TTL &gt;= client retry window; claim key atomically.</p>
+<h2 id="outbox">Outbox</h2>
+<p>Same-txn write of business row + outbox row -&gt; relay (poll SKIP LOCKED or CDC/Debezium) -&gt; broker. At-least-once -&gt; consumers dedup (inbox).</p>
+<h2 id="backpressure-menu">Backpressure menu</h2>
+<p>Bounded queue / pull / shed (429, 503 + Retry-After) / drop / durable buffer + autoscale on lag / degrade. Little's Law: L = lambda*W.</p>
+<h2 id="rate-limiters">Rate limiters</h2>
+<table>
+<thead>
+<tr>
+<th>Algo</th>
+<th>State</th>
+<th>Burst</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Token bucket</td>
+<td>2 nums</td>
+<td>up to B</td>
+<td>default; lazy refill</td>
+</tr>
+<tr>
+<td>Leaky bucket</td>
+<td>queue</td>
+<td>smoothed</td>
+<td>shaping</td>
+</tr>
+<tr>
+<td>Fixed window</td>
+<td>1 counter</td>
+<td>2x at edge</td>
+<td>simplest</td>
+</tr>
+<tr>
+<td>Sliding log</td>
+<td>O(n)</td>
+<td>none</td>
+<td>exact</td>
+</tr>
+<tr>
+<td>Sliding counter</td>
+<td>2 counters</td>
+<td>~none</td>
+<td>approx, practical</td>
+</tr>
+<tr>
+<td>Distributed: Redis + Lua (atomic), server time, fail-open vs closed, token leasing, per-tier keys, cost-weighted, also cap concurrency.</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="retry-rules">Retry rules</h2>
+<ul>
+<li>Retry transient + idempotent only; 3-5 attempts; honor Retry-After; retry at ONE layer; retry budget ~10%.</li>
+<li>delay = min(cap, base*2^n); full jitter = random(0, delay).</li>
+<li>Amplification = (k+1)^depth.</li>
+<li>Timeouts: always set; connect vs read; inner &lt; outer; propagate deadlines; timeout != "didn't happen".</li>
+<li>Hedged requests: idempotent reads after ~p95, capped.</li>
+</ul>
+<h2 id="circuit-breaker">Circuit breaker</h2>
+<p>CLOSED --(fail rate &gt; X, min volume)--&gt; OPEN --(cool-down)--&gt; HALF-OPEN --(probe ok)--&gt; CLOSED / (fail)--&gt; OPEN. Per dependency + fallback. Bulkhead = isolate pools.</p>
+<h2 id="failure-modes-to-name">Failure modes to name</h2>
+<p>Poison message / head-of-line blocking; rebalance storm; hot partition/key; duplicate after crash between process and commit; dual-write inconsistency; retry storm / metastable failure; thundering herd; silent DLQ; unbounded queue; fail-open limiter overload.</p>
+<h2 id="say-out-loud-template">Say-out-loud template</h2>
+<p>"I need guarantee G. The failure window is between X and Y. I close it with mechanism M. What remains is limitation L, which is acceptable because ..."</p>
+<h2 id="aws-mapping-see-07-awsweek-05-integration-ops-security">AWS mapping (see ../../07-aws/week-05-integration-ops-security)</h2>
+<p>SQS (queue, visibility timeout, DLQ, FIFO groups) | SNS (pub/sub, fan-out to SQS) | EventBridge (event bus, rules) | Kinesis (log, shard ~ partition) | MSK (managed Kafka) | API Gateway throttling (token bucket).</p>
+</article><div class="pager"><a class="prev" href="../../08-system-design/week-03-coordination-messaging/interview-qa.html">← Week 3 · Coordination and messaging: Interview Q&amp;A</a><a class="next" href="../../08-system-design/week-04-distributed-algorithms/lesson.html">Week 4 · Distributed algorithms: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

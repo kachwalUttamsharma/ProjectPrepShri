@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 5: Dictionaries and sets | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="01-basics/week-05-dicts-sets/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../01-basics/week-01-first-steps/lesson.html">Python Basics</a> / <a href="../../01-basics/week-05-dicts-sets/lesson.html">Week 5 · Dictionaries and sets</a> / <span>Lesson</span></nav><button id="mark-done" data-id="01-basics/week-05-dicts-sets/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-5-dictionaries-and-sets">Week 5: Dictionaries and sets</h1>
+<h2 id="1-dictionaries">1. Dictionaries</h2>
+<p>A dict maps <strong>keys</strong> to <strong>values</strong>. Lookup by key is very fast, which is why dicts are central to interviews.</p>
+<div class="highlight"><pre><span></span><code><span class="n">ages</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"ann"</span><span class="p">:</span> <span class="mi">30</span><span class="p">,</span> <span class="s2">"bob"</span><span class="p">:</span> <span class="mi">25</span><span class="p">}</span>
+<span class="n">ages</span><span class="p">[</span><span class="s2">"ann"</span><span class="p">]</span>            <span class="c1"># 30</span>
+<span class="n">ages</span><span class="p">[</span><span class="s2">"cat"</span><span class="p">]</span> <span class="o">=</span> <span class="mi">41</span>       <span class="c1"># add or overwrite</span>
+<span class="k">del</span> <span class="n">ages</span><span class="p">[</span><span class="s2">"bob"</span><span class="p">]</span>        <span class="c1"># remove (KeyError if missing)</span>
+<span class="s2">"ann"</span> <span class="ow">in</span> <span class="n">ages</span>          <span class="c1"># True (checks keys)</span>
+<span class="nb">len</span><span class="p">(</span><span class="n">ages</span><span class="p">)</span>              <span class="c1"># 2</span>
+<span class="n">ages</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"zed"</span><span class="p">)</span>        <span class="c1"># None   (no crash)</span>
+<span class="n">ages</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"zed"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>     <span class="c1"># 0      (custom default)</span>
+<span class="n">ages</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">"ann"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>  <span class="c1"># remove, with default</span>
+</code></pre></div>
+
+<p>Keys must be immutable (str, int, tuple), not lists. Insertion order is preserved.</p>
+<h2 id="2-looping">2. Looping</h2>
+<div class="highlight"><pre><span></span><code><span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">ages</span><span class="p">:</span> <span class="o">...</span>
+<span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">ages</span><span class="o">.</span><span class="n">values</span><span class="p">():</span> <span class="o">...</span>
+<span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">ages</span><span class="o">.</span><span class="n">items</span><span class="p">():</span> <span class="o">...</span>
+</code></pre></div>
+
+<p>Don't add or remove keys while looping over the dict.</p>
+<h2 id="3-counting-pattern">3. Counting pattern</h2>
+<div class="highlight"><pre><span></span><code><span class="n">counts</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="k">for</span> <span class="n">ch</span> <span class="ow">in</span> <span class="s2">"banana"</span><span class="p">:</span>
+    <span class="n">counts</span><span class="p">[</span><span class="n">ch</span><span class="p">]</span> <span class="o">=</span> <span class="n">counts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">ch</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+<span class="c1"># {'b': 1, 'a': 3, 'n': 2}</span>
+</code></pre></div>
+
+<p>Shortcut: <code>from collections import Counter; Counter("banana")</code>.</p>
+<h2 id="4-grouping-pattern">4. Grouping pattern</h2>
+<div class="highlight"><pre><span></span><code><span class="n">groups</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="k">for</span> <span class="n">word</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">"apple"</span><span class="p">,</span> <span class="s2">"avocado"</span><span class="p">,</span> <span class="s2">"banana"</span><span class="p">]:</span>
+    <span class="n">groups</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">word</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">word</span><span class="p">)</span>
+<span class="c1"># {'a': ['apple', 'avocado'], 'b': ['banana']}</span>
+</code></pre></div>
+
+<p><code>defaultdict(list)</code> from <code>collections</code> does the same without <code>setdefault</code>.</p>
+<h2 id="5-sets">5. Sets</h2>
+<p>An unordered collection of <strong>unique</strong> items. Membership tests are fast.</p>
+<div class="highlight"><pre><span></span><code><span class="n">s</span> <span class="o">=</span> <span class="p">{</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">}</span>
+<span class="n">s</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="mi">4</span><span class="p">);</span> <span class="n">s</span><span class="o">.</span><span class="n">discard</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span>     <span class="c1"># discard doesn't crash if missing</span>
+<span class="nb">set</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">])</span>              <span class="c1"># {1, 2}</span>
+<span class="n">empty</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>               <span class="c1"># NOT {} (that's an empty dict)</span>
+</code></pre></div>
+
+<p>Set operations:</p>
+<div class="highlight"><pre><span></span><code><span class="n">a</span> <span class="o">=</span> <span class="p">{</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">};</span> <span class="n">b</span> <span class="o">=</span> <span class="p">{</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">}</span>
+<span class="n">a</span> <span class="o">|</span> <span class="n">b</span>    <span class="c1"># union        {1, 2, 3, 4}</span>
+<span class="n">a</span> <span class="o">&amp;</span> <span class="n">b</span>    <span class="c1"># intersection {2, 3}</span>
+<span class="n">a</span> <span class="o">-</span> <span class="n">b</span>    <span class="c1"># difference   {1}</span>
+<span class="n">a</span> <span class="o">^</span> <span class="n">b</span>    <span class="c1"># symmetric difference {1, 4}</span>
+<span class="n">a</span> <span class="o">&lt;=</span> <span class="n">b</span>   <span class="c1"># subset?</span>
+</code></pre></div>
+
+<h2 id="6-which-to-use">6. Which to use?</h2>
+<ul>
+<li>Need to ask "have I seen this?" -&gt; set.</li>
+<li>Need to count or look something up by name -&gt; dict.</li>
+<li>Need order and duplicates -&gt; list.</li>
+</ul>
+<h2 id="7-time-cost-a-first-look-at-big-o">7. Time cost (a first look at Big-O)</h2>
+<p><code>x in list</code> checks items one by one (slow for big lists). <code>x in set</code> / <code>x in dict</code> is almost instant. Replacing a list lookup with a set or dict is a classic interview speed-up.</p>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li><code>KeyError</code>: using <code>d[key]</code> for a missing key (use <code>.get</code> or check <code>in</code>).</li>
+<li><code>{}</code> is an empty dict, not a set.</li>
+<li>Expecting sets to be ordered or indexable (<code>s[0]</code> fails).</li>
+<li>Using a list as a key (unhashable).</li>
+<li>Modifying a dict while iterating it.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run:
+<code>.venv/bin/pytest 01-basics/week-05-dicts-sets -v</code></p>
+</article><div class="pager"><a class="prev" href="../../01-basics/week-04-lists-tuples/test_exercises.py.html">← Week 4 · Lists, tuples, strings: Tests (code)</a><a class="next" href="../../01-basics/week-05-dicts-sets/exercises.py.html">Week 5 · Dictionaries and sets: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

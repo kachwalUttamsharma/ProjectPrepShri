@@ -1,0 +1,771 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 2 - Operating Systems: Processes, Memory, Concurrency, I/O | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="12-cs-fundamentals/week-02-operating-systems/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../12-cs-fundamentals/README.html">CS Fundamentals</a> / <a href="../../12-cs-fundamentals/week-02-operating-systems/lesson.html">Week 2 · Operating systems</a> / <span>Lesson</span></nav><button id="mark-done" data-id="12-cs-fundamentals/week-02-operating-systems/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-2-operating-systems-processes-memory-concurrency-io">Week 2 - Operating Systems: Processes, Memory, Concurrency, I/O</h1>
+<p>Time budget: ~7-8 hrs. Read lesson (3h), Q&amp;A aloud (2h), cheatsheet + run the commands/snippets (2h).
+Facts marked "(check current docs)" are version-dependent (kernel, Python, OS); verify before quoting in an interview.
+Commands are for macOS and Linux; where they differ, both are shown. Python snippets assume Python 3.9+.</p>
+<hr />
+<h2 id="1-what-an-os-does-user-mode-vs-kernel-mode-system-calls">1. What an OS does, user mode vs kernel mode, system calls</h2>
+<div class="highlight"><pre><span></span><code> +-------------------------------------------+
+ |  User space:  your Python / Java / Go app |   unprivileged CPU mode (ring 3)
+ |      |  libc / runtime wrappers           |
+ +------|------------------------------------+
+        | syscall instruction (trap)              &lt;-- mode switch
+ +------v------------------------------------+
+ |  Kernel: scheduler, VM, FS, net stack,    |   privileged CPU mode (ring 0)
+ |          drivers, IPC                     |
+ +------|------------------------------------+
+        v
+     Hardware: CPU, RAM, disk, NIC
+</code></pre></div>
+
+<p>Key points</p>
+<ul>
+<li>The OS does three jobs: abstract hardware (files, sockets), multiplex resources (CPU time, RAM), and isolate/protect (processes cannot read each other's memory).</li>
+<li>The CPU has at least two modes. Only kernel mode may touch page tables, I/O ports, interrupts. User code asks the kernel via a system call (open, read, write, mmap, fork, execve, futex, epoll_wait ...).</li>
+<li>A syscall = trap into kernel, validate args, do work, return. Cheaper than a context switch but not free (hundreds of ns to a few microseconds; mitigations for CPU vulnerabilities raised it) (check current docs).</li>
+<li>Interrupts (hardware: timer, NIC) and exceptions (page fault, divide by zero) also enter the kernel. The timer interrupt is what enables preemption.</li>
+</ul>
+<p>Try it</p>
+<div class="highlight"><pre><span></span><code># Linux
+strace -c python3 -c "print('hi')"          # syscall counts summary
+strace -e trace=openat,read,write cat /etc/hostname
+# macOS (needs SIP caveats; dtruss needs sudo)
+sudo dtruss -f cat /etc/hostname 2&gt;&amp;1 | head
+</code></pre></div>
+
+<p>Typical strace line: <code>openat(AT_FDCWD, "/etc/hostname", O_RDONLY) = 3</code> -&gt; returns file descriptor 3 (0,1,2 are stdin/out/err).</p>
+<p>Gotcha: <code>print()</code> is not a syscall; it buffers in user space, then <code>write(1, ...)</code> is the syscall. Buffering is why output can appear late when piped.</p>
+<p>How interviewers probe it: "What happens when you call read() on a file?" Walk: libc wrapper -&gt; trap -&gt; kernel VFS -&gt; page cache hit? copy to user buffer : issue disk I/O, block the process, schedule another -&gt; interrupt on completion -&gt; wake process.</p>
+<hr />
+<h2 id="2-processes-vs-threads">2. Processes vs threads</h2>
+<div class="highlight"><pre><span></span><code> Process A                         Process B
+ +---------------------------+     +---------------------------+
+ | own virtual address space |     | own virtual address space |
+ | code | data | heap        |     | ...                       |
+ | fd table, PID, creds      |     |                           |
+ | Thread1 Thread2 (shared   |     |                           |
+ |  heap/globals/fds;        |     |                           |
+ |  own stack + registers)   |     |                           |
+ +---------------------------+     +---------------------------+
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th>Aspect</th>
+<th>Process</th>
+<th>Thread</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Address space</td>
+<td>Private</td>
+<td>Shared with siblings</td>
+</tr>
+<tr>
+<td>Own state</td>
+<td>Everything (memory, fds, PID)</td>
+<td>Stack, registers, PC, thread-local storage</td>
+</tr>
+<tr>
+<td>Creation cost</td>
+<td>Higher (copy page tables; COW)</td>
+<td>Lower</td>
+</tr>
+<tr>
+<td>Context switch</td>
+<td>Costlier (address-space switch, TLB effects)</td>
+<td>Cheaper (same address space)</td>
+</tr>
+<tr>
+<td>Communication</td>
+<td>IPC needed</td>
+<td>Shared memory directly (needs locks)</td>
+</tr>
+<tr>
+<td>Fault isolation</td>
+<td>Crash is contained</td>
+<td>One bad thread can kill the process</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>On Linux both are "tasks" created by clone(); flags decide what is shared. A thread is a task sharing the address space.</li>
+<li>Process states: new -&gt; ready -&gt; running -&gt; blocked (waiting on I/O/lock) -&gt; ready ... -&gt; terminated.</li>
+<li>PCB (process control block) holds PID, state, saved registers, page table pointer, open fds, scheduling info.</li>
+<li>Green threads / goroutines / asyncio tasks are user-space scheduled and multiplexed on a few kernel threads.</li>
+</ul>
+<p>fork/exec model (Unix)</p>
+<div class="highlight"><pre><span></span><code> parent --fork()--&gt; child (copy of parent, COW pages)
+                      |--execve("/bin/ls")--&gt; replaces program image, same PID
+ parent --wait()--&gt; reaps child's exit status
+</code></pre></div>
+
+<ul>
+<li>fork returns twice: 0 in the child, child PID in the parent.</li>
+<li>COW (copy-on-write): pages are shared read-only after fork; copied only when someone writes. Makes fork cheap.</li>
+<li>Zombie: child exited, parent has not called wait(); entry (PID + exit status) lingers in the process table. Not using memory/CPU, but leaks PIDs. Fix: parent waits, or handles SIGCHLD, or dies (init/systemd adopts and reaps).</li>
+<li>Orphan: parent exits first; child is re-parented to PID 1 (or a subreaper). Harmless. In containers, PID 1 must reap children (use <code>tini</code>/<code>--init</code>).</li>
+<li>Daemon: detached background process.</li>
+</ul>
+<p>Try it</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">os</span><span class="o">,</span><span class="w"> </span><span class="nn">time</span>
+<span class="n">pid</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">fork</span><span class="p">()</span>                 <span class="c1"># Unix only</span>
+<span class="k">if</span> <span class="n">pid</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">_exit</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>                 <span class="c1"># child exits immediately</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">30</span><span class="p">)</span>              <span class="c1"># child is a zombie for 30s; parent never waits</span>
+</code></pre></div>
+
+<p>Then <code>ps -o pid,ppid,stat,comm | grep -i python</code> -&gt; child shows state <code>Z</code> (zombie, "<defunct>").</p>
+<p>Gotcha: fork in a multithreaded program only duplicates the calling thread; locks held by other threads stay locked in the child -&gt; deadlocks. Python 3.12+ warns about fork with threads; macOS defaults multiprocessing to "spawn" (check current docs).</p>
+<p>How interviewers probe it: "Process vs thread?", "What does fork do with memory?", "What is a zombie and how do you get rid of one?", "Why can you not kill a zombie with kill -9?" (it is already dead; reap via parent).</p>
+<hr />
+<h2 id="3-cpu-scheduling">3. CPU scheduling</h2>
+<p>Goals: throughput, latency/response time, fairness, avoid starvation. Preemptive (timer interrupt can take CPU away) vs non-preemptive (process yields).</p>
+<table>
+<thead>
+<tr>
+<th>Algorithm</th>
+<th>Idea</th>
+<th>Pros</th>
+<th>Cons</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FCFS</td>
+<td>Run in arrival order</td>
+<td>Simple</td>
+<td>Convoy effect: short jobs wait behind long</td>
+</tr>
+<tr>
+<td>SJF / SRTF</td>
+<td>Shortest (remaining) job first</td>
+<td>Optimal avg wait</td>
+<td>Needs burst estimate; starves long jobs</td>
+</tr>
+<tr>
+<td>Round Robin</td>
+<td>Fixed time quantum, rotate</td>
+<td>Fair, good response</td>
+<td>Quantum too small -&gt; switch overhead; too large -&gt; FCFS</td>
+</tr>
+<tr>
+<td>Priority</td>
+<td>Highest priority first</td>
+<td>Models importance</td>
+<td>Starvation; priority inversion</td>
+</tr>
+<tr>
+<td>MLFQ</td>
+<td>Multiple queues; new jobs high, demote if they use full quantum, periodic boost</td>
+<td>Approximates SJF without knowing lengths; good for interactive + batch</td>
+<td>Tuning; gaming</td>
+</tr>
+<tr>
+<td>CFS (Linux)</td>
+<td>Give each task a fair share; pick task with smallest virtual runtime (red-black tree); nice values = weights</td>
+<td>Fairness, O(log n)</td>
+<td>Replaced by EEVDF as default in Linux 6.6+ (check current docs)</td>
+</tr>
+</tbody>
+</table>
+<p>Worked example (RR, quantum 2; P1=5, P2=3, P3=1, all arrive at 0)</p>
+<div class="highlight"><pre><span></span><code> time: 0  2  4  5  7  8  9
+       |P1|P2|P3|P1|P2|P1|
+ P3 finishes at 5, P2 at 8, P1 at 9. avg turnaround = (9+8+5)/3 = 7.33
+</code></pre></div>
+
+<ul>
+<li>Priority inversion: low-priority task holds a lock needed by high-priority task, while a medium task preempts the low one. Fix: priority inheritance (Mars Pathfinder 1997 is the classic story).</li>
+<li>Real-time scheduling (SCHED_FIFO/RR) exists on Linux; nice values -20..19 for normal tasks.</li>
+<li>CPU-bound vs I/O-bound: schedulers favor I/O-bound (they block often, need quick response).</li>
+</ul>
+<p>Try it</p>
+<div class="highlight"><pre><span></span><code>nice -n 10 python3 -c "while True: pass" &amp;       # low priority hog
+top -o cpu      # macOS;  top -o %CPU on Linux (or htop)
+renice -n 5 -p &lt;pid&gt;
+</code></pre></div>
+
+<p>Gotcha: "Load average" counts runnable + (on Linux) uninterruptible-sleep tasks; high load with idle CPU often means I/O wait.</p>
+<p>How interviewers probe it: "Design a scheduler for interactive + batch" -&gt; MLFQ answer. "Why does RR quantum matter?" "How to avoid starvation?" (aging).</p>
+<hr />
+<h2 id="4-context-switches-and-their-cost">4. Context switches and their cost</h2>
+<div class="highlight"><pre><span></span><code> Process A running --timer irq/syscall block--&gt; kernel saves A's registers + PC into PCB
+   -&gt; scheduler picks B -&gt; loads B's registers, switches page table (CR3) -&gt; B runs
+</code></pre></div>
+
+<ul>
+<li>Direct cost: save/restore registers, scheduler run, kernel entry/exit: ~1-5 microseconds order (check current docs).</li>
+<li>Indirect cost (often bigger): cold CPU caches, branch predictor pollution, TLB misses after address-space switch (modern CPUs tag TLB entries with PCID/ASID to reduce flushes).</li>
+<li>Thread switch within one process skips page-table switch -&gt; cheaper.</li>
+<li>Voluntary switch: task blocks (I/O, lock). Involuntary: preempted by timer.</li>
+<li>Too many threads -&gt; time lost in switching and cache thrash. This is why thread-per-connection fails at 10k+ connections and event loops exist.</li>
+</ul>
+<p>Try it</p>
+<div class="highlight"><pre><span></span><code># Linux: per-process context switches
+grep ctxt /proc/$$/status            # voluntary_ctxt_switches / nonvoluntary_ctxt_switches
+vmstat 1                             # 'cs' column = system-wide switches/sec
+# macOS
+vm_stat; top -l 1 | head -12
+</code></pre></div>
+
+<p>Gotcha: a context switch is not the same as a mode switch (user-&gt;kernel). A syscall that does not block does not necessarily switch processes.</p>
+<p>How interviewers probe it: "What is saved on a context switch?" "Why are thread switches cheaper?" "What is the hidden cost?" (caches/TLB).</p>
+<hr />
+<h2 id="5-virtual-memory-paging-page-tables-tlb">5. Virtual memory, paging, page tables, TLB</h2>
+<div class="highlight"><pre><span></span><code> Virtual address (e.g. 48-bit)           Physical RAM
+ +--------+--------+                      +-----------+
+ | page # | offset |  --page table--&gt;     | frame #   | + same offset
+ +--------+--------+                      +-----------+
+   |
+   v  TLB (cache of recent translations): hit ~1 cycle-ish, miss -&gt; walk page table
+</code></pre></div>
+
+<p>Why virtual memory: isolation, each process sees a flat private address space; allows overcommit, sharing (libc mapped once), lazy allocation, memory-mapped files, and protection bits (R/W/X).</p>
+<ul>
+<li>Page: fixed-size unit (commonly 4 KiB; huge pages 2 MiB/1 GiB). Frame: same-size physical chunk.</li>
+<li>Page table: per-process map page -&gt; frame + flags (present, dirty, accessed, R/W, user/supervisor). x86-64 uses 4-level (5 on some) multi-level tables so sparse address spaces do not need a giant flat table.</li>
+<li>MMU does translation in hardware; kernel populates tables.</li>
+<li>TLB: small fast cache of translations. Miss costs a multi-level walk (several memory accesses). Huge pages increase TLB reach (databases use them) (check current docs).</li>
+</ul>
+<p>Page faults
+| Type | Meaning | Cost |
+|---|---|---|
+| Minor (soft) | Page is in RAM but not mapped yet (first touch of malloc'd memory, COW copy, page in page cache) | microseconds |
+| Major (hard) | Must read from disk (file-backed page or swapped-out page) | milliseconds |
+| Invalid | Illegal address/permission -&gt; SIGSEGV | process killed |</p>
+<p>Demand paging: malloc(1GB) only reserves virtual range; frames are allocated on first touch.</p>
+<p>Page replacement: when RAM is full, evict a page. FIFO (Belady's anomaly possible), LRU (ideal, expensive), Clock/second-chance (approximates LRU with a reference bit), Linux uses an active/inactive list scheme (approximate LRU).
+Thrashing: working set &gt; RAM, system spends time paging, not computing.</p>
+<p>Swap: disk area for anonymous pages evicted from RAM. Swapping is slow; some servers (DBs, latency-sensitive) tune swappiness low or disable swap. Swap is not a fix for too little RAM.</p>
+<p>OOM killer (Linux): when memory is exhausted and reclaim fails, kernel picks a process by <code>oom_score</code> (mostly memory use, adjustable via <code>oom_score_adj</code>) and sends SIGKILL. Check <code>dmesg | grep -i "killed process"</code>. Overcommit: Linux lets you allocate more virtual than physical by default (heuristic), which is why OOM kills happen later at touch time, not at malloc. In containers, cgroup memory limit triggers a cgroup-scoped OOM kill (exit code 137 = 128+9) - very common in Kubernetes ("OOMKilled").</p>
+<p>mmap: map a file (or anonymous memory) into the address space. Reads become page faults served from the page cache; no explicit read() copy. Used by DBs (LMDB), loaders of shared libs, numpy.memmap, and shared memory between processes.</p>
+<p>Try it</p>
+<div class="highlight"><pre><span></span><code># macOS
+vm_stat ; sysctl hw.pagesize ; memory_pressure | head
+# Linux
+free -h ; cat /proc/meminfo | head ; getconf PAGESIZE
+/usr/bin/time -v python3 -c "x=bytearray(200_000_000)"   # Linux: see Minor/Major faults
+/usr/bin/time -l python3 -c "x=bytearray(200_000_000)"   # macOS: page reclaims, faults
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">mmap</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"big.bin"</span><span class="p">,</span> <span class="s2">"wb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span> <span class="n">f</span><span class="o">.</span><span class="n">truncate</span><span class="p">(</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="mi">20</span><span class="p">)</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"big.bin"</span><span class="p">,</span> <span class="s2">"r+b"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="n">mmap</span><span class="o">.</span><span class="n">mmap</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">fileno</span><span class="p">(),</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">m</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">5</span><span class="p">]</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">"hello"</span>         <span class="c1"># write goes to page cache; flush() = msync</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">flush</span><span class="p">();</span> <span class="n">m</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</code></pre></div>
+
+<p>Gotcha: RSS (resident set) vs VSZ (virtual size). A process can have huge VSZ and tiny RSS. Shared pages are counted in each process's RSS; use PSS (Linux smem) for fair accounting.</p>
+<p>How interviewers probe it: "What happens on a page fault?" "Why multi-level page tables?" "malloc succeeded but process got killed - why?" "What is the TLB and why do huge pages help?"</p>
+<hr />
+<h2 id="6-stack-vs-heap-memory-leaks-fragmentation">6. Stack vs heap, memory leaks, fragmentation</h2>
+<div class="highlight"><pre><span></span><code> high addr  +-----------------+
+            | stack (grows v) |  per thread, LIFO, frames: locals, return addr
+            |       ...       |
+            | mmap region     |  shared libs, mmap'd files, big mallocs
+            |       ...       |
+            | heap (grows ^)  |  malloc/new, brk/sbrk
+            | .data / .bss    |  globals
+ low addr   | .text (code)    |
+            +-----------------+
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Stack</th>
+<th>Heap</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Allocation</td>
+<td>Automatic, move stack pointer</td>
+<td>Explicit (malloc/new) or GC</td>
+</tr>
+<tr>
+<td>Lifetime</td>
+<td>Function scope</td>
+<td>Until freed / unreachable</td>
+</tr>
+<tr>
+<td>Speed</td>
+<td>Very fast, cache friendly</td>
+<td>Slower, allocator bookkeeping</td>
+</tr>
+<tr>
+<td>Size</td>
+<td>Small fixed (commonly 8 MiB main thread on Linux; threads may be less) (check current docs)</td>
+<td>Large, limited by memory</td>
+</tr>
+<tr>
+<td>Failure</td>
+<td>Stack overflow (deep recursion)</td>
+<td>Out of memory, fragmentation, leaks</td>
+</tr>
+<tr>
+<td>Thread-safety</td>
+<td>Private per thread</td>
+<td>Shared; needs sync</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>Python: all objects live on the heap; the stack holds frames/references. <code>sys.setrecursionlimit</code> guards the interpreter stack, not the C stack.</li>
+<li>Memory leak: memory that is no longer needed but never released (unfreed in C, or still referenced in managed languages: unbounded caches, global lists, listeners). Symptom: RSS grows monotonically.</li>
+<li>Fragmentation: external = free memory exists but in small non-contiguous pieces so a big allocation fails; internal = wasted space inside an allocated block (rounding up). Paging eliminates external fragmentation of physical memory but heap allocators can still fragment virtual memory; long-running processes may show high RSS after frees because the allocator cannot return fragmented arenas to the OS. Mitigations: arena/slab/pool allocators, jemalloc/tcmalloc, restart workers periodically (gunicorn max_requests).</li>
+</ul>
+<p>Try it</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">tracemalloc</span>
+<span class="n">tracemalloc</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+<span class="n">leak</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">100000</span><span class="p">):</span> <span class="n">leak</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"x"</span> <span class="o">*</span> <span class="mi">100</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">tracemalloc</span><span class="o">.</span><span class="n">get_traced_memory</span><span class="p">())</span>
+<span class="n">snap</span> <span class="o">=</span> <span class="n">tracemalloc</span><span class="o">.</span><span class="n">take_snapshot</span><span class="p">()</span>
+<span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">snap</span><span class="o">.</span><span class="n">statistics</span><span class="p">(</span><span class="s2">"lineno"</span><span class="p">)[:</span><span class="mi">3</span><span class="p">]:</span> <span class="nb">print</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Tools: valgrind/ASan (C), <code>pmap -x &lt;pid&gt;</code> (Linux), <code>vmmap &lt;pid&gt;</code> (macOS), memray/tracemalloc (Python).</p>
+<p>Gotcha: "Memory leak" in a GC language is usually a reachable-but-unneeded reference, not unreachable garbage.</p>
+<p>How interviewers probe it: "Where do locals vs malloc'd data live?" "How would you debug a service whose memory grows until OOMKilled?" (heap profile over time, compare snapshots, check caches, check native extensions, check fragmentation vs leak by whether live-object count grows).</p>
+<hr />
+<h2 id="7-synchronization-primitives-and-race-conditions">7. Synchronization primitives and race conditions</h2>
+<p>Race condition: outcome depends on interleaving of threads. Critical section: code touching shared state that must not run concurrently.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
+<span class="n">n</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">work</span><span class="p">():</span>
+    <span class="k">global</span> <span class="n">n</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1_000_000</span><span class="p">):</span>
+        <span class="n">n</span> <span class="o">+=</span> <span class="mi">1</span>           <span class="c1"># load, add, store: NOT atomic</span>
+<span class="n">ts</span> <span class="o">=</span> <span class="p">[</span><span class="n">threading</span><span class="o">.</span><span class="n">Thread</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">work</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">4</span><span class="p">)]</span>
+<span class="p">[</span><span class="n">t</span><span class="o">.</span><span class="n">start</span><span class="p">()</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">ts</span><span class="p">];</span> <span class="p">[</span><span class="n">t</span><span class="o">.</span><span class="n">join</span><span class="p">()</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">ts</span><span class="p">]</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>   <span class="c1"># often &lt; 4_000_000 on some versions/builds; fix with a Lock</span>
+</code></pre></div>
+
+<p>(Whether it visibly loses updates depends on the CPython version and build, e.g. the GIL switch interval and free-threaded builds (check current docs). It is still a bug by the language's guarantees.)</p>
+<table>
+<thead>
+<tr>
+<th>Primitive</th>
+<th>What it is</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mutex (lock)</td>
+<td>One owner at a time; owner unlocks; blocks waiters (sleeps)</td>
+<td>Protect critical section</td>
+</tr>
+<tr>
+<td>Spinlock</td>
+<td>Busy-wait loop on an atomic flag</td>
+<td>Very short critical sections, kernel/no-sleep contexts, multicore</td>
+</tr>
+<tr>
+<td>Semaphore</td>
+<td>Counter with wait(P)/signal(V); counting or binary; no ownership</td>
+<td>Limit N concurrent users (connection pool), signaling</td>
+</tr>
+<tr>
+<td>Condition variable</td>
+<td>Wait until predicate true; paired with a mutex; wait releases mutex atomically</td>
+<td>Producer/consumer, "wait for state change"</td>
+</tr>
+<tr>
+<td>Read-write lock</td>
+<td>Many readers OR one writer</td>
+<td>Read-heavy data; beware writer starvation</td>
+</tr>
+<tr>
+<td>Barrier</td>
+<td>All threads wait until N arrive</td>
+<td>Phased parallel algorithms</td>
+</tr>
+<tr>
+<td>Atomic ops</td>
+<td>Hardware instructions (CAS, fetch-add)</td>
+<td>Counters, lock-free structures</td>
+</tr>
+<tr>
+<td>Monitor</td>
+<td>Mutex + condition variables bundled (Java synchronized, Python Condition)</td>
+<td>Structured sync</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>Mutex vs binary semaphore: mutex has an owner (only locker unlocks, enables priority inheritance); semaphore is a signaling mechanism.</li>
+<li>Condition variables: always wait in a loop (<code>while not predicate: cv.wait()</code>) because of spurious wakeups and stolen wakeups.</li>
+<li>CAS (compare-and-swap): atomically "if value == expected, set new". Lock-free algorithms loop on CAS; beware the ABA problem.</li>
+<li>Memory ordering: CPUs/compilers reorder; locks and atomics include barriers. Visibility is a separate problem from atomicity.</li>
+<li>Futex (Linux): user-space fast path with atomics, kernel sleep only on contention. Python/pthread mutexes use it.</li>
+</ul>
+<p>Producer/consumer sketch</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">threading</span><span class="o">,</span><span class="w"> </span><span class="nn">collections</span>
+<span class="n">q</span><span class="p">,</span> <span class="n">cv</span><span class="p">,</span> <span class="n">MAX</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">deque</span><span class="p">(),</span> <span class="n">threading</span><span class="o">.</span><span class="n">Condition</span><span class="p">(),</span> <span class="mi">10</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">produce</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+    <span class="k">with</span> <span class="n">cv</span><span class="p">:</span>
+        <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">MAX</span><span class="p">:</span> <span class="n">cv</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
+        <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">x</span><span class="p">);</span> <span class="n">cv</span><span class="o">.</span><span class="n">notify_all</span><span class="p">()</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">consume</span><span class="p">():</span>
+    <span class="k">with</span> <span class="n">cv</span><span class="p">:</span>
+        <span class="k">while</span> <span class="ow">not</span> <span class="n">q</span><span class="p">:</span> <span class="n">cv</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">();</span> <span class="n">cv</span><span class="o">.</span><span class="n">notify_all</span><span class="p">();</span> <span class="k">return</span> <span class="n">x</span>
+<span class="c1"># In practice: queue.Queue does this for you.</span>
+</code></pre></div>
+
+<p>Gotcha: A lock protects data only if every access takes the same lock. Locking only the writer is a bug.</p>
+<p>How interviewers probe it: "Implement a thread-safe counter / bounded buffer", "Mutex vs semaphore", "When spinlock over mutex?", "What is a lost update?", "Explain CAS".</p>
+<hr />
+<h2 id="8-deadlock">8. Deadlock</h2>
+<p>Four Coffman conditions (all must hold):</p>
+<ol>
+<li>Mutual exclusion: resource held exclusively.</li>
+<li>Hold and wait: holds one resource while waiting for another.</li>
+<li>No preemption: resources cannot be forcibly taken.</li>
+<li>Circular wait: cycle of threads each waiting on the next.</li>
+</ol>
+<div class="highlight"><pre><span></span><code> T1 holds A, wants B        T1 --wants--&gt; B --held by--&gt; T2
+ T2 holds B, wants A        T2 --wants--&gt; A --held by--&gt; T1     (cycle)
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th>Strategy</th>
+<th>How</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Prevention</td>
+<td>Break one condition by design</td>
+<td>Lock ordering (breaks circular wait); acquire all locks at once (breaks hold-and-wait); allow preemption/trylock+backoff</td>
+</tr>
+<tr>
+<td>Avoidance</td>
+<td>Grant only if system stays in a safe state</td>
+<td>Banker's algorithm (needs max demands up front; rarely used in practice)</td>
+</tr>
+<tr>
+<td>Detection + recovery</td>
+<td>Build wait-for graph, find cycle, kill/rollback a victim</td>
+<td>Databases detect deadlocks and abort one transaction</td>
+</tr>
+<tr>
+<td>Ignore (ostrich)</td>
+<td>Rare; reboot</td>
+<td>General-purpose OSes for app-level locks</td>
+</tr>
+</tbody>
+</table>
+<p>Related: livelock (threads keep reacting but make no progress), starvation (never scheduled/never gets lock).</p>
+<p>Deadlock demo (it hangs; Ctrl-C to stop)</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">threading</span><span class="o">,</span><span class="w"> </span><span class="nn">time</span>
+<span class="n">A</span><span class="p">,</span> <span class="n">B</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Lock</span><span class="p">(),</span> <span class="n">threading</span><span class="o">.</span><span class="n">Lock</span><span class="p">()</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">t1</span><span class="p">():</span>
+    <span class="k">with</span> <span class="n">A</span><span class="p">:</span>
+        <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.1</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">B</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">"t1 done"</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">t2</span><span class="p">():</span>
+    <span class="k">with</span> <span class="n">B</span><span class="p">:</span>
+        <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.1</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">A</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">"t2 done"</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="p">(</span><span class="n">t1</span><span class="p">,</span> <span class="n">t2</span><span class="p">):</span> <span class="n">threading</span><span class="o">.</span><span class="n">Thread</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">f</span><span class="p">,</span> <span class="n">daemon</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+<span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">2</span><span class="p">);</span> <span class="nb">print</span><span class="p">(</span><span class="s2">"deadlocked: neither finished"</span><span class="p">)</span>
+<span class="c1"># Fix: always acquire in a global order, e.g. sorted(locks, key=id), or use A.acquire(timeout=1)</span>
+</code></pre></div>
+
+<p>Debug: Python <code>faulthandler.dump_traceback_later(5)</code> or <code>py-spy dump --pid &lt;pid&gt;</code>; Java <code>jstack</code>; gdb <code>thread apply all bt</code>.</p>
+<p>Gotcha: locks + callbacks/user code under a lock + re-entrance cause hidden cycles. Do not call unknown code while holding a lock. Non-reentrant lock acquired twice by the same thread = self-deadlock (use RLock if truly needed, but prefer redesign).</p>
+<p>How interviewers probe it: "List the Coffman conditions", "How do you prevent it in code?", "Two bank accounts transfer(a,b) and transfer(b,a) - what goes wrong?" (lock ordering by account id).</p>
+<hr />
+<h2 id="9-inter-process-communication-ipc">9. Inter-process communication (IPC)</h2>
+<table>
+<thead>
+<tr>
+<th>Mechanism</th>
+<th>Model</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pipe (anonymous)</td>
+<td>Unidirectional byte stream, related processes</td>
+<td><code>a | b</code> in shell; bounded kernel buffer (commonly 64 KiB on Linux) -&gt; writer blocks when full</td>
+</tr>
+<tr>
+<td>Named pipe (FIFO)</td>
+<td>Pipe with a filesystem name</td>
+<td><code>mkfifo</code></td>
+</tr>
+<tr>
+<td>Unix domain socket</td>
+<td>Bidirectional, local, can pass fds and credentials</td>
+<td>Faster than TCP loopback; Docker socket</td>
+</tr>
+<tr>
+<td>TCP/UDP socket</td>
+<td>Network, works across machines</td>
+<td>Same API local or remote</td>
+</tr>
+<tr>
+<td>Shared memory</td>
+<td>Same physical pages mapped into several processes</td>
+<td>Fastest (no copy); needs your own synchronization</td>
+</tr>
+<tr>
+<td>Message queue</td>
+<td>Kernel/broker-managed discrete messages</td>
+<td>POSIX mq, SysV; at scale: Kafka/RabbitMQ/SQS (different layer)</td>
+</tr>
+<tr>
+<td>Signals</td>
+<td>Async notification, tiny payload</td>
+<td>SIGINT, SIGTERM (graceful), SIGKILL (uncatchable), SIGSEGV, SIGCHLD, SIGHUP</td>
+</tr>
+<tr>
+<td>Files / mmap</td>
+<td>Persistent, coordinate via locks</td>
+<td>flock, fcntl</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code> Copying IPC (pipe/socket):  A user buf -&gt; kernel buf -&gt; B user buf   (2 copies)
+ Shared memory:              A and B map the same frames              (0 copies, you sync)
+</code></pre></div>
+
+<p>Signals to know: SIGTERM (polite stop, catchable, what <code>kill</code> sends and what Kubernetes sends first), SIGKILL (cannot catch/ignore), SIGINT (Ctrl-C), SIGSTOP/SIGCONT, SIGPIPE (write to closed pipe), SIGCHLD (child exited). Signal handlers must be minimal (async-signal-safe functions only). In Python handlers run in the main thread between bytecodes.</p>
+<p>Try it</p>
+<div class="highlight"><pre><span></span><code>mkfifo /tmp/f; (echo hello &gt; /tmp/f &amp;); cat /tmp/f
+yes | head -n 3                      # SIGPIPE ends 'yes' when head closes
+kill -l                              # list signals
+trap 'echo got TERM' TERM; kill -TERM $$
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">multiprocessing</span><span class="w"> </span><span class="kn">import</span> <span class="n">shared_memory</span><span class="p">,</span> <span class="n">Process</span>
+<span class="n">shm</span> <span class="o">=</span> <span class="n">shared_memory</span><span class="o">.</span><span class="n">SharedMemory</span><span class="p">(</span><span class="n">create</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">16</span><span class="p">)</span>
+<span class="n">shm</span><span class="o">.</span><span class="n">buf</span><span class="p">[:</span><span class="mi">5</span><span class="p">]</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">"hello"</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">child</span><span class="p">(</span><span class="n">name</span><span class="p">):</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="n">shared_memory</span><span class="o">.</span><span class="n">SharedMemory</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">);</span> <span class="nb">print</span><span class="p">(</span><span class="nb">bytes</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">buf</span><span class="p">[:</span><span class="mi">5</span><span class="p">]));</span> <span class="n">s</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<span class="n">p</span> <span class="o">=</span> <span class="n">Process</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">child</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">(</span><span class="n">shm</span><span class="o">.</span><span class="n">name</span><span class="p">,));</span> <span class="n">p</span><span class="o">.</span><span class="n">start</span><span class="p">();</span> <span class="n">p</span><span class="o">.</span><span class="n">join</span><span class="p">()</span>
+<span class="n">shm</span><span class="o">.</span><span class="n">close</span><span class="p">();</span> <span class="n">shm</span><span class="o">.</span><span class="n">unlink</span><span class="p">()</span>
+</code></pre></div>
+
+<p>Gotcha: pipes carry bytes, not messages; you need framing (length prefix/newline). multiprocessing.Queue pickles objects (cost!) - large arrays: use shared_memory or mmap.</p>
+<p>How interviewers probe it: "Fastest IPC?" (shared memory; but sync needed) "Pipe vs socket?" "How does graceful shutdown work?" (SIGTERM handler, drain, exit; SIGKILL after grace period).</p>
+<hr />
+<h2 id="10-file-systems-inodes-links-page-cache-fsync-journaling">10. File systems, inodes, links, page cache, fsync, journaling</h2>
+<div class="highlight"><pre><span></span><code> path "/a/b.txt" --directory entry (name -&gt; inode#)--&gt; inode
+ inode: type, size, owner, perms, timestamps, link count, pointers to data blocks (or extents)
+        NOTE: file name is NOT in the inode; it lives in the directory
+ fd table (per process) -&gt; open file description (offset, flags) -&gt; inode
+</code></pre></div>
+
+<ul>
+<li>Inode: metadata + block locations. File = inode + data blocks. Directory = file mapping names -&gt; inode numbers.</li>
+<li>Hard link: another directory entry for the same inode (link count +1). Same filesystem only; cannot (normally) link directories. File data is freed when link count = 0 AND no process has it open. Deleting a file that a process still has open does not free disk space until it closes (classic "disk full but du shows little" bug; check <code>lsof +L1</code>).</li>
+<li>Soft (symbolic) link: a small file containing a path; can cross filesystems; can dangle.</li>
+<li>Page cache: kernel caches file data in RAM. <code>read</code> often hits cache; <code>write</code> normally just dirties pages and returns (write-back), flushed later by kernel threads. This is why free RAM looks low on Linux (it is cache, reclaimable).</li>
+<li>fsync(fd): force file data and metadata to stable storage and wait. Without it a crash or power loss can lose "successful" writes. Durable-write pattern for atomic replace: write temp file -&gt; fsync(temp) -&gt; rename(temp, final) (rename is atomic on POSIX) -&gt; fsync(directory).</li>
+<li>Python: <code>f.flush()</code> only moves from Python's buffer to the OS; <code>os.fsync(f.fileno())</code> moves to disk.</li>
+<li>Journaling (ext4, XFS, NTFS, APFS uses copy-on-write metadata instead): write intent to a journal first, then apply; after a crash replay/discard the journal so metadata stays consistent without a full fsck. Modes: metadata-only (default ext4 ordered) vs full data journaling. Journaling gives consistency, not necessarily durability of your data without fsync.</li>
+<li>Other ideas: extents, copy-on-write FS (ZFS, Btrfs, APFS), LSM trees/WAL in databases (the same "log first" principle), disk drive caches lying about flush (check current docs for hardware specifics).</li>
+<li>Everything is a file (Unix): devices, pipes, sockets are accessed through fds.</li>
+</ul>
+<p>Try it</p>
+<div class="highlight"><pre><span></span><code>echo hi &gt; a.txt; ln a.txt hard.txt; ln -s a.txt soft.txt
+ls -li a.txt hard.txt soft.txt        # same inode for a and hard; link count 2
+stat a.txt                            # macOS: stat -x a.txt
+rm a.txt; cat hard.txt; cat soft.txt  # hard works, soft dangles
+df -i                                 # inode exhaustion = "no space" with free bytes
+lsof +L1                              # open-but-deleted files
+</code></pre></div>
+
+<p>Gotcha: running out of inodes (millions of tiny files) gives ENOSPC even with free space.</p>
+<p>How interviewers probe it: "What is an inode?" "Hard vs soft links; what happens on rm?" "How to durably write a file?" "Why does a DB have a WAL?" "Why is <code>free</code> memory low but system fine?"</p>
+<hr />
+<h2 id="11-io-models-blocking-non-blocking-multiplexing-async">11. I/O models: blocking, non-blocking, multiplexing, async</h2>
+<div class="highlight"><pre><span></span><code> Blocking:        read() ---------sleeps until data----------&gt; returns
+ Non-blocking:    read() -&gt; EAGAIN immediately (poll in a loop = busy waiting)
+ Multiplexing:    select/poll/epoll_wait([many fds]) -&gt; ready list -&gt; read() those
+ Async (true):    submit request; kernel completes it; you get notified (io_uring, Windows IOCP)
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th>Mechanism</th>
+<th>Scalability</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>select</td>
+<td>O(n) scan, fd limit (FD_SETSIZE 1024)</td>
+<td>Portable, old</td>
+</tr>
+<tr>
+<td>poll</td>
+<td>O(n), no hard limit</td>
+<td>Copies the array each call</td>
+</tr>
+<tr>
+<td>epoll (Linux)</td>
+<td>O(ready) events</td>
+<td>Interest list in kernel; edge or level triggered; solves C10K</td>
+</tr>
+<tr>
+<td>kqueue (macOS/BSD)</td>
+<td>Like epoll</td>
+<td></td>
+</tr>
+<tr>
+<td>io_uring (Linux 5.1+)</td>
+<td>Shared submission/completion rings, true async incl. file I/O, fewer syscalls</td>
+<td>Newer, security-sensitive; adoption growing (check current docs)</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>Readiness model (epoll): "tell me when I can read without blocking", then you do the read. Completion model (io_uring, IOCP): "do the read and tell me when done".</li>
+<li>Regular disk files are always "ready" to epoll, so event loops push file I/O to a thread pool (this is what libuv and <code>loop.run_in_executor</code> do).</li>
+<li>Level-triggered: notify while data remains. Edge-triggered: notify once on change; must drain until EAGAIN.</li>
+<li>C10K problem: thread-per-connection does not scale to 10k connections (stacks, switches); one thread with epoll does.</li>
+</ul>
+<h3 id="asyncio-event-loop-fastapiuvicorn">asyncio, event loop, FastAPI/uvicorn</h3>
+<div class="highlight"><pre><span></span><code> event loop (1 thread):  while True:
+     events = epoll_wait(timeout)         # sockets ready?
+     run ready callbacks / resume coroutines whose awaited I/O finished
+ await = "suspend me, let loop run others, resume when this I/O completes"
+</code></pre></div>
+
+<ul>
+<li>async/await is cooperative multitasking: a coroutine only yields at <code>await</code>. One blocking call (time.sleep, requests.get, heavy CPU) freezes every request on that loop.</li>
+<li>uvicorn = ASGI server: runs the asyncio loop (uvloop optionally, built on libuv), accepts connections, parses HTTP, calls your app. FastAPI: <code>async def</code> endpoints run directly on the loop; plain <code>def</code> endpoints are run in a thread pool (so they will not block the loop, but are limited by pool size, default 40 threads via AnyIO) (check current docs).</li>
+<li>Scaling uvicorn/gunicorn: multiple worker processes (one loop each) to use all cores and bypass the GIL; <code>gunicorn -k uvicorn.workers.UvicornWorker -w N</code> or <code>uvicorn --workers N</code>.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span><span class="o">,</span><span class="w"> </span><span class="nn">time</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">io_task</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+    <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>           <span class="c1"># non-blocking wait</span>
+    <span class="k">return</span> <span class="n">i</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+    <span class="n">t</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span><span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">io_task</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1000</span><span class="p">))))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span><span class="o">-</span><span class="n">t</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">s"</span><span class="p">)</span>   <span class="c1"># ~1s, not 1000s</span>
+<span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+<span class="c1"># Bad: time.sleep(1) inside io_task -&gt; ~1000s (blocks the loop).</span>
+<span class="c1"># Offload blocking/CPU work: await asyncio.to_thread(fn)  or  loop.run_in_executor(ProcessPoolExecutor(), fn)</span>
+</code></pre></div>
+
+<p>Try it: <code>strace -f -e trace=epoll_wait,epoll_ctl python3 server.py</code> (Linux) to see the loop. macOS: uses kqueue, <code>sudo dtruss -t kevent</code>.</p>
+<p>Gotcha: async does not make code faster; it makes waiting cheap. CPU-bound async code gains nothing.</p>
+<p>How interviewers probe it: "Blocking vs non-blocking vs async?" "How does epoll scale?" "Why did my FastAPI service stall under load?" (blocking call inside async def). "Explain the event loop."</p>
+<hr />
+<h2 id="12-python-concurrency-gil-threads-vs-processes-vs-asyncio">12. Python concurrency: GIL, threads vs processes vs asyncio</h2>
+<ul>
+<li>GIL (Global Interpreter Lock) in CPython: only one thread executes Python bytecode at a time. Protects interpreter internals (refcounts). Released during blocking I/O and many C extensions (numpy, hashlib, zlib). Switch interval default 5 ms (<code>sys.getswitchinterval()</code>).</li>
+<li>Consequence: threads give I/O concurrency but no CPU parallelism for pure-Python code.</li>
+<li>PEP 703: optional free-threaded (no-GIL) build, experimental in 3.13, supported-but-optional in 3.14; default build still has the GIL (check current docs). Also per-interpreter GIL / subinterpreters (3.12+).</li>
+<li>GIL does not make your code thread-safe: <code>n += 1</code> and check-then-act sequences still race.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Workload</th>
+<th>Best tool</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Many network/disk waits (thousands)</td>
+<td>asyncio</td>
+<td>Cheapest per task, one thread</td>
+</tr>
+<tr>
+<td>Moderate I/O, blocking libraries</td>
+<td>threading / ThreadPoolExecutor</td>
+<td>Simple; GIL released on I/O</td>
+</tr>
+<tr>
+<td>CPU-bound pure Python</td>
+<td>multiprocessing / ProcessPoolExecutor</td>
+<td>Separate interpreters, parallel cores; pickling + startup cost</td>
+</tr>
+<tr>
+<td>CPU-bound numeric</td>
+<td>numpy/native extensions (release GIL), or processes</td>
+<td>Vectorize first</td>
+</tr>
+<tr>
+<td>Mixed</td>
+<td>asyncio + process pool via run_in_executor</td>
+<td>Keep loop responsive</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">concurrent.futures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ThreadPoolExecutor</span><span class="p">,</span> <span class="n">ProcessPoolExecutor</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">cpu</span><span class="p">(</span><span class="n">n</span><span class="p">):</span> 
+    <span class="n">s</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span> <span class="n">s</span> <span class="o">+=</span> <span class="n">i</span><span class="o">*</span><span class="n">i</span>
+    <span class="k">return</span> <span class="n">s</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="n">Ex</span><span class="p">,</span> <span class="n">label</span><span class="p">):</span>
+    <span class="n">t</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+    <span class="k">with</span> <span class="n">Ex</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span> <span class="k">as</span> <span class="n">ex</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">ex</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">cpu</span><span class="p">,</span> <span class="p">[</span><span class="mi">5_000_000</span><span class="p">]</span><span class="o">*</span><span class="mi">4</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">label</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span><span class="o">-</span><span class="n">t</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">s"</span><span class="p">)</span>
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>        <span class="c1"># required for spawn start method (macOS/Windows)</span>
+    <span class="n">run</span><span class="p">(</span><span class="n">ThreadPoolExecutor</span><span class="p">,</span> <span class="s2">"threads  (GIL-bound)"</span><span class="p">)</span>
+    <span class="n">run</span><span class="p">(</span><span class="n">ProcessPoolExecutor</span><span class="p">,</span> <span class="s2">"processes (parallel)"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Expect threads ~ sequential time; processes ~ 1/cores (on a multi-core machine). Swap <code>cpu</code> for <code>time.sleep(1)</code> and threads win easily (no pickling/spawn cost).</p>
+<ul>
+<li>multiprocessing start methods: fork (Linux default historically; unsafe with threads; changing in 3.14 to forkserver (check current docs)), spawn (macOS/Windows default; re-imports main module, hence the <code>__main__</code> guard), forkserver.</li>
+<li>Data crossing processes is pickled; passing big objects negates the speedup.</li>
+<li>Rule of thumb for thread count: I/O-bound can exceed core count; CPU-bound ~ number of cores.</li>
+</ul>
+<p>Gotcha: <code>threading</code> for CPU work can be slower than single thread due to GIL contention and switching.</p>
+<p>How interviewers probe it: "What is the GIL and why does it exist?" "Threads vs processes vs asyncio for X?" "Your FastAPI endpoint does image resizing - what do you do?" (process pool / worker queue) "How to get parallelism in Python?"</p>
+<hr />
+<h2 id="13-putting-it-together-what-happens-when-walkthroughs">13. Putting it together: "What happens when..." walkthroughs</h2>
+<ol>
+<li><code>python3 app.py</code> in a shell: shell fork()s -&gt; child execve("python3") -&gt; kernel maps binary and libs (mmap), sets up stack/heap -&gt; page faults load code lazily -&gt; interpreter reads file via syscalls -&gt; shell wait()s.</li>
+<li>A web request to uvicorn: NIC interrupt -&gt; kernel TCP stack -&gt; socket readable -&gt; epoll_wait returns -&gt; loop reads bytes -&gt; parser -&gt; your coroutine runs until <code>await db.query()</code> -&gt; socket write -&gt; coroutine suspended -&gt; loop serves others -&gt; DB response readable -&gt; resume.</li>
+<li>Process uses more memory than limit in a container: allocations succeed (virtual), page faults on touch grow RSS, cgroup limit hit, reclaim fails, cgroup OOM kill SIGKILL, exit 137.</li>
+<li>Service hangs, CPU 0%: likely deadlock/lock wait/blocked I/O. Check <code>py-spy dump</code>, <code>strace -p</code>, <code>lsof -p</code>, thread states. CPU 100% single core in async service: blocking CPU work on the loop.</li>
+<li>Latency spikes: page faults/swap (check <code>vmstat si/so</code>), GC pauses, noisy neighbor/CPU throttling (cgroup cpu quota), lock contention, disk fsync stalls.</li>
+</ol>
+<p>Triage toolkit</p>
+<div class="highlight"><pre><span></span><code>top/htop | ps aux | vmstat 1 | iostat -x 1 (Linux) | lsof -p PID | ss -tanp (Linux) / netstat -an (macOS)
+strace -p PID (Linux) | dtruss (macOS) | perf top (Linux) | py-spy top --pid PID | dmesg | tail
+</code></pre></div>
+
+<p>How interviewers probe it: open-ended debugging prompts at Google/Uber/FDE interviews: "Service is slow/hung/OOMing - walk me through your diagnosis." Structure: reproduce, check resources (CPU, memory, I/O, network, fds), inspect what it is waiting on, form hypothesis, verify.</p>
+<hr />
+<h2 id="14-study-plan-and-self-check">14. Study plan and self-check</h2>
+<ul>
+<li>Hour 1-2: sections 1-5, run strace/ps/vm_stat commands.</li>
+<li>Hour 3-4: sections 6-9, run the race, deadlock, shared_memory snippets.</li>
+<li>Hour 5: sections 10-12, run asyncio and Thread vs Process benchmark.</li>
+<li>Hour 6-7: interview-qa.md aloud (30-60 s each), then cheatsheet.</li>
+<li>Self-check: can you, without notes, (a) draw virtual-&gt;physical translation with TLB, (b) list Coffman conditions and a fix per condition, (c) explain why FastAPI <code>async def</code> with <code>time.sleep</code> is broken, (d) explain fsync + rename pattern, (e) pick threads/processes/asyncio for three workloads and justify?</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../../12-cs-fundamentals/week-01-networking/cheatsheet.html">← Week 1 · Networking: Cheatsheet</a><a class="next" href="../../12-cs-fundamentals/week-02-operating-systems/interview-qa.html">Week 2 · Operating systems: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

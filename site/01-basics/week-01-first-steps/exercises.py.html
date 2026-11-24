@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="01-basics/week-01-first-steps/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../01-basics/week-01-first-steps/lesson.html">Python Basics</a> / <a href="../../01-basics/week-01-first-steps/lesson.html">Week 1 · First steps</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="01-basics/week-01-first-steps/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>01-basics/week-01-first-steps/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 1 exercises. Replace each `...` with your code."""</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the sum of a and b."""</span>
+    <span class="o">...</span>
+    <span class="k">return</span> <span class="n">a</span><span class="o">+</span><span class="n">b</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">average</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the average of three numbers (a float)."""</span>
+    <span class="o">...</span>
+    <span class="k">return</span> <span class="nb">float</span><span class="p">((</span><span class="n">a</span><span class="o">+</span><span class="n">b</span><span class="o">+</span><span class="n">c</span><span class="p">)</span><span class="o">/</span><span class="mi">3</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">is_even</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return True if n is even, else False. Hint: %"""</span>
+    <span class="o">...</span>
+    <span class="k">return</span> <span class="n">n</span><span class="o">%</span><span class="mi">2</span><span class="o">==</span><span class="mi">0</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">minutes_to_hours_minutes</span><span class="p">(</span><span class="n">total_minutes</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return (hours, minutes). e.g. 135 -&gt; (2, 15). Hint: // and %"""</span>
+    <span class="o">...</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">total_minutes</span> <span class="o">//</span> <span class="mi">60</span><span class="p">,</span> <span class="n">total_minutes</span> <span class="o">%</span> <span class="mi">60</span><span class="p">)</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">greet</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">age</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return 'Hello, Sam! You are 30 years old.' using an f-string."""</span>
+    <span class="o">...</span>
+    <span class="k">return</span> <span class="sa">f</span><span class="s2">"Hello, </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">! You are </span><span class="si">{</span><span class="n">age</span><span class="si">}</span><span class="s2"> years old."</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">first_and_last</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the first and last characters joined. 'python' -&gt; 'pn'"""</span>
+    <span class="o">...</span>
+    <span class="k">return</span> <span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="n">s</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">reverse</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return s reversed. 'abc' -&gt; 'cba'. Hint: slice with a step of -1."""</span>
+    <span class="o">...</span>
+    <span class="k">return</span> <span class="n">s</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">shout</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return s in uppercase with '!' added at the end. 'hi' -&gt; 'HI!'"""</span>
+    <span class="o">...</span>
+    <span class="k">return</span> <span class="n">s</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span><span class="o">+</span><span class="s2">"!"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">middle</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the middle character of an odd-length string. 'abcde' -&gt; 'c'"""</span>
+    <span class="o">...</span>
+    <span class="n">length</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">s</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">length</span><span class="o">/</span><span class="mi">2</span><span class="p">)];</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">celsius_to_fahrenheit</span><span class="p">(</span><span class="n">c</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""F = C * 9/5 + 32"""</span>
+    <span class="o">...</span>
+    <span class="k">return</span> <span class="n">c</span><span class="o">*</span><span class="p">(</span><span class="mi">9</span><span class="o">/</span><span class="mi">5</span><span class="p">)</span><span class="o">+</span><span class="mi">32</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../01-basics/week-01-first-steps/lesson.html">← Week 1 · First steps: Lesson</a><a class="next" href="../../01-basics/week-01-first-steps/test_exercises.py.html">Week 1 · First steps: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

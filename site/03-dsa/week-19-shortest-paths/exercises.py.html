@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-19-shortest-paths/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-19-shortest-paths/lesson.html">Week 19 · Shortest paths</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="03-dsa/week-19-shortest-paths/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>03-dsa/week-19-shortest-paths/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 19 exercises: shortest paths. Replace each `...` with your code.</span>
+
+<span class="sd">Ordered roughly easy -&gt; hard. Hints are in the docstrings.</span>
+<span class="sd">"""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">heapq</span>  <span class="c1"># noqa: F401  (available for you)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">deque</span>  <span class="c1"># noqa: F401</span>
+
+<span class="n">INF</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">"inf"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">dijkstra_distances</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">edges</span><span class="p">,</span> <span class="n">src</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a list `dist` of length n with the shortest distance from src to every node.</span>
+
+<span class="sd">    `edges` is a list of directed edges (u, v, w) with w &gt;= 0. Nodes are 0..n-1.</span>
+<span class="sd">    Unreachable nodes get INF. Parallel edges and self loops may appear.</span>
+
+<span class="sd">    Example: n=4, edges=[(0,1,4),(0,2,1),(2,1,2),(1,3,1)], src=0 -&gt; [0, 3, 1, 4]</span>
+
+<span class="sd">    Hint: min-heap of (dist, node); skip stale entries.</span>
+<span class="sd">    Expected: O((V + E) log V) time, O(V + E) space.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">shortest_path_binary_matrix</span><span class="p">(</span><span class="n">grid</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 1091. Grid of 0 (open) / 1 (blocked). Move in 8 directions through open cells</span>
+<span class="sd">    from (0,0) to (n-1,n-1). Return the number of cells on the shortest path, or -1.</span>
+
+<span class="sd">    Example: [[0,1],[1,0]] -&gt; 2;  [[1,0],[0,0]] -&gt; -1;  [[0]] -&gt; 1</span>
+
+<span class="sd">    Hint: unweighted -&gt; BFS. Check the start cell first.</span>
+<span class="sd">    Expected: O(n^2) time and space.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">network_delay_time</span><span class="p">(</span><span class="n">times</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 743. `times[i] = [u, v, w]`: a signal from u reaches v in w time (directed).</span>
+<span class="sd">    Nodes are labelled 1..n. Return the time for all nodes to receive a signal sent from k,</span>
+<span class="sd">    or -1 if some node is unreachable.</span>
+
+<span class="sd">    Example: times=[[2,1,1],[2,3,1],[3,4,1]], n=4, k=2 -&gt; 2</span>
+
+<span class="sd">    Hint: Dijkstra, answer is the max finite distance.</span>
+<span class="sd">    Expected: O(E log V).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">ladder_length</span><span class="p">(</span><span class="n">begin_word</span><span class="p">,</span> <span class="n">end_word</span><span class="p">,</span> <span class="n">word_list</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 127. Transform begin_word to end_word changing one letter at a time; every</span>
+<span class="sd">    intermediate word must be in word_list. Return the number of words in the shortest</span>
+<span class="sd">    sequence (including both ends), or 0 if impossible.</span>
+
+<span class="sd">    Example: "hit", "cog", ["hot","dot","dog","lot","log","cog"] -&gt; 5</span>
+
+<span class="sd">    Hint: implicit graph + BFS. Bucket words by wildcard pattern ("h*t") to find neighbours.</span>
+<span class="sd">    Expected: O(N * L^2) time.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">minimum_effort_path</span><span class="p">(</span><span class="n">heights</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 1631. Grid of heights. Move 4-directionally from top-left to bottom-right.</span>
+<span class="sd">    The effort of a path is the maximum absolute height difference between consecutive cells.</span>
+<span class="sd">    Return the minimum possible effort.</span>
+
+<span class="sd">    Example: [[1,2,2],[3,8,2],[5,3,5]] -&gt; 2;  [[5]] -&gt; 0</span>
+
+<span class="sd">    Hint: Dijkstra where cost = max(cost_so_far, edge). (Binary search + BFS also works.)</span>
+<span class="sd">    Expected: O(RC log(RC)).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">swim_in_water</span><span class="p">(</span><span class="n">grid</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 778. grid[r][c] is the elevation; at time t you can stand on cells with</span>
+<span class="sd">    elevation &lt;= t and swim between adjacent cells instantly. Starting at (0,0) at time 0,</span>
+<span class="sd">    return the least time t to reach (n-1,n-1). Elevations are a permutation of 0..n*n-1.</span>
+
+<span class="sd">    Example: [[0,2],[1,3]] -&gt; 3;  [[0]] -&gt; 0</span>
+
+<span class="sd">    Hint: same "minimize the max" Dijkstra as above.</span>
+<span class="sd">    Expected: O(n^2 log n).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">cheapest_flights_within_k_stops</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">flights</span><span class="p">,</span> <span class="n">src</span><span class="p">,</span> <span class="n">dst</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 787. `flights[i] = [from, to, price]` (directed). Return the cheapest price from</span>
+<span class="sd">    src to dst with at most k stops (k stops = at most k+1 flights), or -1.</span>
+
+<span class="sd">    Example: n=3, flights=[[0,1,100],[1,2,100],[0,2,500]], src=0, dst=2, k=1 -&gt; 200; k=0 -&gt; 500</span>
+
+<span class="sd">    Hint: Bellman-Ford for k+1 rounds with a copied array, or Dijkstra on (node, stops).</span>
+<span class="sd">    Expected: O(k * E).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">path_with_max_probability</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">edges</span><span class="p">,</span> <span class="n">succ_prob</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 1514. Undirected graph; edge i = edges[i] succeeds with probability</span>
+<span class="sd">    succ_prob[i]. Return the max success probability of a path from start to end (product</span>
+<span class="sd">    along the path), or 0.0 if there is no path.</span>
+
+<span class="sd">    Example: n=3, edges=[[0,1],[1,2],[0,2]], succ_prob=[0.5,0.5,0.2], start=0, end=2 -&gt; 0.25</span>
+
+<span class="sd">    Hint: Dijkstra with a max-heap (push negative probabilities). Probabilities &lt;= 1 so</span>
+<span class="sd">    extending a path never improves it, which is why greedy works.</span>
+<span class="sd">    Expected: O(E log V).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">minimum_obstacles_to_remove</span><span class="p">(</span><span class="n">grid</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 2290. Grid of 0 (empty) / 1 (obstacle). Move 4-directionally. Return the</span>
+<span class="sd">    minimum number of obstacles to remove so there is a path from (0,0) to (m-1,n-1).</span>
+<span class="sd">    (Start and end are always 0.)</span>
+
+<span class="sd">    Example: [[0,1,1],[1,1,0],[1,1,0]] -&gt; 2;  [[0]] -&gt; 0</span>
+
+<span class="sd">    Hint: entering a cell costs grid[r][c], i.e. 0 or 1 -&gt; 0-1 BFS with a deque.</span>
+<span class="sd">    Expected: O(mn).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">min_cost_valid_path</span><span class="p">(</span><span class="n">grid</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 1368. Each cell holds an arrow: 1=right, 2=left, 3=down, 4=up. Following the</span>
+<span class="sd">    arrow is free; changing a cell's arrow costs 1 (each cell at most once). Return the</span>
+<span class="sd">    minimum total cost so a path exists from (0,0) to (m-1,n-1).</span>
+
+<span class="sd">    Example: [[1,1,3],[3,2,2],[1,1,4]] -&gt; 0;  [[1,2],[4,3]] -&gt; 1;  [[4]] -&gt; 0</span>
+
+<span class="sd">    Hint: 0-1 BFS: from a cell, the edge along its arrow costs 0, the other 3 cost 1.</span>
+<span class="sd">    Expected: O(mn).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-19-shortest-paths/lesson.html">← Week 19 · Shortest paths: Lesson</a><a class="next" href="../../03-dsa/week-19-shortest-paths/test_exercises.py.html">Week 19 · Shortest paths: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

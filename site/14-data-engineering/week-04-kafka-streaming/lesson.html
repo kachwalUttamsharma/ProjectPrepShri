@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 4: Kafka and stream processing | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="14-data-engineering/week-04-kafka-streaming/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../14-data-engineering/week-04-kafka-streaming/lesson.html">Week 4 · Kafka and streaming</a> / <span>Lesson</span></nav><button id="mark-done" data-id="14-data-engineering/week-04-kafka-streaming/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-4-kafka-and-stream-processing">Week 4: Kafka and stream processing</h1>
+<p>Goal: explain how a distributed log works, what delivery guarantees you really get, and how event-time windows, watermarks and state work in Flink / Spark Structured Streaming. Version-specific facts are marked "(check current docs)".</p>
+<h2 id="1-the-log-abstraction">1. The log abstraction</h2>
+<ul>
+<li>A <strong>log</strong> is an append-only, totally ordered sequence of records, each with an <strong>offset</strong>. Readers keep their own position; data is not deleted on read.</li>
+<li>Consequences: many independent consumers, replay (seek back), cheap sequential disk I/O, and the log doubles as a source of truth from which tables (views) are derived (stream-table duality).</li>
+<li>Contrast with a queue (SQS): a queue deletes on ack and has no replay; a log retains by time/size/compaction.</li>
+</ul>
+<h2 id="2-kafka-architecture">2. Kafka architecture</h2>
+<ul>
+<li><strong>Topic</strong> = named log split into <strong>partitions</strong>. Order is guaranteed only <em>within a partition</em>.</li>
+<li><strong>Broker</strong> = server. Each partition has one <strong>leader</strong> and N-1 <strong>follower</strong> replicas (replication factor N). Producers/consumers talk to the leader.</li>
+<li><strong>ISR</strong> (in-sync replicas): followers caught up with the leader. A write is "committed" once all ISR have it. If the leader dies, the controller elects a new leader from the ISR (so no committed data lost). <code>unclean.leader.election.enable=true</code> allows an out-of-sync replica to lead: availability over durability.</li>
+<li>Durability knobs: <code>replication.factor=3</code>, <code>min.insync.replicas=2</code>, producer <code>acks=all</code>. With RF=3, min.isr=2 you tolerate one broker down for writes and two for reads.</li>
+<li>Metadata/controller: KRaft (Raft-based, no ZooKeeper) is the default in current releases; ZooKeeper removed in 4.0 (check current docs).</li>
+<li>Retention: by <code>retention.ms</code> / <code>retention.bytes</code> (delete policy) or <strong>log compaction</strong> (keep the latest record per key; tombstone = null value deletes the key after <code>delete.retention.ms</code>). Compaction suits changelogs / state, not event history.</li>
+</ul>
+<h2 id="3-producers">3. Producers</h2>
+<ul>
+<li><strong>Partitioning</strong>: record with a key -&gt; <code>hash(key) % partitions</code> (murmur2); no key -&gt; sticky/round-robin batching. Same key, same partition, so per-key ordering. <strong>Changing the partition count remaps keys</strong> and breaks per-key ordering for in-flight data and stateful consumers.</li>
+<li><strong>acks</strong>: <code>0</code> fire and forget; <code>1</code> leader only (lost if leader dies before replication); <code>all</code> all ISR (use with min.insync.replicas).</li>
+<li><strong>Idempotent producer</strong> (<code>enable.idempotence=true</code>, default in recent clients (check current docs)): broker dedupes retries using producer id + per-partition sequence numbers -&gt; no duplicates or reordering from retries within one producer session.</li>
+<li><strong>Batching/throughput</strong>: <code>linger.ms</code>, <code>batch.size</code>, <code>compression.type</code> (lz4/zstd/snappy/gzip; zstd and lz4 are common choices), <code>max.in.flight.requests.per.connection</code> (&lt;=5 keeps ordering with idempotence).</li>
+<li>Delivery timeout and retries: set <code>delivery.timeout.ms</code> rather than counting retries.</li>
+</ul>
+<h2 id="4-consumers">4. Consumers</h2>
+<ul>
+<li><strong>Consumer group</strong>: partitions of a topic are divided among the group's consumers; each partition is read by exactly one member of a group at a time. Max useful parallelism = number of partitions. Different groups each get all data.</li>
+<li><strong>Assignment strategies</strong>: Range (contiguous per topic), RoundRobin, Sticky/CooperativeSticky (minimize movement; cooperative rebalancing avoids stop-the-world). The newer KIP-848 consumer protocol moves assignment to the broker (check current docs).</li>
+<li><strong>Rebalance</strong> triggers: member joins/leaves/crashes, missed heartbeat (<code>session.timeout.ms</code>), too slow between polls (<code>max.poll.interval.ms</code>), partition count change. Eager rebalance pauses all consumption; use cooperative + static membership (<code>group.instance.id</code>) to reduce churn.</li>
+<li><strong>Offsets</strong>: committed to the internal <code>__consumer_offsets</code> topic = "next offset to read". Auto-commit can lose or duplicate; for control use manual commit <em>after</em> processing.</li>
+<li><strong>Lag</strong> = log end offset - committed offset, per partition. Rising lag means consumers are slower than producers; alert on lag trend and age of oldest unprocessed message, not just absolute count.</li>
+<li>Poison messages: catch, retry bounded, then route to a <strong>dead-letter topic</strong> with headers (error, original topic/partition/offset) so you can inspect and replay.</li>
+</ul>
+<h2 id="5-delivery-semantics">5. Delivery semantics</h2>
+<table>
+<thead>
+<tr>
+<th>Semantics</th>
+<th>How</th>
+<th>Failure mode</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>At-most-once</td>
+<td>commit offset <em>before</em> processing</td>
+<td>crash -&gt; lost records</td>
+</tr>
+<tr>
+<td>At-least-once</td>
+<td>process, then commit</td>
+<td>crash -&gt; reprocess -&gt; duplicates</td>
+</tr>
+<tr>
+<td>Exactly-once</td>
+<td>see below</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Exactly-once inside Kafka</strong> (read-process-write between topics): idempotent producer + <strong>transactions</strong> (<code>transactional.id</code>, atomic writes across partitions and the consumer-offset commit via <code>sendOffsetsToTransaction</code>). Consumers must use <code>isolation.level=read_committed</code>. Kafka Streams: <code>processing.guarantee=exactly_once_v2</code>.</li>
+<li><strong>End-to-end</strong> exactly-once with an external sink is really <strong>at-least-once + idempotent/transactional sink</strong>: upsert by key, dedupe by event id, or write data and offsets in one DB transaction. Exercise 6 models the dedupe. "Exactly-once" claims always have a boundary; ask where it ends.</li>
+<li>Flink: checkpoint barriers (Chandy-Lamport style) give exactly-once state; sinks need two-phase commit or idempotence for end-to-end.</li>
+</ul>
+<h2 id="6-ordering-guarantees-the-exam-favourite">6. Ordering guarantees (the exam favourite)</h2>
+<ul>
+<li>Per partition: total order. Across partitions: none. For per-entity order, key by entity id.</li>
+<li>Retries without idempotence + <code>max.in.flight &gt; 1</code> can reorder. With idempotence this is safe up to 5 in flight.</li>
+<li>Rebalances and consumer-side parallelism (thread pool per record) can break processing order even though read order was fine.</li>
+</ul>
+<h2 id="7-schemas-serialization-connectors">7. Schemas, serialization, connectors</h2>
+<ul>
+<li><strong>Schema Registry</strong>: stores Avro/Protobuf/JSON Schema versions; messages carry a schema id (magic byte + 4-byte id). Compatibility modes: BACKWARD (new reader reads old data; default), FORWARD, FULL, plus *_TRANSITIVE and NONE. Choose subject naming (TopicNameStrategy etc.) deliberately.</li>
+<li>Avro evolution rules: add fields with defaults; remove only fields that had defaults; renaming needs aliases.</li>
+<li><strong>Kafka Connect</strong>: framework for source/sink connectors (JDBC, S3, Debezium, Elasticsearch); workers, tasks, converters, SMTs, offset storage in Kafka, a DLQ for sink errors (<code>errors.tolerance</code>, <code>errors.deadletterqueue.topic.name</code>).</li>
+<li><strong>Kafka Streams</strong> (library, runs in your app, state in RocksDB with changelog topics, KStream/KTable) and <strong>ksqlDB</strong> (SQL over Streams; check current status/licensing in docs).</li>
+</ul>
+<h2 id="8-stream-processing-concepts">8. Stream processing concepts</h2>
+<ul>
+<li><strong>Event time</strong> (when it happened, in the record) vs <strong>processing time</strong> (when we see it) vs ingestion time. Correct analytics use event time; processing time is simpler but wrong under delay/replay.</li>
+<li><strong>Windows</strong>: tumbling (fixed, no overlap), sliding/hopping (size + slide; an event lands in size/slide windows), session (gap of inactivity, merge on arrival), global/count windows.</li>
+<li><strong>Watermark</strong>: a heuristic assertion "no more events with timestamp &lt; W are expected". Bounded out-of-orderness: <code>W = max_event_ts - max_delay</code>. A window fires when W passes its end. Events behind the watermark are <strong>late</strong>: drop, send to a side output/DLQ, or allow within <code>allowedLateness</code> and emit <strong>updated</strong> results (retractions/upserts).</li>
+<li>Idle partitions hold the watermark back (it is the min over inputs): configure idleness timeouts.</li>
+<li><strong>State</strong>: keyed state (counts, joins, dedupe) lives in the operator, usually RocksDB; must be bounded with TTL or windows. <strong>Checkpointing</strong> snapshots state + source offsets consistently; <strong>savepoints</strong> are manual, portable checkpoints for upgrades (Flink).</li>
+<li><strong>Backpressure</strong>: a slow operator makes upstream buffers fill and the source slows; Kafka naturally buffers (lag grows) rather than dropping. Diagnose via Flink backpressure metrics/Spark input rate vs processing rate.</li>
+<li><strong>Joins</strong>: stream-stream (windowed, state heavy), stream-table (enrichment; table must be co-partitioned in Kafka Streams), temporal joins.</li>
+</ul>
+<h2 id="9-flink-vs-spark-structured-streaming-vs-kafka-streams">9. Flink vs Spark Structured Streaming vs Kafka Streams</h2>
+<ul>
+<li><strong>Flink</strong>: true per-record streaming, rich event-time/state/timers, low latency, exactly-once via checkpoints; more operational weight.</li>
+<li><strong>Spark Structured Streaming</strong>: micro-batch by default (continuous mode experimental), unified batch/stream API and DataFrames, <code>withWatermark</code>, <code>foreachBatch</code> for idempotent sinks, <code>trigger(availableNow=True)</code> for incremental batch. Good if you already run Spark/Databricks.</li>
+<li><strong>Kafka Streams</strong>: embedded library, Kafka-only in/out, simplest deployment; scaling = more app instances up to partition count.</li>
+</ul>
+<h2 id="10-patterns">10. Patterns</h2>
+<ul>
+<li><strong>CDC with Debezium</strong>: reads the DB transaction log (MySQL binlog, Postgres WAL via logical replication slot) -&gt; change events (before/after, op, ts) in Kafka via Connect. Pros: no dual write, low load, captures deletes. Watch: unbounded WAL growth from an idle slot, schema changes, initial snapshot, ordering per primary key (key the topic by PK).</li>
+<li><strong>Outbox pattern</strong>: write business row + outbox event in ONE DB transaction; CDC (or poller) publishes the outbox table. Solves the dual-write problem; consumers must still be idempotent.</li>
+<li><strong>Lambda</strong> (batch layer + speed layer, two code paths) vs <strong>Kappa</strong> (one streaming path; reprocess by replaying the log). Kappa needs long retention or a lakehouse as the replay source; modern lakehouse/streaming engines blur this.</li>
+<li><strong>Replay/backfill</strong>: new consumer group with <code>auto.offset.reset=earliest</code>, or <code>seek</code>/reset offsets to a timestamp (<code>kafka-consumer-groups --reset-offsets</code>). Side effects of replay (emails, API calls) must be guarded.</li>
+<li><strong>Sizing partitions</strong>: partitions &gt;= max(target / producer-per-partition, target / consumer-per-partition), plus headroom, since you cannot reduce partitions and increasing breaks key mapping. Too many partitions = more file handles, longer leader election/recovery, more end-to-end latency, memory per partition. Measure; typical per-partition throughput is on the order of 10s of MB/s (hardware dependent).</li>
+</ul>
+<h2 id="11-kinesis-msk-sqs-check-current-docs-for-limits-and-pricing">11. Kinesis / MSK / SQS (check current docs for limits and pricing)</h2>
+<ul>
+<li><strong>Kinesis Data Streams</strong>: managed log; shards (1 MB/s or 1000 rec/s in; 2 MB/s out per shard), on-demand or provisioned capacity, 24h default retention up to 365 days, enhanced fan-out. Simpler ops, AWS-only, fewer ecosystem tools.</li>
+<li><strong>MSK</strong> (Managed Streaming for Kafka; Serverless and provisioned variants): real Kafka APIs and ecosystem, you still choose broker sizing/partitions; cross-cloud portable.</li>
+<li><strong>SQS</strong>: queue, not a log. Visibility timeout, at-least-once (Standard) or FIFO (ordered by message group, dedupe id, lower throughput), DLQ via redrive policy, no replay, no partition concept. Pick when you need decoupling/work distribution, not streaming analytics.</li>
+<li><strong>SNS+SQS</strong> fan-out for small pub/sub; Kafka/Kinesis when you need replay, multiple readers over history, ordering per key, high throughput.</li>
+</ul>
+<h2 id="12-code-walkthrough-a-toy-offset-commit-different-from-the-exercises">12. Code walkthrough: a toy offset commit (different from the exercises)</h2>
+<div class="highlight"><pre><span></span><code><span class="c1"># at-least-once consumer loop, pseudo-Kafka</span>
+<span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+    <span class="n">batch</span> <span class="o">=</span> <span class="n">consumer</span><span class="o">.</span><span class="n">poll</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">rec</span> <span class="ow">in</span> <span class="n">batch</span><span class="p">:</span>
+        <span class="n">sink</span><span class="o">.</span><span class="n">upsert</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">rec</span><span class="o">.</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="n">rec</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="n">rec</span><span class="o">.</span><span class="n">offset</span><span class="p">)</span>  <span class="c1"># idempotent</span>
+    <span class="n">consumer</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>   <span class="c1"># AFTER the sink succeeded</span>
+</code></pre></div>
+
+<p>If the process dies between upsert and commit, the batch is re-read and the upsert is a no-op replay: effectively-once.</p>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li>Using Python <code>hash()</code> or non-stable hashing for partitioning across processes.</li>
+<li>Assuming global ordering across partitions.</li>
+<li>Auto-commit with slow processing: offsets committed for records not yet processed.</li>
+<li>Adding partitions to a keyed topic without planning for key remapping.</li>
+<li><code>acks=1</code> or <code>min.insync.replicas=1</code> with RF=3 and calling it durable.</li>
+<li>Calling a pipeline exactly-once when the sink is non-idempotent.</li>
+<li>Unbounded state (dedupe set, join buffers) with no TTL.</li>
+<li>Processing-time windows for analytics that must be reproducible on replay.</li>
+<li>Ignoring idle partitions stalling the watermark.</li>
+<li>Alerting on lag count only; a big, steady backlog and a growing one are different incidents.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, run <code>../../.venv/bin/pytest -q</code>, then drill <code>interview-qa.md</code> aloud and skim <code>cheatsheet.md</code> the night before.</p>
+</article><div class="pager"><a class="prev" href="../../14-data-engineering/week-03-orchestration-dbt/test_exercises.py.html">← Week 3 · Orchestration and dbt: Tests (code)</a><a class="next" href="../../14-data-engineering/week-04-kafka-streaming/interview-qa.html">Week 4 · Kafka and streaming: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

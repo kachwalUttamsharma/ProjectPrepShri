@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 3 Cheatsheet - Linux &amp; Shell | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="12-cs-fundamentals/week-03-linux-shell/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../12-cs-fundamentals/README.html">CS Fundamentals</a> / <a href="../../12-cs-fundamentals/week-03-linux-shell/lesson.html">Week 3 · Linux and shell</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="12-cs-fundamentals/week-03-linux-shell/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="week-3-cheatsheet-linux-shell">Week 3 Cheatsheet - Linux &amp; Shell</h1>
+<p>Items marked "(check current docs)" are version/distro dependent. Linux unless noted; macOS = BSD userland, no /proc, systemd, strace.</p>
+<h2 id="filesystem">Filesystem</h2>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>One-liner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>/etc</td>
+<td>host config (text)</td>
+</tr>
+<tr>
+<td>/var/log, /var/lib</td>
+<td>logs, service data</td>
+</tr>
+<tr>
+<td>/proc, /sys</td>
+<td>virtual kernel views (Linux only)</td>
+</tr>
+<tr>
+<td>/dev</td>
+<td>device files (null, zero, urandom, tty)</td>
+</tr>
+<tr>
+<td>/tmp</td>
+<td>world-writable scratch, sticky bit</td>
+</tr>
+<tr>
+<td>/usr, /opt</td>
+<td>packaged userland, third-party software</td>
+</tr>
+<tr>
+<td>/run</td>
+<td>runtime state (pid files, sockets), tmpfs</td>
+</tr>
+</tbody>
+</table>
+<h2 id="permissions">Permissions</h2>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>One-liner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>r/w/x = 4/2/1</td>
+<td>755 dirs/exec, 644 files, 600 secrets/keys</td>
+</tr>
+<tr>
+<td>dir x / dir w</td>
+<td>traverse / create+delete entries</td>
+</tr>
+<tr>
+<td>setuid 4xxx</td>
+<td>run as file owner</td>
+</tr>
+<tr>
+<td>setgid 2xxx</td>
+<td>run as group; dir: new files inherit group</td>
+</tr>
+<tr>
+<td>sticky 1xxx</td>
+<td>only owner may delete in dir (/tmp = 1777)</td>
+</tr>
+<tr>
+<td>umask</td>
+<td>files 666 &amp; ~mask, dirs 777 &amp; ~mask (022 -&gt; 644/755)</td>
+</tr>
+<tr>
+<td>chmod -R u=rwX,go=rX</td>
+<td>sane recursive perms without making files executable</td>
+</tr>
+</tbody>
+</table>
+<h2 id="signals-and-processes">Signals and processes</h2>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>One-liner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SIGTERM 15</td>
+<td>graceful stop (default kill)</td>
+</tr>
+<tr>
+<td>SIGKILL 9</td>
+<td>uncatchable, no cleanup, last resort</td>
+</tr>
+<tr>
+<td>SIGHUP 1</td>
+<td>terminal hangup / reload config</td>
+</tr>
+<tr>
+<td>SIGINT 2 / SIGQUIT 3</td>
+<td>Ctrl-C / Ctrl-\</td>
+</tr>
+<tr>
+<td>SIGSTOP / SIGCONT</td>
+<td>pause / resume</td>
+</tr>
+<tr>
+<td>Zombie (Z)</td>
+<td>exited, parent has not wait()ed</td>
+</tr>
+<tr>
+<td>D state</td>
+<td>uninterruptible IO wait, unkillable</td>
+</tr>
+<tr>
+<td>PID 1 in container</td>
+<td>ignores default signals, must reap; use exec form / --init</td>
+</tr>
+<tr>
+<td>Exit codes</td>
+<td>126 not exec, 127 not found, 130 INT, 137 KILL/OOM, 143 TERM, 139 segv</td>
+</tr>
+</tbody>
+</table>
+<h2 id="text-tools">Text tools</h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>One-liner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>grep -rniE 'a|b'</td>
+<td>search; -v invert, -c count, -o match only, -A/-B context</td>
+</tr>
+<tr>
+<td>awk -F: '$3&gt;=1000{print $1}'</td>
+<td>field logic, sums, filters</td>
+</tr>
+<tr>
+<td>sed 's/a/b/g' ; sed -n '5,9p'</td>
+<td>substitute; print range (macOS: <code>sed -i ''</code>)</td>
+</tr>
+<tr>
+<td>cut -d, -f1,3</td>
+<td>fixed delimiter columns</td>
+</tr>
+<tr>
+<td>sort -k2,2nr | uniq -c</td>
+<td>count duplicates (sort before uniq)</td>
+</tr>
+<tr>
+<td>find . -type f -size +100M -mtime -1</td>
+<td>predicate search</td>
+</tr>
+<tr>
+<td>find ... -print0 | xargs -0 -P4 cmd</td>
+<td>safe parallel batch</td>
+</tr>
+<tr>
+<td>tee -a file</td>
+<td>write and pass through</td>
+</tr>
+<tr>
+<td>rg / fd / sd / jq / bat / ast-grep</td>
+<td>fast grep / find / sed-s / JSON / cat / code AST (may be missing on customer boxes)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="redirects-and-fds">Redirects and fds</h2>
+<table>
+<thead>
+<tr>
+<th>Syntax</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&gt; f</code> / <code>&gt;&gt; f</code> / <code>&lt; f</code></td>
+<td>stdout truncate / append / stdin</td>
+</tr>
+<tr>
+<td><code>2&gt; f</code></td>
+<td>stderr to file</td>
+</tr>
+<tr>
+<td><code>&gt; f 2&gt;&amp;1</code> or <code>&amp;&gt; f</code></td>
+<td>both to file (order matters)</td>
+</tr>
+<tr>
+<td><code>cmd 2&gt;&amp;1 \| x</code> or <code>\|&amp;</code></td>
+<td>pipe both</td>
+</tr>
+<tr>
+<td><code>&gt; /dev/null 2&gt;&amp;1</code></td>
+<td>discard all</td>
+</tr>
+<tr>
+<td><code>&lt;&lt;'EOF'</code> / <code>&lt;&lt;&lt;"s"</code></td>
+<td>here-doc (no expansion) / here-string</td>
+</tr>
+<tr>
+<td><code>&lt;(cmd)</code></td>
+<td>process substitution (cmd output as file)</td>
+</tr>
+<tr>
+<td><code>echo x \| sudo tee f</code></td>
+<td>privileged write (sudo echo &gt; f fails)</td>
+</tr>
+<tr>
+<td><code>$?</code>, <code>${PIPESTATUS[@]}</code>, pipefail</td>
+<td>exit status of last / each stage / any stage</td>
+</tr>
+</tbody>
+</table>
+<h2 id="ssh">ssh</h2>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>One-liner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ssh-keygen -t ed25519</td>
+<td>create key; private 600, ~/.ssh 700</td>
+</tr>
+<tr>
+<td>ssh-copy-id u@h</td>
+<td>install public key</td>
+</tr>
+<tr>
+<td>ssh-add / ssh-add -l</td>
+<td>load / list agent keys (macOS: --apple-use-keychain)</td>
+</tr>
+<tr>
+<td>ssh -J bastion u@h</td>
+<td>jump host (prefer over -A)</td>
+</tr>
+<tr>
+<td>-L 8080:host:80</td>
+<td>local listener -&gt; remote target</td>
+</tr>
+<tr>
+<td>-R 9000:localhost:3000</td>
+<td>remote listener -&gt; my local service</td>
+</tr>
+<tr>
+<td>-D 1080</td>
+<td>SOCKS proxy</td>
+</tr>
+<tr>
+<td>-fNL ...</td>
+<td>background tunnel only</td>
+</tr>
+<tr>
+<td>rsync -avz src/ u@h:dst/</td>
+<td>delta copy; -n dry run; --delete mirrors</td>
+</tr>
+<tr>
+<td>ssh-keygen -R host</td>
+<td>drop stale known_hosts entry</td>
+</tr>
+<tr>
+<td>ssh -vvv</td>
+<td>debug auth/connect</td>
+</tr>
+<tr>
+<td>config keys</td>
+<td>Host, HostName, User, IdentityFile, ProxyJump, ServerAliveInterval, ControlMaster/Path/Persist</td>
+</tr>
+</tbody>
+</table>
+<h2 id="systemd-and-cron">systemd and cron</h2>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>One-liner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>systemctl daemon-reload</td>
+<td>after editing units</td>
+</tr>
+<tr>
+<td>systemctl enable --now svc</td>
+<td>start now + boot</td>
+</tr>
+<tr>
+<td>systemctl status / restart / reload / stop svc</td>
+<td>state and control</td>
+</tr>
+<tr>
+<td>systemctl list-units --failed</td>
+<td>what is broken</td>
+</tr>
+<tr>
+<td>systemctl cat / edit svc</td>
+<td>effective unit / drop-in override</td>
+</tr>
+<tr>
+<td>systemctl reset-failed svc</td>
+<td>clear start-limit-hit</td>
+</tr>
+<tr>
+<td>journalctl -u svc -f / -n 200 / --since "1h ago" -p err</td>
+<td>service logs</td>
+</tr>
+<tr>
+<td>journalctl -b -1 / -k</td>
+<td>previous boot / kernel</td>
+</tr>
+<tr>
+<td>Restart=</td>
+<td>no / on-failure / on-abnormal / always</td>
+</tr>
+<tr>
+<td>EnvironmentFile=/etc/app.env</td>
+<td>KEY=value lines, chmod 600</td>
+</tr>
+<tr>
+<td>Exec status 203 / 217 / 200</td>
+<td>EXEC path / USER missing / CHDIR missing</td>
+</tr>
+<tr>
+<td>cron fields</td>
+<td>min hour dom mon dow; <code>*/5 * * * *</code>; <code>@reboot</code></td>
+</tr>
+<tr>
+<td>cron gotchas</td>
+<td>minimal PATH, <code>%</code> needs <code>\%</code>, no catch-up, redirect output, flock for overlap</td>
+</tr>
+<tr>
+<td>crontab -l / -e (never -r)</td>
+<td>list / edit / DELETES ALL</td>
+</tr>
+</tbody>
+</table>
+<h2 id="env-and-secrets">Env and secrets</h2>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>One-liner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>export X=1</code> vs <code>X=1</code></td>
+<td>inherited by children vs shell-local</td>
+</tr>
+<tr>
+<td><code>X=1 cmd</code></td>
+<td>one command only</td>
+</tr>
+<tr>
+<td>PATH</td>
+<td>first match wins; <code>type -a cmd</code>, <code>command -v cmd</code></td>
+</tr>
+<tr>
+<td><code>set -a; source .env; set +a</code></td>
+<td>load .env into shell</td>
+</tr>
+<tr>
+<td>Secrets</td>
+<td>not in argv, history, git, logs; use vault / 0400 files / IAM roles</td>
+</tr>
+<tr>
+<td>systemd, cron, sudo</td>
+<td>do not inherit your env</td>
+</tr>
+</tbody>
+</table>
+<h2 id="debug-symptom-tool">Debug: symptom -&gt; tool</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Tool</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CPU high</td>
+<td>top/htop, ps --sort=-pcpu, py-spy top, strace -c</td>
+</tr>
+<tr>
+<td>load high, CPU low</td>
+<td>vmstat 1 (b, wa), iostat -x 1, ps for D state</td>
+</tr>
+<tr>
+<td>memory pressure</td>
+<td>free -h (available), vmstat si/so, ps --sort=-rss</td>
+</tr>
+<tr>
+<td>hung</td>
+<td>ss -ltnp, curl -m5 -v, strace -p, py-spy dump, lsof -p</td>
+</tr>
+<tr>
+<td>crashing</td>
+<td>systemctl status, journalctl -u, dmesg -T, coredumpctl</td>
+</tr>
+<tr>
+<td>OOM</td>
+<td>dmesg -T | rg -i oom, exit 137, cgroup limits</td>
+</tr>
+<tr>
+<td>disk full</td>
+<td>df -h, df -i, du -xh | sort -h, lsof +L1</td>
+</tr>
+<tr>
+<td>port/file owner</td>
+<td>lsof -i :PORT, ss -ltnp, fuser -v</td>
+</tr>
+<tr>
+<td>network</td>
+<td>dig, curl -w timings, nc -vz, ip a/r, mtr</td>
+</tr>
+<tr>
+<td>fd exhaustion</td>
+<td>lsof -p PID | wc -l, /proc/PID/limits</td>
+</tr>
+</tbody>
+</table>
+<h2 id="bash-essentials">Bash essentials</h2>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>One-liner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>set -euo pipefail</code></td>
+<td>exit on error, unset var, pipe failure</td>
+</tr>
+<tr>
+<td><code>"$var"</code>, <code>"$@"</code>, <code>"${arr[@]}"</code></td>
+<td>always quote</td>
+</tr>
+<tr>
+<td><code>[[ -f f &amp;&amp; -n "$v" ]]</code></td>
+<td>tests; <code>(( n &gt; 3 ))</code> arithmetic</td>
+</tr>
+<tr>
+<td><code>${1:?usage}</code> / <code>${v:-default}</code></td>
+<td>require arg / default</td>
+</tr>
+<tr>
+<td><code>trap cleanup EXIT</code></td>
+<td>cleanup on any exit (not SIGKILL)</td>
+</tr>
+<tr>
+<td><code>local x; x=$(cmd)</code></td>
+<td>keeps exit status visible</td>
+</tr>
+<tr>
+<td><code>shellcheck f.sh</code>, <code>bash -n</code>, <code>set -x</code></td>
+<td>lint, syntax, trace</td>
+</tr>
+<tr>
+<td><code>flock -n 9</code></td>
+<td>single-instance lock (Linux)</td>
+</tr>
+<tr>
+<td>macOS</td>
+<td>bash 3.2, zsh default, BSD sed/ps/date; <code>brew install coreutils gnu-sed bash</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="memorize">Memorize</h2>
+<ul>
+<li>Everything is a file; config /etc, logs /var/log, data /var/lib.</li>
+<li>4/2/1; 755 / 644 / 600; umask subtracts; setuid 4, setgid 2, sticky 1.</li>
+<li>TERM first, KILL last; KILL cannot be trapped; PID 1 ignores default signals.</li>
+<li><code>&gt; f 2&gt;&amp;1</code> (order matters); <code>sudo tee</code> for privileged writes.</li>
+<li>sort before uniq; <code>-print0 | xargs -0</code>; quote everything in bash.</li>
+<li>ssh: -L brings remote to me, -R pushes mine to them; use ProxyJump.</li>
+<li>systemd: edit unit -&gt; daemon-reload -&gt; restart; logs via journalctl -u.</li>
+<li>cron/systemd/sudo have a clean env: absolute paths, explicit env.</li>
+<li>df vs du mismatch = deleted-open file (lsof +L1); df -i for inodes.</li>
+<li>Exit 137 = SIGKILL (likely OOM); check dmesg.</li>
+<li>Capture evidence before restart; read-only first; one change at a time.</li>
+</ul>
+<h2 id="command-quick-reference">Command quick reference</h2>
+<div class="highlight"><pre><span></span><code># orient
+uname -a; cat /etc/os-release; uptime; nproc; free -h; df -h; date
+# processes
+ps -eo pid,ppid,stat,pcpu,pmem,rss,etime,cmd --sort=-pcpu | head
+pstree -p; pgrep -fa name; kill -TERM PID; kill -l
+# network
+ss -ltnp; ss -tan state established | wc -l; lsof -i :8000; curl -v -m5 URL
+dig host; nc -vz host 443
+# logs
+journalctl -u svc -f; journalctl -p err -b; dmesg -T | tail; tail -F file
+# disk
+du -xh /var --max-depth=2 | sort -h | tail; df -i; lsof +L1
+# trace
+strace -f -tt -T -p PID; strace -c -p PID; py-spy dump -p PID
+# files
+find . -type f -mtime -1 -size +10M; rg -n 'ERROR' .; fd '\.py$'
+jq -r '.items[].name' &lt; data.json
+# ssh
+ssh -J bastion user@host; ssh -fNL 5432:db:5432 bastion; rsync -avzn src/ user@host:/dst/
+# tmux
+tmux new -s name; Ctrl-b d; tmux attach -t name; tmux ls
+</code></pre></div>
+</article><div class="pager"><a class="prev" href="../../12-cs-fundamentals/week-03-linux-shell/interview-qa.html">← Week 3 · Linux and shell: Interview Q&amp;A</a><a class="next" href="../../12-cs-fundamentals/week-04-git-collaboration/lesson.html">Week 4 · Git, review and CI/CD: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

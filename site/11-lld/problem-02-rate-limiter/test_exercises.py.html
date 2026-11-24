@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>test_exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="11-lld/problem-02-rate-limiter/test_exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../11-lld/README.html">Low-Level Design</a> / <a href="../../11-lld/problem-02-rate-limiter/lesson.html">Problem 2 · Rate limiter</a> / <span>Tests (code)</span></nav><button id="mark-done" data-id="11-lld/problem-02-rate-limiter/test_exercises.py">Mark as done</button></div><article class="doc">
+<h1>test_exercises.py</h1><p class="code-path"><code>11-lld/problem-02-rate-limiter/test_exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">FakeClock</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">now</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">now</span> <span class="o">=</span> <span class="n">now</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">now</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">advance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">seconds</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">now</span> <span class="o">+=</span> <span class="n">seconds</span>
+
+
+<span class="c1"># ---- ABC</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_ratelimiter_is_abstract</span><span class="p">():</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">TypeError</span><span class="p">):</span>
+        <span class="n">RateLimiter</span><span class="p">()</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">parametrize</span><span class="p">(</span><span class="s2">"cls"</span><span class="p">,</span> <span class="p">[</span><span class="n">TokenBucketLimiter</span><span class="p">,</span> <span class="n">SlidingWindowLogLimiter</span><span class="p">,</span> <span class="n">FixedWindowLimiter</span><span class="p">,</span> <span class="n">CompositeLimiter</span><span class="p">])</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_concrete_classes_are_ratelimiters</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="nb">issubclass</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">RateLimiter</span><span class="p">)</span>
+
+
+<span class="c1"># ---- token bucket</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">tb</span><span class="p">(</span><span class="n">capacity</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">rate</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">clock</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">clock</span> <span class="o">=</span> <span class="n">clock</span> <span class="ow">or</span> <span class="n">FakeClock</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">TokenBucketLimiter</span><span class="p">(</span><span class="n">capacity</span><span class="p">,</span> <span class="n">rate</span><span class="p">,</span> <span class="n">clock</span><span class="p">),</span> <span class="n">clock</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">parametrize</span><span class="p">(</span><span class="s2">"cap,rate"</span><span class="p">,</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="mf">1.5</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="mi">1</span><span class="p">)])</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_tb_bad_config</span><span class="p">(</span><span class="n">cap</span><span class="p">,</span> <span class="n">rate</span><span class="p">):</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">TokenBucketLimiter</span><span class="p">(</span><span class="n">cap</span><span class="p">,</span> <span class="n">rate</span><span class="p">,</span> <span class="n">FakeClock</span><span class="p">())</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_tb_attrs</span><span class="p">():</span>
+    <span class="n">lim</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">tb</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">capacity</span> <span class="o">==</span> <span class="mi">7</span> <span class="ow">and</span> <span class="n">lim</span><span class="o">.</span><span class="n">refill_rate</span> <span class="o">==</span> <span class="mi">2</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_tb_burst_up_to_capacity_then_deny</span><span class="p">():</span>
+    <span class="n">lim</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">tb</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">7</span><span class="p">)]</span> <span class="o">==</span> <span class="p">[</span><span class="kc">True</span><span class="p">]</span> <span class="o">*</span> <span class="mi">5</span> <span class="o">+</span> <span class="p">[</span><span class="kc">False</span><span class="p">]</span> <span class="o">*</span> <span class="mi">2</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_tb_refills_over_time</span><span class="p">():</span>
+    <span class="n">lim</span><span class="p">,</span> <span class="n">clock</span> <span class="o">=</span> <span class="n">tb</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">):</span>
+        <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mf">2.5</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span> <span class="ow">and</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_tb_refill_is_capped_at_capacity</span><span class="p">():</span>
+    <span class="n">lim</span><span class="p">,</span> <span class="n">clock</span> <span class="o">=</span> <span class="n">tb</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">):</span>
+        <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">1000</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">6</span><span class="p">)]</span> <span class="o">==</span> <span class="p">[</span><span class="kc">True</span><span class="p">]</span> <span class="o">*</span> <span class="mi">5</span> <span class="o">+</span> <span class="p">[</span><span class="kc">False</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_tb_keys_are_independent</span><span class="p">():</span>
+    <span class="n">lim</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">tb</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"a"</span><span class="p">)</span> <span class="ow">and</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"a"</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"a"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"b"</span><span class="p">)</span> <span class="ow">and</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"b"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_tb_cost</span><span class="p">():</span>
+    <span class="n">lim</span><span class="p">,</span> <span class="n">clock</span> <span class="o">=</span> <span class="n">tb</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">,</span> <span class="n">cost</span><span class="o">=</span><span class="mi">7</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">,</span> <span class="n">cost</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>      <span class="c1"># denied: nothing consumed</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">,</span> <span class="n">cost</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>                       <span class="c1"># +4 tokens</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">,</span> <span class="n">cost</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_tb_denied_request_consumes_nothing</span><span class="p">():</span>
+    <span class="n">lim</span><span class="p">,</span> <span class="n">clock</span> <span class="o">=</span> <span class="n">tb</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">,</span> <span class="n">cost</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="ow">not</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">,</span> <span class="n">cost</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">,</span> <span class="n">cost</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_tb_cost_larger_than_capacity</span><span class="p">():</span>
+    <span class="n">lim</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">tb</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">,</span> <span class="n">cost</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">retry_after</span><span class="p">(</span><span class="s2">"u"</span><span class="p">,</span> <span class="n">cost</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span> <span class="o">==</span> <span class="n">math</span><span class="o">.</span><span class="n">inf</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">,</span> <span class="n">cost</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>          <span class="c1"># bucket was not drained by the failed call</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">parametrize</span><span class="p">(</span><span class="s2">"cost"</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mf">1.5</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span> <span class="s2">"1"</span><span class="p">])</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_cost_validation_all_limiters</span><span class="p">(</span><span class="n">cost</span><span class="p">):</span>
+    <span class="n">clock</span> <span class="o">=</span> <span class="n">FakeClock</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">lim</span> <span class="ow">in</span> <span class="p">(</span><span class="n">TokenBucketLimiter</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">clock</span><span class="p">),</span> <span class="n">SlidingWindowLogLimiter</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="n">clock</span><span class="p">),</span> <span class="n">FixedWindowLimiter</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="n">clock</span><span class="p">)):</span>
+        <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+            <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">,</span> <span class="n">cost</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+            <span class="n">lim</span><span class="o">.</span><span class="n">retry_after</span><span class="p">(</span><span class="s2">"u"</span><span class="p">,</span> <span class="n">cost</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_tb_retry_after</span><span class="p">():</span>
+    <span class="n">lim</span><span class="p">,</span> <span class="n">clock</span> <span class="o">=</span> <span class="n">tb</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>                  <span class="c1"># 2 tokens/sec</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">retry_after</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span> <span class="o">==</span> <span class="mf">0.0</span>
+    <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+    <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">retry_after</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span> <span class="o">==</span> <span class="n">pytest</span><span class="o">.</span><span class="n">approx</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">retry_after</span><span class="p">(</span><span class="s2">"u"</span><span class="p">,</span> <span class="n">cost</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="n">pytest</span><span class="o">.</span><span class="n">approx</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mf">0.25</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">retry_after</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span> <span class="o">==</span> <span class="n">pytest</span><span class="o">.</span><span class="n">approx</span><span class="p">(</span><span class="mf">0.25</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mf">0.25</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">retry_after</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span> <span class="o">==</span> <span class="mf">0.0</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_tb_retry_after_does_not_consume</span><span class="p">():</span>
+    <span class="n">lim</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">tb</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">retry_after</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span> <span class="o">==</span> <span class="mf">0.0</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_tb_clock_going_backwards_is_safe</span><span class="p">():</span>
+    <span class="n">lim</span><span class="p">,</span> <span class="n">clock</span> <span class="o">=</span> <span class="n">tb</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">now</span> <span class="o">=</span> <span class="mi">100</span>
+    <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+    <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">now</span> <span class="o">=</span> <span class="mi">50</span>                         <span class="c1"># backwards</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">now</span> <span class="o">=</span> <span class="mi">101</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_tb_default_clock_is_usable</span><span class="p">():</span>
+    <span class="n">lim</span> <span class="o">=</span> <span class="n">TokenBucketLimiter</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span>
+
+
+<span class="c1"># ---- sliding window log</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">sw</span><span class="p">(</span><span class="n">limit</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">window</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">clock</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">clock</span> <span class="o">=</span> <span class="n">clock</span> <span class="ow">or</span> <span class="n">FakeClock</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">SlidingWindowLogLimiter</span><span class="p">(</span><span class="n">limit</span><span class="p">,</span> <span class="n">window</span><span class="p">,</span> <span class="n">clock</span><span class="p">),</span> <span class="n">clock</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">parametrize</span><span class="p">(</span><span class="s2">"limit,window"</span><span class="p">,</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="mf">2.5</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)])</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_sw_bad_config</span><span class="p">(</span><span class="n">limit</span><span class="p">,</span> <span class="n">window</span><span class="p">):</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">SlidingWindowLogLimiter</span><span class="p">(</span><span class="n">limit</span><span class="p">,</span> <span class="n">window</span><span class="p">,</span> <span class="n">FakeClock</span><span class="p">())</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_sw_limit_within_window</span><span class="p">():</span>
+    <span class="n">lim</span><span class="p">,</span> <span class="n">clock</span> <span class="o">=</span> <span class="n">sw</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">4</span><span class="p">)]</span> <span class="o">==</span> <span class="p">[</span><span class="kc">True</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_sw_entry_expires_exactly_at_window_end</span><span class="p">():</span>
+    <span class="n">lim</span><span class="p">,</span> <span class="n">clock</span> <span class="o">=</span> <span class="n">sw</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+        <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mf">9.99</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mf">0.01</span><span class="p">)</span>                    <span class="c1"># t == 10: the t=0 entries stop counting</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_sw_window_slides_entry_by_entry</span><span class="p">():</span>
+    <span class="n">lim</span><span class="p">,</span> <span class="n">clock</span> <span class="o">=</span> <span class="n">sw</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>                         <span class="c1"># t=0</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
+    <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>                         <span class="c1"># t=4</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">6</span><span class="p">)</span>                       <span class="c1"># t=10: first expired, second still counts</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>                       <span class="c1"># t=14: t=4 entry expired</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_sw_no_boundary_burst</span><span class="p">():</span>
+    <span class="n">lim</span><span class="p">,</span> <span class="n">clock</span> <span class="o">=</span> <span class="n">sw</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">now</span> <span class="o">=</span> <span class="mi">9</span>
+    <span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">))</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">now</span> <span class="o">=</span> <span class="mi">10</span>                         <span class="c1"># 1s later: still within 10s of the first batch</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_sw_keys_independent_and_cost</span><span class="p">():</span>
+    <span class="n">lim</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">sw</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="n">cost</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="n">cost</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="n">cost</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="n">cost</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_sw_denied_request_does_not_log</span><span class="p">():</span>
+    <span class="n">lim</span><span class="p">,</span> <span class="n">clock</span> <span class="o">=</span> <span class="n">sw</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>              <span class="c1"># must not push the window forward</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_sw_retry_after</span><span class="p">():</span>
+    <span class="n">lim</span><span class="p">,</span> <span class="n">clock</span> <span class="o">=</span> <span class="n">sw</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">retry_after</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span> <span class="o">==</span> <span class="mf">0.0</span>
+    <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>                         <span class="c1"># t=0</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+    <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>                         <span class="c1"># t=3</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">retry_after</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span> <span class="o">==</span> <span class="n">pytest</span><span class="o">.</span><span class="n">approx</span><span class="p">(</span><span class="mf">7.0</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">retry_after</span><span class="p">(</span><span class="s2">"u"</span><span class="p">,</span> <span class="n">cost</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="n">pytest</span><span class="o">.</span><span class="n">approx</span><span class="p">(</span><span class="mf">10.0</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">7</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">retry_after</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span> <span class="o">==</span> <span class="mf">0.0</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_sw_cost_larger_than_limit</span><span class="p">():</span>
+    <span class="n">lim</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">sw</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">,</span> <span class="n">cost</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">retry_after</span><span class="p">(</span><span class="s2">"u"</span><span class="p">,</span> <span class="n">cost</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span> <span class="o">==</span> <span class="n">math</span><span class="o">.</span><span class="n">inf</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_sw_memory_pruned</span><span class="p">():</span>
+    <span class="n">lim</span><span class="p">,</span> <span class="n">clock</span> <span class="o">=</span> <span class="n">sw</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1000</span><span class="p">):</span>
+        <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+        <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="c1"># behaves correctly after long history</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span> <span class="ow">and</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span> <span class="ow">and</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+
+
+<span class="c1"># ---- fixed window</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">fw</span><span class="p">(</span><span class="n">limit</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">window</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">clock</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">clock</span> <span class="o">=</span> <span class="n">clock</span> <span class="ow">or</span> <span class="n">FakeClock</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">FixedWindowLimiter</span><span class="p">(</span><span class="n">limit</span><span class="p">,</span> <span class="n">window</span><span class="p">,</span> <span class="n">clock</span><span class="p">),</span> <span class="n">clock</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">parametrize</span><span class="p">(</span><span class="s2">"limit,window"</span><span class="p">,</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mf">1.5</span><span class="p">,</span> <span class="mi">1</span><span class="p">)])</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_fw_bad_config</span><span class="p">(</span><span class="n">limit</span><span class="p">,</span> <span class="n">window</span><span class="p">):</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">FixedWindowLimiter</span><span class="p">(</span><span class="n">limit</span><span class="p">,</span> <span class="n">window</span><span class="p">,</span> <span class="n">FakeClock</span><span class="p">())</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_fw_limit_and_reset_at_aligned_boundary</span><span class="p">():</span>
+    <span class="n">lim</span><span class="p">,</span> <span class="n">clock</span> <span class="o">=</span> <span class="n">fw</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">now</span> <span class="o">=</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">4</span><span class="p">)]</span> <span class="o">==</span> <span class="p">[</span><span class="kc">True</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">]</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">now</span> <span class="o">=</span> <span class="mf">9.99</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">now</span> <span class="o">=</span> <span class="mi">10</span>                         <span class="c1"># new aligned window</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">4</span><span class="p">)]</span> <span class="o">==</span> <span class="p">[</span><span class="kc">True</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_fw_boundary_burst_is_allowed_unlike_sliding_window</span><span class="p">():</span>
+    <span class="n">lim</span><span class="p">,</span> <span class="n">clock</span> <span class="o">=</span> <span class="n">fw</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">now</span> <span class="o">=</span> <span class="mi">9</span>
+    <span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">))</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">now</span> <span class="o">=</span> <span class="mi">10</span>
+    <span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">))</span>   <span class="c1"># 10 requests in 1 second</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_fw_skipped_windows_reset</span><span class="p">():</span>
+    <span class="n">lim</span><span class="p">,</span> <span class="n">clock</span> <span class="o">=</span> <span class="n">fw</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">now</span> <span class="o">=</span> <span class="mi">55</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_fw_keys_cost_retry_after</span><span class="p">():</span>
+    <span class="n">lim</span><span class="p">,</span> <span class="n">clock</span> <span class="o">=</span> <span class="n">fw</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">now</span> <span class="o">=</span> <span class="mi">4</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="n">cost</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="n">cost</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"a"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">retry_after</span><span class="p">(</span><span class="s2">"a"</span><span class="p">)</span> <span class="o">==</span> <span class="n">pytest</span><span class="o">.</span><span class="n">approx</span><span class="p">(</span><span class="mf">6.0</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">retry_after</span><span class="p">(</span><span class="s2">"b"</span><span class="p">)</span> <span class="o">==</span> <span class="mf">0.0</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">retry_after</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="n">cost</span><span class="o">=</span><span class="mi">6</span><span class="p">)</span> <span class="o">==</span> <span class="n">math</span><span class="o">.</span><span class="n">inf</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">now</span> <span class="o">=</span> <span class="mi">10</span>
+    <span class="k">assert</span> <span class="n">lim</span><span class="o">.</span><span class="n">retry_after</span><span class="p">(</span><span class="s2">"a"</span><span class="p">)</span> <span class="o">==</span> <span class="mf">0.0</span>
+
+
+<span class="c1"># ---- composite</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_composite_requires_all_and_has_no_partial_consumption</span><span class="p">():</span>
+    <span class="n">clock</span> <span class="o">=</span> <span class="n">FakeClock</span><span class="p">()</span>
+    <span class="n">per_sec</span> <span class="o">=</span> <span class="n">SlidingWindowLogLimiter</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">clock</span><span class="p">)</span>
+    <span class="n">per_min</span> <span class="o">=</span> <span class="n">SlidingWindowLogLimiter</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">60</span><span class="p">,</span> <span class="n">clock</span><span class="p">)</span>
+    <span class="n">both</span> <span class="o">=</span> <span class="n">CompositeLimiter</span><span class="p">([</span><span class="n">per_sec</span><span class="p">,</span> <span class="n">per_min</span><span class="p">])</span>
+    <span class="k">assert</span> <span class="n">both</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span> <span class="ow">and</span> <span class="n">both</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">both</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>             <span class="c1"># per-second exhausted</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">both</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>                 <span class="c1"># 3rd of the minute</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">both</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>             <span class="c1"># per-minute exhausted</span>
+    <span class="c1"># the denied calls above must not have been charged to per_sec</span>
+    <span class="k">assert</span> <span class="n">per_sec</span><span class="o">.</span><span class="n">retry_after</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span> <span class="o">==</span> <span class="mf">0.0</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_composite_retry_after_is_max</span><span class="p">():</span>
+    <span class="n">clock</span> <span class="o">=</span> <span class="n">FakeClock</span><span class="p">()</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">SlidingWindowLogLimiter</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="n">clock</span><span class="p">)</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">SlidingWindowLogLimiter</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="n">clock</span><span class="p">)</span>
+    <span class="n">both</span> <span class="o">=</span> <span class="n">CompositeLimiter</span><span class="p">([</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">])</span>
+    <span class="k">assert</span> <span class="n">both</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">both</span><span class="o">.</span><span class="n">retry_after</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span> <span class="o">==</span> <span class="n">pytest</span><span class="o">.</span><span class="n">approx</span><span class="p">(</span><span class="mf">20.0</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">both</span><span class="o">.</span><span class="n">retry_after</span><span class="p">(</span><span class="s2">"u"</span><span class="p">)</span> <span class="o">==</span> <span class="n">pytest</span><span class="o">.</span><span class="n">approx</span><span class="p">(</span><span class="mf">15.0</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_composite_validates</span><span class="p">():</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">CompositeLimiter</span><span class="p">([])</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">CompositeLimiter</span><span class="p">([</span><span class="n">TokenBucketLimiter</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">FakeClock</span><span class="p">())])</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_composite_mixes_algorithms_and_cost</span><span class="p">():</span>
+    <span class="n">clock</span> <span class="o">=</span> <span class="n">FakeClock</span><span class="p">()</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">CompositeLimiter</span><span class="p">([</span><span class="n">TokenBucketLimiter</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">clock</span><span class="p">),</span> <span class="n">FixedWindowLimiter</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="n">clock</span><span class="p">)])</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">,</span> <span class="n">cost</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">c</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">,</span> <span class="n">cost</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"u"</span><span class="p">,</span> <span class="n">cost</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+
+
+<span class="c1"># ---- concurrency (frozen clock =&gt; exact counts, deterministic)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">hammer</span><span class="p">(</span><span class="n">lim</span><span class="p">,</span> <span class="n">threads</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">per_thread</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">lock</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Lock</span><span class="p">()</span>
+    <span class="n">barrier</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Barrier</span><span class="p">(</span><span class="n">threads</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">work</span><span class="p">():</span>
+        <span class="n">barrier</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
+        <span class="n">local</span> <span class="o">=</span> <span class="p">[</span><span class="n">lim</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="s2">"shared"</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">per_thread</span><span class="p">)]</span>
+        <span class="k">with</span> <span class="n">lock</span><span class="p">:</span>
+            <span class="n">results</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">local</span><span class="p">)</span>
+
+    <span class="n">ts</span> <span class="o">=</span> <span class="p">[</span><span class="n">threading</span><span class="o">.</span><span class="n">Thread</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">work</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">threads</span><span class="p">)]</span>
+    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">ts</span><span class="p">:</span>
+        <span class="n">t</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">ts</span><span class="p">:</span>
+        <span class="n">t</span><span class="o">.</span><span class="n">join</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">results</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_tb_thread_safe_exact_count</span><span class="p">():</span>
+    <span class="n">lim</span> <span class="o">=</span> <span class="n">TokenBucketLimiter</span><span class="p">(</span><span class="mi">100</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">FakeClock</span><span class="p">())</span>
+    <span class="k">assert</span> <span class="nb">sum</span><span class="p">(</span><span class="n">hammer</span><span class="p">(</span><span class="n">lim</span><span class="p">))</span> <span class="o">==</span> <span class="mi">100</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_sw_thread_safe_exact_count</span><span class="p">():</span>
+    <span class="n">lim</span> <span class="o">=</span> <span class="n">SlidingWindowLogLimiter</span><span class="p">(</span><span class="mi">100</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="n">FakeClock</span><span class="p">())</span>
+    <span class="k">assert</span> <span class="nb">sum</span><span class="p">(</span><span class="n">hammer</span><span class="p">(</span><span class="n">lim</span><span class="p">))</span> <span class="o">==</span> <span class="mi">100</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_fw_thread_safe_exact_count</span><span class="p">():</span>
+    <span class="n">lim</span> <span class="o">=</span> <span class="n">FixedWindowLimiter</span><span class="p">(</span><span class="mi">100</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="n">FakeClock</span><span class="p">())</span>
+    <span class="k">assert</span> <span class="nb">sum</span><span class="p">(</span><span class="n">hammer</span><span class="p">(</span><span class="n">lim</span><span class="p">))</span> <span class="o">==</span> <span class="mi">100</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_composite_thread_safe_exact_count</span><span class="p">():</span>
+    <span class="n">clock</span> <span class="o">=</span> <span class="n">FakeClock</span><span class="p">()</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">CompositeLimiter</span><span class="p">([</span><span class="n">TokenBucketLimiter</span><span class="p">(</span><span class="mi">100</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">clock</span><span class="p">),</span> <span class="n">SlidingWindowLogLimiter</span><span class="p">(</span><span class="mi">60</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="n">clock</span><span class="p">)])</span>
+    <span class="k">assert</span> <span class="nb">sum</span><span class="p">(</span><span class="n">hammer</span><span class="p">(</span><span class="n">c</span><span class="p">))</span> <span class="o">==</span> <span class="mi">60</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../11-lld/problem-02-rate-limiter/exercises.py.html">← Problem 2 · Rate limiter: Exercises (code)</a><a class="next" href="../../11-lld/problem-03-elevator-system/lesson.html">Problem 3 · Elevator system: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

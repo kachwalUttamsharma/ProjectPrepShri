@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 7: Data Pipeline and Platform Design Framework | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="14-data-engineering/week-07-pipeline-design/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../14-data-engineering/week-07-pipeline-design/designs/01-clickstream-analytics.html">Week 7 · Pipeline design</a> / <span>Lesson</span></nav><button id="mark-done" data-id="14-data-engineering/week-07-pipeline-design/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-7-data-pipeline-and-platform-design-framework">Week 7: Data Pipeline and Platform Design Framework</h1>
+<p>Senior data engineer design rounds are not "draw Kafka -&gt; Spark -&gt; warehouse". They test whether you can turn vague business needs into a platform with explicit freshness, correctness, cost, and operability guarantees. Use one skeleton for every prompt, then go deep where the interviewer pushes.</p>
+<p>Companion files: <a href="interview-qa.html">interview-qa.md</a>, <a href="cheatsheet.html">cheatsheet.md</a>, <a href="../mock-interview.html">../mock-interview.md</a>, and the eight worked designs in <a href="designs/01-clickstream-analytics.html">designs/</a>.</p>
+<h2 id="1-45-minute-time-split">1. 45-minute time split</h2>
+<table>
+<thead>
+<tr>
+<th>Min</th>
+<th>Phase</th>
+<th>Output on the board</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0-7</td>
+<td>1. Clarify requirements</td>
+<td>Sources, volume, freshness SLA, consumers, correctness bar, compliance, out-of-scope</td>
+</tr>
+<tr>
+<td>7-12</td>
+<td>2. Estimate</td>
+<td>events/s avg and peak, GB/day, TB/year, cost order of magnitude</td>
+</tr>
+<tr>
+<td>12-25</td>
+<td>3. Architecture</td>
+<td>Ingest -&gt; storage layers -&gt; processing -&gt; serving, one record walked end to end</td>
+</tr>
+<tr>
+<td>25-40</td>
+<td>4. Deep dives</td>
+<td>2-3 hard parts: late data, exactly-once, backfill, schema evolution, skew</td>
+</tr>
+<tr>
+<td>40-45</td>
+<td>5. Ops and evolution</td>
+<td>Quality, observability, failure modes, cost levers, what changes at 10x</td>
+</tr>
+</tbody>
+</table>
+<h2 id="2-step-1-clarify-requirements">2. Step 1: clarify requirements</h2>
+<p>Ask these, in this order. Write the answers down; they drive every later choice.</p>
+<table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Why it matters</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Who consumes the output and how (dashboard, ML model, API, finance close, regulator)?</td>
+<td>Defines serving layer and SLA</td>
+</tr>
+<tr>
+<td>Freshness: how stale may data be (seconds, minutes, hours, next day)?</td>
+<td>Batch vs streaming; cost multiplier of 5-10x for streaming</td>
+</tr>
+<tr>
+<td>Volume: rows/day, events/s, row size, growth rate?</td>
+<td>Sizing, partitioning, file layout</td>
+</tr>
+<tr>
+<td>Velocity and shape: bursty? seasonal? skewed keys?</td>
+<td>Autoscaling, hot partitions</td>
+</tr>
+<tr>
+<td>Correctness: can we lose, duplicate, or reorder? Must totals tie to a source of truth?</td>
+<td>Delivery semantics, reconciliation</td>
+</tr>
+<tr>
+<td>Source types: OLTP DB, SaaS API, files, event bus, third party? Who owns them?</td>
+<td>Ingestion pattern, contracts</td>
+</tr>
+<tr>
+<td>History: backfill needs, retention, reprocessing frequency?</td>
+<td>Immutable raw layer, replayability</td>
+</tr>
+<tr>
+<td>Compliance: PII, GDPR/CCPA, SOX, residency, audit?</td>
+<td>Encryption, masking, deletion, lineage</td>
+</tr>
+<tr>
+<td>Budget and team: cloud, existing stack, headcount?</td>
+<td>Managed vs self-run</td>
+</tr>
+</tbody>
+</table>
+<p>State out loud: "The hardest requirement here seems to be X (for example: 5-second freshness, or penny-exact reconciliation)." That frames the whole answer.</p>
+<h2 id="3-step-2-batch-vs-micro-batch-vs-streaming">3. Step 2: batch vs micro-batch vs streaming</h2>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Typical latency</th>
+<th>Best for</th>
+<th>Cost and complexity</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Batch (hourly/daily)</td>
+<td>minutes to hours</td>
+<td>Finance, reporting, big historical recompute</td>
+<td>Lowest; easy to re-run</td>
+</tr>
+<tr>
+<td>Micro-batch (Spark Structured Streaming triggers, 1-15 min)</td>
+<td>10 s to minutes</td>
+<td>Near-real-time analytics, CDC merges into lakehouse</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td>True streaming (Flink, Kafka Streams)</td>
+<td>sub-second to seconds</td>
+<td>Fraud, alerting, live ops metrics, per-event enrichment</td>
+<td>Highest: state, watermarks, exactly-once, on-call</td>
+</tr>
+</tbody>
+</table>
+<p>Decision rule: pick the slowest mode that meets the freshness SLA. Many designs are hybrid: streaming for the hot path (approximate, fast), batch for the correct path (authoritative, re-runnable). Two shapes of hybrid to name:</p>
+<ul>
+<li>Lambda: separate batch and speed layers merged at query time. Two codebases; drift risk.</li>
+<li>Kappa / unified: one streaming codebase, replay from the log for reprocessing. Requires long retention or a lakehouse as replay source. Modern engines (Spark, Flink) can run the same logic in batch and streaming mode, which reduces Lambda's duplication.</li>
+</ul>
+<h2 id="4-reference-architecture">4. Reference architecture</h2>
+<pre class="mermaid">flowchart LR
+  subgraph Sources
+    A1[OLTP DB]:::s
+    A2[SaaS API]:::s
+    A3[Files / SFTP]:::s
+    A4[App events]:::s
+  end
+  subgraph Ingestion
+    B1[CDC - Debezium]
+    B2[API pullers]
+    B3[File landing + notification]
+    B4[Event bus - Kafka/Kinesis]
+  end
+  subgraph Lake[Lakehouse on object storage]
+    C1[(Bronze / raw, immutable)]
+    C2[(Silver / cleaned, deduped, conformed)]
+    C3[(Gold / curated marts, aggregates)]
+  end
+  subgraph Processing
+    P1[Spark / Flink / dbt]
+  end
+  subgraph Serving
+    D1[Warehouse / BI]
+    D2[OLAP: Druid, Pinot, ClickHouse]
+    D3[Feature store online]
+    D4[Cache / API]
+  end
+  A1 --&gt; B1 --&gt; C1
+  A2 --&gt; B2 --&gt; C1
+  A3 --&gt; B3 --&gt; C1
+  A4 --&gt; B4 --&gt; C1
+  B4 --&gt; P1
+  C1 --&gt; P1 --&gt; C2 --&gt; P1 --&gt; C3
+  C3 --&gt; D1
+  C3 --&gt; D2
+  C3 --&gt; D3
+  C3 --&gt; D4
+  O[Orchestrator: Airflow/Dagster] -.-&gt; P1
+  Q[Quality + lineage + observability] -.-&gt; Lake
+  classDef s fill:#eee,stroke:#999;</pre>
+<h2 id="5-step-3-ingestion-patterns">5. Step 3: ingestion patterns</h2>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th>Pattern</th>
+<th>Key concerns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OLTP database</td>
+<td>Log-based CDC (Debezium on MySQL binlog / Postgres WAL) into Kafka, or managed (check current docs for DMS, Datastream, Fivetran)</td>
+<td>Initial snapshot + stream handoff, ordering per key, deletes, schema changes, replication slot growth</td>
+</tr>
+<tr>
+<td>OLTP, no log access</td>
+<td>Incremental query on <code>updated_at</code> or high-watermark ID</td>
+<td>Misses hard deletes; clock skew; late commits (use overlap window)</td>
+</tr>
+<tr>
+<td>SaaS API</td>
+<td>Scheduled pullers with cursors, rate-limit backoff</td>
+<td>Pagination, idempotent loads, API schema drift, quotas</td>
+</tr>
+<tr>
+<td>Files (SFTP, S3 drops)</td>
+<td>Landing zone + manifest/notification, checksum, quarantine bad files</td>
+<td>Partial uploads, duplicates, naming conventions, late arrivals</td>
+</tr>
+<tr>
+<td>Events</td>
+<td>Producer SDK -&gt; Kafka/Kinesis/PubSub -&gt; sink connector</td>
+<td>Schema registry, partition key choice, event time vs ingest time, PII at the edge</td>
+</tr>
+</tbody>
+</table>
+<p>Always land raw data unchanged first (bronze) with metadata: source, ingest time, batch id, source offset/LSN. This makes every downstream step replayable.</p>
+<h2 id="6-step-4-storage-layers-medallion">6. Step 4: storage layers (medallion)</h2>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Contents</th>
+<th>Rules</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bronze / raw</td>
+<td>As-received, append-only, original format or lightly parsed</td>
+<td>Never mutate; retain for replay; partition by ingest date</td>
+</tr>
+<tr>
+<td>Silver / cleaned</td>
+<td>Deduped, typed, conformed keys, PII tagged, SCD history</td>
+<td>Idempotent merges (upsert by key); quality checks gate promotion</td>
+</tr>
+<tr>
+<td>Gold / curated</td>
+<td>Business marts, star schemas, aggregates, metric definitions</td>
+<td>Optimized for query; documented owners; semantic layer</td>
+</tr>
+</tbody>
+</table>
+<p>Format: open table formats (Iceberg, Delta, Hudi) give ACID commits, schema evolution, time travel, and row-level MERGE/DELETE on object storage. Details vary by engine and version (check current docs). Partition by a low-cardinality column used in filters (usually date); avoid over-partitioning (small files). Compact small files regularly.</p>
+<h2 id="7-step-5-processing">7. Step 5: processing</h2>
+<ul>
+<li>Batch transforms: Spark, dbt on a warehouse, SQL engines. Make every job idempotent: output = f(inputs for a partition), written with overwrite-partition or MERGE, never blind append.</li>
+<li>Streaming: choose event-time semantics with watermarks for lateness, state with checkpoints, and a sink that is idempotent or transactional for end-to-end exactly-once effect.</li>
+<li>Deduplication: natural key + version (LSN, <code>updated_at</code>, sequence number) with ROW_NUMBER latest-wins, not "last arrived wins".</li>
+<li>Data skew: salt hot keys, broadcast small tables, rely on adaptive query execution in Spark 3.x (check current docs for defaults).</li>
+</ul>
+<h2 id="8-step-6-serving">8. Step 6: serving</h2>
+<table>
+<thead>
+<tr>
+<th>Need</th>
+<th>Choice</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ad hoc SQL, BI, finance</td>
+<td>Warehouse / lakehouse SQL engine (Snowflake, BigQuery, Redshift, Databricks SQL, Trino)</td>
+<td>Best flexibility; seconds latency; concurrency cost</td>
+</tr>
+<tr>
+<td>User-facing, sub-second, high-concurrency aggregates</td>
+<td>OLAP store: Druid, Pinot, ClickHouse</td>
+<td>Pre-aggregation/rollups, limited joins, strong on time-series filters</td>
+</tr>
+<tr>
+<td>ML</td>
+<td>Feature store: offline (lake) + online (Redis, DynamoDB, Cassandra)</td>
+<td>Point-in-time correctness, train/serve skew</td>
+</tr>
+<tr>
+<td>Operational lookups</td>
+<td>Key-value / cache in front of gold</td>
+<td>TTLs, invalidation</td>
+</tr>
+<tr>
+<td>Reverse ETL</td>
+<td>Push gold to SaaS tools</td>
+<td>Idempotency, rate limits</td>
+</tr>
+</tbody>
+</table>
+<h2 id="9-orchestration-quality-observability">9. Orchestration, quality, observability</h2>
+<p>Orchestration (Airflow, Dagster, Prefect, or cloud-native): DAGs with explicit dependencies, retries with backoff, idempotent tasks, backfill by date range, SLAs, sensors for data arrival (prefer data-aware/asset-based triggering over fixed clock times), concurrency pools.</p>
+<p>Data quality at each layer boundary:</p>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Example</th>
+<th>On failure</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Schema</td>
+<td>column present, types</td>
+<td>Block, alert producer</td>
+</tr>
+<tr>
+<td>Freshness</td>
+<td>max(event_ts) within SLA</td>
+<td>Alert; mark dataset stale</td>
+</tr>
+<tr>
+<td>Volume</td>
+<td>row count within +-X% of trend</td>
+<td>Quarantine batch</td>
+</tr>
+<tr>
+<td>Uniqueness / null</td>
+<td>PK unique, required not null</td>
+<td>Dead-letter bad rows, fail if above threshold</td>
+</tr>
+<tr>
+<td>Referential</td>
+<td>FK exists in dimension</td>
+<td>Late-arriving dimension handling</td>
+</tr>
+<tr>
+<td>Reconciliation</td>
+<td>sum(target) == sum(source)</td>
+<td>Hard block for finance</td>
+</tr>
+<tr>
+<td>Distribution</td>
+<td>metric drift</td>
+<td>Warn</td>
+</tr>
+</tbody>
+</table>
+<p>Tools: Great Expectations, dbt tests, Soda, Deequ (check current docs). Use a block vs warn policy so non-critical checks do not stop pipelines.</p>
+<p>Observability: the three pillars for data are freshness, volume, and schema, plus lineage (OpenLineage) and job metrics (duration, bytes, retries, consumer lag, watermark delay). Alert on symptoms consumers feel (stale table), not only on task failures. Every dataset has an owner and a runbook.</p>
+<h2 id="10-backfill-and-reprocessing">10. Backfill and reprocessing</h2>
+<ul>
+<li>Keep bronze immutable and replayable; keep the Kafka offsets/LSN you loaded.</li>
+<li>Make jobs parameterized by partition so backfill = re-run for date range, overwrite partitions.</li>
+<li>Run backfills in an isolated cluster/queue with throttled concurrency so they do not starve production.</li>
+<li>With table formats, write the backfill to a new branch/snapshot or shadow table, validate, then swap (or MERGE) in.</li>
+<li>Downstream impact: notify consumers; late corrections to aggregates need restatement policy (what changes in published reports).</li>
+</ul>
+<h2 id="11-failure-modes-to-name">11. Failure modes to name</h2>
+<table>
+<thead>
+<tr>
+<th>Failure</th>
+<th>Mitigation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Duplicate delivery (at-least-once)</td>
+<td>Idempotent sinks, dedupe on key+version</td>
+</tr>
+<tr>
+<td>Out-of-order / late events</td>
+<td>Event time, watermarks, allowed lateness, correction path in batch</td>
+</tr>
+<tr>
+<td>Upstream schema change</td>
+<td>Schema registry, compatibility rules, contract tests, tolerate additive changes</td>
+</tr>
+<tr>
+<td>Poison message</td>
+<td>Dead-letter queue with reason, replay tool</td>
+</tr>
+<tr>
+<td>Source outage / backlog</td>
+<td>Bounded retries, backpressure, catch-up capacity headroom</td>
+</tr>
+<tr>
+<td>Small-file explosion</td>
+<td>Compaction, larger triggers</td>
+</tr>
+<tr>
+<td>Skew / hot partition</td>
+<td>Salting, key redesign, AQE</td>
+</tr>
+<tr>
+<td>Partial failure in multi-table write</td>
+<td>Atomic commits per table, publish via pointer/view swap</td>
+</tr>
+<tr>
+<td>Silent data corruption</td>
+<td>Reconciliation, distribution checks, time travel to roll back</td>
+</tr>
+<tr>
+<td>Cost runaway</td>
+<td>Budgets, query guardrails, auto-termination, lifecycle policies</td>
+</tr>
+</tbody>
+</table>
+<h2 id="12-cost-security-and-evolution">12. Cost, security, and evolution</h2>
+<p>Cost levers: pick batch over streaming where allowed; columnar formats (Parquet) with compression and pruning; partition and cluster for scan reduction; tiered storage with lifecycle rules; spot/preemptible workers for batch; right-size retention of raw; materialize hot aggregates instead of rescanning; separate compute per workload.</p>
+<p>Security and governance: encryption at rest and in transit; least-privilege IAM per layer; column/row-level security and masking for PII; tokenization or hashing at ingest; audit logs; data catalog with classification tags; retention policies; deletion workflow (see <a href="designs/08-gdpr-erasure.html">design 8</a>).</p>
+<p>Evolve over time: start with batch + one warehouse; add streaming only for the use cases that justify it; introduce a catalog and contracts as sources multiply; add a semantic layer when metric definitions diverge; adopt data mesh style domain ownership when a central team becomes the bottleneck (state tradeoffs: governance consistency vs autonomy).</p>
+<h2 id="13-what-to-say-out-loud-checklist">13. What to say out loud (checklist)</h2>
+<ol>
+<li>"Let me clarify freshness, correctness, and who consumes this."</li>
+<li>"I will pick the slowest processing mode that meets the SLA, because streaming costs more to run and operate."</li>
+<li>"Raw is immutable so I can always replay."</li>
+<li>"Every stage is idempotent, so retries and backfills are safe."</li>
+<li>"Quality gates sit between layers; here is what blocks and what warns."</li>
+<li>"Here is how I detect and recover when this breaks at 3 a.m."</li>
+<li>"At 10x I would change X, and cost drivers are Y."</li>
+</ol>
+<h2 id="14-the-eight-designs">14. The eight designs</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Design</th>
+<th>Core difficulty</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><a href="designs/01-clickstream-analytics.html">Clickstream analytics</a></td>
+<td>Volume, sessionization, late events</td>
+</tr>
+<tr>
+<td>2</td>
+<td><a href="designs/02-cdc-to-lakehouse.html">CDC to lakehouse</a></td>
+<td>Ordering, deletes, snapshot handoff</td>
+</tr>
+<tr>
+<td>3</td>
+<td><a href="designs/03-realtime-metrics-dashboard.html">Real-time metrics dashboard</a></td>
+<td>Low-latency aggregation, serving</td>
+</tr>
+<tr>
+<td>4</td>
+<td><a href="designs/04-finance-batch-etl.html">Daily finance ETL</a></td>
+<td>Reconciliation, auditability</td>
+</tr>
+<tr>
+<td>5</td>
+<td><a href="designs/05-feature-store.html">Feature store</a></td>
+<td>Point-in-time correctness, skew</td>
+</tr>
+<tr>
+<td>6</td>
+<td><a href="designs/06-self-serve-ingestion-platform.html">Self-serve ingestion platform</a></td>
+<td>Multi-tenancy, schema drift, governance</td>
+</tr>
+<tr>
+<td>7</td>
+<td><a href="designs/07-fraud-detection.html">Real-time fraud detection</a></td>
+<td>Latency, state, feedback loops</td>
+</tr>
+<tr>
+<td>8</td>
+<td><a href="designs/08-gdpr-erasure.html">GDPR erasure on a lakehouse</a></td>
+<td>Deleting from immutable files and backups</td>
+</tr>
+</tbody>
+</table>
+</article><div class="pager"><a class="prev" href="../../14-data-engineering/week-07-pipeline-design/designs/08-gdpr-erasure.html">← Design 8: GDPR Deletion / Right to Erasure Across a Lakehouse</a><a class="next" href="../../14-data-engineering/week-07-pipeline-design/interview-qa.html">Week 7 · Pipeline design: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

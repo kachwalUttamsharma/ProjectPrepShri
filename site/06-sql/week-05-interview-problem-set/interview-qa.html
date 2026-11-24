@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 5 interview Q&amp;A: problem solving in SQL | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="06-sql/week-05-interview-problem-set/interview-qa" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../06-sql/week-05-interview-problem-set/lesson.html">Week 5 · Interview problem set</a> / <span>Interview Q&amp;A</span></nav><button id="mark-done" data-id="06-sql/week-05-interview-problem-set/interview-qa">Mark as done</button></div><article class="doc">
+<h1 id="week-5-interview-qa-problem-solving-in-sql">Week 5 interview Q&amp;A: problem solving in SQL</h1>
+<p><strong>1. How do you approach an unfamiliar SQL problem in an interview?</strong>
+Clarify the grain of input and output, ask about NULLs, ties, duplicates and empty groups, sketch the output columns, build in named CTE steps, check row counts after joins, and test on a few rows. Say what you are doing as you go.</p>
+<p><strong>2. RANK vs DENSE_RANK vs ROW_NUMBER?</strong>
+<code>ROW_NUMBER</code> gives unique numbers with arbitrary tie order. <code>RANK</code> gives ties the same number and skips after them (1,2,2,4). <code>DENSE_RANK</code> gives ties the same number without gaps (1,2,2,3). "Nth highest value" wants <code>DENSE_RANK</code>; "pick exactly one row per group" wants <code>ROW_NUMBER</code>.</p>
+<p><strong>3. How do you find the Nth highest value if there may be fewer than N?</strong>
+Use <code>DENSE_RANK</code> in a subquery and filter, or a scalar subquery over <code>DISTINCT</code> values with <code>LIMIT 1 OFFSET N-1</code> wrapped so it yields NULL when missing. State what you return when it does not exist.</p>
+<p><strong>4. How do you find duplicates, and how do you delete all but one?</strong>
+Find with <code>GROUP BY</code> on the identifying columns and <code>HAVING COUNT(*) &gt; 1</code>. Delete by choosing which row survives (usually the lowest id) and removing the others, via a window rank or a <code>MIN(id)</code> per group. Always preview with a <code>SELECT</code> first.</p>
+<p><strong>5. How do you get the top N rows per group?</strong>
+Rank within each partition using <code>ROW_NUMBER</code> or <code>DENSE_RANK</code> in a subquery, then filter on the rank. Choose by whether ties should be included. Without windows: a correlated count of better rows below N.</p>
+<p><strong>6. What is the gaps and islands technique?</strong>
+Subtract a <code>ROW_NUMBER</code> from a sequential value. Within a consecutive run the difference is constant, so it labels the run. Group by it for start, end and length. Deduplicate first, and convert dates to day numbers.</p>
+<p><strong>7. How do you compute sessions from event logs?</strong>
+Order events per user, use <code>LAG</code> for the time gap, flag rows that start a new session (no previous row, or gap over the timeout), then running-sum the flags to get a session id. Aggregate by user and session id.</p>
+<p><strong>8. How do you compute a median in SQL?</strong>
+Number rows per group, count rows per group, keep the middle one (odd) or two (even) rows, and average. Some databases have <code>PERCENTILE_CONT</code>; SQLite and MySQL do not.</p>
+<p><strong>9. How do you handle "did X for every Y"?</strong>
+Relational division: group by the entity, count distinct Ys it has, and compare to the total number of Ys. Alternatively a double <code>NOT EXISTS</code>. The count method is shorter; the double negation is more general.</p>
+<p><strong>10. Running total vs rolling average. What are the pitfalls?</strong>
+The default window frame with <code>ORDER BY</code> is <code>RANGE</code>, which groups ties as peers. Use <code>ROWS</code> for physical rows. A rolling N-day average on data with missing days needs a calendar or a value-based frame. Decide how to treat the first days when the window is not full.</p>
+<p><strong>11. How do you calculate month over month growth safely?</strong>
+Aggregate to months first, use <code>LAG</code> over the aggregated rows, guard divide by zero with <code>NULLIF</code>, return NULL for the first month, and avoid integer division.</p>
+<p><strong>12. How do you build a retention metric?</strong>
+Pick the cohort (users by first activity date), define the return event and the offset (day 1, day 7), count cohort users with a return event, and divide by cohort size. Be explicit about the denominator and time zone.</p>
+<p><strong>13. How do you build a funnel?</strong>
+Count distinct users per step. Decide if order matters (then compare timestamps) and whether a user must complete earlier steps. Report step to step and overall conversion.</p>
+<p><strong>14. How do you pivot rows to columns?</strong>
+Conditional aggregation: one <code>SUM(CASE WHEN ...)</code> or <code>COUNT(CASE ...)</code> per output column grouped by the row key. For unknown column values you must generate the SQL dynamically.</p>
+<p><strong>15. How do you compute percent of total?</strong>
+Divide by a window sum over the whole set (<code>SUM(x) OVER ()</code>) or over a partition for percent within group. Multiply by <code>100.0</code> to avoid integer division and round at the end.</p>
+<p><strong>16. Self-join vs window function for comparing rows?</strong>
+Self-join when rows relate by a key (employee to manager). Window functions when the relation is order or partition (previous row, group average). Windows avoid a second scan and the fan-out risk.</p>
+<p><strong>17. Your query is slow on a huge table. What do you check?</strong>
+<code>EXPLAIN</code> for scans and sorts, indexes on join and filter columns, whether a join multiplies rows, whether filtering can happen earlier, pre-aggregation or summary tables, and partitioning for time-series data.</p>
+<p><strong>18. How do you test a query you cannot run on production data?</strong>
+Build a tiny fixture with a tie, a NULL, a duplicate, an empty group and a boundary date, work out the expected answer by hand, and compare. This is exactly what the tests in this repo do.</p>
+<p><strong>19. What are the most common mistakes in interview SQL?</strong>
+Ignoring ties and NULLs, <code>NOT IN</code> with NULLs, filtering the outer table of a LEFT JOIN in <code>WHERE</code>, counting with <code>COUNT(*)</code> after an outer join, fan-out before aggregation, integer division, missing <code>ORDER BY</code>, and using window functions in <code>WHERE</code>.</p>
+<p><strong>20. You finish early. What do you do?</strong>
+Offer the alternative technique, discuss complexity and indexes, point out edge cases the problem statement did not specify, and say what you would do with them in production.</p>
+</article><div class="pager"><a class="prev" href="../../06-sql/week-05-interview-problem-set/lesson.html">← Week 5 · Interview problem set: Lesson</a><a class="next" href="../../06-sql/week-05-interview-problem-set/cheatsheet.html">Week 5 · Interview problem set: Cheatsheet →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

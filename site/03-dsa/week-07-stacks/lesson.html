@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 7: Stacks (including monotonic stacks) | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-07-stacks/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-07-stacks/lesson.html">Week 7 · Stacks</a> / <span>Lesson</span></nav><button id="mark-done" data-id="03-dsa/week-07-stacks/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-7-stacks-including-monotonic-stacks">Week 7: Stacks (including monotonic stacks)</h1>
+<h2 id="1-concept">1. Concept</h2>
+<p>A stack is Last-In-First-Out (LIFO). In Python use a plain <code>list</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="n">st</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">st</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>    <span class="c1"># push, O(1) amortized</span>
+<span class="n">st</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>          <span class="c1"># peek, O(1)  (check `if st` first!)</span>
+<span class="n">st</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>        <span class="c1"># pop, O(1)   (IndexError on empty)</span>
+</code></pre></div>
+
+<p>Do not use <code>list.pop(0)</code> or <code>insert(0, x)</code> (O(n)); that is a queue job (week 8).</p>
+<h2 id="2-how-to-recognize-a-stack-problem">2. How to recognize a stack problem</h2>
+<ul>
+<li>Matching / nesting: brackets, nested tags, <code>decode "3[a2[c]]"</code>.</li>
+<li>"Undo" the most recent thing: remove adjacent duplicates, backspace, path <code>..</code>.</li>
+<li>Expression evaluation: RPN, calculators, operator precedence.</li>
+<li>"Next greater / next smaller / previous greater" element -&gt; <strong>monotonic stack</strong>.</li>
+<li>Simulating collisions where the latest item interacts with the new one.</li>
+<li>Anything recursive you want to make iterative (DFS) -&gt; explicit stack.</li>
+</ul>
+<h2 id="3-templates">3. Templates</h2>
+<h3 id="matching">Matching</h3>
+<div class="highlight"><pre><span></span><code><span class="n">pairs</span> <span class="o">=</span> <span class="p">{</span><span class="s1">')'</span><span class="p">:</span> <span class="s1">'('</span><span class="p">,</span> <span class="s1">']'</span><span class="p">:</span> <span class="s1">'['</span><span class="p">,</span> <span class="s1">'}'</span><span class="p">:</span> <span class="s1">'{'</span><span class="p">}</span>
+<span class="n">st</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">s</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">pairs</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">st</span> <span class="ow">or</span> <span class="n">st</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span> <span class="o">!=</span> <span class="n">pairs</span><span class="p">[</span><span class="n">ch</span><span class="p">]:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">st</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ch</span><span class="p">)</span>
+<span class="k">return</span> <span class="ow">not</span> <span class="n">st</span>
+</code></pre></div>
+
+<h3 id="monotonic-stack-next-greater-element-store-indices">Monotonic stack: next greater element (store INDICES)</h3>
+<div class="highlight"><pre><span></span><code><span class="n">res</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">n</span>
+<span class="n">st</span> <span class="o">=</span> <span class="p">[]</span>                       <span class="c1"># indices; values at those indices are decreasing</span>
+<span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+    <span class="k">while</span> <span class="n">st</span> <span class="ow">and</span> <span class="n">nums</span><span class="p">[</span><span class="n">st</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span> <span class="o">&lt;</span> <span class="n">x</span><span class="p">:</span>
+        <span class="n">res</span><span class="p">[</span><span class="n">st</span><span class="o">.</span><span class="n">pop</span><span class="p">()]</span> <span class="o">=</span> <span class="n">x</span>     <span class="c1"># x is the next greater for the popped index</span>
+    <span class="n">st</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+<span class="c1"># whatever is left in st has no next greater element</span>
+</code></pre></div>
+
+<p>Variants: flip the comparison for "next smaller"; iterate <code>range(2*n)</code> with <code>i % n</code> for circular arrays; iterate right-to-left for "previous".</p>
+<h3 id="stack-with-extra-state">Stack with extra state</h3>
+<p>Push tuples: <code>(char, count)</code>, <code>(value, current_min)</code>, <code>(prev_string, repeat_count)</code>.</p>
+<h2 id="4-complexity">4. Complexity</h2>
+<p>Each element is pushed once and popped at most once, so a monotonic stack loop is <strong>O(n) time</strong> even though there is a nested <code>while</code>. Space O(n).</p>
+<h2 id="5-common-mistakes">5. Common mistakes</h2>
+<ul>
+<li>Popping or peeking an empty stack. Guard with <code>while st and ...</code>.</li>
+<li>Forgetting to check the stack is empty at the end (<code>"(("</code> is invalid).</li>
+<li>Storing values when you need indices (distance / width problems need indices).</li>
+<li>Strict vs non-strict comparison (<code>&lt;</code> vs <code>&lt;=</code>) with duplicates.</li>
+<li>RPN division: <code>int(a / b)</code> truncates toward zero, <code>a // b</code> floors (differs for negatives).</li>
+<li>Using <code>str +=</code> in a loop for big inputs; collect into a list and <code>"".join</code>.</li>
+</ul>
+<h2 id="6-interview-tips">6. Interview tips</h2>
+<ul>
+<li>Say "monotonic stack" out loud and state its invariant (decreasing / increasing).</li>
+<li>Explain the amortized O(n) argument: each element is popped once.</li>
+<li>For histograms/rectangles: add a sentinel (0 height) at the end to flush the stack.</li>
+<li>Clarify edge cases: empty input, invalid characters, integer overflow rules.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run <code>.venv/bin/pytest 03-dsa/week-07-stacks -q</code> (from the repo root).</p>
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-06-prefix-sums-intervals/test_exercises.py.html">← Week 6 · Prefix sums and intervals: Tests (code)</a><a class="next" href="../../03-dsa/week-07-stacks/exercises.py.html">Week 7 · Stacks: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

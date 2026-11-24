@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>practice.sql | Study Hub</title><link rel="stylesheet" href="../../../assets/style.css"><link rel="stylesheet" href="../../../assets/pygments.css"></head>
+<body data-root="../../../" data-page-id="06-sql/general-sql/04-how-databases-work/practice.sql" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../../index.html">Home</a> / <a href="../../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../../06-sql/general-sql/README.html">General SQL</a> / <a href="../../../06-sql/general-sql/04-how-databases-work/lesson.html">Part 4 · How databases work</a> / <span>practice.sql (code)</span></nav><button id="mark-done" data-id="06-sql/general-sql/04-how-databases-work/practice.sql">Mark as done</button></div><article class="doc">
+<h1>practice.sql</h1><p class="code-path"><code>06-sql/general-sql/04-how-databases-work/practice.sql</code></p>
+<div class="highlight"><pre><span></span><span class="c1">-- Part 04 practice. Setup: sqlite3 :memory:  then  .read setup.sql  then  .read practice.sql</span>
+<span class="c1">-- (or paste tasks one by one). Tables: customers, orders, order_items; no secondary indexes yet.</span>
+<span class="c1">-- Use EXPLAIN QUERY PLAN &lt;query&gt;; before and after each change and note SCAN vs SEARCH.</span>
+
+<span class="c1">-- Task 1. Show the plan for: all orders of customer 42. Create an index so it becomes a SEARCH. Show the new plan.</span>
+
+
+
+<span class="c1">-- Task 2. Orders with status='paid' and created_at &gt;= '2024-06-01'. Create a composite index</span>
+<span class="c1">-- with the right column order. Then check whether a query filtering ONLY on created_at can use it</span>
+<span class="c1">-- (leftmost-prefix rule). Explain what you see in a comment.</span>
+
+
+
+<span class="c1">-- Task 3. SUM(total_cents) for customer 42. Make the plan say COVERING INDEX.</span>
+
+
+
+<span class="c1">-- Task 4. Find the customer whose lower(email) = 'user7@example.com'. Show SCAN, then fix it with a functional index.</span>
+
+
+
+<span class="c1">-- Task 5. Orders with status='pending' and created_at &gt; '2024-12-01'. Create a PARTIAL index</span>
+<span class="c1">-- that serves exactly this. (Hint: drop other orders indexes if the planner prefers them.)</span>
+
+
+
+<span class="c1">-- Task 6. Show the plan for customers WHERE email LIKE '%99@example.com'. Why can't a B-tree help? Answer in a comment.</span>
+
+
+
+<span class="c1">-- Task 7. Per US customer (country='US'): total spent = SUM(qty*price_cents) over order_items.</span>
+<span class="c1">-- Check the join plan with no secondary indexes; add the indexes needed on both FK columns; compare plans. Note which table is scanned first.</span>
+
+
+
+<span class="c1">-- Task 8. N+1: in a comment write the two-step loop you would see in an ORM for "order id and item count for customer 42".</span>
+<span class="c1">-- Then write ONE query that gives the same result.</span>
+
+
+
+<span class="c1">-- Task 9. Top 10 newest orders (ORDER BY created_at DESC LIMIT 10). Find USE TEMP B-TREE in the plan, then remove it with an index.</span>
+
+
+
+<span class="c1">-- Task 10. Keyset pagination: write the "next page" query after the last row seen was (created_at='2024-06-01', id=3000),</span>
+<span class="c1">-- ordered newest first with id as tie-breaker, 10 rows.</span>
+
+
+
+<span class="c1">-- Task 11. Rewrite so an index on created_at can be used: WHERE strftime('%Y-%m', created_at) = '2024-06'.</span>
+
+
+
+<span class="c1">-- Task 12. Run ANALYZE; then SELECT * FROM sqlite_stat1; In a comment explain what the two numbers in "stat" mean for one of your indexes.</span>
+
+
+
+<span class="c1">-- Task 13 (reading, Postgres/MySQL, no DB needed). In a comment answer: a Postgres plan node says</span>
+<span class="c1">-- "rows=10 ... actual rows=95000 loops=1". What are two likely causes and two fixes?</span>
+
+
+
+<span class="c1">-- Task 14 (design). In a comment: which index type would you pick in Postgres for (a) JSONB containment queries,</span>
+<span class="c1">-- (b) a 2 TB append-only log table filtered by timestamp range, (c) LIKE '%foo%' search? One sentence each.</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../../06-sql/general-sql/04-how-databases-work/setup.sql.html">← Part 4 · How databases work: setup.sql (code)</a><a class="next" href="../../../06-sql/general-sql/05-concurrency-reliability/lesson.html">Part 5 · Concurrency and reliability: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../../assets/data.js"></script><script src="../../../assets/app.js"></script></body></html>

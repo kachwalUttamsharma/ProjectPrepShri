@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-11-recursion/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-11-recursion/lesson.html">Week 11 · Recursion</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="03-dsa/week-11-recursion/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>03-dsa/week-11-recursion/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 11: Recursion and backtracking.</span>
+<span class="sd">Replace each `...` with your code. Run: .venv/bin/pytest 03-dsa/week-11-recursion -q</span>
+<span class="sd">Where order of results is not specified, tests compare sorted results."""</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">fib</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the n-th Fibonacci number (fib(0)=0, fib(1)=1) using memoization.</span>
+<span class="sd">    Example: 10 -&gt; 55 ; 90 -&gt; 2880067194370816120</span>
+<span class="sd">    Time O(n), Space O(n). Must not be exponential.</span>
+<span class="sd">    Hint: functools.cache on an inner function, or a dict memo."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">power</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return x ** n using fast exponentiation (n may be negative; no ** or pow).</span>
+<span class="sd">    Example: (2, 10) -&gt; 1024 ; (2, -2) -&gt; 0.25 ; (5, 0) -&gt; 1</span>
+<span class="sd">    Time O(log |n|), Space O(log |n|).</span>
+<span class="sd">    Hint: x^n = (x^(n//2))^2 * (x if n odd). Handle n &lt; 0 via 1 / power(x, -n)."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">is_palindrome</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return True if s reads the same backwards, using recursion on s[lo:hi].</span>
+<span class="sd">    Ignore nothing: case and characters matter. '' and 1 char are palindromes.</span>
+<span class="sd">    Example: 'racecar' -&gt; True ; 'ab' -&gt; False</span>
+<span class="sd">    Time O(n), Space O(n) call stack. Hint: compare ends, recurse on the inside."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">subsets</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return all subsets (the power set) of a list of DISTINCT ints, as lists.</span>
+<span class="sd">    Any order of subsets / elements within a subset is accepted.</span>
+<span class="sd">    Example: [1,2] -&gt; [[], [1], [2], [1,2]]</span>
+<span class="sd">    Time O(n * 2^n), Space O(n) extra (excluding output).</span>
+<span class="sd">    Hint: for each element, choose to include it or not."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">permutations</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return all permutations of a list of DISTINCT ints.</span>
+<span class="sd">    Example: [1,2,3] -&gt; 6 lists such as [1,2,3], [1,3,2], ...</span>
+<span class="sd">    Time O(n * n!), Space O(n) extra.</span>
+<span class="sd">    Hint: backtrack with a `used` set/array, or swap elements in place."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">combinations</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return all k-element combinations of 1..n, each as an ascending list.</span>
+<span class="sd">    Example: (4, 2) -&gt; [[1,2],[1,3],[1,4],[2,3],[2,4],[3,4]] ; (3, 0) -&gt; [[]]</span>
+<span class="sd">    Time O(k * C(n,k)), Space O(k) extra.</span>
+<span class="sd">    Hint: pass a `start` index; prune when too few numbers remain."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">combination_sum</span><span class="p">(</span><span class="n">candidates</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""candidates: DISTINCT positive ints, each reusable unlimited times.</span>
+<span class="sd">    Return all UNIQUE combinations (as lists; order within a list/overall is free,</span>
+<span class="sd">    but [2,3] and [3,2] count as the same combination) summing to target.</span>
+<span class="sd">    Example: ([2,3,6,7], 7) -&gt; [[2,2,3],[7]] ; ([2], 1) -&gt; []</span>
+<span class="sd">    Time O(N^(T/M)) worst case, Space O(T/M) depth.</span>
+<span class="sd">    Hint: pass a start index and recurse with the same index to allow reuse."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">generate_parentheses</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return all well-formed strings with n pairs of parentheses.</span>
+<span class="sd">    Example: 3 -&gt; ['((()))','(()())','(())()','()(())','()()()']</span>
+<span class="sd">    Time O(4^n / sqrt(n)) (Catalan), Space O(n) depth.</span>
+<span class="sd">    Hint: add '(' if open &lt; n; add ')' if close &lt; open. Only valid prefixes are built."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">letter_combinations</span><span class="p">(</span><span class="n">digits</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Phone keypad (2=abc 3=def 4=ghi 5=jkl 6=mno 7=pqrs 8=tuv 9=wxyz).</span>
+<span class="sd">    Return all letter strings the digit string could represent; [] if digits is ''.</span>
+<span class="sd">    Example: '23' -&gt; ['ad','ae','af','bd','be','bf','cd','ce','cf']</span>
+<span class="sd">    Time O(4^n * n), Space O(n) depth."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">word_search</span><span class="p">(</span><span class="n">board</span><span class="p">,</span> <span class="n">word</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""board: list of lists of single chars. Return True if word can be formed by</span>
+<span class="sd">    sequentially adjacent (up/down/left/right) cells, each cell used at most once.</span>
+<span class="sd">    Example: board [['A','B'],['C','D']], 'ABDC' -&gt; True ; 'ABCD' -&gt; False</span>
+<span class="sd">    Time O(R*C*3^L), Space O(L).</span>
+<span class="sd">    Hint: DFS from every cell; mark visited in place (restore on backtrack)."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">n_queens_count</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the number of ways to place n queens on an n x n board with none</span>
+<span class="sd">    attacking another. Example: 1 -&gt; 1 ; 4 -&gt; 2 ; 6 -&gt; 4 ; 8 -&gt; 92  (HARD)</span>
+<span class="sd">    Time O(n!), Space O(n).</span>
+<span class="sd">    Hint: place one queen per row; track used columns and both diagonals</span>
+<span class="sd">    (row - col and row + col) in sets."""</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-11-recursion/lesson.html">← Week 11 · Recursion: Lesson</a><a class="next" href="../../03-dsa/week-11-recursion/test_exercises.py.html">Week 11 · Recursion: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

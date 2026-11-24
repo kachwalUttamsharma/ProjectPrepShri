@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Problem 03: Elevator system | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="11-lld/problem-03-elevator-system/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../11-lld/README.html">Low-Level Design</a> / <a href="../../11-lld/problem-03-elevator-system/lesson.html">Problem 3 · Elevator system</a> / <span>Lesson</span></nav><button id="mark-done" data-id="11-lld/problem-03-elevator-system/lesson">Mark as done</button></div><article class="doc">
+<h1 id="problem-03-elevator-system">Problem 03: Elevator system</h1>
+<p>A top-5 LLD question. The trap is jumping to classes; the real content is the state machine, the stop-ordering rule and the pluggable dispatch policy. Budget: ~3-4 hours (read + sketch 45m, <code>Elevator</code> 1.5h, strategies + controller 1h, review 45m). Interview budget: 35-45 minutes.</p>
+<h2 id="1-requirements-questions-to-ask">1. Requirements: questions to ask</h2>
+<ul>
+<li>How many elevators and floors? One building, or zones? (Assume: N cars, one building, floors 0..F-1.)</li>
+<li>Two kinds of input: <strong>hall calls</strong> (floor + up/down button) and <strong>cabin requests</strong> (floor button inside). Both needed?</li>
+<li>Capacity / weight limits? Door timing? Emergency stop? (Assume: out of scope, but name them.)</li>
+<li>Objective: minimise average wait, or worst-case wait, or energy? (Drives the scheduling strategy.)</li>
+<li>Real time or simulation? (Assume a discrete <code>step()</code>; it makes the design deterministic and testable.)</li>
+<li>Should a car pick up passengers heading the same way on the way (LOOK/SCAN), or serve FIFO?</li>
+<li>Concurrency: are requests arriving from multiple threads? (Mention a lock around the controller; don't build it.)</li>
+</ul>
+<h2 id="2-entities">2. Entities</h2>
+<table>
+<thead>
+<tr>
+<th>Entity</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Direction</code>, <code>ElevatorState</code></td>
+<td>Enums. Direction is the <em>intent</em>, state is what the car is doing right now (idle / moving / doors open).</td>
+</tr>
+<tr>
+<td><code>Elevator</code></td>
+<td>One car: floor, direction, pending stops, and the <code>step()</code> state machine. Knows nothing about other cars.</td>
+</tr>
+<tr>
+<td><code>SchedulingStrategy</code></td>
+<td>Policy: given all cars and a hall call, which car?</td>
+</tr>
+<tr>
+<td><code>ElevatorController</code></td>
+<td>Facade. Receives hall calls / cabin buttons, delegates to strategy, drives the simulation clock.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="3-class-diagram">3. Class diagram</h2>
+<div class="highlight"><pre><span></span><code>            +-----------------------+        1   *  +---------------------+
+ caller --&gt; |  ElevatorController   |&lt;&gt;-------------&gt;|      Elevator       |
+            |  strategy             |                |  floor, direction   |
+            |  request_pickup()     |                |  state, stops       |
+            |  select_floor()       |                |  add_stop() step()  |
+            |  step()               |                +---------------------+
+            +-----------+-----------+
+                        | uses (injected)
+                        v
+              &lt;&lt;abstract&gt;&gt; SchedulingStrategy
+                 select(elevators, floor, direction)
+                 ^                       ^
+                 |                       |
+     NearestElevatorStrategy    LeastLoadedStrategy
+</code></pre></div>
+
+<pre class="mermaid">stateDiagram-v2
+    [*] --&gt; IDLE
+    IDLE --&gt; MOVING_UP: stops above
+    IDLE --&gt; MOVING_DOWN: stops below
+    MOVING_UP --&gt; MOVING_UP: more stops ahead
+    MOVING_UP --&gt; DOORS_OPEN: floor in stops
+    MOVING_DOWN --&gt; DOORS_OPEN: floor in stops
+    IDLE --&gt; DOORS_OPEN: floor in stops
+    DOORS_OPEN --&gt; IDLE: close doors</pre>
+<h2 id="4-patterns-and-why">4. Patterns and why</h2>
+<ul>
+<li><strong>Strategy</strong> (<code>SchedulingStrategy</code>): dispatch policy changes constantly (nearest, least loaded, zoned, destination dispatch). The controller must not change when it does (OCP, DIP).</li>
+<li><strong>State machine</strong> (explicit <code>ElevatorState</code> + one <code>step()</code>): every transition is in one place; no hidden booleans like <code>is_moving and not door_open</code>. If states grow behaviours (maintenance, fire mode), promote each to a State class exactly as in problem 04.</li>
+<li><strong>Facade</strong> (<code>ElevatorController</code>): callers never touch cars directly.</li>
+<li><strong>LOOK algorithm</strong> inside <code>Elevator</code>: serve all stops in the current direction, reverse only when nothing is ahead. It avoids zig-zagging and starvation and is what real elevators do. Say its name.</li>
+</ul>
+<h2 id="5-spec-summary">5. Spec summary</h2>
+<p>Read the docstrings in <code>exercises.py</code>; they are the contract. Key rules:</p>
+<ul>
+<li><code>step()</code> does ONE action: close doors, else open doors if on a stop, else go idle if no stops, else move one floor by the LOOK rule.</li>
+<li>Idle car heads for the nearest stop; ties go to the lower floor.</li>
+<li><code>NearestElevatorStrategy</code>: eligible = no stops, or already moving the requested way and not yet past the floor; min by <code>(distance, id)</code>; fall back to all cars.</li>
+<li>Invalid floors raise <code>InvalidFloorError</code>, unknown cars <code>UnknownElevatorError</code>.</li>
+</ul>
+<h2 id="6-extensibility-follow-ups-interviewers-ask">6. Extensibility follow-ups interviewers ask</h2>
+<ul>
+<li><strong>Capacity / overload</strong>: add <code>load</code> and <code>capacity</code> to <code>Elevator</code>; strategy skips full cars; cabin overload blocks door close.</li>
+<li><strong>Express / zoned elevators</strong>: a strategy that filters by zone; or <code>Elevator.served_floors</code>.</li>
+<li><strong>Destination dispatch</strong> (Otis style): passengers enter the destination at the hall; new method on controller, strategy groups riders with similar destinations.</li>
+<li><strong>Priority</strong> (fire, VIP): stop set becomes a priority queue; a <code>FireMode</code> state that ignores calls and returns to ground.</li>
+<li><strong>Concurrency</strong>: requests arrive on many threads while a single ticker thread calls <code>step()</code>. One <code>Lock</code> in the controller (or a thread-safe queue of commands drained by the ticker) is enough; don't lock per elevator unless cars run on separate threads.</li>
+<li><strong>Observers</strong>: floor-display panel / logging subscribe to elevator events (Observer, see problem 07).</li>
+<li><strong>Real time</strong>: replace tick with timestamps and travel/door durations; inject a clock.</li>
+</ul>
+<h2 id="7-what-to-say-out-loud">7. What to say out loud</h2>
+<ol>
+<li>"I'll clarify scope: hall calls plus cabin buttons, N cars, simulation with a discrete step, capacity out of scope."</li>
+<li>"Core entities are Elevator, Controller, and a Strategy for dispatch. I'll model the car as an explicit state machine."</li>
+<li>"For stop ordering I'll use LOOK: finish the current direction, then reverse. Here is why not FIFO: a car would ping-pong."</li>
+<li>"Dispatch is a Strategy so we can swap policies; I'll implement nearest-eligible first and mention least-loaded."</li>
+<li>"Ties are broken deterministically (lower floor, lower id) so behaviour is testable."</li>
+<li>"Time complexity: add_stop O(log n) amortised with a sorted list or O(1) with a set; step is O(n) in stops for direction choice, can be improved with two heaps."</li>
+</ol>
+<h2 id="8-common-mistakes">8. Common mistakes</h2>
+<ul>
+<li>No explicit states: booleans <code>moving</code>, <code>door_open</code> that can contradict each other.</li>
+<li>A single FIFO queue of requests, so the car ping-pongs 1 -&gt; 20 -&gt; 2 -&gt; 19.</li>
+<li>Putting scheduling <code>if/elif</code> chains in the controller instead of a Strategy.</li>
+<li>Moving several floors or sleeping inside <code>step()</code> (untestable). One action per tick.</li>
+<li>Ignoring the requested direction in hall calls: sending an UP-bound car that is already moving DOWN past you.</li>
+<li>Mutable shared state returned from properties (<code>stops</code> must be a copy).</li>
+<li>Forgetting validation: floor -1 or floor &gt;= N must fail without changing state.</li>
+</ul>
+<h2 id="9-follow-up-qa">9. Follow-up Q&amp;A</h2>
+<p><strong>Q: Why a stop <em>set</em> instead of a queue?</strong> Pressing the same floor twice, or two riders going to 7, is one stop. Order comes from the LOOK rule, not insertion order.</p>
+<p><strong>Q: How would you stop starvation under LOOK?</strong> LOOK always reverses when nothing is ahead, so every stop is served within two sweeps. Pure nearest-first would starve far floors; that's why eligibility prefers direction-aligned cars.</p>
+<p><strong>Q: Hall call direction matters? The car stops regardless here.</strong> Correct, in this simplification the stop is added on pickup floor. A fuller model records <code>(floor, direction)</code> and only opens for riders going the same way, or tracks pending hall calls separately from cabin stops.</p>
+<p><strong>Q: How do you test this without time?</strong> <code>step()</code> is the clock. Tests call it N times and assert floor/state; strategies are tested as pure functions of elevator snapshots.</p>
+<p><strong>Q: Two cars equally close?</strong> Deterministic tie-break on id; otherwise flaky tests and unfair wear.</p>
+<p><strong>Q: Where does thread safety go?</strong> Controller owns the lock (or a command queue). Strategy reads car state, so selection and <code>add_stop</code> must be one critical section, otherwise two threads can pick the same "idle" car.</p>
+<p><strong>Q: How would you swap to destination dispatch?</strong> New controller method plus a strategy that receives (origin, destination); cars hold per-rider destinations. The Elevator state machine is unchanged, which is the point of the separation.</p>
+<p><strong>Q: Is LOOK the same as SCAN?</strong> SCAN always travels to the end of the building before reversing; LOOK reverses at the last request. LOOK wastes less travel.</p>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run
+<code>.venv/bin/pytest 11-lld/problem-03-elevator-system -v</code>
+Then re-explain, out loud and without notes, why <code>step()</code> returns after each branch.</p>
+</article><div class="pager"><a class="prev" href="../../11-lld/problem-02-rate-limiter/test_exercises.py.html">← Problem 2 · Rate limiter: Tests (code)</a><a class="next" href="../../11-lld/problem-03-elevator-system/exercises.py.html">Problem 3 · Elevator system: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

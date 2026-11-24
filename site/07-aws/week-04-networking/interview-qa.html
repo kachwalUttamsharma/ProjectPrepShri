@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 4 Interview Q&amp;A - Networking | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="07-aws/week-04-networking/interview-qa" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../07-aws/README.html">AWS</a> / <a href="../../07-aws/week-04-networking/lesson.html">Week 4 · Networking</a> / <span>Interview Q&amp;A</span></nav><button id="mark-done" data-id="07-aws/week-04-networking/interview-qa">Mark as done</button></div><article class="doc">
+<h1 id="week-4-interview-qa-networking">Week 4 Interview Q&amp;A - Networking</h1>
+<p><strong>1. What makes a subnet public vs private?</strong>
+Route table: public has 0.0.0.0/0 -&gt; Internet Gateway (and resources need public/Elastic IPs). Private has no IGW route; outbound goes through NAT Gateway or endpoints.</p>
+<p><strong>2. Security group vs NACL?</strong>
+SG: instance/ENI level, stateful, allow rules only, can reference other SGs. NACL: subnet level, stateless, allow and deny, numbered rules evaluated in order. Use SGs primarily; NACLs for explicit denies/coarse guardrails.</p>
+<p><strong>3. What does "stateful" mean here?</strong>
+If inbound is allowed, the response is automatically allowed regardless of outbound rules. NACLs need explicit rules for return traffic (ephemeral ports).</p>
+<p><strong>4. IGW vs NAT Gateway?</strong>
+IGW enables two-way internet for resources with public IPs; free. NAT Gateway lets private resources initiate outbound connections only; hourly + per-GB cost, zonal, sits in a public subnet.</p>
+<p><strong>5. NAT Gateway bill is huge. Why and what do you do?</strong>
+Per-GB processing charges, often from S3/DynamoDB/ECR/CloudWatch traffic. Add S3/DynamoDB gateway endpoints (free) and interface endpoints for heavy services, consolidate cross-AZ routing (one NAT per AZ to avoid cross-AZ charges), review with Flow Logs / Cost Explorer.</p>
+<p><strong>6. Gateway endpoint vs interface endpoint?</strong>
+Gateway: S3 and DynamoDB only, route-table based, free. Interface (PrivateLink): ENI with private IP, works for most services and custom/third-party services, hourly + data charges, uses DNS and SGs.</p>
+<p><strong>7. What is PrivateLink and when do you use it?</strong>
+Exposes a service (behind an NLB/GWLB) to consumers' VPCs privately via endpoints, one direction, no CIDR coordination or peering. Ideal for SaaS vendors and shared-services across accounts.</p>
+<p><strong>8. VPC Peering vs Transit Gateway?</strong>
+Peering: simple 1:1, no transitive routing, no overlapping CIDRs, cheap (only transfer). TGW: hub-and-spoke, transitive routing, scales to many VPCs and on-prem, route table segmentation, per-attachment + per-GB cost. Use peering for a few VPCs, TGW for many.</p>
+<p><strong>9. Scenario: two VPCs with overlapping CIDRs must share one API. Option?</strong>
+PrivateLink (NLB-fronted service + interface endpoint) since it doesn't require routing between CIDRs. Peering/TGW can't connect overlapping CIDRs without NAT tricks.</p>
+<p><strong>10. VPN vs Direct Connect?</strong>
+VPN: encrypted IPsec over internet, quick (minutes), up to ~1.25 Gbps per tunnel, variable latency, cheap. DX: dedicated private link, 1-100 Gbps, consistent latency, lower transfer cost, weeks to provision, not encrypted by default. Best practice: DX primary with VPN backup, or two DX locations.</p>
+<p><strong>11. Route 53 routing policies: list and give use cases.</strong>
+Simple, Weighted (canary/blue-green), Latency (multi-region performance), Failover (active-passive), Geolocation (compliance/localization), Geoproximity (shift traffic by distance bias), Multivalue (basic client-side LB with health checks), IP-based (route by client CIDR/ISP).</p>
+<p><strong>12. Alias vs CNAME?</strong>
+Alias is Route 53-specific, works at zone apex, free for AWS targets, resolves to A/AAAA directly and tracks target health. CNAME cannot be used at apex and queries are billed.</p>
+<p><strong>13. Scenario: active-passive DR with DNS failover.</strong>
+Primary and secondary alias records with failover policy, health check on primary (endpoint or CloudWatch alarm), low TTL (e.g. 60 s). Note clients/resolvers cache; for faster failover use Global Accelerator or ARC.</p>
+<p><strong>14. How does CloudFront work and what are its benefits?</strong>
+Requests route to nearest edge; cache hit returns directly, miss goes via regional edge cache to origin. Benefits: lower latency, reduced origin load, DDoS absorption (Shield), WAF at edge, cheaper egress, TLS termination close to user.</p>
+<p><strong>15. How do you serve a private S3 bucket via CloudFront?</strong>
+Origin Access Control (OAC) with a bucket policy allowing only the CloudFront distribution (service principal + <code>AWS:SourceArn</code>); Block Public Access stays on. Use signed URLs/cookies for authorized content.</p>
+<p><strong>16. CloudFront Functions vs Lambda@Edge?</strong>
+CloudFront Functions: lightweight JS, sub-millisecond, viewer events only, cheap (header rewrites, redirects, simple auth tokens). Lambda@Edge: full Lambda (Node/Python), longer duration, network access, origin and viewer events; use for heavier logic.</p>
+<p><strong>17. CloudFront vs Global Accelerator?</strong>
+CloudFront caches HTTP content at edge. Global Accelerator provides static anycast IPs and routes any TCP/UDP traffic over the AWS backbone to the best healthy regional endpoint with fast failover; no caching.</p>
+<p><strong>18. Scenario: private EC2 can't reach the internet to download packages.</strong>
+Check: route 0.0.0.0/0 -&gt; NAT Gateway in a public subnet in the same AZ; NAT has an Elastic IP and its subnet routes to IGW; SG/NACL egress; DNS. Alternatively use VPC endpoints / package mirror.</p>
+<p><strong>19. Troubleshooting: Fargate task in private subnet can't pull ECR image.</strong>
+Needs a path: NAT or VPC endpoints for ecr.api, ecr.dkr, S3 gateway endpoint, and logs endpoint; SG on interface endpoints must allow 443 from task SG; private DNS enabled; execution role permissions.</p>
+<p><strong>20. How do you design a 3-tier VPC for HA?</strong>
+2-3 AZs; per AZ: public subnet (ALB, NAT), private app subnet, isolated data subnet. Routes: public-&gt;IGW, app-&gt;NAT, data-&gt;no internet. SG chaining; Multi-AZ RDS; endpoints for AWS services; Flow Logs; plan non-overlapping CIDR with room to grow.</p>
+<p><strong>21. How many IPs are usable in a /24 subnet?</strong>
+256 - 5 reserved by AWS = 251.</p>
+<p><strong>22. VPC peering is non-transitive. What does that mean?</strong>
+If A peers with B and B peers with C, A cannot reach C through B. Need direct A-C peering or TGW.</p>
+<p><strong>23. What are VPC Flow Logs good for?</strong>
+Metadata of accepted/rejected flows at VPC/subnet/ENI level to CloudWatch/S3. Debug connectivity (REJECT entries), detect anomalies, audit. They don't capture payloads; for that use Traffic Mirroring.</p>
+<p><strong>24. Security angle: how to restrict an ALB to only accept traffic from CloudFront?</strong>
+Allow the CloudFront managed prefix list in the ALB SG, and add a secret custom header from CloudFront verified at the ALB/WAF rule. Also keep WAF at CloudFront.</p>
+<p><strong>25. Cost angle: data transfer pitfalls.</strong>
+Internet egress, cross-AZ (both directions charged), cross-region, NAT processing, public IPv4 hourly, TGW per-GB. Prefer same-AZ traffic where it doesn't hurt HA, CloudFront for egress, endpoints, compress, and cache.</p>
+<p><strong>26. How do you connect on-prem to many VPCs?</strong>
+Direct Connect (or VPN) to a Transit Gateway via Direct Connect Gateway / VPN attachment; route tables per attachment for segmentation; BGP route propagation.</p>
+</article><div class="pager"><a class="prev" href="../../07-aws/week-04-networking/lesson.html">← Week 4 · Networking: Lesson</a><a class="next" href="../../07-aws/week-04-networking/cheatsheet.html">Week 4 · Networking: Cheatsheet →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

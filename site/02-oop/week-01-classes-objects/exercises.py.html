@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="02-oop/week-01-classes-objects/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../02-oop/week-01-classes-objects/lesson.html">Object-Oriented Python</a> / <a href="../../02-oop/week-01-classes-objects/lesson.html">Week 1 · Classes and objects</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="02-oop/week-01-classes-objects/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>02-oop/week-01-classes-objects/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 1 exercises: classes and objects. Replace each `...` with your code.</span>
+
+<span class="sd">Every exercise is a class: fill in the method bodies. Keep the signatures.</span>
+<span class="sd">"""</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Point</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""A point in 2D.</span>
+
+<span class="sd">    Point(x, y) stores x and y as attributes (defaults 0, 0).</span>
+<span class="sd">    distance_to(other) -&gt; float Euclidean distance. Hint: math.hypot</span>
+<span class="sd">    translate(dx, dy) -&gt; moves THIS point (mutates, returns None).</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">distance_to</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">translate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dx</span><span class="p">,</span> <span class="n">dy</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Counter</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Counts things.</span>
+
+<span class="sd">    - starts at `start` (default 0), stored in attribute `value`</span>
+<span class="sd">    - increment(by=1) / decrement(by=1) change value and return nothing</span>
+<span class="sd">    - reset() sets value back to the ORIGINAL start value</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">increment</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">by</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">decrement</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">by</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">BankAccount</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""A simple bank account.</span>
+
+<span class="sd">    - BankAccount(owner, balance=0): ValueError if balance &lt; 0</span>
+<span class="sd">    - deposit(amount): amount must be &gt; 0 else ValueError. Returns new balance.</span>
+<span class="sd">    - withdraw(amount): amount must be &gt; 0 else ValueError;</span>
+<span class="sd">      if amount &gt; balance raise ValueError("insufficient funds"). Returns new balance.</span>
+<span class="sd">    - transfer_to(other, amount): withdraw from self, deposit into other.</span>
+<span class="sd">      If the withdraw fails, `other` must be unchanged.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">owner</span><span class="p">,</span> <span class="n">balance</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">deposit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">amount</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">withdraw</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">amount</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">transfer_to</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">,</span> <span class="n">amount</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Rectangle</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Rectangle(width, height). Both must be &gt; 0 else ValueError.</span>
+
+<span class="sd">    area(), perimeter() -&gt; numbers; is_square() -&gt; bool.</span>
+<span class="sd">    scale(factor): multiplies width and height IN PLACE (mutates, returns None).</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">height</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">area</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">perimeter</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_square</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">scale</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">factor</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Student</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Student(name). Keeps a list of grades in attribute `grades` (starts empty).</span>
+
+<span class="sd">    add_grade(g): g must be 0..100 inclusive else ValueError.</span>
+<span class="sd">    average() -&gt; float; 0.0 if there are no grades.</span>
+<span class="sd">    highest() -&gt; the max grade, or None if no grades.</span>
+<span class="sd">    Each student must have their OWN grades list (beware shared mutable state).</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_grade</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">grade</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">average</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">highest</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Dog</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Class attributes vs instance attributes.</span>
+
+<span class="sd">    - class attribute `species = "Canis familiaris"`</span>
+<span class="sd">    - class attribute `count`: how many Dog objects have been created so far</span>
+<span class="sd">      (starts at 0; increment in __init__ via `Dog.count`)</span>
+<span class="sd">    - Dog(name, tricks=None): instance attrs `name` and `tricks` (a new list;</span>
+<span class="sd">      copy the argument if given). Do NOT use `tricks=[]` as the default!</span>
+<span class="sd">    - add_trick(trick): append only if not already known.</span>
+<span class="sd">    """</span>
+
+    <span class="n">species</span> <span class="o">=</span> <span class="s2">"Canis familiaris"</span>
+    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">tricks</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_trick</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">trick</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Stack</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""LIFO stack backed by a list stored in a private-by-convention `_items`.</span>
+
+<span class="sd">    push(x), pop() -&gt; x, peek() -&gt; top without removing,</span>
+<span class="sd">    is_empty() -&gt; bool, size() -&gt; int.</span>
+<span class="sd">    pop() and peek() on an empty stack raise IndexError("stack is empty").</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">push</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">pop</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">peek</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_empty</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ShoppingCart</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""ShoppingCart() starts empty.</span>
+
+<span class="sd">    add(name, price, qty=1): add qty of an item. If the name is already in the</span>
+<span class="sd">      cart, increase its quantity (the original price stays). price &gt;= 0, qty &gt;= 1</span>
+<span class="sd">      else ValueError.</span>
+<span class="sd">    remove(name): remove the item entirely; KeyError if missing.</span>
+<span class="sd">    total() -&gt; sum of price * qty.</span>
+<span class="sd">    item_count() -&gt; total quantity of all items.</span>
+<span class="sd">    Hint: dict of name -&gt; [price, qty] (or a small dict per item).</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">price</span><span class="p">,</span> <span class="n">qty</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">remove</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">total</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">item_count</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Team</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Team(name). Attribute `members` is a list, unique per team.</span>
+
+<span class="sd">    add(member): append if not present; returns True if added, False if already there.</span>
+<span class="sd">    __len__ is NOT needed yet; use size() -&gt; int.</span>
+<span class="sd">    Class attribute `all_teams` is a list of every Team ever created (shared on</span>
+<span class="sd">    purpose; append `self` in __init__).</span>
+<span class="sd">    """</span>
+
+    <span class="n">all_teams</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">member</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">make_points</span><span class="p">(</span><span class="n">pairs</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Given [(1, 2), (3, 4)] return a list of Point objects.</span>
+
+<span class="sd">    Hint: a list comprehension and `Point(*pair)`.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">farthest_from_origin</span><span class="p">(</span><span class="n">points</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the Point farthest from (0, 0), or None for an empty list.</span>
+
+<span class="sd">    Hint: Point().distance_to(p), and max(..., key=...).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../02-oop/week-01-classes-objects/lesson.html">← Week 1 · Classes and objects: Lesson</a><a class="next" href="../../02-oop/week-01-classes-objects/test_exercises.py.html">Week 1 · Classes and objects: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

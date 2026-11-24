@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>test_exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="05-fde-projects/project-04-tool-calling-agent/test_exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../05-fde-projects/project-01-llm-basics/lesson.html">FDE Projects</a> / <a href="../../05-fde-projects/project-04-tool-calling-agent/lesson.html">Project 4 · Tool-calling agent</a> / <span>Tests (code)</span></nav><button id="mark-done" data-id="05-fde-projects/project-04-tool-calling-agent/test_exercises.py">Mark as done</button></div><article class="doc">
+<h1>test_exercises.py</h1><p class="code-path"><code>05-fde-projects/project-04-tool-calling-agent/test_exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">FakeLLM</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Scripted model: returns replies in order and records the messages it saw."""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">replies</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">replies</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">replies</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">calls</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">messages</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">calls</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="nb">dict</span><span class="p">(</span><span class="n">m</span><span class="p">)</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">messages</span><span class="p">])</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">replies</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">call</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span><span class="s2">"tool"</span><span class="p">:</span> <span class="n">name</span><span class="p">,</span> <span class="s2">"args"</span><span class="p">:</span> <span class="n">args</span><span class="p">})</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">final</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span><span class="s2">"final"</span><span class="p">:</span> <span class="n">text</span><span class="p">})</span>
+
+
+<span class="n">SCHEMA</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"email"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"string"</span><span class="p">,</span> <span class="s2">"required"</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span>
+    <span class="s2">"limit"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"integer"</span><span class="p">,</span> <span class="s2">"default"</span><span class="p">:</span> <span class="mi">10</span><span class="p">},</span>
+    <span class="s2">"ratio"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"number"</span><span class="p">},</span>
+    <span class="s2">"flag"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"boolean"</span><span class="p">},</span>
+<span class="p">}</span>
+
+
+<span class="c1"># 1 validate_args</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_validate_args_ok_and_defaults</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">validate_args</span><span class="p">(</span><span class="n">SCHEMA</span><span class="p">,</span> <span class="p">{</span><span class="s2">"email"</span><span class="p">:</span> <span class="s2">"a@b.c"</span><span class="p">})</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"email"</span><span class="p">:</span> <span class="s2">"a@b.c"</span><span class="p">,</span> <span class="s2">"limit"</span><span class="p">:</span> <span class="mi">10</span><span class="p">}</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">validate_args</span><span class="p">(</span><span class="n">SCHEMA</span><span class="p">,</span> <span class="p">{</span><span class="s2">"email"</span><span class="p">:</span> <span class="s2">"a"</span><span class="p">,</span> <span class="s2">"limit"</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">"ratio"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"flag"</span><span class="p">:</span> <span class="kc">False</span><span class="p">})</span>
+    <span class="k">assert</span> <span class="n">out</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"email"</span><span class="p">:</span> <span class="s2">"a"</span><span class="p">,</span> <span class="s2">"limit"</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">"ratio"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"flag"</span><span class="p">:</span> <span class="kc">False</span><span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_validate_args_errors</span><span class="p">():</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">ToolError</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">"email"</span><span class="p">):</span>
+        <span class="n">validate_args</span><span class="p">(</span><span class="n">SCHEMA</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">ToolError</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">"bogus"</span><span class="p">):</span>
+        <span class="n">validate_args</span><span class="p">(</span><span class="n">SCHEMA</span><span class="p">,</span> <span class="p">{</span><span class="s2">"email"</span><span class="p">:</span> <span class="s2">"a"</span><span class="p">,</span> <span class="s2">"bogus"</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">ToolError</span><span class="p">):</span>
+        <span class="n">validate_args</span><span class="p">(</span><span class="n">SCHEMA</span><span class="p">,</span> <span class="p">{</span><span class="s2">"email"</span><span class="p">:</span> <span class="mi">5</span><span class="p">})</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">ToolError</span><span class="p">):</span>
+        <span class="n">validate_args</span><span class="p">(</span><span class="n">SCHEMA</span><span class="p">,</span> <span class="p">{</span><span class="s2">"email"</span><span class="p">:</span> <span class="s2">"a"</span><span class="p">,</span> <span class="s2">"limit"</span><span class="p">:</span> <span class="s2">"3"</span><span class="p">})</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">ToolError</span><span class="p">):</span>
+        <span class="n">validate_args</span><span class="p">(</span><span class="n">SCHEMA</span><span class="p">,</span> <span class="s2">"nope"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_validate_args_bool_is_not_int</span><span class="p">():</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">ToolError</span><span class="p">):</span>
+        <span class="n">validate_args</span><span class="p">(</span><span class="n">SCHEMA</span><span class="p">,</span> <span class="p">{</span><span class="s2">"email"</span><span class="p">:</span> <span class="s2">"a"</span><span class="p">,</span> <span class="s2">"limit"</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">ToolError</span><span class="p">):</span>
+        <span class="n">validate_args</span><span class="p">(</span><span class="n">SCHEMA</span><span class="p">,</span> <span class="p">{</span><span class="s2">"email"</span><span class="p">:</span> <span class="s2">"a"</span><span class="p">,</span> <span class="s2">"ratio"</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">ToolError</span><span class="p">):</span>
+        <span class="n">validate_args</span><span class="p">(</span><span class="n">SCHEMA</span><span class="p">,</span> <span class="p">{</span><span class="s2">"email"</span><span class="p">:</span> <span class="s2">"a"</span><span class="p">,</span> <span class="s2">"flag"</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
+    <span class="k">assert</span> <span class="n">validate_args</span><span class="p">(</span><span class="n">SCHEMA</span><span class="p">,</span> <span class="p">{</span><span class="s2">"email"</span><span class="p">:</span> <span class="s2">"a"</span><span class="p">,</span> <span class="s2">"ratio"</span><span class="p">:</span> <span class="mf">2.5</span><span class="p">})[</span><span class="s2">"ratio"</span><span class="p">]</span> <span class="o">==</span> <span class="mf">2.5</span>
+
+
+<span class="c1"># 2 registry</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">make_registry</span><span class="p">():</span>
+    <span class="n">reg</span> <span class="o">=</span> <span class="n">ToolRegistry</span><span class="p">()</span>
+    <span class="n">reg</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Tool</span><span class="p">(</span><span class="s2">"zeta"</span><span class="p">,</span> <span class="s2">"Last tool"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"x"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"integer"</span><span class="p">,</span> <span class="s2">"required"</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span>
+                                            <span class="s2">"y"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"string"</span><span class="p">}},</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="s2">""</span><span class="p">:</span> <span class="n">x</span><span class="p">))</span>
+    <span class="n">reg</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Tool</span><span class="p">(</span><span class="s2">"alpha"</span><span class="p">,</span> <span class="s2">"First tool"</span><span class="p">,</span> <span class="p">{},</span> <span class="k">lambda</span><span class="p">:</span> <span class="s2">"hi"</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">reg</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_registry_basics</span><span class="p">():</span>
+    <span class="n">reg</span> <span class="o">=</span> <span class="n">make_registry</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">reg</span><span class="o">.</span><span class="n">names</span><span class="p">()</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"alpha"</span><span class="p">,</span> <span class="s2">"zeta"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">reg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"alpha"</span><span class="p">)</span><span class="o">.</span><span class="n">description</span> <span class="o">==</span> <span class="s2">"First tool"</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">ToolError</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">"unknown tool: nope"</span><span class="p">):</span>
+        <span class="n">reg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"nope"</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">reg</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Tool</span><span class="p">(</span><span class="s2">"alpha"</span><span class="p">,</span> <span class="s2">"dup"</span><span class="p">,</span> <span class="p">{},</span> <span class="k">lambda</span><span class="p">:</span> <span class="mi">1</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_registry_describe</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">make_registry</span><span class="p">()</span><span class="o">.</span><span class="n">describe</span><span class="p">()</span> <span class="o">==</span> <span class="p">(</span>
+        <span class="s2">"- alpha(): First tool</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"- zeta(x: integer, y: string?): Last tool"</span>
+    <span class="p">)</span>
+
+
+<span class="c1"># 3 parse_action</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_parse_action_tool_and_final</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">parse_action</span><span class="p">(</span><span class="s1">'{"tool": "t", "args": {"a": 1}}'</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="s2">"tool"</span><span class="p">,</span> <span class="p">(</span><span class="s2">"t"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">:</span> <span class="mi">1</span><span class="p">}))</span>
+    <span class="k">assert</span> <span class="n">parse_action</span><span class="p">(</span><span class="s1">'{"tool": "t"}'</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="s2">"tool"</span><span class="p">,</span> <span class="p">(</span><span class="s2">"t"</span><span class="p">,</span> <span class="p">{}))</span>
+    <span class="k">assert</span> <span class="n">parse_action</span><span class="p">(</span><span class="s1">'{"final": "done"}'</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="s2">"final"</span><span class="p">,</span> <span class="s2">"done"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_parse_action_fenced</span><span class="p">():</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="s1">'```json</span><span class="se">\n</span><span class="s1">{"final": "ok"}</span><span class="se">\n</span><span class="s1">```'</span>
+    <span class="k">assert</span> <span class="n">parse_action</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="s2">"final"</span><span class="p">,</span> <span class="s2">"ok"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">parse_action</span><span class="p">(</span><span class="s1">'```</span><span class="se">\n</span><span class="s1">{"tool": "t"}</span><span class="se">\n</span><span class="s1">```'</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="s2">"tool"</span><span class="p">,</span> <span class="p">(</span><span class="s2">"t"</span><span class="p">,</span> <span class="p">{}))</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">parametrize</span><span class="p">(</span><span class="s2">"bad"</span><span class="p">,</span> <span class="p">[</span>
+    <span class="s2">"not json"</span><span class="p">,</span> <span class="s2">"[1, 2]"</span><span class="p">,</span> <span class="s1">'{"hello": 1}'</span><span class="p">,</span> <span class="s1">'{"tool": 5}'</span><span class="p">,</span> <span class="s1">'{"tool": "t", "args": [1]}'</span><span class="p">,</span> <span class="s2">""</span><span class="p">,</span>
+<span class="p">])</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_parse_action_bad</span><span class="p">(</span><span class="n">bad</span><span class="p">):</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">ToolError</span><span class="p">):</span>
+        <span class="n">parse_action</span><span class="p">(</span><span class="n">bad</span><span class="p">)</span>
+
+
+<span class="c1"># 4 run_tool</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_run_tool_success_and_defaults</span><span class="p">():</span>
+    <span class="n">reg</span> <span class="o">=</span> <span class="n">make_registry</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">run_tool</span><span class="p">(</span><span class="n">reg</span><span class="p">,</span> <span class="s2">"zeta"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"x"</span><span class="p">:</span> <span class="mi">7</span><span class="p">})</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"ok"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s2">"result"</span><span class="p">:</span> <span class="mi">7</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">run_tool</span><span class="p">(</span><span class="n">reg</span><span class="p">,</span> <span class="s2">"alpha"</span><span class="p">,</span> <span class="p">{})</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"ok"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s2">"result"</span><span class="p">:</span> <span class="s2">"hi"</span><span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_run_tool_errors_never_raise</span><span class="p">():</span>
+    <span class="n">reg</span> <span class="o">=</span> <span class="n">make_registry</span><span class="p">()</span>
+    <span class="n">reg</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Tool</span><span class="p">(</span><span class="s2">"boom"</span><span class="p">,</span> <span class="s2">"explodes"</span><span class="p">,</span> <span class="p">{},</span> <span class="k">lambda</span><span class="p">:</span> <span class="mi">1</span> <span class="o">/</span> <span class="mi">0</span><span class="p">))</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">run_tool</span><span class="p">(</span><span class="n">reg</span><span class="p">,</span> <span class="s2">"nope"</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="p">[</span><span class="s2">"ok"</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">False</span> <span class="ow">and</span> <span class="s2">"unknown tool"</span> <span class="ow">in</span> <span class="n">r</span><span class="p">[</span><span class="s2">"error"</span><span class="p">]</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">run_tool</span><span class="p">(</span><span class="n">reg</span><span class="p">,</span> <span class="s2">"zeta"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"x"</span><span class="p">:</span> <span class="s2">"bad"</span><span class="p">})</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="p">[</span><span class="s2">"ok"</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">False</span> <span class="ow">and</span> <span class="s2">"x"</span> <span class="ow">in</span> <span class="n">r</span><span class="p">[</span><span class="s2">"error"</span><span class="p">]</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">run_tool</span><span class="p">(</span><span class="n">reg</span><span class="p">,</span> <span class="s2">"boom"</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="p">[</span><span class="s2">"ok"</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">False</span> <span class="ow">and</span> <span class="s2">"tool failed"</span> <span class="ow">in</span> <span class="n">r</span><span class="p">[</span><span class="s2">"error"</span><span class="p">]</span> <span class="ow">and</span> <span class="s2">"ZeroDivisionError"</span> <span class="ow">in</span> <span class="n">r</span><span class="p">[</span><span class="s2">"error"</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_run_tool_allow_list</span><span class="p">():</span>
+    <span class="n">reg</span> <span class="o">=</span> <span class="n">make_registry</span><span class="p">()</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">run_tool</span><span class="p">(</span><span class="n">reg</span><span class="p">,</span> <span class="s2">"zeta"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"x"</span><span class="p">:</span> <span class="mi">1</span><span class="p">},</span> <span class="n">allowed</span><span class="o">=</span><span class="p">{</span><span class="s2">"alpha"</span><span class="p">})</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="p">[</span><span class="s2">"ok"</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">False</span> <span class="ow">and</span> <span class="s2">"not allowed"</span> <span class="ow">in</span> <span class="n">r</span><span class="p">[</span><span class="s2">"error"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">run_tool</span><span class="p">(</span><span class="n">reg</span><span class="p">,</span> <span class="s2">"alpha"</span><span class="p">,</span> <span class="p">{},</span> <span class="n">allowed</span><span class="o">=</span><span class="p">{</span><span class="s2">"alpha"</span><span class="p">})[</span><span class="s2">"ok"</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">True</span>
+
+
+<span class="c1"># 5 is_read_only_sql</span>
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">parametrize</span><span class="p">(</span><span class="s2">"sql"</span><span class="p">,</span> <span class="p">[</span>
+    <span class="s2">"SELECT * FROM customers"</span><span class="p">,</span>
+    <span class="s2">"  select id from orders where status = 'x';  "</span><span class="p">,</span>
+    <span class="s2">"SELECT count(*) FROM orders</span><span class="se">\n</span><span class="s2">WHERE total_cents &gt; 5"</span><span class="p">,</span>
+<span class="p">])</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_read_only_true</span><span class="p">(</span><span class="n">sql</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">is_read_only_sql</span><span class="p">(</span><span class="n">sql</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">parametrize</span><span class="p">(</span><span class="s2">"sql"</span><span class="p">,</span> <span class="p">[</span>
+    <span class="s2">"DELETE FROM orders"</span><span class="p">,</span>
+    <span class="s2">"UPDATE customers SET plan='pro'"</span><span class="p">,</span>
+    <span class="s2">"SELECT 1; DROP TABLE orders"</span><span class="p">,</span>
+    <span class="s2">"DROP TABLE orders"</span><span class="p">,</span>
+    <span class="s2">"INSERT INTO orders VALUES (1,1,1,'x','y')"</span><span class="p">,</span>
+    <span class="s2">"SELECT 1; SELECT 2"</span><span class="p">,</span>
+    <span class="s2">"PRAGMA table_info(orders)"</span><span class="p">,</span>
+    <span class="s2">"WITH x AS (SELECT 1) DELETE FROM orders"</span><span class="p">,</span>
+    <span class="s2">""</span><span class="p">,</span>
+    <span class="s2">"SELECT * FROM t WHERE a = 1 UNION SELECT 1 -- ; drop"</span><span class="p">,</span>
+<span class="p">])</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_read_only_false</span><span class="p">(</span><span class="n">sql</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">is_read_only_sql</span><span class="p">(</span><span class="n">sql</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_read_only_word_boundary</span><span class="p">():</span>
+    <span class="c1"># 'updated_at' / 'created' are column names, not the write keywords</span>
+    <span class="k">assert</span> <span class="n">is_read_only_sql</span><span class="p">(</span><span class="s2">"SELECT created, updated_at FROM orders"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span>
+
+
+<span class="c1"># 6 data layer</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_lookup_customer</span><span class="p">():</span>
+    <span class="n">conn</span> <span class="o">=</span> <span class="n">seed_crm_db</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">lookup_customer</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">"ada@example.com"</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span>
+        <span class="s2">"id"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"Ada Lovelace"</span><span class="p">,</span> <span class="s2">"email"</span><span class="p">:</span> <span class="s2">"ada@example.com"</span><span class="p">,</span> <span class="s2">"plan"</span><span class="p">:</span> <span class="s2">"pro"</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">lookup_customer</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">"ADA@Example.com"</span><span class="p">)[</span><span class="s2">"id"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">lookup_customer</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">"nobody@example.com"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_lookup_customer_is_injection_safe</span><span class="p">():</span>
+    <span class="n">conn</span> <span class="o">=</span> <span class="n">seed_crm_db</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">lookup_customer</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">"x' OR '1'='1"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="k">assert</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT count(*) FROM customers"</span><span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_list_orders</span><span class="p">():</span>
+    <span class="n">conn</span> <span class="o">=</span> <span class="n">seed_crm_db</span><span class="p">()</span>
+    <span class="n">rows</span> <span class="o">=</span> <span class="n">list_orders</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">r</span><span class="p">[</span><span class="s2">"id"</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">]</span> <span class="o">==</span> <span class="p">[</span><span class="mi">12</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">10</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="nb">set</span><span class="p">(</span><span class="n">rows</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">,</span> <span class="s2">"total_cents"</span><span class="p">,</span> <span class="s2">"status"</span><span class="p">,</span> <span class="s2">"created"</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">r</span><span class="p">[</span><span class="s2">"id"</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">list_orders</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="s2">"shipped"</span><span class="p">)]</span> <span class="o">==</span> <span class="p">[</span><span class="mi">10</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">r</span><span class="p">[</span><span class="s2">"id"</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">list_orders</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="mi">2</span><span class="p">)]</span> <span class="o">==</span> <span class="p">[</span><span class="mi">12</span><span class="p">,</span> <span class="mi">11</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">list_orders</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="mi">999</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_run_readonly_query</span><span class="p">():</span>
+    <span class="n">conn</span> <span class="o">=</span> <span class="n">seed_crm_db</span><span class="p">()</span>
+    <span class="n">rows</span> <span class="o">=</span> <span class="n">run_readonly_query</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">"SELECT name FROM customers ORDER BY id"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">rows</span> <span class="o">==</span> <span class="p">[{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"Ada Lovelace"</span><span class="p">},</span> <span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"Grace Hopper"</span><span class="p">}]</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">run_readonly_query</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">"SELECT * FROM orders"</span><span class="p">,</span> <span class="n">max_rows</span><span class="o">=</span><span class="mi">2</span><span class="p">))</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">ToolError</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">"SELECT"</span><span class="p">):</span>
+        <span class="n">run_readonly_query</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">"DELETE FROM orders"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT count(*) FROM orders"</span><span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">4</span>
+
+
+<span class="c1"># 7 registry</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_build_crm_registry</span><span class="p">():</span>
+    <span class="n">conn</span> <span class="o">=</span> <span class="n">seed_crm_db</span><span class="p">()</span>
+    <span class="n">reg</span> <span class="o">=</span> <span class="n">build_crm_registry</span><span class="p">(</span><span class="n">conn</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">reg</span><span class="o">.</span><span class="n">names</span><span class="p">()</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"list_orders"</span><span class="p">,</span> <span class="s2">"lookup_customer"</span><span class="p">,</span> <span class="s2">"run_query"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">run_tool</span><span class="p">(</span><span class="n">reg</span><span class="p">,</span> <span class="s2">"lookup_customer"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"email"</span><span class="p">:</span> <span class="s2">"grace@example.com"</span><span class="p">})[</span><span class="s2">"result"</span><span class="p">][</span><span class="s2">"id"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">run_tool</span><span class="p">(</span><span class="n">reg</span><span class="p">,</span> <span class="s2">"list_orders"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"customer_id"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"refunded"</span><span class="p">})</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">o</span><span class="p">[</span><span class="s2">"id"</span><span class="p">]</span> <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">r</span><span class="p">[</span><span class="s2">"result"</span><span class="p">]]</span> <span class="o">==</span> <span class="p">[</span><span class="mi">11</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">run_tool</span><span class="p">(</span><span class="n">reg</span><span class="p">,</span> <span class="s2">"list_orders"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"customer_id"</span><span class="p">:</span> <span class="mi">1</span><span class="p">})[</span><span class="s2">"result"</span><span class="p">])</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="n">run_tool</span><span class="p">(</span><span class="n">reg</span><span class="p">,</span> <span class="s2">"list_orders"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"customer_id"</span><span class="p">:</span> <span class="s2">"1"</span><span class="p">})[</span><span class="s2">"ok"</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="n">run_tool</span><span class="p">(</span><span class="n">reg</span><span class="p">,</span> <span class="s2">"run_query"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"sql"</span><span class="p">:</span> <span class="s2">"SELECT count(*) AS n FROM orders"</span><span class="p">})[</span><span class="s2">"result"</span><span class="p">]</span> <span class="o">==</span> <span class="p">[{</span><span class="s2">"n"</span><span class="p">:</span> <span class="mi">4</span><span class="p">}]</span>
+    <span class="k">assert</span> <span class="n">run_tool</span><span class="p">(</span><span class="n">reg</span><span class="p">,</span> <span class="s2">"run_query"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"sql"</span><span class="p">:</span> <span class="s2">"DROP TABLE orders"</span><span class="p">})[</span><span class="s2">"ok"</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="s2">"lookup_customer(email: string)"</span> <span class="ow">in</span> <span class="n">reg</span><span class="o">.</span><span class="n">describe</span><span class="p">()</span>
+
+
+<span class="c1"># 8 agent loop</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_agent_direct_final</span><span class="p">():</span>
+    <span class="n">llm</span> <span class="o">=</span> <span class="n">FakeLLM</span><span class="p">([</span><span class="n">final</span><span class="p">(</span><span class="s2">"Hello!"</span><span class="p">)])</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="n">run_agent</span><span class="p">(</span><span class="n">llm</span><span class="p">,</span> <span class="n">make_registry</span><span class="p">(),</span> <span class="s2">"hi"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">answer</span><span class="p">,</span> <span class="n">res</span><span class="o">.</span><span class="n">steps</span><span class="p">,</span> <span class="n">res</span><span class="o">.</span><span class="n">stopped_reason</span><span class="p">,</span> <span class="n">res</span><span class="o">.</span><span class="n">trace</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="s2">"Hello!"</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"final"</span><span class="p">,</span> <span class="p">[])</span>
+    <span class="k">assert</span> <span class="n">llm</span><span class="o">.</span><span class="n">calls</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="p">[{</span><span class="s2">"role"</span><span class="p">:</span> <span class="s2">"user"</span><span class="p">,</span> <span class="s2">"content"</span><span class="p">:</span> <span class="s2">"hi"</span><span class="p">}]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_agent_multi_step_crm</span><span class="p">():</span>
+    <span class="n">reg</span> <span class="o">=</span> <span class="n">build_crm_registry</span><span class="p">(</span><span class="n">seed_crm_db</span><span class="p">())</span>
+    <span class="n">llm</span> <span class="o">=</span> <span class="n">FakeLLM</span><span class="p">([</span>
+        <span class="n">call</span><span class="p">(</span><span class="s2">"lookup_customer"</span><span class="p">,</span> <span class="n">email</span><span class="o">=</span><span class="s2">"ada@example.com"</span><span class="p">),</span>
+        <span class="n">call</span><span class="p">(</span><span class="s2">"list_orders"</span><span class="p">,</span> <span class="n">customer_id</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="s2">"pending"</span><span class="p">),</span>
+        <span class="n">final</span><span class="p">(</span><span class="s2">"Ada has 1 pending order (#12)."</span><span class="p">),</span>
+    <span class="p">])</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="n">run_agent</span><span class="p">(</span><span class="n">llm</span><span class="p">,</span> <span class="n">reg</span><span class="p">,</span> <span class="s2">"Any pending orders for ada@example.com?"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">res</span><span class="o">.</span><span class="n">stopped_reason</span> <span class="o">==</span> <span class="s2">"final"</span> <span class="ow">and</span> <span class="n">res</span><span class="o">.</span><span class="n">steps</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="n">res</span><span class="o">.</span><span class="n">answer</span> <span class="o">==</span> <span class="s2">"Ada has 1 pending order (#12)."</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">res</span><span class="o">.</span><span class="n">trace</span><span class="p">]</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"lookup_customer"</span><span class="p">,</span> <span class="s2">"list_orders"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">res</span><span class="o">.</span><span class="n">trace</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"email"</span><span class="p">:</span> <span class="s2">"ada@example.com"</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">res</span><span class="o">.</span><span class="n">trace</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">2</span><span class="p">][</span><span class="s2">"result"</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="s2">"id"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">12</span>
+    <span class="c1"># model saw tool result as a user message on the next call</span>
+    <span class="n">last</span> <span class="o">=</span> <span class="n">llm</span><span class="o">.</span><span class="n">calls</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">last</span><span class="p">[</span><span class="s2">"role"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"user"</span> <span class="ow">and</span> <span class="n">last</span><span class="p">[</span><span class="s2">"content"</span><span class="p">]</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"TOOL_RESULT: "</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">last</span><span class="p">[</span><span class="s2">"content"</span><span class="p">][</span><span class="nb">len</span><span class="p">(</span><span class="s2">"TOOL_RESULT: "</span><span class="p">):])[</span><span class="s2">"result"</span><span class="p">][</span><span class="s2">"id"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">m</span><span class="p">[</span><span class="s2">"role"</span><span class="p">]</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">llm</span><span class="o">.</span><span class="n">calls</span><span class="p">[</span><span class="mi">2</span><span class="p">]]</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"user"</span><span class="p">,</span> <span class="s2">"assistant"</span><span class="p">,</span> <span class="s2">"user"</span><span class="p">,</span> <span class="s2">"assistant"</span><span class="p">,</span> <span class="s2">"user"</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_agent_max_steps</span><span class="p">():</span>
+    <span class="n">llm</span> <span class="o">=</span> <span class="n">FakeLLM</span><span class="p">([</span><span class="n">call</span><span class="p">(</span><span class="s2">"alpha"</span><span class="p">)]</span> <span class="o">*</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="n">run_agent</span><span class="p">(</span><span class="n">llm</span><span class="p">,</span> <span class="n">make_registry</span><span class="p">(),</span> <span class="s2">"loop forever"</span><span class="p">,</span> <span class="n">max_steps</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">res</span><span class="o">.</span><span class="n">answer</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">res</span><span class="o">.</span><span class="n">stopped_reason</span> <span class="o">==</span> <span class="s2">"max_steps"</span>
+    <span class="k">assert</span> <span class="n">res</span><span class="o">.</span><span class="n">steps</span> <span class="o">==</span> <span class="mi">3</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">llm</span><span class="o">.</span><span class="n">calls</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">trace</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_agent_recovers_from_bad_json_and_tool_errors</span><span class="p">():</span>
+    <span class="n">llm</span> <span class="o">=</span> <span class="n">FakeLLM</span><span class="p">([</span>
+        <span class="s2">"I think I should look it up"</span><span class="p">,</span>             <span class="c1"># not JSON</span>
+        <span class="n">call</span><span class="p">(</span><span class="s2">"nope"</span><span class="p">),</span>                               <span class="c1"># unknown tool</span>
+        <span class="n">call</span><span class="p">(</span><span class="s2">"zeta"</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="s2">"seven"</span><span class="p">),</span>                    <span class="c1"># bad arg type</span>
+        <span class="n">call</span><span class="p">(</span><span class="s2">"zeta"</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="mi">7</span><span class="p">),</span>
+        <span class="n">final</span><span class="p">(</span><span class="s2">"done"</span><span class="p">),</span>
+    <span class="p">])</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="n">run_agent</span><span class="p">(</span><span class="n">llm</span><span class="p">,</span> <span class="n">make_registry</span><span class="p">(),</span> <span class="s2">"q"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">res</span><span class="o">.</span><span class="n">answer</span> <span class="o">==</span> <span class="s2">"done"</span> <span class="ow">and</span> <span class="n">res</span><span class="o">.</span><span class="n">steps</span> <span class="o">==</span> <span class="mi">5</span>
+    <span class="k">assert</span> <span class="n">llm</span><span class="o">.</span><span class="n">calls</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="s2">"content"</span><span class="p">]</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"ERROR: "</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="s2">"unknown tool"</span> <span class="ow">in</span> <span class="n">llm</span><span class="o">.</span><span class="n">calls</span><span class="p">[</span><span class="mi">2</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="s2">"content"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="s2">"x"</span> <span class="ow">in</span> <span class="n">llm</span><span class="o">.</span><span class="n">calls</span><span class="p">[</span><span class="mi">3</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="s2">"content"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">t</span><span class="p">[</span><span class="mi">2</span><span class="p">][</span><span class="s2">"ok"</span><span class="p">]</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">res</span><span class="o">.</span><span class="n">trace</span><span class="p">]</span> <span class="o">==</span> <span class="p">[</span><span class="kc">False</span><span class="p">,</span> <span class="kc">False</span><span class="p">,</span> <span class="kc">True</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_agent_respects_allow_list</span><span class="p">():</span>
+    <span class="n">llm</span> <span class="o">=</span> <span class="n">FakeLLM</span><span class="p">([</span><span class="n">call</span><span class="p">(</span><span class="s2">"zeta"</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="n">final</span><span class="p">(</span><span class="s2">"sorry"</span><span class="p">)])</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="n">run_agent</span><span class="p">(</span><span class="n">llm</span><span class="p">,</span> <span class="n">make_registry</span><span class="p">(),</span> <span class="s2">"q"</span><span class="p">,</span> <span class="n">allowed</span><span class="o">=</span><span class="p">{</span><span class="s2">"alpha"</span><span class="p">})</span>
+    <span class="k">assert</span> <span class="n">res</span><span class="o">.</span><span class="n">trace</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">2</span><span class="p">][</span><span class="s2">"ok"</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="s2">"not allowed"</span> <span class="ow">in</span> <span class="n">res</span><span class="o">.</span><span class="n">trace</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">2</span><span class="p">][</span><span class="s2">"error"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">res</span><span class="o">.</span><span class="n">answer</span> <span class="o">==</span> <span class="s2">"sorry"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_agent_cannot_be_used_to_write_data</span><span class="p">():</span>
+    <span class="n">conn</span> <span class="o">=</span> <span class="n">seed_crm_db</span><span class="p">()</span>
+    <span class="n">reg</span> <span class="o">=</span> <span class="n">build_crm_registry</span><span class="p">(</span><span class="n">conn</span><span class="p">)</span>
+    <span class="n">llm</span> <span class="o">=</span> <span class="n">FakeLLM</span><span class="p">([</span><span class="n">call</span><span class="p">(</span><span class="s2">"run_query"</span><span class="p">,</span> <span class="n">sql</span><span class="o">=</span><span class="s2">"DELETE FROM orders"</span><span class="p">),</span> <span class="n">final</span><span class="p">(</span><span class="s2">"cannot do that"</span><span class="p">)])</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="n">run_agent</span><span class="p">(</span><span class="n">llm</span><span class="p">,</span> <span class="n">reg</span><span class="p">,</span> <span class="s2">"delete everything"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">res</span><span class="o">.</span><span class="n">trace</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">2</span><span class="p">][</span><span class="s2">"ok"</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT count(*) FROM orders"</span><span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">4</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../05-fde-projects/project-04-tool-calling-agent/exercises.py.html">← Project 4 · Tool-calling agent: Exercises (code)</a><a class="next" href="../../05-fde-projects/project-05-evaluation/lesson.html">Project 5 · Evaluation: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

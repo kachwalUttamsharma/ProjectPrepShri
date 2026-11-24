@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 6 Interview Q&amp;A - Architecture and FDE | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="07-aws/week-06-architecture-fde/interview-qa" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../07-aws/README.html">AWS</a> / <a href="../../07-aws/week-06-architecture-fde/lesson.html">Week 6 · Architecture and FDE angle</a> / <span>Interview Q&amp;A</span></nav><button id="mark-done" data-id="07-aws/week-06-architecture-fde/interview-qa">Mark as done</button></div><article class="doc">
+<h1 id="week-6-interview-qa-architecture-and-fde">Week 6 Interview Q&amp;A - Architecture and FDE</h1>
+<p><strong>1. Name the six Well-Architected pillars.</strong>
+Operational Excellence, Security, Reliability, Performance Efficiency, Cost Optimization, Sustainability.</p>
+<p><strong>2. Define RTO and RPO.</strong>
+RTO: how long until service is restored. RPO: how much data (measured in time) you can afford to lose. They drive the DR strategy and its cost.</p>
+<p><strong>3. List the four DR strategies in order of cost/speed.</strong>
+Backup &amp; restore (hours), pilot light (core replicated, scaled-up on failover), warm standby (scaled-down full copy), multi-site active-active (near-zero RTO/RPO). Cost and complexity increase as RTO/RPO shrink.</p>
+<p><strong>4. How would you design for 99.99% availability?</strong>
+Multi-AZ at every tier, no single points of failure, health checks and auto-healing, stateless services, Multi-AZ managed data stores, graceful degradation, safe deploys (blue/green/canary), tested failover; consider multi-region if the SLA includes regional failure. Compose dependency SLAs (multiply availabilities).</p>
+<p><strong>5. Difference between high availability and disaster recovery?</strong>
+HA keeps service running through component/AZ failures with automatic recovery, minimal downtime. DR restores service after a major event (region loss, corruption), usually with defined RTO/RPO and sometimes manual steps.</p>
+<p><strong>6. How do you protect against ransomware/accidental deletion?</strong>
+Versioning + MFA delete/Object Lock, AWS Backup with vault lock in a separate account, cross-region copy, least-privilege, SCPs, tested restores.</p>
+<p><strong>7. Serverless vs containers: how do you choose?</strong>
+Serverless (Lambda) for event-driven, bursty, short work and low ops; containers (Fargate) for long-running services, streaming, larger runtimes, steady traffic, portability. EKS when K8s tooling/portability is required; EC2 for special hardware or max cost efficiency at scale.</p>
+<p><strong>8. Scenario: Deploy a FastAPI + RAG app on AWS. Walk me through it.</strong>
+CloudFront+WAF -&gt; ALB -&gt; ECS Fargate (FastAPI) in private subnets across 2+ AZs; auth via Cognito/OIDC JWT; Aurora Postgres with pgvector (or OpenSearch) for vectors + metadata; S3 for documents with presigned uploads; async ingestion via S3 event -&gt; SQS -&gt; worker (parse, chunk, embed with Bedrock, upsert); Bedrock for LLM through VPC endpoint with task role; Secrets Manager for DB creds; CloudWatch/X-Ray; CI/CD via GitHub OIDC -&gt; ECR -&gt; ECS; IaC in Terraform/CDK.</p>
+<p><strong>9. pgvector vs OpenSearch for vectors?</strong>
+pgvector: simple, one datastore, SQL filtering/joins, transactional, good to tens of millions vectors with HNSW, cheaper at pilot scale. OpenSearch: horizontal scale, hybrid BM25 + k-NN, advanced filtering, more ops/cost. Choose by scale, hybrid-search need, and existing stack.</p>
+<p><strong>10. Why Bedrock rather than calling an external LLM API directly?</strong>
+IAM auth (no API keys), data stays within AWS and isn't used to train models by default, PrivateLink/VPC endpoints, CloudTrail audit, Guardrails, multi-model access and consolidated billing. Tradeoffs: model/feature lag, regional quotas, sometimes higher price.</p>
+<p><strong>11. How do you handle LLM latency and long responses behind AWS infra?</strong>
+Stream tokens (SSE/WebSocket), avoid API Gateway's default 29 s limit (use ALB/Fargate or Lambda response streaming), raise ALB idle timeout, set client timeouts, async job pattern (202 + polling) for very long tasks.</p>
+<p><strong>12. How do you handle Bedrock throttling?</strong>
+Retry with exponential backoff and jitter, request quota increases, cross-region inference profiles, queue requests (SQS) to smooth, cache results, fallback to a smaller/alternate model, provisioned throughput for steady high volume.</p>
+<p><strong>13. How do you keep customer data isolated in a multi-tenant RAG app?</strong>
+Tenant ID on every chunk and mandatory filter enforced in the data layer (Postgres RLS or separate indexes/collections), per-tenant encryption keys if required, per-tenant rate limits, never rely on prompt instructions for isolation, audit retrieval logs.</p>
+<p><strong>14. Where do secrets go in this architecture?</strong>
+Secrets Manager for DB credentials (rotation) and third-party keys; SSM for config; inject via ECS task definition secrets; Bedrock access by IAM role not keys; no secrets in images or git.</p>
+<p><strong>15. Estimate what drives cost in a RAG app.</strong>
+LLM tokens (largest, scale with context size x requests), embeddings, vector store (OpenSearch minimums or Aurora instance), Fargate tasks, NAT/data transfer, logging. Levers: smaller models, smaller context/top-k, caching, prompt caching, batch embedding, endpoints instead of NAT.</p>
+<p><strong>16. How would you explain Multi-AZ vs Multi-Region to a non-technical customer?</strong>
+Multi-AZ: like having two buildings in the same city; survives one building outage with no noticeable downtime. Multi-Region: a second city; survives a city-wide disaster but costs significantly more and is more complex. Ask what an hour of downtime costs them to decide.</p>
+<p><strong>17. Customer wants Kubernetes for a small pilot. What do you say?</strong>
+Ask why (skills, portability, platform standards). If no hard need, recommend ECS Fargate or App Runner for the pilot for lower ops, with containerized code that can move to EKS later. If they have a K8s platform team, honor it.</p>
+<p><strong>18. Customer says "AWS is too expensive". What do you do?</strong>
+Get a cost breakdown (Cost Explorer/CUR by tag), find top 5 line items, apply right-sizing, commitments, storage tiering, remove idle, endpoints vs NAT, architecture changes; show savings estimates and effort.</p>
+<p><strong>19. Troubleshooting: app works in dev but times out in prod ECS service behind ALB.</strong>
+Check target health and health check path/port, SGs (ALB-&gt;task), task logs, NAT/endpoints for outbound dependencies, ALB idle timeout vs response time, DB connection limits, quotas (Bedrock throttling), recent deploy diffs, secrets/env differences.</p>
+<p><strong>20. Troubleshooting: RAG answers are poor/hallucinating. AWS-side and design-side checks?</strong>
+Review chunking/size/overlap, embedding model consistency (index and query must match), retrieval quality (top-k, hybrid search, reranking, metadata filters), stale index, context truncation, prompt, guardrails; add evaluation sets and log retrieved chunks.</p>
+<p><strong>21. How do you do zero-downtime deployment of the API?</strong>
+ECS rolling with min healthy 100% and ALB health checks, or CodeDeploy blue/green with test listener and automatic rollback on alarms; backward-compatible DB migrations (expand/contract).</p>
+<p><strong>22. How do you structure environments and accounts?</strong>
+Separate AWS accounts per environment under Organizations, SSO access, shared network/logging accounts, SCP guardrails, IaC modules parameterized per env, promotion through CI/CD.</p>
+<p><strong>23. What observability would you put on an LLM app?</strong>
+Request IDs, structured logs, latency per stage (retrieval vs LLM), token counts and cost per request/tenant, throttle/error rates, quality metrics (user feedback, eval scores), traces (X-Ray/OTel), alarms on error rate/p95/cost anomalies.</p>
+<p><strong>24. What do you check in a security review of this architecture?</strong>
+Network exposure (public vs private), IAM least privilege (Bedrock model ARNs, S3 prefixes), encryption (KMS), secrets handling, prompt injection and data exfiltration paths, tenant isolation, logging/PII retention, WAF/rate limiting, supply chain (image scanning), CloudTrail/GuardDuty.</p>
+<p><strong>25. When is Lambda the wrong choice here?</strong>
+Long streaming responses with sustained traffic, heavy dependencies (large ML libs near size limits), steady high QPS (cost), strict p99 latency without provisioned concurrency, persistent DB connections.</p>
+</article><div class="pager"><a class="prev" href="../../07-aws/week-06-architecture-fde/lesson.html">← Week 6 · Architecture and FDE angle: Lesson</a><a class="next" href="../../07-aws/week-06-architecture-fde/cheatsheet.html">Week 6 · Architecture and FDE angle: Cheatsheet →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

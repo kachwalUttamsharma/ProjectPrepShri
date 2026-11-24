@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Design 6: Self-Serve Data Lake Ingestion Platform for Many Heterogeneous Sources | Study Hub</title><link rel="stylesheet" href="../../../assets/style.css"><link rel="stylesheet" href="../../../assets/pygments.css"></head>
+<body data-root="../../../" data-page-id="14-data-engineering/week-07-pipeline-design/designs/06-self-serve-ingestion-platform" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../../index.html">Home</a> / <a href="../../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../../14-data-engineering/week-07-pipeline-design/designs/01-clickstream-analytics.html">Week 7 · Pipeline design</a> / <a href="../../../14-data-engineering/week-07-pipeline-design/designs/01-clickstream-analytics.html">Designs</a> / <span>Design 6: Self-Serve Data Lake Ingestion Platform for Many Heterogeneous Sources</span></nav><button id="mark-done" data-id="14-data-engineering/week-07-pipeline-design/designs/06-self-serve-ingestion-platform">Mark as done</button></div><article class="doc">
+<h1 id="design-6-self-serve-data-lake-ingestion-platform-for-many-heterogeneous-sources">Design 6: Self-Serve Data Lake Ingestion Platform for Many Heterogeneous Sources</h1>
+<p>Prompt: "We have 300 teams and 1,000 sources (databases, SaaS APIs, files, event streams). Build a platform where a team can onboard a source in under a day without a data engineer writing a custom pipeline."</p>
+<h2 id="requirements">Requirements</h2>
+<p>Functional</p>
+<ul>
+<li>Declarative onboarding: a config (YAML/UI) describes source, connection, schedule or trigger, target table, PII columns, owner.</li>
+<li>Connectors: JDBC/CDC databases, REST/SaaS, SFTP/S3 files, Kafka topics.</li>
+<li>Output: raw (bronze) plus standardized silver tables in an open table format, registered in a catalog.</li>
+<li>Schema inference, evolution handling, quality checks, lineage, access control by default.</li>
+<li>Cost attribution and quotas per team.</li>
+</ul>
+<p>Non-functional</p>
+<ul>
+<li>Scale: 1,000 pipelines, 50 TB/day total, 20,000 task runs per day.</li>
+<li>Onboarding time under a day; platform team of about 6 engineers (so reuse over custom).</li>
+<li>Isolation: one team's bad source cannot starve others (noisy neighbor).</li>
+<li>Reliability: at-least-once delivery with idempotent loads, automatic retry, clear ownership alerts.</li>
+<li>Security: least privilege, secrets in a vault, PII classified by default.</li>
+<li>Out of scope: custom business transformations (teams use a transformation layer on top).</li>
+</ul>
+<h2 id="capacity-estimates">Capacity estimates</h2>
+<ul>
+<li>50 TB/day raw = 580 MB/s average. Bronze growth about 18 PB/year uncompressed; Parquet at 4-5x compression gives about 4 PB/year; apply lifecycle tiering and retention.</li>
+<li>20K runs/day = 14 per minute average; control-plane load is small; scheduler needs to handle bursts at the top of the hour (use jitter).</li>
+<li>Metadata: 1,000 datasets x 100 columns, trivial; but lineage and quality events number in the millions per day.</li>
+</ul>
+<h2 id="architecture">Architecture</h2>
+<pre class="mermaid">flowchart TB
+  U[Team: config in Git / portal] --&gt; API[Control plane API + config validation]
+  API --&gt; CAT[(Metadata: source registry, contracts, owners, catalog)]
+  API --&gt; ORC[Orchestrator: generates DAGs from configs]
+  subgraph DataPlane[Data plane - per-team quotas and queues]
+    ORC --&gt; RUN[Ingestion runners on Kubernetes/Spark]
+    RUN --&gt; CONN[Connector library: JDBC, CDC, API, file, Kafka]
+    CONN --&gt; LAND[(Landing/Bronze: Iceberg/Delta, partitioned by ingest date)]
+    LAND --&gt; STD[Standardizer: types, dedupe, PII tag/mask, schema evolve]
+    STD --&gt; SIL[(Silver, registered in catalog)]
+  end
+  SEC[Vault secrets + IAM roles per team] -.-&gt; RUN
+  DQ[Quality checks from config] -.-&gt; STD
+  LIN[Lineage / OpenLineage events] -.-&gt; RUN
+  OBS[Metrics, freshness SLAs, cost per team] -.-&gt; ORC
+  SIL --&gt; CONS[Consumers: BI, Spark, dbt, ML]
+  STD --&gt; QUAR[(Quarantine / dead-letter)]</pre>
+<h2 id="data-model">Data model</h2>
+<p>Source config (example fields): <code>source_id, owner_team, connector_type, connection_ref (vault path), extraction mode [full|incremental(cursor col)|cdc|append-files], schedule or trigger, target (db.schema.table), primary_key, partition_by, pii_columns, quality_rules, sla_freshness, retention</code>.</p>
+<p>Metadata tables: <code>pipeline_run(run_id, source_id, status, rows_in, rows_out, bytes, started, ended, error_class)</code>, <code>schema_version(source_id, version, schema_json, compat_status)</code>, <code>contract(source_id, required_fields, types, owner_ack)</code>.</p>
+<p>Bronze table columns: source payload columns plus <code>_ingest_ts, _run_id, _source_file/_offset, _op</code>.</p>
+<h2 id="step-by-step-flow">Step-by-step flow</h2>
+<ol>
+<li>Team submits a config via PR; CI validates schema, naming, connection reachability (test run), ownership, and PII declaration; reviewers for sensitive sources.</li>
+<li>Control plane generates a DAG (or registers a dynamic task) per source, assigned to a queue/pool based on size tier and team quota.</li>
+<li>Runner pulls credentials from the vault just in time, extracts with the connector (incremental cursor stored in metadata store, committed only after successful load), writes to Bronze with run metadata.</li>
+<li>Standardizer infers/validates schema versus contract: additive changes auto-apply; breaking changes (drop/type change) stop the pipeline, quarantine data, and notify the owner with a diff.</li>
+<li>PII columns are masked, hashed, or tokenized per policy; restricted columns get column-level access tags in the catalog.</li>
+<li>Quality checks (not-null, uniqueness, freshness, volume anomalies) run; severity controls block vs warn.</li>
+<li>Table published to the catalog with lineage; consumers discover it via search; access via request workflow.</li>
+<li>Platform emits freshness and cost metrics; owners get alerts routed by team; a status page shows source health.</li>
+</ol>
+<h2 id="failure-modes">Failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Failure</th>
+<th>Handling</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Source schema drift</td>
+<td>Contract checks, auto-add nullable columns, block breaking changes, quarantine rows</td>
+</tr>
+<tr>
+<td>Noisy neighbor (huge backfill)</td>
+<td>Per-team quotas, pools/queues, resource limits, throttled concurrency, priority tiers</td>
+</tr>
+<tr>
+<td>Source API rate limit or outage</td>
+<td>Backoff with jitter, circuit breaker, resumable cursors, alerts only after retry budget</td>
+</tr>
+<tr>
+<td>Duplicate loads on retry</td>
+<td>Idempotent writes by run partition overwrite or MERGE on PK; cursor advances after commit</td>
+</tr>
+<tr>
+<td>Credentials rotation breaks pipelines</td>
+<td>Vault dynamic secrets, expiry alerts, canary checks</td>
+</tr>
+<tr>
+<td>Misclassified PII</td>
+<td>Automated scanners (regex/ML classifiers, check current docs for tools) plus owner attestations; default-deny on unclassified new columns</td>
+</tr>
+<tr>
+<td>Orchestrator scaling (thousands of DAGs)</td>
+<td>Generate DAGs sparingly, use dynamic task mapping or a config-driven single DAG per pattern, shard scheduler</td>
+</tr>
+<tr>
+<td>Orphaned pipelines/costs</td>
+<td>Ownership required; auto-flag unused tables; sunset workflow</td>
+</tr>
+</tbody>
+</table>
+<h2 id="trade-offs">Trade-offs</h2>
+<ul>
+<li>Self-serve config vs code flexibility: configs cover about 80% of sources; provide an escape hatch (custom connector SDK) with review.</li>
+<li>Buy (Fivetran, Airbyte, managed ingestion; check current docs) vs build: buy the long tail of SaaS connectors; build the control plane, governance, and big-database paths where cost or control matters.</li>
+<li>Central platform vs data mesh: central ingestion with domain-owned silver/gold balances consistency and autonomy.</li>
+<li>Auto-evolve schemas vs strict contracts: strict is safer for gold consumers, auto is faster for onboarding; allow both by layer (auto in bronze, contracts in silver).</li>
+<li>Single multi-tenant cluster vs per-team clusters: shared saves cost, per-team isolates failures; use shared with quotas and a dedicated pool for heavy hitters.</li>
+</ul>
+<h2 id="follow-up-questions">Follow-up questions</h2>
+<ol>
+<li>How do you onboard a CDC source versus a file source with the same config shape?</li>
+<li>How do you prevent one team from reading another team's PII? (catalog ACLs, row/column policies, IAM boundaries, audit)</li>
+<li>How do you measure platform success? (time to onboard, % pipelines on-time, incidents per 100 pipelines, cost per TB)</li>
+<li>How do you upgrade connectors without breaking 1,000 pipelines? (versioned connectors, canary cohort, rollback)</li>
+<li>How do you handle a source that sends 10x data after a launch? (autoscaling, volume anomaly alert, quotas, cost guard)</li>
+<li>What would you automate next? (auto PII detection, auto-generated quality rules from profiles, self-healing retries)</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../../14-data-engineering/week-07-pipeline-design/designs/05-feature-store.html">← Design 5: ML Feature Store (Offline + Online)</a><a class="next" href="../../../14-data-engineering/week-07-pipeline-design/designs/07-fraud-detection.html">Design 7: Real-Time Fraud / Anomaly Detection Pipeline →</a></div></main><aside id="toc"></aside></div>
+<script src="../../../assets/data.js"></script><script src="../../../assets/app.js"></script></body></html>

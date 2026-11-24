@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="06-sql/week-03-cte-window-case-dates/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../06-sql/week-03-cte-window-case-dates/lesson.html">Week 3 · CTEs, windows, CASE, dates</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="06-sql/week-03-cte-window-case-dates/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>06-sql/week-03-cte-window-case-dates/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 3 SQL exercises: CTEs, window functions, CASE, dates. Replace `...` with `return "&lt;SQL&gt;"`.</span>
+
+<span class="sd">Tables (see schema.py):</span>
+<span class="sd">  employees(id, name, dept, salary, manager_id, hire_date)</span>
+<span class="sd">  sales(id, sale_date, region, amount)</span>
+<span class="sd">  tickets(id, opened_at, closed_at, priority)   -- 'YYYY-MM-DD HH:MM:SS', closed_at NULL = open</span>
+
+<span class="sd">Tests compare rows and column names. Order matters only when "ordered by" is stated.</span>
+<span class="sd">SQLite date tools: date(x, '+1 day'), strftime('%Y-%m', x), julianday(x).</span>
+<span class="sd">"""</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">above_average_payroll_depts</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Departments whose total salary is above the average of all departments' totals.</span>
+<span class="sd">    Use a CTE that computes payroll per dept first.</span>
+<span class="sd">    Columns: dept, payroll</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">subordinates_of_ben</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Everyone who reports to Ben (id 2), directly or indirectly (recursive CTE).</span>
+<span class="sd">    level = 1 for direct reports, 2 for their reports, ...</span>
+<span class="sd">    Columns: name, level            (ordered by level ASC, name ASC)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">date_series</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Generate every date from 2024-01-01 to 2024-01-07 inclusive with a recursive CTE.</span>
+<span class="sd">    Columns: day                    (ordered by day ASC)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">chain_to_ceo</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Walk UP the hierarchy from Eli (id 5) to the top. depth 0 = Eli, 1 = his manager, ...</span>
+<span class="sd">    Columns: name, depth            (ordered by depth ASC)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">dept_salary_rownumber</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Number employees inside each department by salary DESC (ties broken by name ASC)</span>
+<span class="sd">    using ROW_NUMBER().</span>
+<span class="sd">    Columns: name, dept, rn         (ordered by dept ASC, rn ASC)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">company_rank_dense</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Rank every employee by salary DESC across the whole company with BOTH RANK() and DENSE_RANK().</span>
+<span class="sd">    Columns: name, salary, rnk, drnk    (ordered by salary DESC, name ASC)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">top_two_salaries_per_dept</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Employees whose salary is among the top 2 DISTINCT salary values of their department</span>
+<span class="sd">    (so ties are all included). Use DENSE_RANK in a subquery/CTE.</span>
+<span class="sd">    Columns: name, dept, salary</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">running_sales_total</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Running total of amount over all sales ordered by sale_date (tie-break id).</span>
+<span class="sd">    Columns: id, sale_date, amount, running_total     (ordered by sale_date ASC, id ASC)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">running_total_by_region</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Running total of amount restarting for each region (PARTITION BY), ordered by sale_date.</span>
+<span class="sd">    Columns: id, region, amount, region_running       (ordered by region ASC, sale_date ASC)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">month_over_month</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Monthly revenue with the previous month's revenue and the change (LAG).</span>
+<span class="sd">    First month has NULL prev_revenue and NULL change.</span>
+<span class="sd">    Columns: month, revenue, prev_revenue, change     (ordered by month ASC; month like '2024-01')</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">days_to_next_sale</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""For each sale: number of days until the NEXT sale in the same region (LEAD); NULL for the last.</span>
+<span class="sd">    Hint: julianday(next_date) - julianday(sale_date). Result should be integers/whole numbers.</span>
+<span class="sd">    Columns: id, region, days_to_next</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">moving_average_3</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""3-sale moving average of amount (current + 2 preceding sales) ordered by sale_date, id.</span>
+<span class="sd">    Round to 2 decimals. Hint: ROWS BETWEEN 2 PRECEDING AND CURRENT ROW.</span>
+<span class="sd">    Columns: id, avg3               (ordered by sale_date ASC, id ASC)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">pct_of_region</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Each sale's share of its region's total, as a percentage rounded to 1 decimal.</span>
+<span class="sd">    Columns: id, region, amount, pct</span>
+<span class="sd">    Hint: amount * 100.0 / SUM(amount) OVER (PARTITION BY region)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">salary_band</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""CASE: salary &gt;= 150000 -&gt; 'High'; &gt;= 90000 -&gt; 'Mid'; otherwise 'Low'.</span>
+<span class="sd">    Columns: name, band</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">pivot_monthly_by_region</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Pivot with conditional aggregation: one row per month, one column per region.</span>
+<span class="sd">    Columns: month, east, west      (ordered by month ASC)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">high_earner_counts</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Per department: employees with salary &gt;= 100000 and the department's total headcount.</span>
+<span class="sd">    Use SUM(CASE ...) (conditional aggregation).</span>
+<span class="sd">    Columns: dept, high_paid, total</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">first_hire_in_dept</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""For each employee, the name of the earliest-hired person in the same department</span>
+<span class="sd">    (FIRST_VALUE over PARTITION BY dept ORDER BY hire_date).</span>
+<span class="sd">    Columns: name, dept, first_hire</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">diff_from_dept_avg</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Salary minus the average salary of the employee's department (window AVG), rounded to 2 decimals.</span>
+<span class="sd">    Columns: name, dept, diff</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">ticket_resolution_hours</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Hours between opened_at and closed_at for CLOSED tickets, rounded to 1 decimal.</span>
+<span class="sd">    Columns: id, hours              (ordered by id ASC)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">tickets_per_month</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""For each month (by opened_at, 'YYYY-MM'): tickets opened and how many are still open (closed_at NULL).</span>
+<span class="sd">    Columns: month, opened, still_open    (ordered by month ASC)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">stale_open_tickets</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Tickets still open that were opened MORE than 7 days before '2024-04-20' (compare dates, ignore time).</span>
+<span class="sd">    days_open = whole days between date(opened_at) and '2024-04-20'.</span>
+<span class="sd">    Columns: id, days_open</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../06-sql/week-03-cte-window-case-dates/interview-qa.html">← Week 3 · CTEs, windows, CASE, dates: Interview Q&amp;A</a><a class="next" href="../../06-sql/week-03-cte-window-case-dates/test_exercises.py.html">Week 3 · CTEs, windows, CASE, dates: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

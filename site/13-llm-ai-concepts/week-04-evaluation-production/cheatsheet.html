@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 4 Cheatsheet: Evaluation and Production | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="13-llm-ai-concepts/week-04-evaluation-production/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../13-llm-ai-concepts/README.html">LLM and AI Concepts</a> / <a href="../../13-llm-ai-concepts/week-04-evaluation-production/lesson.html">Week 4 · Evaluation and production</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="13-llm-ai-concepts/week-04-evaluation-production/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="week-4-cheatsheet-evaluation-and-production">Week 4 Cheatsheet: Evaluation and Production</h1>
+<h2 id="eval-set">Eval set</h2>
+<p>Real traffic first; stratify; edge + adversarial + unanswerable + past failures; held-out; versioned; no leakage into prompts/finetune. 50-100 start. Use paired comparisons and bootstrap CIs.</p>
+<h2 id="metric-menu">Metric menu</h2>
+<p>Classify: P/R/F1, confusion matrix. RAG: recall@k, MRR, faithfulness, citation acc, abstention. Agent: success rate, steps, cost per success, forbidden actions. Ops: p50/p95/p99, cost, error rate.
+Order: deterministic checks, then LLM judge, then humans for calibration.</p>
+<h2 id="llm-judge-pitfalls">LLM judge pitfalls</h2>
+<p>Position, verbosity, self-preference, vague rubric, factual blind spots, nondeterminism, version drift, judge overfitting. Fix: randomize, specific rubric, references, other family, pin, calibrate with humans.</p>
+<h2 id="offline-vs-online">Offline vs online</h2>
+<p>Offline: dataset, CI gate. Online: shadow, canary, A/B, implicit feedback, sampled review. Failures become tests.</p>
+<h2 id="observability">Observability</h2>
+<p>Trace spans: retrieval, rerank, LLM (prompt version, model, tokens, latency, finish reason), tools, validation. Correlation ID. Redact PII. Alert on latency, errors, cost, thumbs-down, empty retrieval.</p>
+<h2 id="latency-levers">Latency levers</h2>
+<p>Stream, shorten prompt, cap output, parallelize, smaller model, caching, precompute, hedge. Measure percentiles. Latency = TTFT + out_tokens / tps.</p>
+<h2 id="caching">Caching</h2>
+<p>Prompt prefix cache (static first). Exact response cache. Semantic cache (threshold, tenant-scoped, false-hit risk). Tool and embedding caches.</p>
+<h2 id="limits">Limits</h2>
+<p>RPM/TPM/concurrency; 429 -&gt; backoff + jitter + Retry-After, token bucket, priority queue, tenant fairness, fallback, quota request. Batch API for offline. Cancel streams on disconnect.</p>
+<h2 id="cost-formula">Cost formula</h2>
+<p>(in<em>P_in + out</em>P_out)/1e6 per call; subtract cached discount; add embeddings, rerank, vector DB, infra, logging. Report per successful outcome. Levers: route, cache, trim, batch, tuned small model.
+Worked (hypothetical $1/$4): 300 in + 20 out = $0.00038; x100k/day = $38/day.</p>
+<h2 id="versioning">Versioning</h2>
+<p>Prompt (git), model id pinned, params, tool schemas, index/embedding versions, eval set version; flags, canary, rollback; track deprecations.</p>
+<h2 id="safetypii">Safety/PII</h2>
+<p>Minimize, redact before external call, no raw logs, tenant isolation, user-identity ACLs, retention/deletion across stores, DPA/BAA, region/residency, red-team. Involve customer security/legal.</p>
+<h2 id="fine-tuning">Fine-tuning</h2>
+<p>Ladder: prompt, few-shot, RAG/tools, then fine-tune. LoRA = frozen base + low-rank adapters (A*B), cheap, swappable; QLoRA = quantized base. For behavior/format/distill, not fresh facts. Needs clean labels + eval + stable task.</p>
+<h2 id="deployment-privacy-options-more-control-more-ops">Deployment privacy options (more control = more ops)</h2>
+<p>Provider API with zero-retention terms &lt; provider inside customer cloud/VPC &lt; self-hosted open weights / air-gapped.</p>
+</article><div class="pager"><a class="prev" href="../../13-llm-ai-concepts/week-04-evaluation-production/interview-qa.html">← Week 4 · Evaluation and production: Interview Q&amp;A</a><a class="next" href="../../13-llm-ai-concepts/week-05-classic-ml-essentials/lesson.html">Week 5 · Classic ML essentials: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Part 06: Engines, warehouses, and data modeling | Study Hub</title><link rel="stylesheet" href="../../../assets/style.css"><link rel="stylesheet" href="../../../assets/pygments.css"></head>
+<body data-root="../../../" data-page-id="06-sql/general-sql/06-engines-warehouses-modeling/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../../index.html">Home</a> / <a href="../../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../../06-sql/general-sql/README.html">General SQL</a> / <a href="../../../06-sql/general-sql/06-engines-warehouses-modeling/lesson.html">Part 6 · Engines, warehouses, modeling</a> / <span>Lesson</span></nav><button id="mark-done" data-id="06-sql/general-sql/06-engines-warehouses-modeling/lesson">Mark as done</button></div><article class="doc">
+<h1 id="part-06-engines-warehouses-and-data-modeling">Part 06: Engines, warehouses, and data modeling</h1>
+<p>Goal: know how the major systems differ, why analytics databases are built differently from transactional ones, and how to model data for reporting.
+Builds on: <a href="../../week-04-schema-indexes-transactions/lesson.html">week-04 lesson</a> (section 7 touches OLTP vs OLAP; section "SQLite vs Postgres vs MySQL cheat table"). This part goes wider and deeper; it does not repeat those.
+Practice: <code>sqlite3 :memory: ".read setup.sql" ".read practice.sql"</code> (see <a href="../README.html">README</a>).</p>
+<p>Version-dependent facts below are marked "check current docs". Snippets for non-SQLite systems are "not run here, verify".</p>
+<h2 id="1-the-systems-at-a-glance">1. The systems at a glance</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>PostgreSQL</th>
+<th>MySQL (InnoDB)</th>
+<th>SQLite</th>
+<th>SQL Server</th>
+<th>BigQuery</th>
+<th>Snowflake</th>
+<th>Redshift</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Kind</td>
+<td>OLTP, general purpose, extensible</td>
+<td>OLTP, web workloads</td>
+<td>Embedded, in-process library</td>
+<td>OLTP + some analytics (columnstore)</td>
+<td>Serverless warehouse</td>
+<td>Cloud warehouse</td>
+<td>Cloud warehouse (Postgres-derived)</td>
+</tr>
+<tr>
+<td>Deployment</td>
+<td>Server you run or managed (RDS, Cloud SQL...)</td>
+<td>Same</td>
+<td>A file; no server</td>
+<td>Server / Azure SQL</td>
+<td>Fully managed (Google)</td>
+<td>Fully managed, compute (warehouses) separate from storage</td>
+<td>Managed clusters or serverless</td>
+</tr>
+<tr>
+<td>Storage layout</td>
+<td>Row (heap)</td>
+<td>Row (clustered B-tree on PK)</td>
+<td>Row (B-tree)</td>
+<td>Row; optional columnstore indexes</td>
+<td>Columnar (Capacitor)</td>
+<td>Columnar micro-partitions</td>
+<td>Columnar</td>
+</tr>
+<tr>
+<td>Concurrency</td>
+<td>MVCC, readers do not block writers</td>
+<td>MVCC (undo log)</td>
+<td>One writer at a time (WAL mode allows readers during a write)</td>
+<td>Locking by default; snapshot/RCSI optional</td>
+<td>Not row-level OLTP; DML is batch-oriented</td>
+<td>Same: not for high-rate single-row writes</td>
+<td>Same</td>
+</tr>
+<tr>
+<td>Enforced constraints</td>
+<td>All (PK, FK, UNIQUE, CHECK)</td>
+<td>All (CHECK since 8.0.16, check current docs)</td>
+<td>Yes, FKs need <code>PRAGMA foreign_keys=ON</code></td>
+<td>All</td>
+<td>PK/FK are informational only (not enforced)</td>
+<td>PK/FK/UNIQUE declared but not enforced (NOT NULL is)</td>
+<td>Same: informational</td>
+</tr>
+<tr>
+<td>Indexes</td>
+<td>B-tree, hash, GIN, GiST, BRIN...</td>
+<td>B-tree (+ full-text, spatial)</td>
+<td>B-tree</td>
+<td>B-tree, columnstore</td>
+<td>None in the classic sense (partition + cluster instead)</td>
+<td>None (micro-partition pruning, clustering keys)</td>
+<td>Sort keys / dist keys, no B-tree</td>
+</tr>
+<tr>
+<td>Typical scale sweet spot</td>
+<td>GB to low TB per node</td>
+<td>Same</td>
+<td>MB to GB, single app</td>
+<td>Same as Postgres</td>
+<td>TB to PB</td>
+<td>TB to PB</td>
+<td>TB to PB</td>
+</tr>
+<tr>
+<td>Procedural language</td>
+<td>PL/pgSQL (+ others)</td>
+<td>Stored procs (own dialect)</td>
+<td>None (triggers only)</td>
+<td>T-SQL</td>
+<td>Scripting, UDFs</td>
+<td>Snowflake Scripting, JS UDFs</td>
+<td>PL/pgSQL-like stored procs</td>
+</tr>
+<tr>
+<td>Notable quirks</td>
+<td>Strict typing, rich types (JSONB, arrays, ranges)</td>
+<td>Silent coercions unless strict <code>sql_mode</code></td>
+<td>Dynamic typing ("type affinity")</td>
+<td><code>TOP</code>, <code>[brackets]</code>, <code>GO</code> batch separator</td>
+<td>Billed by bytes scanned (on-demand); nested/repeated fields</td>
+<td>Time Travel, zero-copy clone</td>
+<td>Distribution style matters a lot</td>
+</tr>
+</tbody>
+</table>
+<p>Treat the table as orientation. Features change; check current docs before you rely on a specific one.</p>
+<p>When to pick what (rule of thumb):</p>
+<ul>
+<li>App backend, transactions, many small reads/writes: Postgres or MySQL (or SQL Server in a Microsoft shop).</li>
+<li>Local tool, mobile, tests, config store, single-user data: SQLite.</li>
+<li>Reporting over hundreds of millions of rows, scans and aggregates: a warehouse (or a columnar engine).</li>
+<li>Both: keep the OLTP database as the system of record and copy data into a warehouse (ELT).</li>
+</ul>
+<h2 id="2-oltp-vs-olap">2. OLTP vs OLAP</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>OLTP</th>
+<th>OLAP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Typical query</td>
+<td>"Get order 4711", "insert a payment"</td>
+<td>"Revenue by region by month for 3 years"</td>
+</tr>
+<tr>
+<td>Rows touched per query</td>
+<td>A handful</td>
+<td>Millions to billions</td>
+</tr>
+<tr>
+<td>Columns touched</td>
+<td>Most of the row</td>
+<td>A few columns of many</td>
+</tr>
+<tr>
+<td>Concurrency</td>
+<td>Thousands of short transactions</td>
+<td>Few, long queries</td>
+</tr>
+<tr>
+<td>Schema</td>
+<td>Normalized (3NF)</td>
+<td>Denormalized (star/snowflake)</td>
+</tr>
+<tr>
+<td>Data freshness</td>
+<td>Real time</td>
+<td>Seconds to hours behind</td>
+</tr>
+<tr>
+<td>Optimizes</td>
+<td>Latency, correctness under concurrency</td>
+<td>Throughput of scans</td>
+</tr>
+</tbody>
+</table>
+<p>Mixed workloads on one OLTP box hurt: a big scan evicts cache and holds old row versions. Common fixes: read replica for reports, or a separate warehouse. HTAP engines try to do both in one system; check current docs for any specific product's maturity.</p>
+<h2 id="3-columnar-storage">3. Columnar storage</h2>
+<p>Row store: all columns of a row sit together on a page. Good for "fetch whole row".
+Column store: each column is stored separately.</p>
+<div class="highlight"><pre><span></span><code>Row store page:     [id1,name1,amt1] [id2,name2,amt2] [id3,name3,amt3]
+Column store:       ids:[id1,id2,id3]  names:[...]  amts:[amt1,amt2,amt3]
+</code></pre></div>
+
+<p>Why analytics likes it:</p>
+<ol>
+<li><code>SELECT SUM(amount) FROM sales</code> reads only the <code>amount</code> column: far less I/O.</li>
+<li>Values of one column are similar, so they compress very well (run-length, dictionary, delta encoding).</li>
+<li>Vectorized execution: process thousands of values per CPU instruction batch.</li>
+<li>Min/max metadata per block lets the engine skip blocks that cannot match (zone maps / pruning).</li>
+</ol>
+<p>Why it is bad for OLTP: updating one row touches many column files; single-row lookups reassemble a row from many places. Warehouses therefore favour bulk loads and append-mostly data.</p>
+<p>Consequences you will notice as a user:</p>
+<ul>
+<li><code>SELECT *</code> is expensive in a warehouse (BigQuery on-demand bills by columns scanned; check current docs on pricing).</li>
+<li>Single-row <code>UPDATE</code>/<code>DELETE</code> are slow relative to OLTP.</li>
+<li>No B-tree indexes; instead you choose partitioning and clustering/sort keys.</li>
+</ul>
+<h2 id="4-partitioning">4. Partitioning</h2>
+<p>Splitting one logical table into pieces so queries can skip the pieces they do not need (partition pruning), and so old data can be dropped cheaply.</p>
+<table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>How rows are assigned</th>
+<th>Typical use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Range</td>
+<td>By value range (date)</td>
+<td>Time series; drop old months</td>
+</tr>
+<tr>
+<td>List</td>
+<td>By explicit values (region)</td>
+<td>Tenant/region isolation</td>
+</tr>
+<tr>
+<td>Hash</td>
+<td><code>hash(key) mod N</code></td>
+<td>Even spread, no natural range</td>
+</tr>
+</tbody>
+</table>
+<p>Postgres (declarative partitioning; not run here, verify):</p>
+<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="p">(</span>
+<span class="w">  </span><span class="n">id</span><span class="w"> </span><span class="nb">bigint</span><span class="w"> </span><span class="k">GENERATED</span><span class="w"> </span><span class="n">ALWAYS</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="k">IDENTITY</span><span class="p">,</span>
+<span class="w">  </span><span class="n">created_at</span><span class="w"> </span><span class="n">timestamptz</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">  </span><span class="n">payload</span><span class="w"> </span><span class="n">jsonb</span>
+<span class="p">)</span><span class="w"> </span><span class="n">PARTITION</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">RANGE</span><span class="w"> </span><span class="p">(</span><span class="n">created_at</span><span class="p">);</span>
+
+<span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">events_2024_01</span><span class="w"> </span><span class="n">PARTITION</span><span class="w"> </span><span class="k">OF</span><span class="w"> </span><span class="n">events</span>
+<span class="w">  </span><span class="k">FOR</span><span class="w"> </span><span class="k">VALUES</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="p">(</span><span class="s1">'2024-01-01'</span><span class="p">)</span><span class="w"> </span><span class="k">TO</span><span class="w"> </span><span class="p">(</span><span class="s1">'2024-02-01'</span><span class="p">);</span>
+</code></pre></div>
+
+<p>MySQL: <code>PARTITION BY RANGE (YEAR(created_at)) (...)</code>; the partition key must be part of every unique key (check current docs).
+Warehouses: BigQuery <code>PARTITION BY DATE(created_at)</code> plus <code>CLUSTER BY customer_id</code>; Snowflake auto-partitions into micro-partitions and you may define a clustering key; Redshift uses <code>DISTKEY</code>/<code>SORTKEY</code> (not run here, verify).</p>
+<p>Pitfalls:</p>
+<ul>
+<li>A query must filter on the partition key to benefit. <code>WHERE created_at &gt;= '2024-01-01'</code> prunes; <code>WHERE DATE_FORMAT(created_at,...)</code> or a cast can defeat pruning.</li>
+<li>Too many tiny partitions cost planning time and metadata.</li>
+<li>Partitioning is not sharding. Partitions live in one database; sharding spreads data across servers and pushes joins/transactions into your application.</li>
+<li>Partitioning rarely speeds up OLTP point lookups that an index already serves; its main wins are pruning scans and cheap data retention (<code>DROP PARTITION</code> vs a huge <code>DELETE</code>).</li>
+</ul>
+<h2 id="5-data-modeling-for-analytics">5. Data modeling for analytics</h2>
+<h3 id="51-star-schema">5.1 Star schema</h3>
+<p>One central fact table (events/measurements, many rows, numeric measures + foreign keys) surrounded by dimension tables (descriptive attributes, fewer rows).</p>
+<div class="highlight"><pre><span></span><code>            dim_date
+               |
+dim_product - fact_sales - dim_customer
+</code></pre></div>
+
+<ul>
+<li>Fact grain: state it in one sentence ("one row per product per order line"). Everything else follows from the grain.</li>
+<li>Dimensions are denormalized (category lives in <code>dim_product</code>, not in a separate table). Snowflake schema is the normalized variant (dimension split into sub-tables): less redundancy, more joins.</li>
+<li>Use surrogate keys (integers) in dimensions, keep the business key as a plain column.</li>
+<li>Additive measures (amount, quantity) can be summed across any dimension; semi-additive (balances) not across time; non-additive (ratios) never: store numerator and denominator instead.</li>
+</ul>
+<p>Run against <code>setup.sql</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">category</span><span class="p">,</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">quarter</span><span class="p">,</span><span class="w"> </span><span class="k">SUM</span><span class="p">(</span><span class="n">f</span><span class="p">.</span><span class="n">amount</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">revenue</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">fact_sales</span><span class="w"> </span><span class="n">f</span>
+<span class="k">JOIN</span><span class="w"> </span><span class="n">dim_product</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="k">USING</span><span class="w"> </span><span class="p">(</span><span class="n">product_key</span><span class="p">)</span>
+<span class="k">JOIN</span><span class="w"> </span><span class="n">dim_date</span><span class="w">    </span><span class="n">d</span><span class="w"> </span><span class="k">USING</span><span class="w"> </span><span class="p">(</span><span class="n">date_key</span><span class="p">)</span>
+<span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">category</span><span class="p">,</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">quarter</span>
+<span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">category</span><span class="p">,</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">quarter</span><span class="p">;</span>
+</code></pre></div>
+
+<p>Real output:</p>
+<div class="highlight"><pre><span></span><code> category    quarter  revenue
+-----------  -------  -------
+Displays           1    900.0
+Displays           2    310.0
+Furniture          1    250.0
+Furniture          3    500.0
+Peripherals        1    160.0
+Peripherals        2     50.0
+Peripherals        3    100.0
+</code></pre></div>
+
+<p>"Which products never sold" needs an anti-join from the dimension side (a fact-side join cannot show missing rows). See week-02 for anti-join forms.</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">name</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">dim_product</span><span class="w"> </span><span class="n">p</span>
+<span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">fact_sales</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="k">USING</span><span class="w"> </span><span class="p">(</span><span class="n">product_key</span><span class="p">)</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">f</span><span class="p">.</span><span class="n">sale_id</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NULL</span><span class="p">;</span>
+</code></pre></div>
+
+<p>Output: <code>Chair</code>.</p>
+<p>Other terms: degenerate dimension (order number kept on the fact), junk dimension (bundle low-cardinality flags), conformed dimension (same <code>dim_date</code> shared by many facts), factless fact table (records that an event happened, no measure).</p>
+<h3 id="52-slowly-changing-dimensions-scd">5.2 Slowly Changing Dimensions (SCD)</h3>
+<p>A customer moves city. Should old sales still show the old city?</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>What it does</th>
+<th>History kept?</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>Never changes (original value retained)</td>
+<td>n/a</td>
+<td>Birth date, original signup channel</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Overwrite in place</td>
+<td>No</td>
+<td>Corrections, typos, history does not matter</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Add a new row per version with validity range</td>
+<td>Full</td>
+<td>Reports must reflect the attribute as it was then</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Extra column for previous value (<code>prev_city</code>)</td>
+<td>Only one prior</td>
+<td>Need "before and after" for a single change</td>
+</tr>
+<tr>
+<td>4/6</td>
+<td>Separate history table / hybrid of 1+2+3</td>
+<td>Varies</td>
+<td>Advanced; check Kimball references</td>
+</tr>
+</tbody>
+</table>
+<p>SCD2 design: surrogate key per version, business key repeated, <code>valid_from</code>, <code>valid_to</code> (use <code>9999-12-31</code> rather than NULL so range predicates stay simple), optional <code>is_current</code>. Facts store the surrogate key of the version that was current when the fact happened, so history joins "just work".</p>
+<p>Runnable SQLite example (tables in <code>setup.sql</code>: <code>dim_customer_scd2</code> and a change feed <code>stg_customer</code>).</p>
+<p>Before: Asha has two versions, Ben one. Feed says: Asha moved to Bengaluru, Ben unchanged, Esha is new.</p>
+<div class="highlight"><pre><span></span><code><span class="c1">-- step 1: close the current row of customers whose attributes changed</span>
+<span class="k">UPDATE</span><span class="w"> </span><span class="n">dim_customer_scd2</span>
+<span class="k">SET</span><span class="w"> </span><span class="n">valid_to</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'2024-09-01'</span><span class="p">,</span><span class="w"> </span><span class="n">is_current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">is_current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span>
+<span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="n">customer_id</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="k">SELECT</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">customer_id</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">stg_customer</span><span class="w"> </span><span class="n">s</span>
+<span class="w">    </span><span class="k">JOIN</span><span class="w"> </span><span class="n">dim_customer_scd2</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">customer_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">customer_id</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">is_current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span>
+<span class="w">    </span><span class="k">WHERE</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">name</span><span class="w"> </span><span class="o">&lt;&gt;</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">name</span><span class="w"> </span><span class="k">OR</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">city</span><span class="w"> </span><span class="o">&lt;&gt;</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">city</span><span class="p">);</span>
+
+<span class="c1">-- step 2: insert a new current row for every customer without a current row</span>
+<span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">dim_customer_scd2</span><span class="w"> </span><span class="p">(</span><span class="n">customer_id</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">city</span><span class="p">,</span><span class="w"> </span><span class="n">valid_from</span><span class="p">)</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">customer_id</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">city</span><span class="p">,</span><span class="w"> </span><span class="s1">'2024-09-01'</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">stg_customer</span><span class="w"> </span><span class="n">s</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">dim_customer_scd2</span><span class="w"> </span><span class="n">d</span>
+<span class="w">                  </span><span class="k">WHERE</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">customer_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">customer_id</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">is_current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+</code></pre></div>
+
+<p>Real output of <code>SELECT * FROM dim_customer_scd2 ORDER BY customer_id, valid_from</code>:</p>
+<div class="highlight"><pre><span></span><code>customer_sk  customer_id  name    city     valid_from   valid_to   is_current
+-----------  -----------  ----  ---------  ----------  ----------  ----------
+          1  C001         Asha  Pune       2023-01-01  2024-03-01           0
+          2  C001         Asha  Mumbai     2024-03-01  2024-09-01           0
+          4  C001         Asha  Bengaluru  2024-09-01  9999-12-31           1
+          3  C002         Ben   Delhi      2023-06-01  9999-12-31           1
+          5  C005         Esha  Chennai    2024-09-01  9999-12-31           1
+</code></pre></div>
+
+<p>Point-in-time lookup (as of 2024-02-01) uses a half-open range <code>valid_from &lt;= d AND d &lt; valid_to</code> so adjacent versions never both match:</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">customer_id</span><span class="p">,</span><span class="w"> </span><span class="n">city</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">dim_customer_scd2</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="s1">'2024-02-01'</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">valid_from</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="s1">'2024-02-01'</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">valid_to</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="c1">-- C001 Pune, C002 Delhi</span>
+</code></pre></div>
+
+<p>Order matters: close first, then insert; otherwise the NOT EXISTS check sees the old current row and inserts nothing. Run the pair inside one transaction. In Postgres/SQL Server/Snowflake the same logic is often written with <code>MERGE</code> (see <a href="../01-language-map-ddl-dml/lesson.html">part 01</a>), not run here, verify.</p>
+<p>Late-arriving or backdated changes make SCD2 harder (you must split an existing validity range). Mention that in interviews.</p>
+<h3 id="53-etl-vs-elt-and-other-modeling-styles">5.3 ETL vs ELT, and other modeling styles</h3>
+<ul>
+<li>ETL: transform before loading (older, on-prem). ELT: load raw data into the warehouse, transform with SQL there (dbt-style). Cheap warehouse compute made ELT dominant.</li>
+<li>Wide denormalized "one big table" is common in columnar warehouses because joins are costlier than scanning extra columns, at the price of redundancy.</li>
+<li>Data Vault (hubs, links, satellites) targets auditability and many sources; heavier to query.</li>
+<li>Kimball (star schemas, bottom-up) vs Inmon (normalized enterprise warehouse first): know the names.</li>
+</ul>
+<h2 id="6-dialect-traps-when-moving-between-engines">6. Dialect traps when moving between engines</h2>
+<ul>
+<li>Warehouse "constraints" you declare may not be enforced: duplicates can enter silently. Deduplicate in the pipeline (e.g. <code>ROW_NUMBER() OVER (PARTITION BY key ORDER BY loaded_at DESC) = 1</code>).</li>
+<li>Case/quoting: Postgres folds unquoted identifiers to lower case, Snowflake to upper case, SQL Server depends on collation.</li>
+<li>Integer division, string concatenation, date arithmetic all differ: see <a href="../cheatsheet.html">cheatsheet</a>.</li>
+</ul>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li>Modeling a warehouse like a 3NF OLTP schema (too many joins) or an OLTP app like one wide table (update anomalies).</li>
+<li>No stated grain, so a fact table mixes order-level and line-level amounts and sums double count.</li>
+<li>Joining facts to an SCD2 dimension on the business key without a date condition: row fan-out and double counting.</li>
+<li>Partitioning on a column nobody filters on.</li>
+<li>Using <code>SELECT *</code> on columnar engines.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<ol>
+<li>Run <code>sqlite3 :memory: ".read setup.sql" ".read practice.sql"</code> after filling in practice.sql.</li>
+<li>Draw the star schema for an e-commerce domain you know; state its grain.</li>
+<li>Answer <a href="interview-qa.html">interview-qa.md</a> out loud, then try <a href="../rapid-fire.html">rapid-fire.md</a>.</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../../06-sql/general-sql/05-concurrency-reliability/practice.sql.html">← Part 5 · Concurrency and reliability: practice.sql (code)</a><a class="next" href="../../../06-sql/general-sql/06-engines-warehouses-modeling/interview-qa.html">Part 6 · Engines, warehouses, modeling: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../../assets/data.js"></script><script src="../../../assets/app.js"></script></body></html>

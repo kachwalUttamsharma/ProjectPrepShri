@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 3 Interview Q&amp;A: Agents and Tool Use | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="13-llm-ai-concepts/week-03-agents-tool-use/interview-qa" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../13-llm-ai-concepts/README.html">LLM and AI Concepts</a> / <a href="../../13-llm-ai-concepts/week-03-agents-tool-use/lesson.html">Week 3 · Agents and tool use</a> / <span>Interview Q&amp;A</span></nav><button id="mark-done" data-id="13-llm-ai-concepts/week-03-agents-tool-use/interview-qa">Mark as done</button></div><article class="doc">
+<h1 id="week-3-interview-qa-agents-and-tool-use">Week 3 Interview Q&amp;A: Agents and Tool Use</h1>
+<hr />
+<p><strong>1. How does function calling work?</strong>
+You send messages plus tool definitions (name, description, JSON schema). The model returns a structured request to call a tool with arguments. Your code validates, authorizes and executes it, then returns the result as a message; the model continues, possibly calling more tools, until it answers. The model never executes anything itself.</p>
+<p><strong>2. What makes a good tool definition?</strong>
+Specific name, description saying when to use and when not to, strict schema with enums and required fields, examples, small focused tools, consistent error messages. The description is prompt text; vague tools cause wrong selection.</p>
+<p><strong>3. What can go wrong with tool calls?</strong>
+Hallucinated tools or arguments, wrong tool chosen, missing required info, huge outputs flooding context, repeated calls, non-idempotent side effects on retry, injected instructions in results. Mitigate with validation, error feedback, size caps, idempotency keys, approval gates.</p>
+<p><strong>4. Agent vs workflow: how do you decide?</strong>
+If the steps are known, use a workflow (code controls flow, LLM at nodes): predictable, testable, cheaper. Use an agent when the path depends on intermediate results and cannot be enumerated. Start with a single prompt, add structure, add autonomy only when evals show a need.</p>
+<p><strong>5. Describe the agent loop and its stop conditions.</strong>
+Model chooses action, you execute, feed back the observation, repeat. Stop on final answer, max steps, token/cost budget, timeout, repeated-failure threshold, or need for human input.</p>
+<p><strong>6. Plan-and-execute vs ReAct?</strong>
+ReAct decides one step at a time: flexible, good for short tasks, can wander. Plan-and-execute drafts a plan first, executes steps, re-plans on failure: more controllable, reviewable by a human, better for long tasks, but plans can be wrong and brittle.</p>
+<p><strong>7. How do you give an agent memory?</strong>
+Short-term: message history, trimmed or summarised. Working memory: a structured state object. Long-term: external store, retrieved by relevance. Watch privacy (per-user isolation, deletion), stale facts, poisoning via injected content, and context bloat.</p>
+<p><strong>8. What is MCP (generic protocol view) and why does it exist?</strong>
+A standard client-server protocol so an agent host can discover and call tools, read resources, and use prompt templates from independent servers, replacing N-by-M custom integrations. Transports: local process or remote HTTP, with auth for remote. Risks: malicious or changing tool descriptions, over-broad scopes, credential leakage, too many tools. Mitigate with allowlists, version pinning, least privilege, approval prompts. Check the current spec for details.</p>
+<p><strong>9. When would you use multiple agents?</strong>
+When subtasks need different tools, prompts or contexts, or can run in parallel (orchestrator-worker, handoffs, critic). Costs: more tokens, latency, harder debugging, error compounding. If one agent with good tools suffices, do that.</p>
+<p><strong>10. Why do agents fail in production even when demos work?</strong>
+Compounding error (10 steps at 95 percent is about 60 percent), edge-case inputs, flaky tools, ambiguous user goals, context growth, non-determinism. Fix with narrower scope, deterministic code where possible, validation, evals on trajectories, tracing, and human fallback.</p>
+<p><strong>11. How do you make retries safe?</strong>
+Retry only transient errors with exponential backoff and jitter. Make tools idempotent or pass idempotency keys so duplicates are ignored. Never blindly retry non-idempotent actions (payments, emails). Cap attempts and surface failure to the model or human.</p>
+<p><strong>12. How do you prevent runaway loops and cost?</strong>
+Hard step cap, token and dollar budget per run, wall-clock timeout, repeated-call detection, truncated tool output, prompt caching for static prefixes, cheaper models for easy steps, and per-user quotas with alerts.</p>
+<p><strong>13. Where should humans be in the loop?</strong>
+Before irreversible or high-impact actions, on low-confidence or policy-sensitive outputs, when required parameters are ambiguous, and for escalations. Classify tools by risk; auto-run read-only, approve irreversible. Persist state to pause and resume; capture human decisions as eval data; avoid approval fatigue with thresholds.</p>
+<p><strong>14. How do you secure an agent?</strong>
+Least privilege, per-user credentials, authorization enforced in the tool code, allowlisted arguments/domains/amounts, sandboxed code execution, no secrets in prompts, treat tool results and retrieved text as untrusted, approval gates for side effects, full audit logs, red-team tests.</p>
+<p><strong>15. How do you test and evaluate an agent?</strong>
+Scenario suites with inputs and expected outcomes (final state, tools called, forbidden actions), mocked or sandboxed tools, run each several times to measure success rate and variance, inspect traces for bad trajectories, track cost and steps per task, regression-test on each prompt/model/tool change. LLM judges can help for free-text, with caveats (Week 4).</p>
+<p><strong>16. How do you handle very long tool outputs or conversations?</strong>
+Truncate or paginate at the tool, return only needed fields, summarise older turns, store large artifacts outside the context and pass handles, retrieve on demand, use caching for the stable prefix.</p>
+<p><strong>17. What is structured output's role in agents?</strong>
+Forces machine-readable plans, decisions and tool args, enabling validation and branching in code. Use schemas for routing decisions and final results; validate semantics beyond shape.</p>
+<p><strong>18. Scenario: "The agent sent the same email three times."</strong>
+Likely retries or loop on a non-idempotent tool. Check traces. Fix: idempotency key per logical action, dedupe store, approval gate on send, loop detection, and only retry on clearly failed calls (distinguish timeout-after-send from failure). Add a regression scenario and tell the customer exactly what happened and what controls now exist.</p>
+<p><strong>19. Scenario: "Customer wants an agent that can do everything in their CRM autonomously."</strong>
+Narrow it. Start with read-only tools and a few high-value tasks, define success metrics, add write tools one at a time with approvals and limits (amounts, record scope), per-user permissions, audit logs, shadow mode (agent proposes, humans act) to gather accuracy data, then graduate actions to autonomous as measured error rates justify.</p>
+<p><strong>20. Scenario: "Agent works in staging but is slow and expensive in prod."</strong>
+Look at traces: steps per task, tokens per step, tool latencies. Typical causes: history growth, large tool outputs, sequential calls that could be parallel, big model for easy steps, no caching, retries on timeouts. Fix with trimming/summarising, parallel tool calls, routing to smaller models, prompt caching, a workflow for the common path, and per-run budgets. Report cost per successful task before and after.</p>
+<hr />
+<h2 id="bonus-probes">Bonus probes</h2>
+<ul>
+<li>"How many tools can you give an agent?" Accuracy tends to fall as the list grows; subset by task or route; test.</li>
+<li>"Should the LLM do auth checks?" Never; code does.</li>
+<li>"How do you resume a crashed run?" Persisted state and idempotent steps.</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../../13-llm-ai-concepts/week-03-agents-tool-use/lesson.html">← Week 3 · Agents and tool use: Lesson</a><a class="next" href="../../13-llm-ai-concepts/week-03-agents-tool-use/cheatsheet.html">Week 3 · Agents and tool use: Cheatsheet →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

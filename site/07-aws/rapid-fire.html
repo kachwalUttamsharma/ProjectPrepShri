@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Top 50 Rapid-Fire AWS Q&amp;A (one or two lines each) | Study Hub</title><link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/pygments.css"></head>
+<body data-root="../" data-page-id="07-aws/rapid-fire" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../index.html">Home</a> / <a href="../07-aws/README.html">AWS</a> / <span>Top 50 Rapid-Fire AWS Q&amp;A (one or two lines each)</span></nav><button id="mark-done" data-id="07-aws/rapid-fire">Mark as done</button></div><article class="doc">
+<h1 id="top-50-rapid-fire-aws-qa-one-or-two-lines-each">Top 50 Rapid-Fire AWS Q&amp;A (one or two lines each)</h1>
+<p>Check "current docs" for any number you plan to quote.</p>
+<ol>
+<li>Region vs AZ? Region = geographic area; AZ = isolated data center group in it (HA unit).</li>
+<li>Global services? IAM, Route 53, CloudFront, Organizations (control planes are global).</li>
+<li>Shared responsibility? AWS: security OF the cloud; you: security IN the cloud.</li>
+<li>IAM eval order? Default deny; explicit deny wins; need an allow; SCP/boundary must also allow.</li>
+<li>Role vs user? Role = temporary credentials, assumable; user = long-lived identity.</li>
+<li>STS AssumeRole duration? 15 min - 12 h, default 1 h; role chaining max 1 h.</li>
+<li>SCP? Org guardrail that limits (never grants); not applied to management account.</li>
+<li>EC2 pricing models? On-Demand, Savings Plans/RI, Spot, Dedicated, Capacity Reservation.</li>
+<li>Spot warning? 2 minutes.</li>
+<li>EBS vs instance store? Persistent network block vs ephemeral local NVMe.</li>
+<li>Lambda max timeout/memory? 15 min / 10,240 MB.</li>
+<li>Lambda cold start fix? Provisioned Concurrency, SnapStart, smaller packages, init outside handler.</li>
+<li>Reserved vs provisioned concurrency? Reserved = guarantee + cap (free); provisioned = pre-warmed (paid).</li>
+<li>ECS vs EKS? AWS-native simple vs managed Kubernetes (+$0.10/hr/cluster).</li>
+<li>Fargate? Serverless compute for containers; no nodes to manage.</li>
+<li>ALB vs NLB? L7 HTTP routing vs L4 TCP/UDP, static IPs, extreme perf.</li>
+<li>ALB 502/503/504? Bad target response / no healthy targets / target timeout.</li>
+<li>ASG best policy? Target tracking.</li>
+<li>S3 consistency? Strong read-after-write and list.</li>
+<li>S3 durability? 11 nines (multi-AZ classes).</li>
+<li>S3 max object / single PUT? 5 TB / 5 GB (use multipart).</li>
+<li>S3 Glacier Deep Archive retrieval? ~12-48 hours; 180-day minimum.</li>
+<li>Presigned URL? Time-limited signed URL granting one operation without creds.</li>
+<li>S3 public leak prevention? Block Public Access, bucket owner enforced, Access Analyzer.</li>
+<li>EBS vs EFS vs S3? Block (1 AZ) vs shared NFS (multi-AZ) vs object (regional).</li>
+<li>RDS Multi-AZ vs read replica? Sync HA failover vs async read scaling.</li>
+<li>Aurora storage? 6 copies across 3 AZs, up to 128 TiB, up to 15 replicas.</li>
+<li>RDS Proxy purpose? Connection pooling, faster failover (needed for Lambda).</li>
+<li>DynamoDB item max? 400 KB.</li>
+<li>1 RCU / 1 WCU? 4 KB strongly consistent read/s; 1 KB write/s.</li>
+<li>GSI vs LSI? GSI any time, different PK, default 20; LSI at creation, same PK, max 5.</li>
+<li>DynamoDB on-demand vs provisioned? Spiky/unknown vs steady/predictable.</li>
+<li>DAX? In-memory cache for DynamoDB (microseconds).</li>
+<li>Redis vs Memcached? Rich + persistent + replication vs simple multithreaded cache.</li>
+<li>Redshift vs Athena? Warehouse (provisioned/serverless) vs serverless SQL on S3.</li>
+<li>SG vs NACL? Stateful allow-only (ENI) vs stateless allow/deny (subnet).</li>
+<li>NAT Gateway vs IGW? Outbound-only for private vs two-way for public; NAT costs per GB.</li>
+<li>Gateway vs interface endpoint? S3/DynamoDB only, free vs PrivateLink ENI for many services, paid.</li>
+<li>Peering vs TGW? 1:1 non-transitive vs hub-and-spoke transitive.</li>
+<li>VPN vs Direct Connect? Encrypted internet, quick vs dedicated private link, consistent, weeks.</li>
+<li>Route 53 policies? Simple, weighted, latency, failover, geolocation, geoproximity, multivalue, IP-based.</li>
+<li>CloudFront private S3? Origin Access Control + bucket policy; ACM cert in us-east-1.</li>
+<li>SQS standard vs FIFO? Unlimited/at-least-once/unordered vs ordered/dedup/lower throughput.</li>
+<li>SQS visibility timeout? Hide time after receive (default 30 s, max 12 h); must exceed processing time.</li>
+<li>SNS vs SQS vs EventBridge vs Kinesis? Push fan-out / queue / routed event bus / replayable stream.</li>
+<li>Step Functions Standard vs Express? Up to 1 yr exactly-once vs 5 min high-volume at-least-once.</li>
+<li>CloudWatch vs CloudTrail vs Config? Metrics/logs vs API audit vs resource state/compliance.</li>
+<li>KMS envelope encryption? Data key encrypts data; CMK encrypts the data key; direct encrypt only 4 KB.</li>
+<li>Secrets Manager vs Parameter Store? Rotation + $0.40/secret vs free config store.</li>
+<li>RTO/RPO and DR tiers? Time to recover/data loss tolerated; backup-restore, pilot light, warm standby, active-active.</li>
+</ol>
+<p>Bonus - FDE one-liners</p>
+<ul>
+<li>API Gateway default 29 s limit: stream LLM responses via ALB/Fargate or Lambda response streaming.</li>
+<li>Vector store default for a pilot: Aurora Postgres + pgvector; OpenSearch for hybrid/scale.</li>
+<li>Keyless Bedrock access: ECS task role with <code>bedrock:InvokeModel</code> on specific model ARNs.</li>
+<li>First cost suspects: NAT data, cross-AZ, CloudWatch logs, idle LBs, LLM tokens.</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../07-aws/week-06-architecture-fde/mock-interview.html">← Final Mock Interview Sheet (about 75 minutes, self-run or with a partner)</a><a class="next" href="../08-system-design/README.html">System Design: Overview →</a></div></main><aside id="toc"></aside></div>
+<script src="../assets/data.js"></script><script src="../assets/app.js"></script></body></html>

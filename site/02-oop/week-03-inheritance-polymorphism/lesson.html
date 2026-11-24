@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 3: Inheritance, polymorphism, ABCs and the MRO | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="02-oop/week-03-inheritance-polymorphism/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../02-oop/week-01-classes-objects/lesson.html">Object-Oriented Python</a> / <a href="../../02-oop/week-03-inheritance-polymorphism/lesson.html">Week 3 · Inheritance and polymorphism</a> / <span>Lesson</span></nav><button id="mark-done" data-id="02-oop/week-03-inheritance-polymorphism/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-3-inheritance-polymorphism-abcs-and-the-mro">Week 3: Inheritance, polymorphism, ABCs and the MRO</h1>
+<h2 id="1-inheritance-and-super">1. Inheritance and <code>super()</code></h2>
+<p>A subclass gets everything from its parent and can add or override.</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Employee</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">salary</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">salary</span> <span class="o">=</span> <span class="n">name</span><span class="p">,</span> <span class="n">salary</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">annual_pay</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">salary</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Manager</span><span class="p">(</span><span class="n">Employee</span><span class="p">):</span>                 <span class="c1"># Manager "is an" Employee</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">salary</span><span class="p">,</span> <span class="n">reports</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">salary</span><span class="p">)</span>   <span class="c1"># let the parent set up its part</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reports</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">reports</span> <span class="ow">or</span> <span class="p">[])</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">annual_pay</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>                <span class="c1"># override</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">annual_pay</span><span class="p">()</span> <span class="o">+</span> <span class="mi">1000</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reports</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Use <code>super()</code> (no arguments) to call the parent version. Forgetting <code>super().__init__()</code> leaves parent attributes unset.</p>
+<p><code>isinstance(m, Employee)</code> is True for a Manager. <code>issubclass(Manager, Employee)</code> is True. <code>bool</code> is a subclass of <code>int</code>, so check <code>bool</code> <strong>first</strong> when classifying.</p>
+<h2 id="2-polymorphism">2. Polymorphism</h2>
+<p>Same call, different behaviour depending on the object's class:</p>
+<div class="highlight"><pre><span></span><code><span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="p">[</span><span class="n">Employee</span><span class="p">(</span><span class="o">...</span><span class="p">),</span> <span class="n">Manager</span><span class="p">(</span><span class="o">...</span><span class="p">)]:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">annual_pay</span><span class="p">())</span>     <span class="c1"># each class answers in its own way</span>
+</code></pre></div>
+
+<p>Callers depend on the <em>interface</em>, not the concrete class. This is what lets you add a new shape without touching <code>total_area()</code>.</p>
+<h2 id="3-abstract-base-classes">3. Abstract base classes</h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">ABC</span><span class="p">,</span> <span class="n">abstractmethod</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Shape</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">area</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span> <span class="o">...</span>
+
+<span class="n">Shape</span><span class="p">()</span>          <span class="c1"># TypeError: can't instantiate abstract class</span>
+</code></pre></div>
+
+<p>A subclass must implement every abstract method before it can be instantiated. Concrete methods in the ABC (e.g. <code>describe()</code>) can call the abstract ones: this is the <strong>template method</strong> pattern.</p>
+<h2 id="4-method-resolution-order-mro">4. Method Resolution Order (MRO)</h2>
+<p>With multiple inheritance Python linearizes parents using C3. See it with <code>Cls.__mro__</code> or <code>Cls.mro()</code>.</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">A</span><span class="p">:</span> <span class="o">...</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">B</span><span class="p">(</span><span class="n">A</span><span class="p">):</span> <span class="o">...</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">C</span><span class="p">(</span><span class="n">A</span><span class="p">):</span> <span class="o">...</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">D</span><span class="p">(</span><span class="n">B</span><span class="p">,</span> <span class="n">C</span><span class="p">):</span> <span class="o">...</span>
+<span class="n">D</span><span class="o">.</span><span class="vm">__mro__</span>   <span class="c1"># D, B, C, A, object   (children before parents, left-to-right)</span>
+</code></pre></div>
+
+<p><code>super()</code> means "the next class in the MRO of <code>type(self)</code>", not "my parent". If every class calls <code>super().method()</code>, each runs exactly once (cooperative inheritance). <strong>Mixins</strong> are small classes adding one behaviour (<code>JsonMixin.to_json()</code>) placed to the left of the main base: <code>class User(JsonMixin, Base)</code>.</p>
+<h2 id="5-duck-typing">5. Duck typing</h2>
+<p>"If it quacks like a duck..." Python doesn't check the type, only that the method exists. Prefer EAFP/duck typing over many <code>isinstance</code> checks:</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">quack_all</span><span class="p">(</span><span class="n">things</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">t</span><span class="o">.</span><span class="n">quack</span><span class="p">()</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">things</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="s2">"quack"</span><span class="p">)]</span>
+</code></pre></div>
+
+<p>Formal alternative (week 4): <code>typing.Protocol</code>.</p>
+<h2 id="6-subclassing-built-ins">6. Subclassing built-ins</h2>
+<p>You can subclass <code>list</code>, <code>dict</code>, <code>Exception</code>. Gotcha: built-in methods often do NOT call each other (<code>list.extend</code> does not call your overridden <code>append</code>). Override every entry point you care about.</p>
+<h2 id="7-inheritance-is-the-strong-coupling">7. Inheritance is the strong coupling</h2>
+<p>Use it for true "is-a" relationships with shared behaviour. If you only want to reuse code, prefer composition (week 4).</p>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li>Not calling <code>super().__init__(...)</code>.</li>
+<li>Overriding with a different signature, breaking callers (Liskov Substitution Principle).</li>
+<li>Raising <code>NotImplemented</code> instead of <code>NotImplementedError</code> in a "must override" method.</li>
+<li>Deep hierarchies (3+ levels) for code reuse only.</li>
+<li>Checking <code>type(x) == Foo</code> instead of <code>isinstance(x, Foo)</code>.</li>
+<li>Assuming <code>super()</code> is the direct parent in multiple inheritance.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run
+<code>.venv/bin/pytest 02-oop/week-03-inheritance-polymorphism -v</code>
+and show me your code. Interview lens: explain MRO, abstract classes vs duck typing, when NOT to inherit.</p>
+</article><div class="pager"><a class="prev" href="../../02-oop/week-02-encapsulation-dunders/test_exercises.py.html">← Week 2 · Encapsulation and dunders: Tests (code)</a><a class="next" href="../../02-oop/week-03-inheritance-polymorphism/exercises.py.html">Week 3 · Inheritance and polymorphism: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

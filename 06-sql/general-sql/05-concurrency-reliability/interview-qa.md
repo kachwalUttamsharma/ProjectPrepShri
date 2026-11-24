@@ -1,0 +1,24 @@
+# Part 05 interview Q&A: concurrency and reliability
+
+Version-dependent details: check current docs. Basic ACID is in [week-04](../../week-04-schema-indexes-transactions/interview-qa.md).
+
+1. **Name the classic anomalies.** Dirty read, non-repeatable read, phantom read, lost update, write skew (plus read skew). Dirty = uncommitted data; non-repeatable = same row changes; phantom = row set changes; lost update = two read-modify-writes overwrite; write skew = two transactions read overlapping data and write different rows, breaking an invariant.
+2. **What is the default isolation level in Postgres and MySQL?** Postgres READ COMMITTED; MySQL InnoDB REPEATABLE READ.
+3. **What does Postgres REPEATABLE READ actually give?** Snapshot isolation: one snapshot per transaction, no dirty/non-repeatable/phantom reads for plain reads; concurrent update of the same row aborts the later writer with a serialization error. Write skew is still possible.
+4. **How does Postgres SERIALIZABLE work?** SSI: snapshot isolation plus tracking of read-write dependencies; it aborts a transaction (SQLSTATE 40001) when a dangerous cycle is detected. No blocking added, but you must retry.
+5. **What does READ UNCOMMITTED do in Postgres?** Behaves as READ COMMITTED; dirty reads are not possible.
+6. **How does InnoDB REPEATABLE READ differ from Postgres?** Plain SELECTs use a snapshot, but locking reads and writes see the latest committed rows and use next-key (record plus gap) locks, which prevent many phantoms but cause gap-lock waits. Lost updates are possible with read-then-write.
+7. **Explain lost update and three fixes.** Two transactions read the same value and write back computed results; one is overwritten. Fixes: atomic `SET x = x - n`; `SELECT ... FOR UPDATE`; optimistic version check; or REPEATABLE READ/SERIALIZABLE plus retry.
+8. **Explain write skew with an example and fix.** Two on-call doctors each see the other on call and both go off. Fix with SERIALIZABLE and retries, locking the rows read (`FOR UPDATE`), or a constraint/materialized lock row that forces conflict.
+9. **Optimistic vs pessimistic locking?** Pessimistic locks before modifying (`FOR UPDATE`): safe under high contention, holds locks. Optimistic checks a version at write time (`WHERE version = ?`, check rows affected) and retries on conflict: no locks, best at low contention and across user think-time.
+10. **What is SELECT FOR UPDATE SKIP LOCKED for?** Work queues: each worker locks and takes a different unlocked row without waiting. It returns an intentionally inconsistent view, so not for reporting.
+11. **What is a deadlock and how do you handle it?** A cycle of transactions each waiting on a lock another holds. The engine aborts one victim. Prevent with consistent lock ordering and short transactions; handle by retrying the aborted transaction.
+12. **What are advisory locks?** Application-defined named locks managed by the database (Postgres `pg_advisory_lock`, MySQL `GET_LOCK`), not tied to rows. Use for single-runner jobs; beware session-level locks with transaction-mode connection pools.
+13. **Why can an ALTER TABLE take a site down?** It needs a strong lock; if it queues behind a long transaction, all later queries queue behind it. Use lock timeouts, short transactions, and online DDL techniques.
+14. **How do you do a zero-downtime column rename or type change?** Expand/contract: add the new column, dual-write, backfill in batches, switch reads, stop writing old, drop old later. Each step compatible with both code versions.
+15. **Physical vs logical replication?** Physical ships WAL/bytes: exact copy, same major version, whole cluster. Logical ships row changes: per-table, cross-version, usable for zero-downtime upgrades and CDC, but needs primary keys and handles DDL poorly.
+16. **Why isn't a replica a backup?** Bad statements (DROP, bad UPDATE) replicate immediately; and replica lag means it is not a point-in-time history. Backups plus archived logs allow recovery to a past moment.
+17. **Explain PITR.** Restore a base backup, then replay archived WAL (Postgres) or binlogs (MySQL) up to a target time or LSN just before the mistake.
+18. **Define RPO and RTO.** RPO: maximum acceptable data loss (time). RTO: maximum acceptable downtime. They drive sync vs async replication, archive frequency, and failover automation.
+19. **Why use a connection pooler like PgBouncer?** Postgres connections are heavyweight processes; a pooler multiplexes many client connections onto a few server connections. Transaction pooling breaks session state (SET, session advisory locks, some prepared statements).
+20. **A transaction is "idle in transaction" for hours. Why is it bad?** It holds locks and its snapshot, blocking vacuum/purge (bloat), and holds a connection. Fix the code path, set `idle_in_transaction_session_timeout`.

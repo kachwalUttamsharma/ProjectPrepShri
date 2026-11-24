@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>03 - Interview Process and Strategy | Study Hub</title><link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/pygments.css"></head>
+<body data-root="../" data-page-id="09-behavioral-career/03-interview-process-and-strategy" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../index.html">Home</a> / <a href="../09-behavioral-career/README.html">Behavioral and Career</a> / <span>03 - Interview Process and Strategy</span></nav><button id="mark-done" data-id="09-behavioral-career/03-interview-process-and-strategy">Mark as done</button></div><article class="doc">
+<h1 id="03-interview-process-and-strategy">03 - Interview Process and Strategy</h1>
+<p><strong>Important caveat</strong>: company processes change frequently (round counts, formats, tools, leveling, team matching, whether remote or onsite). Everything below is a generic pattern. Verify current details from the official careers page, the recruiter's email, and the candidate prep materials the company sends. Ask the recruiter directly: "What are the rounds, how long, what is each testing, which language/tools are allowed?" Recruiters generally answer.</p>
+<h2 id="1-generic-loop-structure">1. Generic loop structure</h2>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Typical format</th>
+<th>What it tests</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Application / referral</td>
+<td>Resume review</td>
+<td>Match to role, impact evidence</td>
+</tr>
+<tr>
+<td>Recruiter screen</td>
+<td>20-40 min call</td>
+<td>Motivation, background, logistics, compensation expectations, timeline</td>
+</tr>
+<tr>
+<td>Technical phone/video screen</td>
+<td>45-60 min, shared editor, 1-2 coding problems</td>
+<td>Problem solving, DSA fundamentals, communication</td>
+</tr>
+<tr>
+<td>Online assessment (some companies)</td>
+<td>Timed coding test</td>
+<td>Speed and correctness on standard problems</td>
+</tr>
+<tr>
+<td>Onsite / virtual "loop"</td>
+<td>3-6 interviews in a day or split</td>
+<td>See below</td>
+</tr>
+<tr>
+<td>Hiring committee / team match</td>
+<td>Internal review, sometimes team-fit calls</td>
+<td>Calibration, leveling</td>
+</tr>
+<tr>
+<td>Offer</td>
+<td>Call plus written offer</td>
+<td>Compensation and negotiation</td>
+</tr>
+</tbody>
+</table>
+<h3 id="typical-loop-rounds-swe">Typical loop rounds (SWE)</h3>
+<ul>
+<li>2-3 coding/DSA rounds: arrays, strings, hashing, trees, graphs, DP, heaps; clean code, complexity, tests.</li>
+<li>System design (more at mid/senior levels): requirements, API, data model, scaling, trade-offs (see 08-system-design).</li>
+<li>Behavioral / "team fit" round (see 01).</li>
+<li>Sometimes low-level design / OOP (see 11-lld) and domain depth (see 10-python-depth, 12-cs-fundamentals).</li>
+</ul>
+<h3 id="typical-loop-rounds-fde-type-roles">Typical loop rounds (FDE-type roles)</h3>
+<p>Expect a mix; ask the recruiter which apply:</p>
+<ul>
+<li>Coding (often practical: API integration, data wrangling, parsing, building a small service), possibly lighter DSA than pure SWE.</li>
+<li>Debugging or code-review style exercise.</li>
+<li>Technical design with customer context (integrate LLM into a workflow, data pipeline, RAG, auth).</li>
+<li>Customer-scenario / case round: discovery, scoping, handling pushback (see 02).</li>
+<li>Project deep dive or presentation of past work.</li>
+<li>Behavioral and values.</li>
+<li>Possibly a take-home or live build; check time limits and what is allowed (AI tools policy varies, ask).</li>
+</ul>
+<h2 id="2-what-each-round-tests-and-how-to-prepare">2. What each round tests and how to prepare</h2>
+<table>
+<thead>
+<tr>
+<th>Round</th>
+<th>Preparation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Recruiter screen</td>
+<td>60-second pitch, why this company/role, salary range research, timeline, competing processes</td>
+</tr>
+<tr>
+<td>Coding</td>
+<td>03-dsa patterns daily, timed practice, verbal narration (05)</td>
+</tr>
+<tr>
+<td>System design</td>
+<td>08-system-design frameworks, 3-4 classic designs, trade-off vocabulary</td>
+</tr>
+<tr>
+<td>Practical/FDE coding</td>
+<td>04-fastapi, 06-sql, 05-fde-projects, HTTP/JSON/auth, error handling</td>
+</tr>
+<tr>
+<td>Customer scenario</td>
+<td>02 frameworks out loud</td>
+</tr>
+<tr>
+<td>Behavioral</td>
+<td>01 story bank</td>
+</tr>
+<tr>
+<td>Project deep dive</td>
+<td>README and architecture of your best project; metrics; trade-offs; what you'd change</td>
+</tr>
+</tbody>
+</table>
+<h2 id="3-timeline-planning">3. Timeline planning</h2>
+<ul>
+<li>Preparation lead time: 3-6 months of focused prep before first real interviews is common for beginner-to-hire paths; this repo's 12-month plan (06) is more conservative.</li>
+<li>Applying: Start practice interviews with low-priority companies first. Cluster real interviews within 2-4 weeks so offers overlap (helps negotiation).</li>
+<li>Between stages: Companies often take days to weeks; follow up politely after one week.</li>
+<li>Scheduling: ask for 1-2 weeks of prep after the recruiter screen; most recruiters accommodate. Do not schedule your dream company first.</li>
+<li>Day before: light review only, sleep, test your audio/IDE/internet setup.</li>
+</ul>
+<h2 id="4-how-to-practice">4. How to practice</h2>
+<ol>
+<li><strong>Coding</strong>: pattern-based (two pointers, sliding window, BFS/DFS, binary search, heap, DP basics); solve, then re-solve from scratch after 3-7 days (spaced repetition). Time-box 25-35 min, then read solutions.</li>
+<li><strong>Verbal</strong>: always narrate; record yourself occasionally.</li>
+<li><strong>System design</strong>: practice drawing and talking; time 35-45 min.</li>
+<li><strong>Behavioral</strong>: out-loud answers, recorded.</li>
+<li><strong>Mocks</strong>: human mocks beat solo practice. Sources: friends, peers, mentors, community mock platforms, paid mock services (check quality and price yourself).</li>
+<li><strong>Review loop</strong>: after each mock, write 3 things done well, 3 to fix, add to a log.</li>
+</ol>
+<h2 id="5-mock-interview-schedule-suggested">5. Mock-interview schedule (suggested)</h2>
+<table>
+<thead>
+<tr>
+<th>Period</th>
+<th>Cadence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Months 1-4</td>
+<td>None formal; solo timed practice, narrate aloud</td>
+</tr>
+<tr>
+<td>Month 5-6</td>
+<td>1 mock every 2 weeks (alternating coding / behavioral)</td>
+</tr>
+<tr>
+<td>Month 7-9</td>
+<td>1 per week (coding, design, behavioral rotating); first FDE scenario mocks</td>
+</tr>
+<tr>
+<td>Month 10-12</td>
+<td>2 per week in the 4 weeks before real loops; at least 2 full-loop simulations (4-5 consecutive rounds)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="6-application-strategy">6. Application strategy</h2>
+<ul>
+<li>Referrals usually help get a resume read; reach out to people you genuinely know or engage with on professional channels, ask for advice before a referral.</li>
+<li>Target tiers: tier 3 (practice companies), tier 2 (good fits), tier 1 (dream). Interview in that order if possible.</li>
+<li>Track everything in a spreadsheet: company, role, date applied, contact, stage, next step, notes.</li>
+<li>Role titles vary (forward deployed engineer, solutions engineer, customer engineer, applied AI engineer, deployment strategist). Read the responsibilities, not just the title.</li>
+</ul>
+<h2 id="7-negotiation-basics">7. Negotiation basics</h2>
+<ul>
+<li>Wait for a written offer before negotiating specifics; before that, deflect salary questions politely ("I'm focused on fit; I'm confident we can align on a range"). Rules on asking about pay history vary by location; do not assume.</li>
+<li>Know components: base, bonus, equity (vesting schedule, cliff, refresh), sign-on, relocation, level/title. Level matters as much as numbers.</li>
+<li>Research ranges from reputable sources and treat them as noisy.</li>
+<li>Be gracious and enthusiastic, ask for what you want with reasons (competing offers, market data), and ask for time to decide.</li>
+<li>Negotiate several items at once; use "Is there flexibility on ...?" phrasing.</li>
+<li>Never lie about competing offers.</li>
+<li>Get everything in writing. Consider taxes and benefits, and check legal/visa terms if relevant.</li>
+<li>Considering a lowball offer for experience: weigh learning, team, and growth, not only pay.</li>
+</ul>
+<h2 id="8-after-each-interview">8. After each interview</h2>
+<ul>
+<li>Within 30 minutes write what was asked and how you felt.</li>
+<li>Send a short thank-you note to the recruiter.</li>
+<li>If rejected, ask for feedback (often not given) and the re-application cooldown period; do not take it personally.</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../09-behavioral-career/02-fde-customer-scenarios.html">← 02 · FDE customer scenarios</a><a class="next" href="../09-behavioral-career/04-resume-and-portfolio.html">04 · Resume and portfolio →</a></div></main><aside id="toc"></aside></div>
+<script src="../assets/data.js"></script><script src="../assets/app.js"></script></body></html>

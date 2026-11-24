@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 5: Project - Parking lot system | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="02-oop/week-05-project-parking-lot/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../02-oop/week-01-classes-objects/lesson.html">Object-Oriented Python</a> / <a href="../../02-oop/week-05-project-parking-lot/lesson.html">Week 5 · Project: parking lot</a> / <span>Lesson</span></nav><button id="mark-done" data-id="02-oop/week-05-project-parking-lot/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-5-project-parking-lot-system">Week 5: Project - Parking lot system</h1>
+<p>A classic low-level-design (LLD) interview problem. This week you design and build it yourself from the spec, using everything from weeks 1-4. Budget: ~7-8 hours. Suggested split: read spec + sketch classes on paper (1h), spots/vehicles (1.5h), pricing (1h), lot (2.5h), review + polish + checklist (2h).</p>
+<h2 id="how-to-approach-an-lld-interview-question">How to approach an LLD interview question</h2>
+<ol>
+<li><strong>Clarify requirements</strong> (what vehicles? pricing? one entrance?). State assumptions.</li>
+<li><strong>Identify nouns -&gt; classes</strong> (Vehicle, ParkingSpot, Ticket, ParkingLot), <strong>verbs -&gt; methods</strong> (park, unpark, fee).</li>
+<li><strong>Decide relationships</strong>: lot HAS spots (composition); pricing is a pluggable Strategy; errors are a small exception hierarchy.</li>
+<li><strong>Code the happy path first</strong>, then edge cases (full lot, double parking, bad ticket).</li>
+<li><strong>Talk through extensions</strong> (multiple floors, EV spots, reservations, concurrency/locking) and how your design absorbs them.</li>
+</ol>
+<h2 id="spec">Spec</h2>
+<h3 id="enums-provided-in-exercisespy">Enums (provided in <code>exercises.py</code>)</h3>
+<ul>
+<li><code>VehicleType</code>: MOTORCYCLE, CAR, TRUCK</li>
+<li><code>SpotType</code> (IntEnum): SMALL=1, MEDIUM=2, LARGE=3</li>
+</ul>
+<h3 id="fit-rules">Fit rules</h3>
+<table>
+<thead>
+<tr>
+<th>Vehicle</th>
+<th>Fits in</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MOTORCYCLE</td>
+<td>SMALL, MEDIUM, LARGE</td>
+</tr>
+<tr>
+<td>CAR</td>
+<td>MEDIUM, LARGE</td>
+</tr>
+<tr>
+<td>TRUCK</td>
+<td>LARGE</td>
+</tr>
+</tbody>
+</table>
+<h3 id="classes">Classes</h3>
+<ul>
+<li><code>Vehicle</code> - frozen dataclass: <code>plate: str</code>, <code>vehicle_type: VehicleType</code>.</li>
+<li><code>ParkingSpot(spot_id, spot_type)</code> - <code>vehicle</code> (None when free), <code>is_free</code> property, <code>can_fit(vehicle)</code>, <code>park(vehicle)</code>, <code>leave()</code>.</li>
+<li><code>park</code> raises <code>ParkingError</code> if occupied or the vehicle doesn't fit. <code>leave</code> returns the vehicle; raises <code>ParkingError</code> if already empty.</li>
+<li><code>Ticket</code> - frozen dataclass: <code>ticket_id: int</code>, <code>plate: str</code>, <code>spot_id: int</code>, <code>entry_time: float</code>.</li>
+<li><code>PricingStrategy</code> - ABC with abstract <code>fee(vehicle_type, minutes) -&gt; int</code>.</li>
+<li><code>HourlyPricing(rates)</code>: <code>rates</code> maps VehicleType to price per hour. Fee = rate x hours, rounded <strong>up</strong> to whole hours, minimum 1 hour. Missing vehicle type -&gt; <code>ValueError</code>.</li>
+<li><code>FlatPricing(amount)</code>: always <code>amount</code>.</li>
+<li><code>ParkingLot(spots, pricing, clock=None)</code></li>
+<li><code>clock</code> is a zero-argument callable returning the current time <strong>in minutes</strong> (inject a fake in tests). Default: real time.</li>
+<li><code>park(vehicle) -&gt; Ticket</code>: choose the <strong>smallest fitting free spot</strong> (lowest <code>SpotType</code>, ties by lowest <code>spot_id</code>). Ticket ids are 1, 2, 3... and never reused. A failed park must not consume an id.</li>
+<li><code>unpark(ticket_id) -&gt; int fee</code>: frees the spot, invalidates the ticket.</li>
+<li><code>available_count(spot_type=None) -&gt; int</code>: free spots (of that type, or all).</li>
+<li><code>is_full() -&gt; bool</code>: no free spots at all.</li>
+<li><code>find_vehicle(plate) -&gt; spot_id | None</code>.</li>
+<li><code>occupancy() -&gt; dict[SpotType, tuple[int, int]]</code>: <code>(occupied, total)</code> for each spot type that exists.</li>
+<li>Exceptions (provided): <code>ParkingError</code> (base), <code>LotFullError</code>, <code>DuplicateVehicleError</code>, <code>InvalidTicketError</code>.</li>
+<li><code>park</code> raises <code>DuplicateVehicleError</code> if the plate is already parked, <code>LotFullError</code> if no free spot fits that vehicle. <code>unpark</code> raises <code>InvalidTicketError</code> for unknown/used tickets.</li>
+</ul>
+<h3 id="out-of-scope-talk-about-them-dont-build">Out of scope (talk about them, don't build)</h3>
+<p>Multiple floors, reservations, thread safety, persistence.</p>
+<h2 id="design-hints">Design hints</h2>
+<ul>
+<li>Don't repeat the fit table in <code>if/elif</code> chains; use a dict <code>{VehicleType: set of SpotType}</code>.</li>
+<li><code>ParkingLot</code> should depend on the <code>PricingStrategy</code> abstraction (injected), not on <code>HourlyPricing</code>.</li>
+<li>Keep a dict <code>ticket_id -&gt; Ticket</code> and <code>plate -&gt; ticket_id</code> for O(1) lookups. Choosing a spot may be O(n) at first; note how you'd make it O(log n) with a heap per spot type.</li>
+<li>Validate at the edges, keep internal methods simple.</li>
+</ul>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li>Spot selection that takes the first fit instead of the smallest fit (motorcycles filling truck spots).</li>
+<li>Incrementing the ticket counter before a failed <code>park</code>.</li>
+<li>Forgetting to remove the plate/ticket entries on <code>unpark</code> (then re-parking raises Duplicate).</li>
+<li>Using <code>time.time()</code> directly inside the lot (untestable). Inject the clock.</li>
+<li><code>math.ceil(minutes / 60)</code> for 0 minutes gives 0: enforce the minimum of 1 hour.</li>
+<li>Returning floats for money where the spec says int.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run
+<code>.venv/bin/pytest 02-oop/week-05-project-parking-lot -v</code></p>
+<h2 id="stage-2-review-checklist">Stage 2 review checklist</h2>
+<p>Before showing me the code, tick every box honestly. Then be ready to explain each item out loud (that's the interview).</p>
+<p><strong>Week 1-2 fundamentals</strong></p>
+<ul>
+<li>[ ] I can explain <code>self</code>, <code>__init__</code>, class vs instance attributes without notes.</li>
+<li>[ ] No mutable default arguments; no accidental shared mutable class attributes.</li>
+<li>[ ] Attributes that shouldn't be touched use <code>_name</code>; validated state uses <code>@property</code> where useful.</li>
+<li>[ ] I know when to define <code>__repr__</code>, <code>__eq__</code> + <code>__hash__</code> together and why.</li>
+<li>[ ] I can explain <code>@classmethod</code> vs <code>@staticmethod</code> vs instance method.</li>
+</ul>
+<p><strong>Week 3 inheritance</strong></p>
+<ul>
+<li>[ ] I used an ABC (<code>PricingStrategy</code>) and can say why it can't be instantiated.</li>
+<li>[ ] I can draw the MRO of a diamond and say what <code>super()</code> really does.</li>
+<li>[ ] I can justify every inheritance relationship as truly "is-a" (and name where I chose composition).</li>
+</ul>
+<p><strong>Week 4 design</strong></p>
+<ul>
+<li>[ ] The lot HAS spots and a pricing strategy (composition); pricing is injected (DIP).</li>
+<li>[ ] Adding a new pricing scheme or vehicle type needs no edits to <code>ParkingLot</code> logic (OCP) - and I can say what edits it would need.</li>
+<li>[ ] Errors use a small custom exception hierarchy; callers can catch <code>ParkingError</code> or a specific subclass.</li>
+<li>[ ] I can name SOLID's five letters with one example each from this project.</li>
+<li>[ ] I can state why I did or did not use a Singleton for the lot.</li>
+</ul>
+<p><strong>Quality</strong></p>
+<ul>
+<li>[ ] All tests pass; I also added 3+ tests of my own (e.g. re-park after unpark, ties between equal spots).</li>
+<li>[ ] Each method does one thing; no method is longer than ~20 lines.</li>
+<li>[ ] Names are clear; docstrings explain <em>why</em>, not <em>what</em>.</li>
+<li>[ ] I can state time complexity of <code>park</code>, <code>unpark</code>, <code>find_vehicle</code>, and how to improve <code>park</code>.</li>
+<li>[ ] Extension talk ready: multiple floors, EV charging spots, reservations, thread safety (locks), persistence.</li>
+</ul>
+<p><strong>Mock-interview drill (do once, out loud, 35 minutes)</strong>: re-solve "design an elevator system" or "design a library system" on paper using the 5 steps above. Send me the class sketch.</p>
+</article><div class="pager"><a class="prev" href="../../02-oop/week-04-design-patterns/test_exercises.py.html">← Week 4 · Composition and design patterns: Tests (code)</a><a class="next" href="../../02-oop/week-05-project-parking-lot/exercises.py.html">Week 5 · Project: parking lot: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 4 - Networking | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="07-aws/week-04-networking/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../07-aws/README.html">AWS</a> / <a href="../../07-aws/week-04-networking/lesson.html">Week 4 · Networking</a> / <span>Lesson</span></nav><button id="mark-done" data-id="07-aws/week-04-networking/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-4-networking">Week 4 - Networking</h1>
+<hr />
+<h2 id="1-vpc-fundamentals">1. VPC fundamentals</h2>
+<p>A VPC is your private, logically isolated virtual network in ONE region, spanning all AZs of that region. You pick an IPv4 CIDR (/16 to /28; e.g. 10.0.0.0/16), optional IPv6.</p>
+<div class="highlight"><pre><span></span><code> Region
+ +--------------------------- VPC 10.0.0.0/16 ----------------------------+
+ |  AZ-a                                  AZ-b                            |
+ |  [public 10.0.0.0/24]  &lt;-- IGW --&gt;     [public 10.0.1.0/24]            |
+ |     ALB, NAT GW                           ALB, NAT GW                  |
+ |  [private-app 10.0.10.0/24]            [private-app 10.0.11.0/24]      |
+ |     ECS/EC2 -&gt; NAT GW (egress)            ECS/EC2                      |
+ |  [private-data 10.0.20.0/24]           [private-data 10.0.21.0/24]     |
+ |     RDS primary                           RDS standby                  |
+ +------------------------------------------------------------------------+
+</code></pre></div>
+
+<ul>
+<li><strong>Subnet:</strong> CIDR slice within ONE AZ. "Public" = its route table has 0.0.0.0/0 -&gt; Internet Gateway (and instances have public/Elastic IP). "Private" = no direct IGW route.</li>
+<li>AWS reserves 5 IPs per subnet (first 4 + last). /28 -&gt; 11 usable.</li>
+<li><strong>Route table:</strong> per-subnet rules, longest prefix match; <code>local</code> route always present for VPC CIDR. Main vs custom route tables.</li>
+<li><strong>Internet Gateway (IGW):</strong> horizontally scaled, free, two-way internet for resources with public IPs. IPv6 outbound-only equivalent: Egress-only IGW.</li>
+<li><strong>NAT Gateway:</strong> managed outbound-only internet for private subnets; lives in a PUBLIC subnet, per AZ (zonal; make one per AZ for HA); ~$0.045/hr + $0.045/GB processed (region-dependent; check docs) -&gt; frequent bill surprise. Up to 100 Gbps scaling. Alternative: NAT instance (cheap, self-managed). Reduce cost with VPC endpoints (S3/DynamoDB gateway endpoints are free).</li>
+<li>Public IPv4 addresses are charged hourly (since Feb 2024), even attached ones; plan for IPv6 / fewer public IPs.</li>
+<li><strong>Default VPC</strong> in each region: public subnets, convenient but not for production.</li>
+<li>Defaults (soft): 5 VPCs per region, 200 subnets/VPC, 5 CIDR blocks/VPC (check docs).</li>
+<li><strong>DNS:</strong> enable DNS hostnames/resolution; Route 53 Resolver at base+2 (10.0.0.2); private hosted zones.</li>
+<li><strong>VPC Flow Logs:</strong> metadata of traffic (accept/reject) to CloudWatch/S3/Firehose; for troubleshooting and security. Reachability Analyzer: static path analysis.</li>
+</ul>
+<h3 id="security-groups-vs-nacls-top-interview-question">Security groups vs NACLs (top interview question)</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Security Group</th>
+<th>Network ACL</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Level</td>
+<td>ENI/instance</td>
+<td>Subnet</td>
+</tr>
+<tr>
+<td>State</td>
+<td>Stateful (return traffic auto-allowed)</td>
+<td>Stateless (need ephemeral port rules both ways)</td>
+</tr>
+<tr>
+<td>Rules</td>
+<td>Allow only</td>
+<td>Allow and Deny, numbered, first match wins</td>
+</tr>
+<tr>
+<td>Default</td>
+<td>Deny all in, allow all out</td>
+<td>Default NACL allows all</td>
+</tr>
+<tr>
+<td>Reference</td>
+<td>Can reference other SGs</td>
+<td>CIDR only</td>
+</tr>
+<tr>
+<td>Pattern: SG chaining: <code>alb-sg</code> -&gt; <code>app-sg</code> (source = alb-sg) -&gt; <code>db-sg</code> (source = app-sg, port 5432). Use NACL only for explicit subnet-level deny (block an IP range).</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="vpc-endpoints">VPC endpoints</h3>
+<ul>
+<li>Gateway endpoints: S3 and DynamoDB only; free; added as route-table entry (prefix list); endpoint policies.</li>
+<li>Interface endpoints (AWS PrivateLink): ENI with private IP in your subnet for most AWS services (ECR, Secrets Manager, CloudWatch Logs, Bedrock, SQS...) or third-party/your own services; hourly per AZ + per GB.</li>
+<li>Gateway Load Balancer endpoints for appliances.</li>
+<li>Use to keep traffic off the internet and avoid NAT charges.</li>
+</ul>
+<hr />
+<h2 id="2-connecting-vpcs-and-networks">2. Connecting VPCs and networks</h2>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>What</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>VPC Peering</td>
+<td>1:1 private connection between two VPCs (cross-account/region ok)</td>
+<td>Non-transitive; no overlapping CIDRs; N*(N-1)/2 meshes don't scale; no edge-to-edge routing</td>
+</tr>
+<tr>
+<td>Transit Gateway (TGW)</td>
+<td>Regional hub-and-spoke router for VPCs, VPN, Direct Connect</td>
+<td>Transitive routing, route tables for segmentation, inter-region peering; per-attachment hourly + per-GB; up to 5,000 attachments (check docs)</td>
+</tr>
+<tr>
+<td>PrivateLink</td>
+<td>Expose ONE service (NLB-backed) privately to consumers' VPCs</td>
+<td>No CIDR overlap issue, one-directional, SaaS-style</td>
+</tr>
+<tr>
+<td>Site-to-Site VPN</td>
+<td>IPsec over internet; 2 tunnels per connection; ~1.25 Gbps per tunnel</td>
+<td>Fast to set up, encrypted, variable latency; BGP or static</td>
+</tr>
+<tr>
+<td>Direct Connect (DX)</td>
+<td>Dedicated private fiber (1/10/100 Gbps; hosted 50 Mbps-25 Gbps) via DX location</td>
+<td>Consistent latency, lower egress rates, weeks to provision; NOT encrypted by default (add MACsec / VPN over DX); use 2 locations for resiliency; DX Gateway to reach multiple VPCs/regions</td>
+</tr>
+<tr>
+<td>Client VPN</td>
+<td>Remote user VPN</td>
+<td>OpenVPN based</td>
+</tr>
+<tr>
+<td>Cloud WAN</td>
+<td>Managed global network</td>
+<td>Global TGW-like</td>
+</tr>
+<tr>
+<td>Choose: few VPCs -&gt; peering; many VPCs/hybrid -&gt; TGW; expose a service to many customers/accounts with overlapping IPs -&gt; PrivateLink; quick hybrid -&gt; VPN; steady high bandwidth/latency-sensitive -&gt; DX (+VPN as backup).</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="3-route-53">3. Route 53</h2>
+<p>DNS service (also domain registration, health checks); 100% availability SLA for DNS data plane. Global.</p>
+<ul>
+<li>Record types: A, AAAA, CNAME, MX, TXT, NS, SRV, CAA...; <strong>Alias</strong> record: Route 53-specific, maps name (including zone apex) to AWS resources (ALB, CloudFront, S3 website, API GW, etc.), free queries, health-aware. CNAME cannot be at zone apex.</li>
+<li>Hosted zones: public vs private (associated with VPCs).</li>
+<li><strong>Routing policies:</strong></li>
+<li>Simple: one or multiple values (random).</li>
+<li>Weighted: split by weights (canary, A/B).</li>
+<li>Latency-based: lowest latency region.</li>
+<li>Failover: active-passive with health checks.</li>
+<li>Geolocation: by user's country/continent (compliance, localization); needs default.</li>
+<li>Geoproximity: by distance with bias (Traffic Flow).</li>
+<li>Multivalue answer: up to 8 healthy records (poor-man's LB).</li>
+<li>IP-based: by client CIDR.</li>
+<li>Health checks: endpoint, calculated, CloudWatch alarm; can be tied to failover/weighted/latency.</li>
+<li>TTL trade-off: low TTL = faster failover, more queries. Resolver caches can ignore.</li>
+<li>Route 53 Resolver endpoints (inbound/outbound) for hybrid DNS. Application Recovery Controller (ARC) for DR routing control.</li>
+<li>Pricing: per hosted zone/month + per million queries (alias to AWS resources free) + health checks.</li>
+</ul>
+<hr />
+<h2 id="4-cloudfront-cdn-and-global-accelerator">4. CloudFront (CDN) and Global Accelerator</h2>
+<ul>
+<li>Global CDN with ~600+ edge locations/PoPs and regional edge caches (check docs). Origins: S3, ALB/EC2, API Gateway, custom HTTP.</li>
+<li>Behaviors: path-pattern -&gt; origin + cache policy + origin request policy. TTL via Cache-Control or defaults. Invalidations (first 1,000 paths/month free, then paid; prefer versioned file names).</li>
+<li>Security: HTTPS via ACM cert (must be in us-east-1 for CloudFront), <strong>OAC (Origin Access Control)</strong> so S3 bucket stays private (replaces OAI), signed URLs/cookies for private content, field-level encryption, geo restriction, AWS WAF + Shield Standard integration.</li>
+<li>Compute at the edge: CloudFront Functions (lightweight JS, sub-ms, viewer req/resp) vs Lambda@Edge (heavier, more runtime/time, 4 regions of origin events too).</li>
+<li>Also: origin failover groups, streaming, HTTP/3, response compression, real-time logs, free tier (1 TB/mo out always-free; check docs). Data transfer out from CloudFront is cheaper than direct from S3/EC2, and origin-&gt;CloudFront is free for AWS origins.</li>
+<li><strong>Global Accelerator:</strong> 2 static anycast IPs, routes TCP/UDP over AWS backbone to nearest healthy regional endpoint (ALB/NLB/EC2/EIP); fast failover (no DNS TTL). Use for non-HTTP, gaming, static IPs, multi-region active-active. CloudFront = caching content; GA = network path optimization, no caching.</li>
+</ul>
+<hr />
+<h2 id="5-putting-it-together-secure-web-app-network">5. Putting it together: secure web app network</h2>
+<div class="highlight"><pre><span></span><code> User -&gt; Route 53 (alias) -&gt; CloudFront (+WAF) -&gt; ALB (public subnets, 2 AZs)
+                                                    |  SG: 443 from CloudFront prefix list
+                                                    v
+                                     ECS Fargate tasks (private-app subnets)  --NAT--&gt; external APIs
+                                          | VPC endpoints: S3(gw), ECR, Logs, Secrets, Bedrock (interface)
+                                          v
+                                     RDS (private-data subnets, no route to internet)
+</code></pre></div>
+
+<h2 id="6-troubleshooting-checklist-cant-connect">6. Troubleshooting checklist ("can't connect")</h2>
+<ol>
+<li>Is there a route? (route table: IGW/NAT/TGW/peering) 2. Public IP/EIP for IGW traffic? 3. SG inbound on target AND outbound on source. 4. NACL both directions incl. ephemeral ports 1024-65535. 5. OS firewall/app listening on 0.0.0.0? 6. DNS resolving (private zone association, enableDnsSupport)? 7. Overlapping CIDRs? 8. Check Flow Logs (REJECT) and Reachability Analyzer. 9. Peering/TGW route entries on BOTH sides. 10. Endpoint policy / bucket policy <code>aws:SourceVpce</code>.</li>
+</ol>
+<h2 id="7-boto3-illustration">7. boto3 illustration</h2>
+<div class="highlight"><pre><span></span><code><span class="n">ec2</span> <span class="o">=</span> <span class="n">boto3</span><span class="o">.</span><span class="n">client</span><span class="p">(</span><span class="s2">"ec2"</span><span class="p">)</span>
+<span class="n">vpc</span> <span class="o">=</span> <span class="n">ec2</span><span class="o">.</span><span class="n">create_vpc</span><span class="p">(</span><span class="n">CidrBlock</span><span class="o">=</span><span class="s2">"10.0.0.0/16"</span><span class="p">)[</span><span class="s2">"Vpc"</span><span class="p">][</span><span class="s2">"VpcId"</span><span class="p">]</span>          <span class="c1"># costs nothing, but clean up</span>
+<span class="n">subnet</span> <span class="o">=</span> <span class="n">ec2</span><span class="o">.</span><span class="n">create_subnet</span><span class="p">(</span><span class="n">VpcId</span><span class="o">=</span><span class="n">vpc</span><span class="p">,</span> <span class="n">CidrBlock</span><span class="o">=</span><span class="s2">"10.0.1.0/24"</span><span class="p">,</span> <span class="n">AvailabilityZone</span><span class="o">=</span><span class="s2">"us-east-1a"</span><span class="p">)</span>
+</code></pre></div>
+</article><div class="pager"><a class="prev" href="../../07-aws/week-03-storage-databases/labs.html">← Week 3 · Storage and databases: Labs</a><a class="next" href="../../07-aws/week-04-networking/interview-qa.html">Week 4 · Networking: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

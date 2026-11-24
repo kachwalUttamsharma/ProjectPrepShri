@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SQL Week 1: SELECT, filtering, NULL, aggregates, GROUP BY | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="06-sql/week-01-select-filter-aggregate/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">Week 1 · SELECT, filter, aggregate</a> / <span>Lesson</span></nav><button id="mark-done" data-id="06-sql/week-01-select-filter-aggregate/lesson">Mark as done</button></div><article class="doc">
+<h1 id="sql-week-1-select-filtering-null-aggregates-group-by">SQL Week 1: SELECT, filtering, NULL, aggregates, GROUP BY</h1>
+<p>Goal: write correct single-table queries and never be fooled by NULL.
+Budget: ~2 h reading + trying examples, ~3 h exercises, ~1 h interview Q&amp;A.</p>
+<h2 id="0-setup">0. Setup</h2>
+<p>Everything runs on SQLite (<code>sqlite3</code> is in the Python standard library).</p>
+<div class="highlight"><pre><span></span><code>.venv/bin/python -i 06-sql/week-01-select-filter-aggregate/schema.py
+&gt;&gt;&gt; db = make_db()
+&gt;&gt;&gt; db.execute("SELECT name, salary FROM employees LIMIT 2").fetchall()
+</code></pre></div>
+
+<p>Tables for this week (see <code>schema.py</code>): <code>employees(id, name, dept, salary, hire_date, city, bonus)</code>
+(13 rows, with NULLs in <code>dept</code>, <code>salary</code>, <code>city</code>, <code>bonus</code>) and <code>orders(id, customer, amount, status, order_date)</code>.</p>
+<p>Run tests: <code>.venv/bin/pytest 06-sql/week-01-select-filter-aggregate -v</code>.
+Each exercise function <strong>returns a SQL string</strong>; the test executes it and compares rows and column names.</p>
+<h2 id="1-anatomy-of-a-query">1. Anatomy of a query</h2>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w">   </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">salary</span><span class="w">          </span><span class="c1">-- 5. which columns / expressions to output</span>
+<span class="k">FROM</span><span class="w">     </span><span class="n">employees</span><span class="w">             </span><span class="c1">-- 1. which table</span>
+<span class="k">WHERE</span><span class="w">    </span><span class="n">dept</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Sales'</span><span class="w">        </span><span class="c1">-- 2. filter ROWS</span>
+<span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">dept</span><span class="w">                  </span><span class="c1">-- 3. collapse rows into groups</span>
+<span class="k">HAVING</span><span class="w">   </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">2</span><span class="w">          </span><span class="c1">-- 4. filter GROUPS</span>
+<span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">salary</span><span class="w"> </span><span class="k">DESC</span><span class="w">           </span><span class="c1">-- 6. sort</span>
+<span class="k">LIMIT</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="k">OFFSET</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w">              </span><span class="c1">-- 7. cut</span>
+</code></pre></div>
+
+<p>You <em>write</em> SELECT first, but the database <em>logically evaluates</em> in the numbered order
+FROM -&gt; WHERE -&gt; GROUP BY -&gt; HAVING -&gt; SELECT -&gt; DISTINCT -&gt; ORDER BY -&gt; LIMIT.
+This explains most beginner errors (e.g. WHERE cannot use aggregates or, in standard SQL, SELECT aliases).
+(SQLite is lenient and allows aliases in WHERE/GROUP BY; Postgres is not. Do not rely on it.)</p>
+<h2 id="2-select-aliases-expressions">2. SELECT, aliases, expressions</h2>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">salary</span><span class="p">,</span><span class="w"> </span><span class="n">salary</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">12</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">monthly</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">employees</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+</code></pre></div>
+
+<p><code>AS</code> renames an output column. Avoid <code>SELECT *</code> in real code (breaks when columns change, wastes I/O); fine for exploring.
+Integer division trap: in SQLite and Postgres <code>7 / 2</code> is <code>3</code>. Use <code>7 / 2.0</code> or <code>CAST(x AS REAL)</code>.</p>
+<h2 id="3-where-filtering-rows">3. WHERE: filtering rows</h2>
+<p>Operators: <code>= &lt;&gt; &lt; &lt;= &gt; &gt;=</code>, <code>AND OR NOT</code>, <code>IN (...)</code>, <code>BETWEEN a AND b</code> (inclusive both ends), <code>LIKE</code>.</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">employees</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">city</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'NYC'</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">salary</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">70000</span><span class="p">;</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">employees</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">dept</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span><span class="s1">'HR'</span><span class="p">,</span><span class="w"> </span><span class="s1">'Marketing'</span><span class="p">);</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">employees</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">hire_date</span><span class="w"> </span><span class="k">BETWEEN</span><span class="w"> </span><span class="s1">'2021-01-01'</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="s1">'2022-12-31'</span><span class="p">;</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">employees</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="k">LIKE</span><span class="w"> </span><span class="s1">'M%'</span><span class="p">;</span><span class="w">      </span><span class="c1">-- % = any chars, _ = exactly one char</span>
+</code></pre></div>
+
+<ul>
+<li><strong>Precedence</strong>: <code>AND</code> binds tighter than <code>OR</code>. <code>salary &gt; 100000 OR dept = 'HR' AND city = 'NYC'</code> means
+  <code>salary &gt; 100000 OR (dept = 'HR' AND city = 'NYC')</code> and returns Alice, Carol, Heidi. Use parentheses.</li>
+<li>String literals use <strong>single quotes</strong>. Double quotes are identifiers (SQLite forgives, others do not).</li>
+<li><code>LIKE</code> is case-insensitive for ASCII in SQLite and MySQL, case-sensitive in Postgres (use <code>ILIKE</code>).</li>
+<li>Dates: SQLite has no date type; store ISO-8601 text <code>YYYY-MM-DD</code> so string order equals date order.</li>
+</ul>
+<h2 id="4-order-by-limit-offset">4. ORDER BY, LIMIT, OFFSET</h2>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">hire_date</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">employees</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">hire_date</span><span class="w"> </span><span class="k">DESC</span><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>name  | hire_date
+Oleg  | 2024-03-01
+Niaj  | 2024-02-01
+</code></pre></div>
+
+<ul>
+<li>Without <code>ORDER BY</code> row order is <strong>undefined</strong>. Never assume "insertion order".</li>
+<li>Add a <strong>tie-breaker</strong> (<code>ORDER BY salary DESC, name</code>) so the result is deterministic. Bob and Ivan both earn 95000.</li>
+<li><code>LIMIT n OFFSET m</code> paginates (<code>LIMIT 4 OFFSET 4</code> = page 2 of size 4). Large offsets are slow (the DB still walks the skipped rows); production uses keyset pagination (<code>WHERE id &gt; last_seen_id ORDER BY id LIMIT n</code>).</li>
+<li>NULL ordering: SQLite treats NULL as smallest (first in ASC, last in DESC). Postgres treats NULL as largest. Both accept <code>NULLS FIRST/LAST</code> (SQLite &gt;= 3.30).
+  <code>ORDER BY salary DESC LIMIT 1</code> may therefore return NULL in Postgres! Filter <code>WHERE salary IS NOT NULL</code>.</li>
+</ul>
+<h2 id="5-null-the-single-most-tested-concept">5. NULL: the single most tested concept</h2>
+<p>NULL means <strong>unknown / missing</strong>, not zero or empty string. Any comparison with NULL yields NULL (unknown), and <code>WHERE</code> keeps only rows where the condition is TRUE.</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="k">NULL</span><span class="p">),</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="k">NULL</span><span class="p">);</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>1 = NULL | NULL = NULL | NULL IS NULL | 1 IN (2, NULL) | 1 NOT IN (2, NULL)
+NULL     | NULL        | 1            | NULL           | NULL
+</code></pre></div>
+
+<p>Rules:</p>
+<ol>
+<li>Test with <code>IS NULL</code> / <code>IS NOT NULL</code>, never <code>= NULL</code>.</li>
+<li>Three-valued logic: <code>TRUE AND NULL = NULL</code>, <code>FALSE AND NULL = FALSE</code>, <code>TRUE OR NULL = TRUE</code>, <code>NOT NULL = NULL</code>.</li>
+<li>Arithmetic with NULL gives NULL: <code>bonus + 100</code> is NULL when bonus is NULL.</li>
+<li><code>COALESCE(x, default)</code> returns the first non-NULL argument. <code>IFNULL(x, d)</code> is the SQLite/MySQL two-arg version. <code>NULLIF(a, b)</code> returns NULL when a = b (classic divide-by-zero guard: <code>x / NULLIF(y, 0)</code>).</li>
+<li><strong><code>NOT IN</code> with a NULL in the list returns no rows</strong> (shown above). This is the #1 NULL trap; prefer <code>NOT EXISTS</code> (week 2).</li>
+<li>Aggregates (except <code>COUNT(*)</code>) <strong>ignore</strong> NULLs.</li>
+<li><code>DISTINCT</code>, <code>GROUP BY</code> and <code>UNION</code> treat all NULLs as equal (one group), even though <code>NULL = NULL</code> is unknown.</li>
+</ol>
+<p>The classic filter trap:</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">employees</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">city</span><span class="w"> </span><span class="o">&lt;&gt;</span><span class="w"> </span><span class="s1">'NYC'</span><span class="p">;</span><span class="w">       </span><span class="c1">-- 7: Oleg (city NULL) silently missing</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">employees</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">city</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="s1">'NYC'</span><span class="p">;</span><span class="w">   </span><span class="c1">-- 8 (SQLite's null-safe &lt;&gt;)</span>
+<span class="c1">-- portable: WHERE city &lt;&gt; 'NYC' OR city IS NULL      (Postgres: city IS DISTINCT FROM 'NYC'; MySQL: NOT (city &lt;=&gt; 'NYC'))</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">bonus</span><span class="p">,</span><span class="w"> </span><span class="n">bonus</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">100</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">plus100</span><span class="p">,</span><span class="w"> </span><span class="k">COALESCE</span><span class="p">(</span><span class="n">bonus</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">safe</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">employees</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">11</span><span class="p">);</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>name    | bonus | plus100 | safe
+Alice   | 5000  | 5100    | 5000
+Bob     | NULL  | NULL    | 0
+Mallory | 0     | 100     | 0
+</code></pre></div>
+
+<p>Note Mallory: bonus 0 is a <em>known</em> zero; Bob's bonus is unknown. <code>WHERE bonus IS NULL</code> finds Bob, not Mallory.</p>
+<h2 id="6-aggregate-functions">6. Aggregate functions</h2>
+<p><code>COUNT(*)</code>, <code>COUNT(col)</code>, <code>COUNT(DISTINCT col)</code>, <code>SUM</code>, <code>AVG</code>, <code>MIN</code>, <code>MAX</code>. They collapse many rows into one value.</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">n_rows</span><span class="p">,</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="n">amount</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">n_amount</span><span class="p">,</span><span class="w"> </span><span class="k">SUM</span><span class="p">(</span><span class="n">amount</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">s</span><span class="p">,</span>
+<span class="w">       </span><span class="k">AVG</span><span class="p">(</span><span class="n">amount</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="k">AVG</span><span class="p">(</span><span class="k">COALESCE</span><span class="p">(</span><span class="n">amount</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">))</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">a0</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">orders</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>n_rows | n_amount | s      | a                  | a0
+12     | 11       | 1780.5 | 161.86363636363637 | 148.375
+</code></pre></div>
+
+<ul>
+<li><code>COUNT(*)</code> counts rows; <code>COUNT(amount)</code> counts non-NULL amounts.</li>
+<li><code>AVG(amount)</code> = 1780.5 / 11, <strong>not</strong> / 12. Whether to treat missing as 0 is a business decision. State your choice in an interview.</li>
+<li><code>SUM</code> over zero rows (or all NULL) is NULL, not 0: use <code>COALESCE(SUM(x), 0)</code>.</li>
+<li><code>COUNT(DISTINCT city)</code> ignores NULL (so 3 for our data).</li>
+<li>Without GROUP BY, an aggregate query returns exactly <strong>one</strong> row (even on an empty table).</li>
+</ul>
+<h2 id="7-group-by-and-having">7. GROUP BY and HAVING</h2>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">city</span><span class="p">,</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="k">MAX</span><span class="p">(</span><span class="n">salary</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">top_salary</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">employees</span><span class="w"> </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">city</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>city   | n | top_salary
+NULL   | 1 | 50000
+Austin | 4 | 70000
+NYC    | 5 | 120000
+SF     | 3 | 95000
+</code></pre></div>
+
+<p>(NULL forms its own group.)</p>
+<p>Rule: every column in SELECT must be either in GROUP BY or inside an aggregate. SQLite will let you break this (returns an arbitrary row's value!); Postgres errors; MySQL depends on <code>ONLY_FULL_GROUP_BY</code>.</p>
+<p><code>WHERE</code> filters rows <strong>before</strong> grouping; <code>HAVING</code> filters groups <strong>after</strong> aggregation:</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">city</span><span class="p">,</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">employees</span><span class="w"> </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">city</span><span class="w"> </span><span class="k">HAVING</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">4</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>city   | n
+Austin | 4
+NYC    | 5
+</code></pre></div>
+
+<p>Rule of thumb: if the condition does not need an aggregate, put it in WHERE (it is cheaper: fewer rows to group).</p>
+<p>Group by several columns, and by expression:</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">customer</span><span class="p">,</span><span class="w"> </span><span class="n">substr</span><span class="p">(</span><span class="n">order_date</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">7</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="k">month</span><span class="p">,</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">n</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">customer</span><span class="p">,</span><span class="w"> </span><span class="k">month</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">customer</span><span class="p">,</span><span class="w"> </span><span class="k">month</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>customer | month   | n
+acme     | 2024-01 | 2
+acme     | 2024-03 | 1
+globex   | 2024-01 | 1
+globex   | 2024-02 | 1
+globex   | 2024-03 | 1
+hooli    | 2024-03 | 2
+initech  | 2024-02 | 2
+umbrella | 2024-03 | 2
+</code></pre></div>
+
+<p>Another: a per-customer summary, sorted by an aggregate:</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">customer</span><span class="p">,</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="k">SUM</span><span class="p">(</span><span class="n">amount</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">total</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">customer</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">total</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>customer | n | total
+acme     | 3 | 750.0
+globex   | 3 | 375.5
+umbrella | 2 | 240.0
+hooli    | 2 | 240.0
+initech  | 2 | 175.0
+</code></pre></div>
+
+<p>(hooli and umbrella tie at 240, so add a tie-breaker in real code.)</p>
+<h2 id="8-distinct">8. DISTINCT</h2>
+<p><code>SELECT DISTINCT dept, city FROM employees WHERE dept = 'Sales'</code> removes duplicate <strong>rows</strong> (the whole selected tuple), giving (Sales, Austin) and (Sales, NYC). <code>DISTINCT</code> is not a function: <code>SELECT DISTINCT(dept), city</code> still dedups the pair.
+Use <code>COUNT(DISTINCT x)</code> for unique counts. Reaching for DISTINCT to "fix" duplicates after a join usually hides a wrong join (week 2).</p>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ol>
+<li><code>WHERE col = NULL</code> (always empty). Use <code>IS NULL</code>.</li>
+<li><code>&lt;&gt;</code> / <code>NOT IN</code> silently dropping NULL rows.</li>
+<li>Aggregate in WHERE (<code>WHERE COUNT(*) &gt; 2</code> is an error). Use HAVING.</li>
+<li>Selecting a non-grouped column and trusting the value.</li>
+<li>Relying on row order without ORDER BY, or ordering by a non-unique column and expecting stable results.</li>
+<li>Integer division (<code>1 / 2 = 0</code>).</li>
+<li>Using <code>LIMIT 1</code> with <code>ORDER BY</code> on a nullable column (NULL may win).</li>
+<li><code>COUNT(col)</code> when you meant <code>COUNT(*)</code> (or vice versa).</li>
+<li><code>BETWEEN</code> on timestamps: <code>BETWEEN '2024-01-01' AND '2024-01-31'</code> misses <code>'2024-01-31 15:00'</code>. Prefer <code>&gt;= start AND &lt; next_start</code>.</li>
+<li>Double-quoted string literals.</li>
+</ol>
+<h2 id="how-interviewers-probe-this-topic">How interviewers probe this topic</h2>
+<ul>
+<li>"What is the difference between WHERE and HAVING?" followed by "can I put the filter in either?" (yes if non-aggregate; WHERE is cheaper).</li>
+<li>"What does <code>COUNT(*)</code> vs <code>COUNT(col)</code> vs <code>COUNT(DISTINCT col)</code> return?" with a table that has NULLs and duplicates.</li>
+<li>A table with NULL: "What does <code>SELECT * FROM t WHERE x NOT IN (SELECT y FROM u)</code> return if u.y has a NULL?"</li>
+<li>"Why is my row missing?" (<code>&lt;&gt;</code> with NULL).</li>
+<li>"Write a query for the top 3 salaries" then "what about ties?" (leads to week 3 <code>DENSE_RANK</code>).</li>
+<li>"Order of evaluation of a SQL query?" and "why can't I use an alias in WHERE?"</li>
+<li>"Is <code>AVG</code> ignoring NULLs correct for this business question?" (communicating assumptions is graded).</li>
+<li>They watch for: thinking out loud about NULLs, naming columns explicitly, deterministic ORDER BY, asking clarifying questions about ties and NULLs.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<ol>
+<li>Read and run every example above in the REPL.</li>
+<li>Fill in <code>exercises.py</code> (18 functions), run the tests until green.</li>
+<li>Answer <code>interview-qa.md</code> out loud without looking, then compare.</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-24-capstone/test_exercises.py.html">← Week 24 · Capstone: Tests (code)</a><a class="next" href="../../06-sql/week-01-select-filter-aggregate/interview-qa.html">Week 1 · SELECT, filter, aggregate: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

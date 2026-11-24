@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 4 cheatsheet: Kafka and streaming | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="14-data-engineering/week-04-kafka-streaming/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../14-data-engineering/week-04-kafka-streaming/lesson.html">Week 4 · Kafka and streaming</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="14-data-engineering/week-04-kafka-streaming/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="week-4-cheatsheet-kafka-and-streaming">Week 4 cheatsheet: Kafka and streaming</h1>
+<h2 id="kafka-vocabulary">Kafka vocabulary</h2>
+<p>topic &gt; partitions (ordered, offset-addressed) &gt; replicas (1 leader + followers). ISR = in-sync replicas. Committed = replicated to all ISR. Order only within a partition.</p>
+<h2 id="durability-recipe">Durability recipe</h2>
+<p><code>replication.factor=3</code>, <code>min.insync.replicas=2</code>, producer <code>acks=all</code>, <code>enable.idempotence=true</code>, <code>unclean.leader.election.enable=false</code>.</p>
+<h2 id="producer-knobs">Producer knobs</h2>
+<table>
+<thead>
+<tr>
+<th>Knob</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>acks 0/1/all</td>
+<td>durability vs latency</td>
+</tr>
+<tr>
+<td>linger.ms, batch.size</td>
+<td>bigger batches, more throughput, more latency</td>
+</tr>
+<tr>
+<td>compression.type</td>
+<td>lz4/zstd for CPU vs ratio</td>
+</tr>
+<tr>
+<td>max.in.flight (&lt;=5 + idempotence)</td>
+<td>keeps order on retry</td>
+</tr>
+<tr>
+<td>key</td>
+<td>picks partition (hash % N)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="consumer-knobs">Consumer knobs</h2>
+<p><code>group.id</code>, <code>enable.auto.commit</code>, <code>auto.offset.reset</code> (earliest/latest), <code>max.poll.records</code>, <code>max.poll.interval.ms</code>, <code>session.timeout.ms</code>, <code>heartbeat.interval.ms</code>, <code>isolation.level=read_committed</code>, <code>partition.assignment.strategy</code> (CooperativeSticky), <code>group.instance.id</code> (static membership).</p>
+<h2 id="delivery-semantics">Delivery semantics</h2>
+<ul>
+<li>at-most-once: commit then process</li>
+<li>at-least-once: process then commit (dupes possible)</li>
+<li>exactly-once: idempotent producer + transactions (Kafka to Kafka); otherwise at-least-once + idempotent sink / dedupe key</li>
+</ul>
+<h2 id="lag">Lag</h2>
+<p>lag = log_end_offset - committed_offset (per partition). Watch trend and time-lag.</p>
+<h2 id="retention-vs-compaction">Retention vs compaction</h2>
+<p>delete: by time/size. compact: latest per key, tombstone (null) deletes. Both possible (<code>cleanup.policy=compact,delete</code>).</p>
+<h2 id="windows">Windows</h2>
+<ul>
+<li>tumbling [k<em>size, (k+1)</em>size)</li>
+<li>sliding(size, slide): event in size/slide windows</li>
+<li>session: gap of inactivity merges events</li>
+</ul>
+<h2 id="watermarks">Watermarks</h2>
+<p><code>W = max_event_ts - max_delay</code>. Fire window when W &gt;= window_end. Event with window_end &lt;= W is late: drop / side output / allowed lateness with updates. Min over inputs; idle partitions stall it.</p>
+<h2 id="engines">Engines</h2>
+<p>Flink: per-record, best event time + state. Spark SS: micro-batch, <code>withWatermark</code>, <code>foreachBatch</code>. Kafka Streams: library, state in RocksDB + changelog topics.</p>
+<h2 id="patterns">Patterns</h2>
+<p>CDC (Debezium log-based) | outbox (row + event in one txn) | DLQ (bounded retry then park with error metadata) | replay (new group / reset offsets) | lambda (two paths) vs kappa (replay log).</p>
+<h2 id="sizing">Sizing</h2>
+<p>partitions &gt;= max(T/p_prod, T/p_cons) x headroom. Can't shrink; growing remaps keys.</p>
+<h2 id="aws">AWS</h2>
+<p>Kinesis = shards (1MB/s in, 2MB/s out each), MSK = managed Kafka, SQS = queue (no replay, no order unless FIFO + group id). Check current docs for limits.</p>
+<h2 id="say-it-in-interview-lines">Say-it-in-interview lines</h2>
+<ul>
+<li>"Exactly-once always has a boundary; beyond Kafka it is at-least-once plus idempotence."</li>
+<li>"Partition key = the unit of ordering and the unit of parallelism."</li>
+<li>"Watermark is a heuristic, lateness policy is a business decision."</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../../14-data-engineering/week-04-kafka-streaming/interview-qa.html">← Week 4 · Kafka and streaming: Interview Q&amp;A</a><a class="next" href="../../14-data-engineering/week-04-kafka-streaming/exercises.py.html">Week 4 · Kafka and streaming: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

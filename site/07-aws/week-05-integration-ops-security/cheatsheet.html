@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 5 Cheatsheet - Integration, Ops, Security | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="07-aws/week-05-integration-ops-security/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../07-aws/README.html">AWS</a> / <a href="../../07-aws/week-05-integration-ops-security/lesson.html">Week 5 · Integration, ops, security</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="07-aws/week-05-integration-ops-security/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="week-5-cheatsheet-integration-ops-security">Week 5 Cheatsheet - Integration, Ops, Security</h1>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>One-liner</th>
+<th>Typical use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SQS Standard / FIFO</td>
+<td>Pull queue; at-least-once unordered / ordered exactly-once</td>
+<td>Buffering, work queues</td>
+</tr>
+<tr>
+<td>DLQ</td>
+<td>Holds messages that failed maxReceiveCount</td>
+<td>Poison message handling</td>
+</tr>
+<tr>
+<td>SNS</td>
+<td>Pub/sub push fan-out</td>
+<td>Alerts, fan-out to SQS</td>
+</tr>
+<tr>
+<td>EventBridge</td>
+<td>Event bus w/ rules, schedules, pipes</td>
+<td>Event-driven routing, cron</td>
+</tr>
+<tr>
+<td>Kinesis Data Streams</td>
+<td>Ordered replayable stream (shards)</td>
+<td>Clickstream, real-time analytics</td>
+</tr>
+<tr>
+<td>Firehose</td>
+<td>Managed delivery to S3/Redshift/OpenSearch</td>
+<td>Log/event loading</td>
+</tr>
+<tr>
+<td>MSK</td>
+<td>Managed Kafka</td>
+<td>Kafka compatibility</td>
+</tr>
+<tr>
+<td>Step Functions</td>
+<td>State-machine orchestration (Standard 1 yr / Express 5 min)</td>
+<td>Sagas, ETL, LLM pipelines</td>
+</tr>
+<tr>
+<td>API Gateway (REST/HTTP/WebSocket)</td>
+<td>Managed API front door</td>
+<td>Serverless APIs, auth, throttling</td>
+</tr>
+<tr>
+<td>AppSync</td>
+<td>Managed GraphQL</td>
+<td>GraphQL backends</td>
+</tr>
+<tr>
+<td>CloudWatch</td>
+<td>Metrics, logs, alarms, dashboards</td>
+<td>Monitoring</td>
+</tr>
+<tr>
+<td>X-Ray / OpenTelemetry</td>
+<td>Distributed tracing</td>
+<td>Latency analysis</td>
+</tr>
+<tr>
+<td>CloudTrail</td>
+<td>API audit log</td>
+<td>Who did what</td>
+</tr>
+<tr>
+<td>Config</td>
+<td>Resource state history + compliance rules</td>
+<td>Compliance/drift</td>
+</tr>
+<tr>
+<td>CloudFormation</td>
+<td>AWS-native IaC with stacks</td>
+<td>Repeatable infra</td>
+</tr>
+<tr>
+<td>CDK</td>
+<td>IaC in real languages -&gt; CFN</td>
+<td>Dev-friendly IaC</td>
+</tr>
+<tr>
+<td>Terraform</td>
+<td>Multi-cloud IaC with state</td>
+<td>Multi-cloud/standard IaC</td>
+</tr>
+<tr>
+<td>KMS</td>
+<td>Managed encryption keys, envelope encryption</td>
+<td>Encrypt S3/EBS/RDS/secrets</td>
+</tr>
+<tr>
+<td>Secrets Manager</td>
+<td>Secrets + rotation</td>
+<td>DB creds/API keys</td>
+</tr>
+<tr>
+<td>SSM Parameter Store</td>
+<td>Config/params (free std tier)</td>
+<td>Config values</td>
+</tr>
+<tr>
+<td>Cognito</td>
+<td>User pools (JWT auth) + identity pools (AWS creds)</td>
+<td>App sign-in</td>
+</tr>
+<tr>
+<td>WAF</td>
+<td>L7 web firewall</td>
+<td>SQLi/XSS/rate limit</td>
+</tr>
+<tr>
+<td>Shield</td>
+<td>DDoS (Standard free, Advanced paid)</td>
+<td>DDoS protection</td>
+</tr>
+<tr>
+<td>GuardDuty / Security Hub / Inspector / Macie</td>
+<td>Threat detect / aggregate / vuln scan / PII</td>
+<td>Security posture</td>
+</tr>
+</tbody>
+</table>
+<p>Numbers: SQS msg 256 KB (check 1 MiB update), retention up to 14 d, visibility default 30 s max 12 h, long poll 20 s, FIFO 300/s (3,000 batched); KDS shard 1 MB/s in, 2 MB/s out, retention 24 h-365 d; API GW 29 s default timeout, 10 MB payload; KMS direct encrypt 4 KB; Secrets $0.40/mo; Step Functions Std 1 yr/Express 5 min; CloudTrail event history 90 d.</p>
+</article><div class="pager"><a class="prev" href="../../07-aws/week-05-integration-ops-security/interview-qa.html">← Week 5 · Integration, ops, security: Interview Q&amp;A</a><a class="next" href="../../07-aws/week-05-integration-ops-security/labs.html">Week 5 · Integration, ops, security: Labs →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>practice.sql | Study Hub</title><link rel="stylesheet" href="../../../assets/style.css"><link rel="stylesheet" href="../../../assets/pygments.css"></head>
+<body data-root="../../../" data-page-id="06-sql/general-sql/03-objects-programmability/practice.sql" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../../index.html">Home</a> / <a href="../../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../../06-sql/general-sql/README.html">General SQL</a> / <a href="../../../06-sql/general-sql/03-objects-programmability/lesson.html">Part 3 · Objects and programmability</a> / <span>practice.sql (code)</span></nav><button id="mark-done" data-id="06-sql/general-sql/03-objects-programmability/practice.sql">Mark as done</button></div><article class="doc">
+<h1>practice.sql</h1><p class="code-path"><code>06-sql/general-sql/03-objects-programmability/practice.sql</code></p>
+<div class="highlight"><pre><span></span><span class="c1">-- practice.sql: part 03. First:  sqlite3 part03.db ".read setup.sql"  then open part03.db.</span>
+<span class="c1">-- Write your answers in the blank spaces. Lines starting "--" are tasks. No solutions here.</span>
+<span class="p">.</span><span class="n">headers</span><span class="w"> </span><span class="k">on</span>
+<span class="p">.</span><span class="k">mode</span><span class="w"> </span><span class="k">column</span>
+
+<span class="c1">-- ===== SQLite-runnable =====</span>
+
+<span class="c1">-- T1. Create a view order_totals(order_id, customer, status, total) where total = SUM(qty*unit_price).</span>
+<span class="c1">--     Then SELECT all rows ordered by order_id.</span>
+
+
+
+<span class="c1">-- T2. Create a view customer_spend(customer, spend) built ON the view from T1, counting only</span>
+<span class="c1">--     orders with status 'paid' or 'shipped'. Query it ordered by spend desc.</span>
+
+
+
+<span class="c1">-- T3. Create a trigger that, after price changes on products, inserts a row into price_audit</span>
+<span class="c1">--     (product_id, old_price, new_price). It must NOT log updates that leave the price unchanged.</span>
+<span class="c1">--     Test: update product 1 to 55 twice. How many audit rows exist? Why?</span>
+
+
+
+<span class="c1">-- T4. Create an AFTER INSERT trigger on order_items that decrements products.stock by qty.</span>
+<span class="c1">--     Then create a BEFORE INSERT trigger that aborts with 'insufficient stock' when stock &lt; qty.</span>
+<span class="c1">--     Test with a valid insert and an invalid one. Does the failed insert leave stock untouched?</span>
+
+
+
+<span class="c1">-- T5. Create a TEMP table big_orders holding orders from the view with total &gt;= 100.</span>
+<span class="c1">--     Confirm it is not visible from a second sqlite3 connection (open one and try).</span>
+
+
+
+<span class="c1">-- T6. Make a view v_products(id, name, price) updatable with an INSTEAD OF UPDATE trigger,</span>
+<span class="c1">--     then run UPDATE v_products SET price = 6 WHERE id = 4 and check products.</span>
+
+
+
+<span class="c1">-- T7. List every view and trigger in the database using the catalog table sqlite_master.</span>
+
+
+
+<span class="c1">-- T8. Create a table with an AUTOINCREMENT id and a random 32-hex-char token default.</span>
+<span class="c1">--     Insert two rows with DEFAULT VALUES. Explain the difference between INTEGER PRIMARY KEY</span>
+<span class="c1">--     and INTEGER PRIMARY KEY AUTOINCREMENT in a comment.</span>
+
+
+
+<span class="c1">-- T9. ATTACH an in-memory database as "archive", copy shipped orders into archive.old_orders,</span>
+<span class="c1">--     and count them with a qualified name.</span>
+
+
+
+<span class="c1">-- ===== Postgres-only (not run here; try in the Docker Postgres from README) =====</span>
+
+<span class="c1">-- P1. Create a MATERIALIZED VIEW of revenue per customer, add a unique index, and refresh it</span>
+<span class="c1">--     CONCURRENTLY. Why is the unique index needed?</span>
+
+
+
+<span class="c1">-- P2. Create a sequence invoice_no starting at 1000. Call nextval three times, roll back a</span>
+<span class="c1">--     transaction that used one. Do you get that number back? Explain.</span>
+
+
+
+<span class="c1">-- P3. Write a PL/pgSQL (or SQL) function order_total(bigint) and a procedure ship_order(bigint)</span>
+<span class="c1">--     that raises an exception unless the order is 'paid'.</span>
+
+
+
+<span class="c1">-- P4. Create an ENUM type order_status and a DOMAIN positive_int. Use them in a table.</span>
+<span class="c1">--     Try inserting an invalid value. What error do you get?</span>
+
+
+
+<span class="c1">-- P5. Create schema reporting, a role report_ro (NOLOGIN) with SELECT on all its tables,</span>
+<span class="c1">--     and a login role you add to it. Verify with SET ROLE that INSERT is denied.</span>
+
+
+
+<span class="c1">-- P6. Add a tenant_id column to orders, enable ROW LEVEL SECURITY with a policy using</span>
+<span class="c1">--     current_setting('app.tenant_id'). Test with SET LOCAL as a non-owner role. What happens to the owner?</span>
+
+
+
+<span class="c1">-- P7. Write a trigger FUNCTION + trigger that keeps orders.updated_at current on every UPDATE.</span>
+
+
+
+<span class="c1">-- ===== MySQL-only (not run here) =====</span>
+
+<span class="c1">-- M1. Write a stored procedure ship_order(IN p BIGINT) that uses SIGNAL when no row was updated.</span>
+<span class="c1">--     Remember DELIMITER.</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../../06-sql/general-sql/03-objects-programmability/setup.sql.html">← Part 3 · Objects and programmability: setup.sql (code)</a><a class="next" href="../../../06-sql/general-sql/04-how-databases-work/lesson.html">Part 4 · How databases work: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../../assets/data.js"></script><script src="../../../assets/app.js"></script></body></html>

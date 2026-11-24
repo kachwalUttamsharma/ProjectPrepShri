@@ -1,0 +1,1015 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 1 - Networking: Layers, IP, TCP/UDP, DNS, HTTP, TLS, Web Auth, Debugging | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="12-cs-fundamentals/week-01-networking/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../12-cs-fundamentals/README.html">CS Fundamentals</a> / <a href="../../12-cs-fundamentals/week-01-networking/lesson.html">Week 1 · Networking</a> / <span>Lesson</span></nav><button id="mark-done" data-id="12-cs-fundamentals/week-01-networking/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-1-networking-layers-ip-tcpudp-dns-http-tls-web-auth-debugging">Week 1 - Networking: Layers, IP, TCP/UDP, DNS, HTTP, TLS, Web Auth, Debugging</h1>
+<p>Time budget: ~7-8 hrs. Read lesson (3h), run the terminal commands (2h), Q&amp;A aloud (2h), cheatsheet (1h).
+Facts marked "(check current docs)" are version-dependent (defaults, RFC status, browser behavior); verify before quoting in an interview.</p>
+<hr />
+<h2 id="1-layered-models-osi-vs-tcpip">1. Layered models: OSI vs TCP/IP</h2>
+<p>Why layers? Each layer solves one problem and hides it from the layer above. Your FastAPI handler never thinks about Ethernet frames.</p>
+<div class="highlight"><pre><span></span><code> OSI (7)                 TCP/IP (4)        Unit        Examples
+ 7 Application  \
+ 6 Presentation  }-----&gt; Application       message     HTTP, DNS, TLS(ish), SSH, gRPC
+ 5 Session      /
+ 4 Transport    -------&gt; Transport         segment/    TCP, UDP, QUIC (over UDP)
+                                           datagram
+ 3 Network      -------&gt; Internet          packet      IP (v4/v6), ICMP, routing
+ 2 Data link    \
+ 1 Physical      }-----&gt; Link              frame/bit   Ethernet, Wi-Fi, ARP, MAC addrs
+</code></pre></div>
+
+<p>Encapsulation (what actually goes on the wire):</p>
+<div class="highlight"><pre><span></span><code> App data:            [ HTTP request bytes ]
+ + TCP header:      [TCP][ HTTP request bytes ]            (ports, seq, ack, flags)
+ + IP header:     [IP][TCP][ HTTP request bytes ]          (src/dst IP, TTL)
+ + Ethernet:  [Eth][IP][TCP][ HTTP request bytes ][FCS]    (src/dst MAC, per hop)
+</code></pre></div>
+
+<p>Key points</p>
+<ul>
+<li>MAC addresses change at every hop (L2 is local). IP addresses stay end-to-end (except NAT).</li>
+<li>Router = L3 device (forwards by destination IP). Switch = L2 (by MAC). Load balancer: L4 (by IP:port, e.g. NLB) or L7 (by HTTP host/path, e.g. ALB, nginx).</li>
+<li>ARP maps IPv4 -&gt; MAC on the local subnet. Off-subnet traffic goes to the default gateway's MAC.</li>
+<li>TLS does not fit OSI cleanly; say "sits above transport, below HTTP".</li>
+</ul>
+<p>Try it (macOS/Linux):</p>
+<div class="highlight"><pre><span></span><code>$ ifconfig            # macOS (Linux: ip addr)       -&gt; your IP, netmask, MAC
+$ arp -a                                            -&gt; IP-to-MAC cache on your LAN
+$ netstat -rn         # macOS (Linux: ip route)     -&gt; default gateway
+default   192.168.1.1   UGScg   en0
+</code></pre></div>
+
+<p>Gotcha: "Layer 7 load balancer" can terminate TLS and route by header; an L4 one just forwards TCP and cannot see paths or cookies.</p>
+<p>How interviewers probe it: "Which layer is a router/switch/LB?", "Where does TLS live?", "What changes at each hop and what does not?" Expect a follow-up like "why can't a L4 LB do path-based routing?"</p>
+<hr />
+<h2 id="2-ip-addressing-subnets-cidr">2. IP addressing, subnets, CIDR</h2>
+<p>IPv4 = 32 bits, written as four octets. CIDR notation <code>a.b.c.d/N</code> means the first N bits are the network prefix; the remaining 32-N bits are host bits.</p>
+<div class="highlight"><pre><span></span><code> 192.168.10.0/24
+ 11000000.10101000.00001010 . 00000000
+ |&lt;------- 24 network ------&gt;|&lt;- 8 host -&gt;|
+ netmask 255.255.255.0
+</code></pre></div>
+
+<p>Formulas</p>
+<ul>
+<li>Addresses in block = 2^(32-N)</li>
+<li>Usable hosts (classic LAN) = 2^(32-N) - 2 (network address and broadcast excluded). Cloud providers reserve more (AWS reserves 5 per subnet; check current docs).</li>
+<li>Block size in the interesting octet = 256 - mask octet value.</li>
+</ul>
+<p>Worked example 1: 10.0.0.0/16</p>
+<ul>
+<li>Host bits 16 -&gt; 65,536 addresses. Range 10.0.0.0 - 10.0.255.255.</li>
+</ul>
+<p>Worked example 2: split 192.168.1.0/24 into 4 subnets</p>
+<ul>
+<li>Need 4 subnets -&gt; borrow 2 bits -&gt; /26. Each has 2^6 = 64 addresses (62 usable).</li>
+</ul>
+<div class="highlight"><pre><span></span><code> 192.168.1.0/26    -&gt; .0   - .63    (gw .1, broadcast .63)
+ 192.168.1.64/26   -&gt; .64  - .127
+ 192.168.1.128/26  -&gt; .128 - .191
+ 192.168.1.192/26  -&gt; .192 - .255
+</code></pre></div>
+
+<p>Worked example 3: which subnet is 172.16.37.200/20 in?</p>
+<ul>
+<li>/20 -&gt; mask 255.255.240.0; interesting octet is the 3rd; block size 256-240 = 16.</li>
+<li>37 / 16 = 2 (floor) -&gt; 2*16 = 32. Network = 172.16.32.0, broadcast = 172.16.47.255.</li>
+<li>Range 172.16.32.0 - 172.16.47.255 (4096 addresses).</li>
+</ul>
+<p>Worked example 4: do 10.1.4.9 and 10.1.7.250 share a /22?</p>
+<ul>
+<li>/22 -&gt; third-octet block size 4. 4 -&gt; block 4-7; 7 -&gt; block 4-7. Same network 10.1.4.0/22. Yes.</li>
+</ul>
+<p>Worked example 5: smallest prefix for 500 hosts?</p>
+<ul>
+<li>2^9 = 512 &gt;= 502 needed (500 + 2) -&gt; 9 host bits -&gt; /23.</li>
+</ul>
+<p>Common masks</p>
+<div class="highlight"><pre><span></span><code> /8  255.0.0.0         /24 255.255.255.0     /28 255.255.255.240 (16 addrs)
+ /16 255.255.0.0       /26 255.255.255.192   /30 255.255.255.252 (4 addrs, point-to-point)
+ /32 single host       /0  everything (default route)
+</code></pre></div>
+
+<p>Special ranges
+| Range | Meaning |
+|---|---|
+| 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 | RFC 1918 private (not routable on internet) |
+| 127.0.0.0/8 | loopback (localhost) |
+| 169.254.0.0/16 | link-local (DHCP failed; cloud metadata at 169.254.169.254) |
+| 100.64.0.0/10 | carrier-grade NAT, also used by some VPNs (Tailscale) |
+| 0.0.0.0 | "all interfaces" when binding; "this host" otherwise |</p>
+<p>Routing: longest-prefix match wins. Routes 10.0.0.0/8 via A and 10.1.0.0/16 via B -&gt; a packet to 10.1.2.3 goes via B.</p>
+<p>NAT: many private hosts share one public IP; the NAT device rewrites src IP:port and keeps a table. Consequence: inbound connections cannot reach private hosts unless forwarded; NAT tables time out idle connections (a classic cause of "connection hangs after 5 minutes idle" -&gt; use TCP keepalive).</p>
+<p>IPv6: 128 bits, hex groups (2001:db8::1), /64 per subnet is standard, no NAT needed, no broadcast. Dual-stack clients prefer IPv6 ("Happy Eyeballs" falls back fast). Gotcha: a service listening only on IPv4 while DNS returns AAAA records can cause slow or failed connects.</p>
+<p>Python check:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">ipaddress</span>
+<span class="n">n</span> <span class="o">=</span> <span class="n">ipaddress</span><span class="o">.</span><span class="n">ip_network</span><span class="p">(</span><span class="s2">"172.16.37.200/20"</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">n</span><span class="o">.</span><span class="n">num_addresses</span><span class="p">,</span> <span class="n">n</span><span class="o">.</span><span class="n">network_address</span><span class="p">,</span> <span class="n">n</span><span class="o">.</span><span class="n">broadcast_address</span><span class="p">)</span>
+<span class="c1"># 172.16.32.0/20 4096 172.16.32.0 172.16.47.255</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">ipaddress</span><span class="o">.</span><span class="n">ip_address</span><span class="p">(</span><span class="s2">"10.1.7.250"</span><span class="p">)</span> <span class="ow">in</span> <span class="n">ipaddress</span><span class="o">.</span><span class="n">ip_network</span><span class="p">(</span><span class="s2">"10.1.4.0/22"</span><span class="p">))</span>  <span class="c1"># True</span>
+</code></pre></div>
+
+<p>Gotcha: overlapping CIDRs between a customer's network and your VPC make VPC peering/VPN impossible. FDEs hit this constantly; ask for the customer's ranges early.</p>
+<p>How interviewers probe it: "How many hosts in a /27?" (32, 30 usable), "Split a /24 into 8 subnets", "Why can't two peered networks overlap?", "What is longest-prefix match?"</p>
+<hr />
+<h2 id="3-tcp-vs-udp">3. TCP vs UDP</h2>
+<div class="highlight"><pre><span></span><code>            TCP                              UDP
+ connect    yes (handshake)                  no
+ delivery   reliable, ordered, dedup         best effort, may drop/reorder
+ model      byte stream (no msg boundaries)  datagrams (boundaries kept)
+ control    flow + congestion control        none (app's job)
+ overhead   20+ byte header, state           8 byte header, stateless
+ use        HTTP/1-2, SSH, DB, SMTP          DNS, video/voice, games, QUIC (HTTP/3), DHCP
+</code></pre></div>
+
+<h3 id="31-three-way-handshake">3.1 Three-way handshake</h3>
+<div class="highlight"><pre><span></span><code> Client                         Server (LISTEN)
+   | --- SYN, seq=x -----------&gt;  |   client -&gt; SYN_SENT
+   | &lt;-- SYN+ACK, seq=y, ack=x+1  |   server -&gt; SYN_RECEIVED
+   | --- ACK, ack=y+1 ---------&gt;  |   both ESTABLISHED
+   |  (data can flow; 1 RTT spent before first byte)
+</code></pre></div>
+
+<ul>
+<li>Purpose: agree on initial sequence numbers and confirm both directions work.</li>
+<li>SYN flood: attacker sends SYNs and never ACKs, filling the server's half-open queue. Mitigation: SYN cookies.</li>
+<li>Two queues on the server: SYN queue (half-open) and accept queue (completed, waiting for <code>accept()</code>). <code>listen(backlog)</code> sizes the latter. A slow app that does not call accept fast enough drops connections (symptom: client timeouts under load).</li>
+</ul>
+<h3 id="32-teardown-four-way-and-time_wait">3.2 Teardown (four-way) and TIME_WAIT</h3>
+<div class="highlight"><pre><span></span><code> Active closer                 Passive closer
+   | --- FIN ------------------&gt; |   FIN_WAIT_1
+   | &lt;-- ACK ------------------- |   FIN_WAIT_2 / passive: CLOSE_WAIT
+   | &lt;-- FIN ------------------- |   passive: LAST_ACK (after app calls close())
+   | --- ACK ------------------&gt; |   active: TIME_WAIT (2*MSL, ~60s on Linux; check current docs)
+</code></pre></div>
+
+<ul>
+<li>TIME_WAIT lives on whoever closes first. It ensures late duplicate packets die out and that the final ACK can be retransmitted.</li>
+<li>Many TIME_WAIT sockets on a client/proxy -&gt; ephemeral port exhaustion (~28k ports by default on Linux, range 32768-60999; check current docs). Fixes: connection pooling/keep-alive, widen port range, more source IPs. Do not "just disable it".</li>
+<li>Many CLOSE_WAIT sockets = your app forgot to close() after the peer closed. That is an application bug (leaked connections), not a kernel tuning issue.</li>
+<li>RST = abrupt abort. "Connection reset by peer" means the other side (or a middlebox) sent RST: crashed process, closed port, firewall, LB idle timeout.</li>
+</ul>
+<h3 id="33-reliability-seqack-retransmits">3.3 Reliability: seq/ack, retransmits</h3>
+<ul>
+<li>Every byte has a sequence number; receiver ACKs cumulatively ("I have everything up to N").</li>
+<li>Sender retransmits on: RTO timeout (exponential backoff, doubles each time) or 3 duplicate ACKs (fast retransmit, no waiting).</li>
+<li>Selective ACK (SACK) lets the receiver say which later ranges arrived, so only the holes are resent.</li>
+<li>Nagle's algorithm batches small writes; with delayed ACK it can add ~40ms latency to chatty request/response. Set TCP_NODELAY for latency-sensitive protocols.</li>
+</ul>
+<h3 id="34-flow-control-vs-congestion-control">3.4 Flow control vs congestion control</h3>
+<div class="highlight"><pre><span></span><code> Flow control       protects the RECEIVER. Receiver advertises a window (rwnd) in each ACK.
+ Congestion control protects the NETWORK.  Sender keeps a congestion window (cwnd).
+ Bytes in flight &lt;= min(rwnd, cwnd)
+</code></pre></div>
+
+<ul>
+<li>Zero window: receiver buffer full, sender pauses (probes periodically). Seen when an app reads slowly.</li>
+<li>Window scaling option allows windows beyond 64KB (needed for high bandwidth-delay-product links).</li>
+<li>Bandwidth-delay product (BDP) = bandwidth x RTT = bytes needed in flight to fill the pipe. 1 Gbps x 100ms = 12.5 MB. A small window caps throughput at window/RTT regardless of link speed.</li>
+</ul>
+<p>Congestion control phases (classic Reno/CUBIC idea):</p>
+<div class="highlight"><pre><span></span><code> cwnd
+  ^            ssthresh
+  |               .-----' congestion avoidance (+1 MSS per RTT, linear)
+  |            .-'
+  |          .'   &lt;- slow start (cwnd doubles each RTT, exponential)
+  |        .'
+  |     .'          loss detected -&gt; ssthresh = cwnd/2, then recover
+  +-----------------------------------&gt; time
+</code></pre></div>
+
+<ul>
+<li>Slow start: begin with initial window (typically 10 segments, ~14KB; check current docs), double per RTT until ssthresh or loss.</li>
+<li>Congestion avoidance: grow linearly. On loss: multiplicative decrease (halve on triple-dup-ACK; reset harder on timeout).</li>
+<li>CUBIC is the Linux default; BBR (Google) models bandwidth and RTT rather than reacting to loss (check current docs for defaults).</li>
+<li>Why it matters: short HTTP responses never leave slow start; this is why fewer round trips (keep-alive, HTTP/2, TLS 1.3, CDN near the user) beat raw bandwidth.</li>
+</ul>
+<p>Inspect on Linux/macOS:</p>
+<div class="highlight"><pre><span></span><code>$ ss -tan state established | head      # Linux; macOS: netstat -an -p tcp | grep ESTABLISHED
+$ ss -ti dst 1.2.3.4                    # Linux: shows cwnd, rtt, retrans per socket
+$ netstat -an | awk '/tcp/ {print $NF}' | sort | uniq -c   # count by state
+   3 LISTEN
+  42 ESTABLISHED
+ 120 TIME_WAIT
+</code></pre></div>
+
+<h3 id="35-udp-in-practice">3.5 UDP in practice</h3>
+<ul>
+<li>No handshake; sender can blast datagrams. Apps (QUIC, RTP) add their own reliability/pacing where needed.</li>
+<li>Datagrams larger than path MTU get fragmented (or dropped if DF set) -&gt; keep UDP payloads &lt; ~1200 bytes to be safe (QUIC does this).</li>
+<li>DNS uses UDP/53 for small answers and falls back to TCP/53 when truncated (TC bit) or for large responses/zone transfers. Firewalls that block TCP/53 cause rare, maddening failures.</li>
+</ul>
+<p>Gotcha: "TCP is reliable" means ordered delivery to the kernel buffer, not that your peer processed the message. Without app-level acks, a write() success proves nothing about the remote handling it.</p>
+<p>How interviewers probe it: "Walk the handshake", "Why TIME_WAIT?", "Slow start vs flow control?", "Server has 50k CLOSE_WAIT, what is wrong?", "Why does a single TCP stream not saturate a long fat pipe?"</p>
+<hr />
+<h2 id="4-dns">4. DNS</h2>
+<p>DNS maps names to records. It is a hierarchical, distributed, heavily cached database.</p>
+<div class="highlight"><pre><span></span><code> Browser -&gt; OS stub resolver -&gt; Recursive resolver (ISP / 8.8.8.8 / 1.1.1.1 / corp)
+                                   |  (cache miss)
+                                   |--1--&gt; Root servers (.)         "who handles .com?"  -&gt; NS for com
+                                   |--2--&gt; TLD servers (.com)       "who handles example.com?" -&gt; NS
+                                   |--3--&gt; Authoritative NS         "A for www.example.com?" -&gt; 93.184.216.34
+                                   '--&gt; caches answer for TTL, returns to client
+</code></pre></div>
+
+<p>Roles</p>
+<ul>
+<li>Stub resolver: tiny client in your OS/libc; asks the recursive resolver (see /etc/resolv.conf or <code>scutil --dns</code> on macOS).</li>
+<li>Recursive resolver: does the legwork and caches.</li>
+<li>Authoritative server: holds the truth for a zone; does not recurse.</li>
+<li>Delegation: NS records point down the tree; glue records break circularity (ns1.example.com needs an IP to be found).</li>
+</ul>
+<p>Record types
+| Type | Purpose | Example |
+|---|---|---|
+| A / AAAA | name -&gt; IPv4 / IPv6 | api.example.com A 203.0.113.10 |
+| CNAME | alias to another name (not allowed at zone apex) | www -&gt; lb-123.elb.amazonaws.com |
+| NS | delegates zone to name servers | example.com NS ns1... |
+| MX | mail servers with priority | 10 mail.example.com |
+| TXT | free text: SPF, DKIM, domain verification | "v=spf1 ..." |
+| SRV | host+port for a service | _sip._tcp... |
+| PTR | reverse lookup IP -&gt; name | 10.113.0.203.in-addr.arpa |
+| SOA | zone metadata, serial, negative-cache TTL | |
+| CAA | which CAs may issue certs for the domain | 0 issue "letsencrypt.org" |</p>
+<p>TTL and caching</p>
+<ul>
+<li>Each record has a TTL (seconds). Resolvers, OS, browsers, and even language runtimes cache it.</li>
+<li>Lower TTL before a migration (e.g. 300s a day ahead), then change, then raise it again. Changes are never instant; some resolvers ignore low TTLs.</li>
+<li>Negative caching: NXDOMAIN is cached too (governed by SOA minimum). Creating a record right after a failed lookup can still "not exist" for minutes.</li>
+<li>JVM/Python long-lived processes may resolve once and reuse the IP forever; after a failover they keep hitting the dead IP. Re-resolve or recycle connections.</li>
+</ul>
+<p>Common patterns: round-robin DNS (several A records, crude load balancing), GeoDNS/latency routing, weighted records for canary, ALIAS/ANAME at apex for cloud LBs (Route 53 alias).</p>
+<p>Security notes: DNSSEC signs records (integrity, not privacy). DoH/DoT encrypt the stub-to-resolver hop. Split-horizon DNS returns different answers inside vs outside the corporate network, so "works on my laptop, fails in the customer VPC" is often DNS.</p>
+<p>Try it:</p>
+<div class="highlight"><pre><span></span><code>$ dig example.com +short
+93.184.216.34
+$ dig example.com A +noall +answer
+example.com.  3600  IN  A  93.184.216.34        &lt;- 3600 = remaining TTL
+$ dig +trace example.com          # walk root -&gt; TLD -&gt; authoritative yourself
+$ dig @8.8.8.8 example.com MX     # ask a specific resolver
+$ dig -x 8.8.8.8 +short           # reverse lookup -&gt; dns.google.
+$ nslookup example.com            # simpler, interactive-capable
+$ dig example.com | rg status     # status: NOERROR | NXDOMAIN | SERVFAIL | REFUSED
+</code></pre></div>
+
+<ul>
+<li>NXDOMAIN = name does not exist. SERVFAIL = resolver could not get an answer (broken delegation, DNSSEC failure, upstream timeout). REFUSED = server won't answer you (ACL).</li>
+</ul>
+<p>Gotcha: <code>/etc/hosts</code> and <code>nsswitch</code> order can override DNS; <code>dig</code> bypasses the OS resolver, while <code>ping</code>/<code>curl</code> use it. If dig works and curl fails, suspect the OS resolver config, search domains, or /etc/hosts. Also <code>ndots</code> in Kubernetes resolv.conf causes many wasted lookups for short names.</p>
+<p>How interviewers probe it: "Recursive vs authoritative?", "Why can't CNAME be at the apex?", "You changed a record; users still see the old IP - why?", "Where would you check if dig works but the app fails?"</p>
+<hr />
+<h2 id="5-http11-http2-http3">5. HTTP/1.1, HTTP/2, HTTP/3</h2>
+<p>HTTP is a request/response protocol: method + path + headers + optional body -&gt; status + headers + body.</p>
+<div class="highlight"><pre><span></span><code> GET /users/42 HTTP/1.1
+ Host: api.example.com
+ Accept: application/json
+ Authorization: Bearer &lt;token&gt;
+
+ HTTP/1.1 200 OK
+ Content-Type: application/json
+ Cache-Control: max-age=60
+ {"id":42,"name":"Ada"}
+</code></pre></div>
+
+<h3 id="51-http11">5.1 HTTP/1.1</h3>
+<ul>
+<li>Text protocol, persistent connections (keep-alive default), <code>Host</code> header enables virtual hosting.</li>
+<li>One request at a time per connection. Pipelining exists but is effectively unused due to head-of-line (HOL) blocking: response 2 cannot overtake slow response 1.</li>
+<li>Browsers open ~6 connections per host to parallelize; developers used domain sharding and bundling as hacks.</li>
+</ul>
+<h3 id="52-http2">5.2 HTTP/2</h3>
+<ul>
+<li>Binary framing, one TCP connection, many concurrent streams (multiplexing) -&gt; no HTTP-level HOL blocking.</li>
+<li>HPACK header compression (headers repeat a lot), server push (deprecated in practice; check current docs), stream prioritization.</li>
+<li>Usually negotiated via TLS ALPN ("h2"). Browsers only do h2 over TLS.</li>
+<li>Remaining problem: TCP-level HOL blocking. One lost packet stalls ALL streams because TCP delivers in order. On lossy mobile networks h2 can be worse than multiple h1 connections.</li>
+</ul>
+<div class="highlight"><pre><span></span><code> HTTP/1.1:  conn1 |==req1==|==req2==|        (serial per connection, 6 conns)
+ HTTP/2:    conn  |s1 s3 s1 s5 s3 s1 ...|    (interleaved frames, 1 conn)
+                    ^ lost packet blocks everything behind it (TCP HOL)
+ HTTP/3:    QUIC  |s1|s3|s1|s5|   (UDP; loss only stalls the affected stream)
+</code></pre></div>
+
+<h3 id="53-http3-and-quic">5.3 HTTP/3 and QUIC</h3>
+<ul>
+<li>HTTP/3 runs on QUIC, which runs on UDP. QUIC implements reliability, congestion control, and TLS 1.3 itself, in user space.</li>
+<li>Independent streams: loss on one stream does not block others (fixes TCP HOL).</li>
+<li>Faster setup: transport + crypto handshake combined (1 RTT; 0-RTT resumption possible but replayable, so only for idempotent requests).</li>
+<li>Connection migration: connection ID, not the 4-tuple, identifies the session; a phone switching Wi-Fi to LTE keeps the connection.</li>
+<li>Discovery: browser first connects via h2, server advertises <code>Alt-Svc: h3=":443"</code>, browser upgrades next time (HTTPS DNS records can also hint). Some corporate firewalls block UDP/443, so clients must fall back to h2. Gotcha for FDEs.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>1.1</th>
+<th>2</th>
+<th>3</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Transport</td>
+<td>TCP</td>
+<td>TCP</td>
+<td>QUIC/UDP</td>
+</tr>
+<tr>
+<td>Format</td>
+<td>text</td>
+<td>binary</td>
+<td>binary</td>
+</tr>
+<tr>
+<td>Multiplexing</td>
+<td>no</td>
+<td>yes</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>HOL blocking</td>
+<td>HTTP + TCP</td>
+<td>TCP only</td>
+<td>none across streams</td>
+</tr>
+<tr>
+<td>Header compression</td>
+<td>no</td>
+<td>HPACK</td>
+<td>QPACK</td>
+</tr>
+<tr>
+<td>Encryption</td>
+<td>optional</td>
+<td>de facto TLS</td>
+<td>always (TLS 1.3 built in)</td>
+</tr>
+</tbody>
+</table>
+<p>Try it:</p>
+<div class="highlight"><pre><span></span><code>$ curl -sI --http1.1 https://example.com | head -1     HTTP/1.1 200 OK
+$ curl -sI --http2   https://example.com | head -1     HTTP/2 200
+$ curl -sI --http3   https://cloudflare.com | head -1  (needs curl built with HTTP/3; check current docs)
+$ curl -sI https://www.google.com | rg -i alt-svc      alt-svc: h3=":443"; ma=2592000
+</code></pre></div>
+
+<p>Gotcha: HTTP/2 between client and LB does not imply HTTP/2 to your FastAPI app; many LBs terminate h2 and speak h1.1 to the backend. Uvicorn speaks h1.1 only (use hypercorn for h2; check current docs).</p>
+<p>How interviewers probe it: "What is HOL blocking and which versions fix which kind?", "Why is QUIC on UDP?", "Why did h2 not fix everything?", "Why would HTTP/3 fail inside a customer network?"</p>
+<hr />
+<h2 id="6-https-tls-certificates">6. HTTPS, TLS, certificates</h2>
+<p>TLS gives: confidentiality (encryption), integrity (tamper detection), authentication (server proves identity via certificate).</p>
+<h3 id="61-ideas-from-first-principles">6.1 Ideas from first principles</h3>
+<ul>
+<li>Asymmetric crypto (public/private keys) is slow but solves key exchange and signatures. Symmetric crypto (AES-GCM, ChaCha20) is fast and carries the bulk data.</li>
+<li>Handshake: authenticate server, agree on a shared secret via (EC)DHE key exchange, derive symmetric keys. Ephemeral DH gives forward secrecy: stealing the server key later does not decrypt recorded traffic.</li>
+</ul>
+<h3 id="62-tls-13-handshake-1-rtt">6.2 TLS 1.3 handshake (1-RTT)</h3>
+<div class="highlight"><pre><span></span><code> Client                                         Server
+   | ClientHello: versions, ciphers,              |
+   |   key_share (client DH public), SNI, ALPN -&gt; |
+   |                                              | picks cipher, computes shared secret
+   | &lt;- ServerHello + key_share                   |
+   | &lt;- {EncryptedExtensions, Certificate,        |   (everything after ServerHello is encrypted)
+   |     CertificateVerify, Finished}             |
+   | {Finished} -------------------------------&gt;  |
+   | ===== application data (HTTP) ============== |
+   Total: TCP handshake (1 RTT) + TLS (1 RTT) before first request byte.
+</code></pre></div>
+
+<ul>
+<li>TLS 1.2 needed 2 RTT for the TLS part. TLS 1.3 removed weak ciphers/RSA key exchange; always forward secret.</li>
+<li>0-RTT resumption: send data with the first flight using a prior session ticket; faster but replayable (only safe for idempotent requests).</li>
+<li>Session resumption (tickets) skips the full handshake on reconnect.</li>
+</ul>
+<h3 id="63-certificates-and-chain-of-trust">6.3 Certificates and chain of trust</h3>
+<div class="highlight"><pre><span></span><code> Root CA (self-signed, in OS/browser trust store)
+    '-- signs --&gt; Intermediate CA
+                     '-- signs --&gt; Leaf cert for api.example.com
+ Server must send: leaf + intermediates (NOT the root).
+ Client checks: signature chain to a trusted root, validity dates,
+                hostname matches SAN, revocation (OCSP/CRL; check current docs), key usage.
+</code></pre></div>
+
+<ul>
+<li>Identity is in the Subject Alternative Name (SAN) list, not the legacy CN.</li>
+<li>Wildcard *.example.com covers one label only (a.example.com, not a.b.example.com).</li>
+<li>Lifetimes keep shrinking (public certs are heading toward ~47 days; check current docs). Automate with ACME/Let's Encrypt.</li>
+<li>Private/internal CAs: corporate TLS-inspection proxies re-sign traffic with their own CA; clients must trust it or you get verification errors. Python <code>requests</code> uses certifi (its own bundle), not the OS store, unless configured (REQUESTS_CA_BUNDLE / SSL_CERT_FILE).</li>
+</ul>
+<h3 id="64-sni">6.4 SNI</h3>
+<p>Server Name Indication: the client states the hostname in ClientHello (in plaintext, unless ECH is used; check current docs) so one IP:443 can serve many certificates. Old clients without SNI get a default cert -&gt; name mismatch. When you <code>curl https://1.2.3.4</code>, no proper SNI is sent; use <code>--resolve host:443:IP</code>.</p>
+<h3 id="65-mtls">6.5 mTLS</h3>
+<p>Both sides present certificates. The server also verifies the client's cert against a trusted CA. Used for service-to-service auth (service mesh like Istio/Linkerd, SPIFFE identities), zero-trust, B2B APIs. Failure signature: handshake alert "bad certificate"/"certificate required".</p>
+<h3 id="66-try-it">6.6 Try it</h3>
+<div class="highlight"><pre><span></span><code>$ openssl s_client -connect example.com:443 -servername example.com &lt;/dev/null 2&gt;/dev/null | openssl x509 -noout -subject -issuer -dates -ext subjectAltName
+subject=CN=example.com
+issuer=C=US, O=..., CN=...
+notBefore=...  notAfter=...
+X509v3 Subject Alternative Name: DNS:example.com, DNS:www.example.com
+
+$ openssl s_client -connect example.com:443 -servername example.com -showcerts   # full chain
+    Verify return code: 0 (ok)          &lt;- anything else: read it (20 = unable to get local issuer cert)
+$ openssl s_client -connect example.com:443 -tls1_3 &lt;/dev/null | rg 'Protocol|Cipher'
+$ curl -v https://example.com 2&gt;&amp;1 | rg -i 'ALPN|TLS|subject|issuer|expire'
+$ curl --cacert corp-ca.pem https://internal.example.com     # trust a private CA
+</code></pre></div>
+
+<p>Gotcha: "unable to get local issuer certificate" usually means the server did not send the intermediate (fix server config), or the client lacks the corporate root CA. Never fix it with <code>verify=False</code> / <code>curl -k</code> in production code; it disables authentication entirely.</p>
+<p>How interviewers probe it: "Walk the TLS handshake", "What does the CA actually sign?", "What is SNI and why needed?", "TLS 1.3 vs 1.2?", "How would you debug a cert error at a customer site?", "What is mTLS for?"</p>
+<hr />
+<h2 id="7-rest-status-codes-headers-caching-cors">7. REST, status codes, headers, caching, CORS</h2>
+<h3 id="71-rest-essentials">7.1 REST essentials</h3>
+<p>Resources are nouns in URLs; HTTP methods are verbs; stateless requests; representations (JSON).</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Semantics</th>
+<th>Safe</th>
+<th>Idempotent</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td>read</td>
+<td>yes</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>HEAD</td>
+<td>headers only</td>
+<td>yes</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>POST</td>
+<td>create / action</td>
+<td>no</td>
+<td>no (use Idempotency-Key)</td>
+</tr>
+<tr>
+<td>PUT</td>
+<td>replace</td>
+<td>no</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td>partial update</td>
+<td>no</td>
+<td>not guaranteed</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td>remove</td>
+<td>no</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>OPTIONS</td>
+<td>capabilities / CORS preflight</td>
+<td>yes</td>
+<td>yes</td>
+</tr>
+</tbody>
+</table>
+<p>Idempotent = repeating has the same effect as once. Critical for safe client retries.</p>
+<h3 id="72-status-codes">7.2 Status codes</h3>
+<div class="highlight"><pre><span></span><code> 1xx info      101 Switching Protocols (WebSocket upgrade)
+ 2xx success   200 OK | 201 Created (+Location) | 202 Accepted (async) | 204 No Content
+ 3xx redirect  301 permanent | 302 found | 304 Not Modified | 307/308 keep method
+ 4xx client    400 bad syntax | 401 unauthenticated | 403 forbidden (authenticated, not allowed)
+               404 not found | 405 method not allowed | 409 conflict | 415 unsupported media
+               422 validation failed (FastAPI default) | 429 too many requests (+Retry-After)
+ 5xx server    500 internal | 502 bad gateway (upstream sent garbage/closed)
+               503 unavailable (+Retry-After) | 504 gateway timeout (upstream too slow)
+</code></pre></div>
+
+<p>Gotcha: 401 vs 403 is a favorite. 401 = "I don't know who you are" (missing/invalid credentials); 403 = "I know who you are; no." 502 vs 504: 502 means the proxy got a bad or no response (upstream crashed/reset); 504 means the upstream did not answer within the proxy timeout.</p>
+<h3 id="73-important-headers">7.3 Important headers</h3>
+<table>
+<thead>
+<tr>
+<th>Header</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Host</td>
+<td>which site (required in 1.1)</td>
+</tr>
+<tr>
+<td>Content-Type / Accept</td>
+<td>body format / desired format</td>
+</tr>
+<tr>
+<td>Authorization</td>
+<td>credentials (Bearer, Basic)</td>
+</tr>
+<tr>
+<td>Cache-Control, ETag, Last-Modified, Vary</td>
+<td>caching</td>
+</tr>
+<tr>
+<td>Location</td>
+<td>redirect / created resource</td>
+</tr>
+<tr>
+<td>X-Forwarded-For / Forwarded, X-Forwarded-Proto</td>
+<td>original client info behind proxies</td>
+</tr>
+<tr>
+<td>Retry-After</td>
+<td>back-off hint for 429/503</td>
+</tr>
+<tr>
+<td>Strict-Transport-Security</td>
+<td>force HTTPS for a period</td>
+</tr>
+<tr>
+<td>User-Agent, Origin, Referer</td>
+<td>client context</td>
+</tr>
+</tbody>
+</table>
+<h3 id="74-caching">7.4 Caching</h3>
+<div class="highlight"><pre><span></span><code> Request 1:  GET /logo.png        -&gt; 200, Cache-Control: max-age=3600, ETag: "abc"
+ (within 3600s)  served from cache, no network
+ After expiry:  GET /logo.png, If-None-Match: "abc"
+                -&gt; 304 Not Modified (no body)   ... or 200 with new body + new ETag
+</code></pre></div>
+
+<ul>
+<li><code>Cache-Control: max-age=N</code> fresh for N seconds. <code>s-maxage</code> for shared caches (CDN). <code>public</code> / <code>private</code> (browser only; user-specific data). <code>no-cache</code> = may store but MUST revalidate. <code>no-store</code> = never store (secrets). <code>immutable</code> for fingerprinted assets. <code>stale-while-revalidate</code> serve stale while refreshing.</li>
+<li>ETag = opaque version validator; Last-Modified = timestamp validator. Conditional requests: If-None-Match / If-Modified-Since -&gt; 304.</li>
+<li><code>Vary: Accept-Encoding</code> (or Authorization, Accept-Language) tells caches which request headers change the response; wrong Vary leaks one user's response to another.</li>
+<li>Also use ETag + If-Match for optimistic concurrency on PUT (412 Precondition Failed on mismatch).</li>
+</ul>
+<p>FastAPI example:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">FastAPI</span><span class="p">,</span> <span class="n">Request</span><span class="p">,</span> <span class="n">Response</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span><span class="o">,</span><span class="w"> </span><span class="nn">json</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">()</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/users/</span><span class="si">{uid}</span><span class="s2">"</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_user</span><span class="p">(</span><span class="n">uid</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span> <span class="n">response</span><span class="p">:</span> <span class="n">Response</span><span class="p">):</span>
+    <span class="n">body</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="n">uid</span><span class="p">,</span> <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"Ada"</span><span class="p">}</span>
+    <span class="n">etag</span> <span class="o">=</span> <span class="s1">'"'</span> <span class="o">+</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="n">sort_keys</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()[:</span><span class="mi">16</span><span class="p">]</span> <span class="o">+</span> <span class="s1">'"'</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"if-none-match"</span><span class="p">)</span> <span class="o">==</span> <span class="n">etag</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="n">status_code</span><span class="o">=</span><span class="mi">304</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s2">"ETag"</span><span class="p">:</span> <span class="n">etag</span><span class="p">})</span>
+    <span class="n">response</span><span class="o">.</span><span class="n">headers</span><span class="p">[</span><span class="s2">"ETag"</span><span class="p">]</span> <span class="o">=</span> <span class="n">etag</span>
+    <span class="n">response</span><span class="o">.</span><span class="n">headers</span><span class="p">[</span><span class="s2">"Cache-Control"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"private, max-age=30"</span>
+    <span class="k">return</span> <span class="n">body</span>
+</code></pre></div>
+
+<h3 id="75-cors">7.5 CORS</h3>
+<p>Same-origin policy: a page from origin A (scheme+host+port) cannot read responses from origin B. CORS lets B opt in via headers. It is enforced by the BROWSER; curl and servers ignore it. It protects users' browsers, not your API.</p>
+<div class="highlight"><pre><span></span><code> Simple request (GET/POST with simple headers/content types):
+   Browser sends Origin: https://app.example.com
+   Server replies Access-Control-Allow-Origin: https://app.example.com  -&gt; JS may read it
+
+ Preflight (non-simple: PUT/DELETE, JSON content-type, Authorization header, custom headers):
+   Browser -&gt; OPTIONS /items
+              Origin: https://app.example.com
+              Access-Control-Request-Method: PUT
+              Access-Control-Request-Headers: authorization,content-type
+   Server  -&gt; 204
+              Access-Control-Allow-Origin: https://app.example.com
+              Access-Control-Allow-Methods: PUT
+              Access-Control-Allow-Headers: authorization,content-type
+              Access-Control-Max-Age: 600        (cache the preflight)
+   Browser then sends the real PUT.
+</code></pre></div>
+
+<ul>
+<li>Credentials (cookies) require <code>Access-Control-Allow-Credentials: true</code> AND a specific origin; <code>*</code> is not allowed with credentials.</li>
+<li>A CORS error does not mean the server rejected the call; the request often reached the server (side effects happen for simple requests). Preflight failing (e.g. 401/404 on OPTIONS) is a common cause.</li>
+</ul>
+<p>FastAPI:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">fastapi.middleware.cors</span><span class="w"> </span><span class="kn">import</span> <span class="n">CORSMiddleware</span>
+<span class="n">app</span><span class="o">.</span><span class="n">add_middleware</span><span class="p">(</span>
+    <span class="n">CORSMiddleware</span><span class="p">,</span>
+    <span class="n">allow_origins</span><span class="o">=</span><span class="p">[</span><span class="s2">"https://app.example.com"</span><span class="p">],</span>   <span class="c1"># not "*" with credentials</span>
+    <span class="n">allow_credentials</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">allow_methods</span><span class="o">=</span><span class="p">[</span><span class="s2">"GET"</span><span class="p">,</span> <span class="s2">"POST"</span><span class="p">,</span> <span class="s2">"PUT"</span><span class="p">,</span> <span class="s2">"DELETE"</span><span class="p">],</span>
+    <span class="n">allow_headers</span><span class="o">=</span><span class="p">[</span><span class="s2">"authorization"</span><span class="p">,</span> <span class="s2">"content-type"</span><span class="p">],</span>
+    <span class="n">max_age</span><span class="o">=</span><span class="mi">600</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<p>Try it:</p>
+<div class="highlight"><pre><span></span><code>$ curl -i -X OPTIONS http://localhost:8000/items \
+    -H 'Origin: https://app.example.com' \
+    -H 'Access-Control-Request-Method: PUT'
+HTTP/1.1 200 OK
+access-control-allow-origin: https://app.example.com
+access-control-allow-methods: GET, POST, PUT, DELETE
+</code></pre></div>
+
+<p>How interviewers probe it: "401 vs 403?", "PUT vs PATCH vs POST idempotency", "no-cache vs no-store", "How does ETag save bandwidth?", "Why does my curl work but the browser says CORS?", "What triggers a preflight?"</p>
+<hr />
+<h2 id="8-cookies-sessions-tokens">8. Cookies, sessions, tokens</h2>
+<p>HTTP is stateless; authentication state must ride on every request.</p>
+<div class="highlight"><pre><span></span><code> Session (server-side state)               Token (stateless, e.g. JWT)
+ login -&gt; server stores session{id:user}   login -&gt; server signs a token with claims
+ sends  Set-Cookie: sid=abc123              client sends Authorization: Bearer &lt;jwt&gt;
+ each request: cookie -&gt; lookup in Redis    server verifies signature, no lookup
+ + easy revoke, small cookie                + scales horizontally, cross-service
+ - shared store needed                      - hard to revoke before expiry
+</code></pre></div>
+
+<p>Cookies</p>
+<div class="highlight"><pre><span></span><code> Set-Cookie: sid=abc123; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=3600
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th>Attribute</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HttpOnly</td>
+<td>JS cannot read it (limits XSS token theft)</td>
+</tr>
+<tr>
+<td>Secure</td>
+<td>only sent over HTTPS</td>
+</tr>
+<tr>
+<td>SameSite=Strict</td>
+<td>never sent on cross-site requests</td>
+</tr>
+<tr>
+<td>SameSite=Lax</td>
+<td>sent on top-level GET navigations, not cross-site POST/subresources (browser default today; check current docs)</td>
+</tr>
+<tr>
+<td>SameSite=None</td>
+<td>sent cross-site; requires Secure</td>
+</tr>
+<tr>
+<td>Domain/Path</td>
+<td>scope; Domain=example.com includes subdomains</td>
+</tr>
+<tr>
+<td>Max-Age/Expires</td>
+<td>lifetime (otherwise session cookie)</td>
+</tr>
+<tr>
+<td>__Host- prefix</td>
+<td>forces Secure, Path=/, no Domain (strong scoping)</td>
+</tr>
+</tbody>
+</table>
+<p>Attacks and defenses</p>
+<ul>
+<li>CSRF: a malicious site makes the browser send your cookie to your bank. Defenses: SameSite, CSRF tokens, checking Origin. Pure Bearer-header APIs are not CSRF-prone (browser doesn't auto-attach).</li>
+<li>XSS: injected script steals tokens in localStorage; HttpOnly cookies are not readable by it (but XSS can still make requests as the user).</li>
+<li>Session fixation: regenerate session ID at login.</li>
+</ul>
+<p>JWT (JSON Web Token): <code>base64url(header).base64url(payload).signature</code></p>
+<div class="highlight"><pre><span></span><code> header  {"alg":"RS256","typ":"JWT"}
+ payload {"sub":"42","iss":"https://auth.example.com","aud":"my-api","exp":1767225600,"scope":"read"}
+ signature = sign(header.payload, key)      &lt;- payload is ENCODED, not encrypted
+</code></pre></div>
+
+<ul>
+<li>Verify: signature, <code>exp</code>, <code>nbf</code>, <code>iss</code>, <code>aud</code>; pin allowed algorithms (reject <code>alg: none</code> and HS/RS confusion).</li>
+<li>HS256 = shared secret; RS256/ES256 = private key signs, public key (JWKS endpoint) verifies, so many services can verify without being able to mint.</li>
+<li>Short-lived access token (minutes) + refresh token (stored carefully, rotated) is the common pattern. Revocation needs a denylist or short expiry.</li>
+<li>OAuth2/OIDC: OAuth2 = delegated authorization (access tokens); OIDC adds identity (ID token). Authorization Code + PKCE is the standard browser/mobile flow.</li>
+</ul>
+<p>FastAPI sketch:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">Depends</span><span class="p">,</span> <span class="n">HTTPException</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">fastapi.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">HTTPBearer</span><span class="p">,</span> <span class="n">HTTPAuthorizationCredentials</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jwt</span>  <span class="c1"># PyJWT</span>
+
+<span class="n">bearer</span> <span class="o">=</span> <span class="n">HTTPBearer</span><span class="p">()</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">current_user</span><span class="p">(</span><span class="n">cred</span><span class="p">:</span> <span class="n">HTTPAuthorizationCredentials</span> <span class="o">=</span> <span class="n">Depends</span><span class="p">(</span><span class="n">bearer</span><span class="p">)):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">jwt</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">cred</span><span class="o">.</span><span class="n">credentials</span><span class="p">,</span> <span class="n">PUBLIC_KEY</span><span class="p">,</span> <span class="n">algorithms</span><span class="o">=</span><span class="p">[</span><span class="s2">"RS256"</span><span class="p">],</span> <span class="n">audience</span><span class="o">=</span><span class="s2">"my-api"</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">jwt</span><span class="o">.</span><span class="n">PyJWTError</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">HTTPException</span><span class="p">(</span><span class="n">status_code</span><span class="o">=</span><span class="mi">401</span><span class="p">,</span> <span class="n">detail</span><span class="o">=</span><span class="s2">"invalid token"</span><span class="p">,</span>
+                            <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s2">"WWW-Authenticate"</span><span class="p">:</span> <span class="s2">"Bearer"</span><span class="p">})</span>
+</code></pre></div>
+
+<p>Setting a cookie in FastAPI: <code>response.set_cookie("sid", sid, httponly=True, secure=True, samesite="lax", max_age=3600)</code>.</p>
+<p>Gotcha: storing JWTs in localStorage is XSS-exposed; storing in cookies requires CSRF thought. There is no free lunch; know the trade-off and say it.</p>
+<p>How interviewers probe it: "Session vs JWT trade-offs?", "How do you log out a JWT user?", "What does SameSite do?", "Is a JWT encrypted?", "Design auth for a SPA + API."</p>
+<hr />
+<h2 id="9-real-time-polling-long-polling-sse-websockets">9. Real-time: polling, long polling, SSE, WebSockets</h2>
+<div class="highlight"><pre><span></span><code> Short polling   client asks every N sec          wasteful, simple, high latency
+ Long polling    client asks; server holds until   emulates push over plain HTTP; one
+                 data or timeout, then client      request per event batch; works anywhere
+                 immediately re-asks
+ SSE             one long HTTP response,           server -&gt; client only, text/event-stream,
+                 server streams "data: ...\n\n"    auto-reconnect + Last-Event-ID, works over h2
+ WebSocket       HTTP Upgrade -&gt; full-duplex       bidirectional, binary/text frames, low
+                 persistent TCP channel            overhead, you manage reconnect/heartbeats
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th>Need</th>
+<th>Pick</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Notifications, live feeds, LLM token streaming (server -&gt; client)</td>
+<td>SSE</td>
+</tr>
+<tr>
+<td>Chat, collaborative editing, games (both directions, low latency)</td>
+<td>WebSocket</td>
+</tr>
+<tr>
+<td>Legacy/proxy-hostile environments, infrequent events</td>
+<td>Long polling</td>
+</tr>
+<tr>
+<td>Data changes rarely</td>
+<td>Short polling with ETag</td>
+</tr>
+</tbody>
+</table>
+<p>WebSocket handshake:</p>
+<div class="highlight"><pre><span></span><code> GET /ws HTTP/1.1
+ Upgrade: websocket
+ Connection: Upgrade
+ Sec-WebSocket-Key: dGhlIHNhbXBsZQ==
+ -&gt; HTTP/1.1 101 Switching Protocols  + Sec-WebSocket-Accept: ...
+</code></pre></div>
+
+<p>Operational notes: LBs and proxies need long idle timeouts and upgrade support; use ping/pong heartbeats; stateful connections complicate scaling (sticky sessions or a pub/sub backplane like Redis); HTTP caching/CORS semantics differ; browsers don't send custom headers on WebSocket (auth via cookie, query token, or first message).</p>
+<p>FastAPI:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">FastAPI</span><span class="p">,</span> <span class="n">WebSocket</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">fastapi.responses</span><span class="w"> </span><span class="kn">import</span> <span class="n">StreamingResponse</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">()</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">websocket</span><span class="p">(</span><span class="s2">"/ws"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">ws</span><span class="p">(</span><span class="n">sock</span><span class="p">:</span> <span class="n">WebSocket</span><span class="p">):</span>
+    <span class="k">await</span> <span class="n">sock</span><span class="o">.</span><span class="n">accept</span><span class="p">()</span>
+    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="k">await</span> <span class="n">sock</span><span class="o">.</span><span class="n">receive_text</span><span class="p">()</span>
+        <span class="k">await</span> <span class="n">sock</span><span class="o">.</span><span class="n">send_text</span><span class="p">(</span><span class="sa">f</span><span class="s2">"echo: </span><span class="si">{</span><span class="n">msg</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/events"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">events</span><span class="p">():</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">gen</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">):</span>
+            <span class="k">yield</span> <span class="sa">f</span><span class="s2">"data: tick </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="se">\n\n</span><span class="s2">"</span>
+            <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">StreamingResponse</span><span class="p">(</span><span class="n">gen</span><span class="p">(),</span> <span class="n">media_type</span><span class="o">=</span><span class="s2">"text/event-stream"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Try SSE: <code>curl -N http://localhost:8000/events</code> prints a line per second (-N disables curl buffering). Reverse proxies that buffer (nginx default) break SSE; disable buffering (<code>X-Accel-Buffering: no</code>).</p>
+<p>How interviewers probe it: "SSE vs WebSocket?", "How do you scale WebSockets to many servers?", "What breaks long-lived connections in corporate networks?"</p>
+<hr />
+<h2 id="10-what-happens-when-you-type-a-url">10. What happens when you type a URL</h2>
+<div class="highlight"><pre><span></span><code> 1. Browser parses URL: scheme=https host=www.example.com port=443 path=/
+ 2. HSTS list / cache check; may serve from HTTP cache directly
+ 3. DNS: browser cache -&gt; OS cache -&gt; /etc/hosts -&gt; recursive resolver -&gt; root/TLD/authoritative
+         result: A/AAAA (and maybe HTTPS record)
+ 4. Routing: dest IP not on my subnet -&gt; ARP for default gateway MAC -&gt; frames to router
+         (NAT at home router; many hops across ISPs/BGP)
+ 5. TCP handshake (SYN, SYN-ACK, ACK)           [HTTP/3: QUIC handshake over UDP instead]
+ 6. TLS handshake: ClientHello+SNI+ALPN, cert chain validated, keys derived
+ 7. HTTP request: GET / with Host, cookies, Accept-Encoding
+ 8. Edge: CDN/anycast -&gt; L4/L7 load balancer -&gt; (WAF, rate limit) -&gt; app server (uvicorn/FastAPI)
+         app may hit cache (Redis), DB, other services; builds response
+ 9. Response: status, headers, body (gzip/br); possibly 301/302 redirect -&gt; repeat from step 3
+10. Browser parses HTML -&gt; discovers CSS/JS/images -&gt; more requests (reuse the h2/h3 connection)
+11. Render: DOM + CSSOM -&gt; layout -&gt; paint; JS executes; connection kept alive or closed
+</code></pre></div>
+
+<p>Cost model (cold, HTTP/1.1 + TLS 1.3): DNS (1 RTT+) + TCP (1 RTT) + TLS (1 RTT) + request (1 RTT) = about 4 RTTs before the first byte. This is why CDNs (shorter RTT), keep-alive, TLS resumption, HTTP/3, and DNS prefetch matter.</p>
+<p>Good answers go deep on one area when asked. For a backend role, expand steps 8 (LB health checks, connection pools, timeouts); for infra, steps 3-6.</p>
+<p>How interviewers probe it: they stop you at any step and ask "go deeper": "What if the DNS answer has multiple IPs?", "Who terminates TLS?", "What if the server is behind NAT?", "Where could caching occur?"</p>
+<hr />
+<h2 id="11-command-line-toolkit">11. Command-line toolkit</h2>
+<div class="highlight"><pre><span></span><code> Symptom area        Tool                  What it tells you
+ Name resolution     dig, nslookup, host   records, TTL, which resolver, status
+ Reachability        ping, traceroute/mtr  ICMP reachability, per-hop latency/loss
+ Port open?          nc -vz host port      TCP connect succeeded (open) or refused/timeout
+ HTTP detail         curl -v/-w            DNS/TCP/TLS/TTFB timings, headers, redirects
+ TLS/cert            openssl s_client      chain, SAN, dates, protocol, cipher
+ Local sockets       ss / netstat / lsof   listening ports, states, owning process
+ Packets             tcpdump / Wireshark   ground truth on the wire
+</code></pre></div>
+
+<p>curl</p>
+<div class="highlight"><pre><span></span><code>$ curl -v https://api.example.com/health          # request/response + TLS info (&gt; sent, &lt; received)
+$ curl -sS -o /dev/null -w 'dns=%{time_namelookup} tcp=%{time_connect} tls=%{time_appconnect} ttfb=%{time_starttransfer} total=%{time_total} code=%{http_code}\n' https://example.com
+dns=0.012 tcp=0.034 tls=0.071 ttfb=0.110 total=0.112 code=200     &lt;- values are cumulative
+$ curl -L -I http://example.com                    # follow redirects, HEAD only
+$ curl --resolve api.example.com:443:203.0.113.10 https://api.example.com/   # bypass DNS, keep SNI
+$ curl --connect-timeout 3 --max-time 10 URL       # always set timeouts
+$ curl -x http://proxy:3128 https://example.com    # via proxy (or env https_proxy)
+$ curl -H 'Authorization: Bearer $TOKEN' -d '{"a":1}' -H 'content-type: application/json' URL
+</code></pre></div>
+
+<p>dig / nslookup: see section 4. Add <code>+short</code>, <code>+trace</code>, <code>@server</code>, <code>+tcp</code>.</p>
+<p>ss / netstat / lsof</p>
+<div class="highlight"><pre><span></span><code>$ ss -ltnp                        # Linux: listening TCP + process (needs sudo for others' PIDs)
+State  Local Address:Port  Process
+LISTEN 0.0.0.0:8000        users:(("uvicorn",pid=4242,fd=7))
+$ netstat -an -p tcp | rg LISTEN  # macOS (no -p process flag; -p is protocol on macOS)
+$ lsof -iTCP -sTCP:LISTEN -P -n   # macOS/Linux: who owns which listening port
+$ lsof -i :8000                   # who is using port 8000
+$ lsof -p 4242 | wc -l            # file descriptors (sockets) held by a process
+</code></pre></div>
+
+<p>Reading <code>Local Address</code>: 127.0.0.1:8000 = reachable only from the same host; 0.0.0.0:8000 = all interfaces. "Works on localhost, not from outside" = bound to 127.0.0.1 (uvicorn default host is 127.0.0.1; use --host 0.0.0.0, and in Docker you must).</p>
+<p>traceroute / mtr</p>
+<div class="highlight"><pre><span></span><code>$ traceroute -n example.com       # sends probes with increasing TTL; each router replies "time exceeded"
+ 1  192.168.1.1   1.2 ms
+ 2  10.20.0.1     8.9 ms
+ 3  * * *                         &lt;- hop ignores/blocks probes (not necessarily a problem)
+$ mtr -rwc 20 example.com         # continuous per-hop loss/latency (brew install mtr)
+</code></pre></div>
+
+<p>Gotcha: loss at an intermediate hop that does not continue to later hops is just ICMP rate limiting. Loss that persists to the destination is real.</p>
+<p>tcpdump</p>
+<div class="highlight"><pre><span></span><code>$ sudo tcpdump -i any -nn 'host 203.0.113.10 and port 443' -c 20
+$ sudo tcpdump -i en0 -nn 'tcp[tcpflags] &amp; (tcp-syn|tcp-rst) != 0'     # only SYN/RST (macOS iface en0)
+$ sudo tcpdump -i any -nn port 53                                      # watch DNS
+$ sudo tcpdump -i any -nn -w cap.pcap port 8000                        # save for Wireshark
+12:00:00.1 IP 10.0.0.5.51234 &gt; 203.0.113.10.443: Flags [S], seq 1, win 64240, length 0     &lt;- SYN
+12:00:00.2 IP 203.0.113.10.443 &gt; 10.0.0.5.51234: Flags [S.], ...                          &lt;- SYN-ACK
+12:00:00.2 IP 10.0.0.5.51234 &gt; 203.0.113.10.443: Flags [.], ...                           &lt;- ACK
+</code></pre></div>
+
+<p>Flags: S=SYN, .=ACK, F=FIN, R=RST, P=PSH. You cannot read HTTPS payload without keys (SSLKEYLOGFILE lets Wireshark decrypt browser/curl traffic).</p>
+<p>openssl s_client: see section 6.6. Useful flags: <code>-servername</code>, <code>-showcerts</code>, <code>-tls1_2</code>, <code>-cert/-key</code> for mTLS, <code>-verify_return_error</code>, <code>-proxy host:port</code>.</p>
+<p>How interviewers probe it: "Walk me through diagnosing slow requests with curl -w", "How do you know which process holds port 8000?", "What does a <code>*</code> in traceroute mean?"</p>
+<hr />
+<h2 id="12-debugging-playbook-for-customer-environments">12. Debugging playbook for customer environments</h2>
+<p>Method: reproduce from the failing vantage point, bisect by layer from the bottom up (DNS -&gt; L3 reachability -&gt; TCP -&gt; TLS -&gt; HTTP -&gt; app), change one thing at a time, capture evidence. As an FDE you often cannot install tools or see their firewall; ask for specific command output and give copy-pasteable commands.</p>
+<div class="highlight"><pre><span></span><code> Layer ladder (stop at the first failing rung):
+  1 DNS resolves?           dig host / nslookup host
+  2 IP reachable/routed?    ping, traceroute (ICMP may be blocked: absence of ping proves nothing)
+  3 TCP port connects?      nc -vz host 443  /  curl -v telnet-style
+  4 TLS completes?          openssl s_client -connect host:443 -servername host
+  5 HTTP returns?           curl -v https://host/path
+  6 App-level correct?      app logs, request IDs, auth, payload
+</code></pre></div>
+
+<h3 id="121-dns-failures">12.1 DNS failures</h3>
+<ul>
+<li>Symptoms: "Name or service not known", "Temporary failure in name resolution", <code>NXDOMAIN</code>, <code>SERVFAIL</code>; intermittent after a deploy.</li>
+<li>Check: <code>dig host</code> vs <code>dig @8.8.8.8 host</code> (resolver-specific?), <code>dig +trace host</code>, <code>cat /etc/resolv.conf</code>, <code>/etc/hosts</code>, search domains/ndots, split-horizon (internal vs public).</li>
+<li>Causes: private zone not reachable from that VPC/VPN, resolver blocks external DNS, stale cache/TTL, missing AAAA/A, TCP/53 blocked.</li>
+</ul>
+<h3 id="122-connection-refused-vs-timeout-high-frequency-question">12.2 Connection refused vs timeout (high-frequency question)</h3>
+<div class="highlight"><pre><span></span><code> Connection refused (ECONNREFUSED)           Timeout (ETIMEDOUT / hang)
+ Packet reached the host; the host sent RST  Packet got no answer at all
+ because nothing listens on that port.       Silently dropped by a firewall/security group, wrong IP/route,
+                                             host down, or reply path broken.
+ Fast failure (ms).                          Slow failure (SYN retries: ~tens of seconds to minutes)
+ Check: service running? bound to right      Check: security groups / NACLs / firewall, routing tables,
+ interface/port? (ss -ltnp)                  NAT, VPN, is it the right IP?  (tcpdump: SYN out, no SYN-ACK back)
+</code></pre></div>
+
+<ul>
+<li>Also: "connection reset" (RST mid-stream: proxy idle timeout, app crash, TLS-inspecting firewall, wrong protocol e.g. HTTP to a TLS port).</li>
+<li>Read vs connect timeouts differ: connect = network path; read = server accepted but did not respond in time (app slow, upstream stuck, DB lock). Always set both in clients (httpx.Timeout(connect=3, read=10)).</li>
+<li>tcpdump interpretation: SYN repeats with no reply -&gt; drop upstream of you; RST immediately after SYN -&gt; port closed or firewall reject.</li>
+</ul>
+<h3 id="123-certificate-errors">12.3 Certificate errors</h3>
+<table>
+<thead>
+<tr>
+<th>Error</th>
+<th>Likely cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>certificate has expired</td>
+<td>cert not renewed (or client clock wrong)</td>
+<td>renew; check <code>date</code> on client</td>
+</tr>
+<tr>
+<td>hostname mismatch / SAN</td>
+<td>wrong cert served (no SNI, wrong vhost) or hitting by IP</td>
+<td>correct name, SNI, add SAN</td>
+</tr>
+<tr>
+<td>unable to get local issuer</td>
+<td>missing intermediate, or private/corporate CA not trusted</td>
+<td>serve full chain; install CA / set SSL_CERT_FILE</td>
+</tr>
+<tr>
+<td>self-signed in chain</td>
+<td>TLS-inspection proxy or dev cert</td>
+<td>trust the proxy CA properly</td>
+</tr>
+<tr>
+<td>handshake failure / protocol version</td>
+<td>TLS version or cipher mismatch (old client vs TLS 1.3-only, or reverse)</td>
+<td>align min versions</td>
+</tr>
+<tr>
+<td>bad certificate (mTLS)</td>
+<td>client cert missing/untrusted</td>
+<td>provide cert/key, correct CA</td>
+</tr>
+<tr>
+<td>Commands: <code>openssl s_client -connect host:443 -servername host -showcerts</code>, then <code>openssl x509 -noout -dates -subject -ext subjectAltName</code>. Compare what you see with what the customer's browser sees; a difference reveals an inspecting proxy (issuer is the corp CA).</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="124-proxy-firewall-issues">12.4 Proxy / firewall issues</h3>
+<ul>
+<li>Symptoms: works from laptop, fails from server; only certain ports/destinations fail; 407 Proxy Authentication Required; CONNECT tunnel failures; UDP/443 (HTTP/3) blocked; WebSockets die after idle.</li>
+<li>Check env vars (HTTP_PROXY, HTTPS_PROXY, NO_PROXY, case-sensitive variants) used by curl/requests/pip; PAC files; egress allowlists (need FQDN/IP lists, and note CDN IPs change).</li>
+<li>Ask the customer for: egress rules, proxy host/port, TLS inspection policy, idle timeouts on LB/firewall (often 60-350s), allowed protocols.</li>
+<li>Fixes: allowlist, NO_PROXY for internal hosts, enable keep-alives/heartbeats shorter than middlebox idle timeout, fall back from h3 to h2.</li>
+</ul>
+<h3 id="125-mtu-fragmentation">12.5 MTU / fragmentation</h3>
+<ul>
+<li>MTU = max packet size on a link (Ethernet 1500; tunnels/VPN/overlay networks lose 20-100 bytes of it). MSS = TCP payload max (MTU - 40 for IPv4).</li>
+<li>Path MTU Discovery relies on ICMP "fragmentation needed" messages; firewalls that drop ICMP create a "PMTU black hole".</li>
+<li>Classic symptom: TCP connects, small requests (GET) work, large responses or TLS handshakes with big certificates hang; SSH logs in but freezes on <code>ls</code> of big output; works over home internet, fails over VPN.</li>
+<li>Test (DF bit): </li>
+</ul>
+<div class="highlight"><pre><span></span><code>$ ping -D -s 1472 host      # macOS: -D sets Don't Fragment; Linux: ping -M do -s 1472 host
+(1472 + 28 header bytes = 1500). If 1472 fails but 1372 works, path MTU is lower.
+</code></pre></div>
+
+<ul>
+<li>Fixes: lower MTU on tunnel interface, MSS clamping on the gateway/VPN, allow ICMP type 3 code 4.</li>
+</ul>
+<h3 id="126-slow-and-intermittent-issues">12.6 "Slow" and intermittent issues</h3>
+<ul>
+<li>Use <code>curl -w</code> timing breakdown to localize: high dns -&gt; resolver; high connect -&gt; network/route; high tls -&gt; handshake/cert chain/OCSP; high ttfb -&gt; server/app; high total-minus-ttfb -&gt; payload/bandwidth.</li>
+<li>Intermittent: multiple A records with one bad backend (<code>dig +short</code> shows several; test each with --resolve), IPv6 vs IPv4 path difference (<code>curl -4</code> vs <code>-6</code>), LB idle-timeout resets, connection pool reusing stale connections (retry on idempotent requests), ephemeral port exhaustion (<code>ss -s</code>, many TIME_WAIT), DNS caching after failover.</li>
+<li>Sockets and FDs: <code>ulimit -n</code>, <code>lsof -p PID | wc -l</code>; "Too many open files" looks like a network error.</li>
+<li>Always capture: exact timestamps and timezone, source/destination IP:port, request ID, client and server logs, the output of the ladder commands. Timestamps let you line up server logs, LB logs, and packet captures.</li>
+</ul>
+<p>Customer-facing habits</p>
+<ul>
+<li>State what you checked and what it ruled out; ask for one specific artifact at a time.</li>
+<li>Prefer read-only diagnostics first; avoid asking for <code>-k</code> workarounds as a "fix".</li>
+<li>Write the final root cause with the layer, the evidence, the fix, and a prevention (monitoring, cert-expiry alert, runbook).</li>
+</ul>
+<p>How interviewers probe it: scenario questions - "Customer says the API times out only from their data center. Walk me through it." Good answers follow the ladder, ask clarifying questions (since when? all clients? which protocol/ports?), and name what each result implies.</p>
+<hr />
+<h2 id="13-fastapi-networking-checklist">13. FastAPI networking checklist</h2>
+<div class="highlight"><pre><span></span><code><span class="c1"># run:  uvicorn app:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">FastAPI</span><span class="p">,</span> <span class="n">Request</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">httpx</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">()</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/whoami"</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">whoami</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">):</span>
+    <span class="c1"># behind a proxy the TCP peer is the proxy; real client is in X-Forwarded-For</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"peer"</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">host</span><span class="p">,</span>
+            <span class="s2">"xff"</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"x-forwarded-for"</span><span class="p">),</span>
+            <span class="s2">"proto"</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">url</span><span class="o">.</span><span class="n">scheme</span><span class="p">}</span>
+
+<span class="n">client</span> <span class="o">=</span> <span class="n">httpx</span><span class="o">.</span><span class="n">AsyncClient</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="n">httpx</span><span class="o">.</span><span class="n">Timeout</span><span class="p">(</span><span class="n">connect</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">read</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">write</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">pool</span><span class="o">=</span><span class="mi">5</span><span class="p">),</span>
+                           <span class="n">limits</span><span class="o">=</span><span class="n">httpx</span><span class="o">.</span><span class="n">Limits</span><span class="p">(</span><span class="n">max_connections</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">max_keepalive_connections</span><span class="o">=</span><span class="mi">20</span><span class="p">))</span>
+</code></pre></div>
+
+<ul>
+<li>Bind 0.0.0.0 in containers; expose port; health endpoint for LB checks (/healthz).</li>
+<li>Trust X-Forwarded-* only from known proxies (spoofable otherwise).</li>
+<li>Reuse one HTTP client (connection pooling) to avoid handshake cost and TIME_WAIT piles.</li>
+<li>Set timeouts everywhere; add retries with exponential backoff + jitter only for idempotent calls; honor Retry-After.</li>
+<li>Graceful shutdown: stop accepting, drain in-flight, so LBs don't send RSTs mid-deploy; keep app keep-alive timeout greater than the LB idle timeout (to avoid races where the app closes a connection the LB thinks is alive; uvicorn <code>--timeout-keep-alive</code>, default 5s; check current docs).</li>
+</ul>
+<p>Gotcha: 502s that appear sporadically after idle periods are often exactly this keep-alive race.</p>
+<p>How interviewers probe it: "Why do I see 127.0.0.1 as the client IP?", "Why intermittent 502s from the ALB?", "How would you configure timeouts for a service calling a flaky dependency?"</p>
+<hr />
+<h2 id="14-self-check-answer-aloud">14. Self-check (answer aloud)</h2>
+<ol>
+<li>Which layer does a router, a switch, an ALB, an NLB operate at?</li>
+<li>Is 10.4.130.77 inside 10.4.128.0/21? (block 8 in 3rd octet: 128-135 -&gt; yes)</li>
+<li>Server shows 40k CLOSE_WAIT vs 40k TIME_WAIT; what does each imply?</li>
+<li>Why does a small initial congestion window hurt small responses on high-RTT links?</li>
+<li>dig works, curl says "could not resolve host". Next steps?</li>
+<li>What does h2 fix and what does it leave unfixed? What does QUIC do about it?</li>
+<li>Draw the TLS 1.3 handshake and say what is encrypted when.</li>
+<li>Why does the browser send an OPTIONS before PUT, and who answers it?</li>
+<li>JWT vs server session for revocation, scaling, and XSS/CSRF exposure.</li>
+<li>A customer reports the app hangs after 5 minutes idle through their firewall; hypotheses and fixes?</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../12-cs-fundamentals/README.html">← CS Fundamentals: Overview</a><a class="next" href="../../12-cs-fundamentals/week-01-networking/interview-qa.html">Week 1 · Networking: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 9: Linked lists | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-09-linked-lists/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-09-linked-lists/lesson.html">Week 9 · Linked lists</a> / <span>Lesson</span></nav><button id="mark-done" data-id="03-dsa/week-09-linked-lists/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-9-linked-lists">Week 9: Linked lists</h1>
+<h2 id="1-concept">1. Concept</h2>
+<p>A singly linked list is a chain of nodes; each holds a value and a pointer to the next node. No random access: reaching index i costs O(i). Insert/delete is O(1) <strong>once you hold the previous node</strong>.</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ListNode</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="nb">next</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">val</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="nb">next</span>
+</code></pre></div>
+
+<p>Python has no pointers, but names are references: <code>a = b</code> makes two names for the same node; <code>a.next = b</code> rewires the chain.</p>
+<h2 id="2-how-to-recognize-the-pattern">2. How to recognize the pattern</h2>
+<ul>
+<li>"Reverse", "merge", "reorder", "rotate", "remove the n-th from end", "palindrome list".</li>
+<li>"Cycle" / "middle" / "k-th from end" / "intersection" -&gt; <strong>fast &amp; slow pointers</strong>.</li>
+<li>Head might be removed or replaced -&gt; <strong>dummy node</strong>.</li>
+<li>O(1) extra space required -&gt; in-place pointer surgery (no list copy).</li>
+</ul>
+<h2 id="3-templates">3. Templates</h2>
+<h3 id="dummy-head-removes-special-cases-for-the-head">Dummy head (removes special cases for the head)</h3>
+<div class="highlight"><pre><span></span><code><span class="n">dummy</span> <span class="o">=</span> <span class="n">ListNode</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">head</span><span class="p">)</span>
+<span class="n">prev</span> <span class="o">=</span> <span class="n">dummy</span>
+<span class="k">while</span> <span class="n">prev</span><span class="o">.</span><span class="n">next</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">should_delete</span><span class="p">(</span><span class="n">prev</span><span class="o">.</span><span class="n">next</span><span class="p">):</span>
+        <span class="n">prev</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">prev</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">next</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">prev</span> <span class="o">=</span> <span class="n">prev</span><span class="o">.</span><span class="n">next</span>
+<span class="k">return</span> <span class="n">dummy</span><span class="o">.</span><span class="n">next</span>
+</code></pre></div>
+
+<h3 id="reverse-iterative-3-pointers">Reverse (iterative, 3 pointers)</h3>
+<div class="highlight"><pre><span></span><code><span class="n">prev</span><span class="p">,</span> <span class="n">cur</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">head</span>
+<span class="k">while</span> <span class="n">cur</span><span class="p">:</span>
+    <span class="n">nxt</span> <span class="o">=</span> <span class="n">cur</span><span class="o">.</span><span class="n">next</span>      <span class="c1"># save</span>
+    <span class="n">cur</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">prev</span>     <span class="c1"># flip</span>
+    <span class="n">prev</span><span class="p">,</span> <span class="n">cur</span> <span class="o">=</span> <span class="n">cur</span><span class="p">,</span> <span class="n">nxt</span>
+<span class="k">return</span> <span class="n">prev</span>             <span class="c1"># new head</span>
+</code></pre></div>
+
+<h3 id="fast-slow">Fast &amp; slow</h3>
+<div class="highlight"><pre><span></span><code><span class="n">slow</span> <span class="o">=</span> <span class="n">fast</span> <span class="o">=</span> <span class="n">head</span>
+<span class="k">while</span> <span class="n">fast</span> <span class="ow">and</span> <span class="n">fast</span><span class="o">.</span><span class="n">next</span><span class="p">:</span>
+    <span class="n">slow</span> <span class="o">=</span> <span class="n">slow</span><span class="o">.</span><span class="n">next</span>
+    <span class="n">fast</span> <span class="o">=</span> <span class="n">fast</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">next</span>
+<span class="c1"># slow is the middle (second middle for even length)</span>
+</code></pre></div>
+
+<p>Cycle: if they ever meet there is a cycle. Cycle start: after meeting, reset one pointer to head and move both one step at a time; they meet at the cycle entry (Floyd).</p>
+<h3 id="merge-two-sorted-lists">Merge two sorted lists</h3>
+<div class="highlight"><pre><span></span><code><span class="n">dummy</span> <span class="o">=</span> <span class="n">tail</span> <span class="o">=</span> <span class="n">ListNode</span><span class="p">()</span>
+<span class="k">while</span> <span class="n">a</span> <span class="ow">and</span> <span class="n">b</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">val</span> <span class="o">&lt;=</span> <span class="n">b</span><span class="o">.</span><span class="n">val</span><span class="p">:</span> <span class="n">tail</span><span class="o">.</span><span class="n">next</span><span class="p">,</span> <span class="n">a</span> <span class="o">=</span> <span class="n">a</span><span class="p">,</span> <span class="n">a</span><span class="o">.</span><span class="n">next</span>
+    <span class="k">else</span><span class="p">:</span>              <span class="n">tail</span><span class="o">.</span><span class="n">next</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">b</span><span class="p">,</span> <span class="n">b</span><span class="o">.</span><span class="n">next</span>
+    <span class="n">tail</span> <span class="o">=</span> <span class="n">tail</span><span class="o">.</span><span class="n">next</span>
+<span class="n">tail</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">a</span> <span class="ow">or</span> <span class="n">b</span>
+</code></pre></div>
+
+<h3 id="gap-technique-n-th-from-end">Gap technique (n-th from end)</h3>
+<p>Advance <code>fast</code> n steps first, then move <code>fast</code> and <code>slow</code> together; when <code>fast</code> reaches the end, <code>slow</code> is just before the target.</p>
+<h2 id="4-complexity">4. Complexity</h2>
+<p>Most are O(n) time, O(1) space (iterative). Recursive reverse is O(n) stack: avoid it for 10^5 nodes (Python recursion limit ~1000).
+Merge k lists with a heap: O(N log k).</p>
+<h2 id="5-common-mistakes">5. Common mistakes</h2>
+<ul>
+<li>Losing the rest of the list: save <code>cur.next</code> before overwriting it.</li>
+<li><code>fast.next.next</code> without checking <code>fast</code> and <code>fast.next</code>.</li>
+<li>Forgetting to set the last node's <code>next = None</code> (creates an accidental cycle), e.g. in reorder / split.</li>
+<li>Not using a dummy node, then special-casing the head badly.</li>
+<li>Returning the old head after reversing.</li>
+<li>Comparing nodes with <code>==</code> on values instead of <code>is</code> for identity (intersection, cycles).</li>
+<li>Heap with ListNodes: tie-breaking on equal values compares nodes -&gt; TypeError. Push <code>(val, index, node)</code>.</li>
+</ul>
+<h2 id="6-interview-tips">6. Interview tips</h2>
+<ul>
+<li>Draw boxes and arrows; walk a 3-node example plus empty and single-node lists.</li>
+<li>Ask: singly or doubly linked? Can I modify the list? Is O(1) space required?</li>
+<li>Name the technique ("dummy node", "fast/slow", "reverse second half").</li>
+<li>Re-trace your pointer assignments in the right order; most bugs are order bugs.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run <code>.venv/bin/pytest 03-dsa/week-09-linked-lists -q</code> (from the repo root).</p>
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-08-queues-deque-monotonic-queue/test_exercises.py.html">← Week 8 · Queues and deque: Tests (code)</a><a class="next" href="../../03-dsa/week-09-linked-lists/exercises.py.html">Week 9 · Linked lists: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

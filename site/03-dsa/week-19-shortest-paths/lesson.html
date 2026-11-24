@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 19: Shortest paths (BFS, Dijkstra, 0-1 BFS, Bellman-Ford) | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-19-shortest-paths/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-19-shortest-paths/lesson.html">Week 19 · Shortest paths</a> / <span>Lesson</span></nav><button id="mark-done" data-id="03-dsa/week-19-shortest-paths/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-19-shortest-paths-bfs-dijkstra-0-1-bfs-bellman-ford">Week 19: Shortest paths (BFS, Dijkstra, 0-1 BFS, Bellman-Ford)</h1>
+<p>Time budget: ~7-8 hrs. Read lesson (1h), solve problems 1-5 (3h), problems 6-10 (3h), review (1h).</p>
+<h2 id="1-concept-pick-the-algorithm-by-edge-weights">1. Concept: pick the algorithm by edge weights</h2>
+<table>
+<thead>
+<tr>
+<th>Graph</th>
+<th>Algorithm</th>
+<th>Time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Unweighted (all edges cost 1)</td>
+<td>BFS</td>
+<td>O(V + E)</td>
+</tr>
+<tr>
+<td>Weights only 0 or 1</td>
+<td>0-1 BFS (deque)</td>
+<td>O(V + E)</td>
+</tr>
+<tr>
+<td>Non-negative weights</td>
+<td>Dijkstra (min-heap)</td>
+<td>O((V + E) log V)</td>
+</tr>
+<tr>
+<td>At most K edges / negative edges</td>
+<td>Bellman-Ford (K rounds)</td>
+<td>O(K * E)</td>
+</tr>
+<tr>
+<td>All pairs, tiny V (&lt;= ~400)</td>
+<td>Floyd-Warshall</td>
+<td>O(V^3)</td>
+</tr>
+</tbody>
+</table>
+<p>Dijkstra is greedy: the unvisited node with the smallest tentative distance is final, because
+no non-negative edge can make it shorter. <strong>Negative edges break this.</strong></p>
+<h2 id="2-how-to-recognize-the-pattern">2. How to recognize the pattern</h2>
+<ul>
+<li>"minimum time / cost / steps / effort to get from A to B" on a graph or grid.</li>
+<li>Weights are not all equal -&gt; Dijkstra. All equal -&gt; BFS.</li>
+<li>"Minimize the maximum edge on the path" (effort, rising water) -&gt; Dijkstra where the path
+  cost is <code>max(cost_so_far, edge)</code> instead of a sum. Works because the cost is monotone.</li>
+<li>"At most K stops" -&gt; the state is (node, stops used); plain Dijkstra on node alone is wrong.</li>
+<li>"Maximize a product of probabilities" -&gt; Dijkstra with a max-heap (push negated values).</li>
+<li>Moves that sometimes cost 0 and sometimes 1 (remove an obstacle, change an arrow) -&gt; 0-1 BFS.</li>
+<li>Word transformations / state-space puzzles -&gt; implicit graph + BFS.</li>
+</ul>
+<h2 id="3-template-code">3. Template code</h2>
+<p>BFS on a grid (unweighted):</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">deque</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">bfs</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">goal</span><span class="p">):</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="n">deque</span><span class="p">([(</span><span class="n">start</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">start</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="mi">1</span><span class="p">)])</span>
+    <span class="n">seen</span> <span class="o">=</span> <span class="p">{</span><span class="n">start</span><span class="p">}</span>
+    <span class="k">while</span> <span class="n">q</span><span class="p">:</span>
+        <span class="n">r</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span> <span class="o">==</span> <span class="n">goal</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">d</span>
+        <span class="k">for</span> <span class="n">dr</span><span class="p">,</span> <span class="n">dc</span> <span class="ow">in</span> <span class="p">((</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">),(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">),(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">),(</span><span class="mi">0</span><span class="p">,</span><span class="o">-</span><span class="mi">1</span><span class="p">)):</span>
+            <span class="n">nr</span><span class="p">,</span> <span class="n">nc</span> <span class="o">=</span> <span class="n">r</span> <span class="o">+</span> <span class="n">dr</span><span class="p">,</span> <span class="n">c</span> <span class="o">+</span> <span class="n">dc</span>
+            <span class="k">if</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">nr</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">)</span> <span class="ow">and</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">nc</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="ow">and</span> <span class="p">(</span><span class="n">nr</span><span class="p">,</span> <span class="n">nc</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+                <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">nr</span><span class="p">,</span> <span class="n">nc</span><span class="p">));</span> <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">nr</span><span class="p">,</span> <span class="n">nc</span><span class="p">,</span> <span class="n">d</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="k">return</span> <span class="o">-</span><span class="mi">1</span>
+</code></pre></div>
+
+<p>Dijkstra (lazy deletion):</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">heapq</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">dijkstra</span><span class="p">(</span><span class="n">adj</span><span class="p">,</span> <span class="n">src</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+    <span class="n">dist</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="s2">"inf"</span><span class="p">)]</span> <span class="o">*</span> <span class="n">n</span>
+    <span class="n">dist</span><span class="p">[</span><span class="n">src</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">heap</span> <span class="o">=</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="n">src</span><span class="p">)]</span>
+    <span class="k">while</span> <span class="n">heap</span><span class="p">:</span>
+        <span class="n">d</span><span class="p">,</span> <span class="n">u</span> <span class="o">=</span> <span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">d</span> <span class="o">&gt;</span> <span class="n">dist</span><span class="p">[</span><span class="n">u</span><span class="p">]:</span>          <span class="c1"># stale entry, skip</span>
+            <span class="k">continue</span>
+        <span class="k">for</span> <span class="n">v</span><span class="p">,</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">adj</span><span class="p">[</span><span class="n">u</span><span class="p">]:</span>
+            <span class="n">nd</span> <span class="o">=</span> <span class="n">d</span> <span class="o">+</span> <span class="n">w</span>
+            <span class="k">if</span> <span class="n">nd</span> <span class="o">&lt;</span> <span class="n">dist</span><span class="p">[</span><span class="n">v</span><span class="p">]:</span>
+                <span class="n">dist</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="o">=</span> <span class="n">nd</span>
+                <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="p">(</span><span class="n">nd</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">dist</span>
+</code></pre></div>
+
+<p>0-1 BFS: same as Dijkstra, but the heap is a deque: <code>appendleft</code> for cost-0 edges, <code>append</code>
+for cost-1 edges, and only relax when <code>nd &lt; dist[v]</code>.</p>
+<p>Bellman-Ford with at most K edges (copy the array every round!):</p>
+<div class="highlight"><pre><span></span><code><span class="n">dist</span> <span class="o">=</span> <span class="p">[</span><span class="n">INF</span><span class="p">]</span> <span class="o">*</span> <span class="n">n</span><span class="p">;</span> <span class="n">dist</span><span class="p">[</span><span class="n">src</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">k</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+    <span class="n">nxt</span> <span class="o">=</span> <span class="n">dist</span><span class="p">[:]</span>
+    <span class="k">for</span> <span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">edges</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">dist</span><span class="p">[</span><span class="n">u</span><span class="p">]</span> <span class="o">+</span> <span class="n">w</span> <span class="o">&lt;</span> <span class="n">nxt</span><span class="p">[</span><span class="n">v</span><span class="p">]:</span>
+            <span class="n">nxt</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="o">=</span> <span class="n">dist</span><span class="p">[</span><span class="n">u</span><span class="p">]</span> <span class="o">+</span> <span class="n">w</span>
+    <span class="n">dist</span> <span class="o">=</span> <span class="n">nxt</span>
+</code></pre></div>
+
+<h2 id="4-complexity">4. Complexity</h2>
+<ul>
+<li>BFS O(V + E) time, O(V) space. Grid with R x C cells: O(RC).</li>
+<li>Dijkstra O(E log V) with a binary heap (each edge pushes at most one entry), O(V + E) space.</li>
+<li>0-1 BFS O(V + E). Bellman-Ford K rounds O(K * E).</li>
+<li>State-space variants: multiply V by the number of extra states (e.g. stops used).</li>
+</ul>
+<h2 id="5-common-mistakes">5. Common mistakes</h2>
+<ul>
+<li>Using BFS on weighted graphs, or Dijkstra with negative weights.</li>
+<li>Forgetting the stale-entry check <code>if d &gt; dist[u]: continue</code> (still correct, but slow).</li>
+<li>Marking a node visited when pushed instead of when popped, in Dijkstra (wrong answers).</li>
+<li>Bellman-Ford without a per-round copy: relaxes more than K edges in one round.</li>
+<li>Returning <code>inf</code> instead of -1 for unreachable (read the statement).</li>
+<li>Off-by-one on "stops" vs "edges": K stops means K + 1 edges.</li>
+<li>Grid BFS: not checking the start/end cell is blocked; 1x1 grid edge cases.</li>
+<li>Word ladder: building neighbours by comparing all pairs is O(N^2 L); use wildcard buckets
+  (<code>h*t</code>) instead.</li>
+</ul>
+<h2 id="6-interview-tips">6. Interview tips</h2>
+<ul>
+<li>State the graph out loud: "nodes are cells, edges cost 1, so BFS" / "weights vary, so Dijkstra".</li>
+<li>Mention why Dijkstra is valid (non-negative weights) before coding. Interviewers at Google
+  and Uber love the follow-up "what if there are negative edges?" (Bellman-Ford; detect cycles
+  with an extra round).</li>
+<li>Follow-ups to expect: return the actual path (keep a <code>parent</code> array), bidirectional BFS for
+  word ladder, A* for a grid with a heuristic, Dijkstra on a huge implicit graph (ride/route
+  planning at Uber is a classic framing).</li>
+<li>Know <code>heapq</code> tuple ordering: ties compare the next tuple element, so keep it comparable.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run <code>.venv/bin/pytest 03-dsa/week-19-shortest-paths</code>.</p>
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-18-topo-sort-union-find/test_exercises.py.html">← Week 18 · Topological sort and Union-Find: Tests (code)</a><a class="next" href="../../03-dsa/week-19-shortest-paths/exercises.py.html">Week 19 · Shortest paths: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

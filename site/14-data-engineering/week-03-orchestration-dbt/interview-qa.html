@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 3 interview Q&amp;A: orchestration and dbt | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="14-data-engineering/week-03-orchestration-dbt/interview-qa" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../14-data-engineering/week-03-orchestration-dbt/lesson.html">Week 3 · Orchestration and dbt</a> / <span>Interview Q&amp;A</span></nav><button id="mark-done" data-id="14-data-engineering/week-03-orchestration-dbt/interview-qa">Mark as done</button></div><article class="doc">
+<h1 id="week-3-interview-qa-orchestration-and-dbt">Week 3 interview Q&amp;A: orchestration and dbt</h1>
+<p><strong>1. ETL vs ELT: which and why?</strong>
+ETL transforms before loading; ELT lands raw data first and transforms in the warehouse/lakehouse with SQL. ELT wins when compute is elastic and storage is cheap: raw data is kept for reprocessing, transformations are versioned SQL (dbt), analysts can contribute. ETL still makes sense for PII scrubbing before landing, heavy non-SQL processing, or legacy targets.
+<em>Follow-ups:</em> Where does PII masking happen in ELT? How do you handle schema drift in raw?</p>
+<p><strong>2. Explain Airflow's architecture.</strong>
+Scheduler parses DAG files, creates DAG runs and task instances, and queues them; the executor decides where they run (Local, Celery workers, Kubernetes pods); workers execute; the metadata DB stores state; the webserver shows UI; the triggerer runs deferrable operators.
+<em>Follow-ups:</em> What breaks if the scheduler parses slowly? (Heavy top-level code.) Celery vs Kubernetes executor trade-offs? (Latency and shared workers vs isolation and per-task images.)</p>
+<p><strong>3. What are logical date and data interval? Why does a daily run for May 1 start on May 2?</strong>
+The run represents the interval of data it covers, <code>[start, end)</code>, and can only run once the interval is complete. Tasks should derive their input slice from <code>data_interval_start/end</code>, not the wall clock, so reruns and backfills reproduce the same result.
+<em>Follow-ups:</em> What does <code>{{ ds }}</code> give? What breaks if you use <code>datetime.now()</code>? How does this change for data-aware (dataset/asset) scheduling? (check current docs)</p>
+<p><strong>4. catchup vs backfill?</strong>
+<code>catchup</code> is the scheduler automatically creating runs for all intervals since <code>start_date</code> that have not run. Backfill is an explicit re-run of a historical range, for new logic or fixed data. Both require idempotent, interval-parameterised tasks and a thought for concurrency (<code>max_active_runs</code>) and downstream load.
+<em>Follow-up:</em> You deployed a bug fix; how do you reprocess the last 30 days safely? (Clear tasks or trigger a backfill, limit concurrency, partition overwrite so no duplicates, notify consumers.)</p>
+<p><strong>5. What makes a task idempotent? Give patterns.</strong>
+Same inputs -&gt; same final state regardless of how often it runs. Patterns: output path/partition keyed by the logical date and overwritten; MERGE on a business key; delete+insert for a partition in one transaction; write to staging then atomic swap; deterministic transformations (no <code>now()</code>, random).
+<em>Follow-ups:</em> What about sending an email or calling a payment API? (Idempotency keys, outbox/guard table.) Is <code>INSERT</code> after <code>TRUNCATE</code> idempotent? (Only if atomic; else a failure leaves it empty.)</p>
+<p><strong>6. Can you get exactly-once?</strong>
+Delivery is at-least-once in practice; exactly-once <em>effect</em> comes from idempotent writes or dedupe on a stable key (upsert/merge, <code>row_number()</code> latest, transactional offset + data commit as in Kafka/Flink sinks).
+<em>Follow-ups:</em> Where do you get a stable key if the source has none? (Hash of business columns, source offsets/LSN.) What if duplicates have different timestamps? (Define tie-breaking: ingested_at, sequence.)</p>
+<p><strong>7. Compare incremental load strategies.</strong>
+Full refresh (simple, expensive, catches deletes), watermark (cheap, needs reliable <code>updated_at</code>, misses hard deletes and late-arriving old timestamps), CDC (captures deletes and every change, more infrastructure and ordering concerns), partition overwrite (idempotent for time-partitioned facts). Combine: incremental daily plus periodic full reconcile.
+<em>Follow-ups:</em> The watermark column is not updated on some edits. Now what? How do you handle deletes without CDC? (Soft deletes, snapshot diff, periodic full compare.) Why advance the watermark transactionally with the load?</p>
+<p><strong>8. How do you handle late-arriving data?</strong>
+Decide a lateness tolerance. Batch: lookback window on incremental models (reprocess the last N hours/days), partition overwrite of recent partitions, separate event_time vs ingested_at columns, periodic reconciliation. Streaming: watermarks with allowed lateness, side outputs for too-late events.
+<em>Follow-up:</em> Downstream consumers already read yesterday's numbers; how do you communicate restatements? (Versioned/slowly settling metrics, data contracts, change logs.)</p>
+<p><strong>9. How do you structure retries and failure handling?</strong>
+Retries with backoff for transient failures (network, throttling); fail fast for deterministic errors. Timeouts on tasks. Alerts via callbacks on failure, and monitoring for missing runs/freshness. Per-record bad data goes to a dead-letter table/queue with error and payload; the job continues and DLQ size is alarmed and replayable.
+<em>Follow-ups:</em> What is a poison pill? Retry storms against a downed dependency? (Backoff + jitter, circuit breaker, pools.)</p>
+<p><strong>10. Task granularity: how big should an Airflow task be?</strong>
+A unit that can be retried independently, is idempotent, and produces a checkpoint (a table, file, partition). Too coarse: expensive retries, opaque failures. Too fine: scheduler overhead, many XComs, slow DAG. Group related steps (TaskGroup) for readability.
+<em>Follow-up:</em> How do you fan out per-file or per-table work? (Dynamic task mapping <code>.expand()</code>, with limits.)</p>
+<p><strong>11. What are XComs for and not for?</strong>
+Small pieces of metadata (ids, paths, counts) between tasks, stored in the metadata DB (custom backends exist). Never pass data frames or large payloads; write to storage and pass a pointer.</p>
+<p><strong>12. Sensors: what are the pitfalls?</strong>
+Poke-mode sensors occupy a worker slot while waiting. Use <code>reschedule</code> mode or deferrable operators, set timeouts, and prefer event-driven triggers (datasets/assets, S3 event notifications) over time-based guessing.
+<em>Follow-up:</em> Cross-DAG dependency options? (ExternalTaskSensor, TriggerDagRunOperator, datasets.)</p>
+<p><strong>13. Common Airflow anti-patterns?</strong>
+Heavy imports or API/DB calls at DAG parse time; dynamic <code>start_date</code>; non-idempotent appends; storing state on a worker's local disk; big XComs; running heavy compute on Airflow workers instead of delegating; no pools or concurrency caps; secrets in code (use connections/secret backends).</p>
+<p><strong>14. Airflow vs Dagster vs Prefect vs Step Functions?</strong>
+Airflow: mature, huge operator ecosystem, task-centric, schedule-oriented. Dagster: asset-centric (declare assets and lineage), good testing and local dev. Prefect: Python-native flows, dynamic, lighter setup. Step Functions: managed serverless state machines with built-in retry/catch, best for AWS service orchestration, not data-aware. Pick based on team skills, ops burden, lineage needs, and ecosystem.
+<em>Follow-up:</em> When would you not use Airflow? (Low-latency event workflows, streaming.)</p>
+<p><strong>15. What is dbt and where does it sit?</strong>
+A transformation framework: SQL SELECT models plus Jinja, compiled into DDL/DML run in the warehouse. It handles dependency ordering via <code>ref()</code>, materializations, tests, docs and lineage. It does not extract or load data and is not a scheduler (run it from Airflow, dbt Cloud, etc.).</p>
+<p><strong>16. Materializations: when to use each?</strong>
+View: cheap, always fresh, slow to query when stacked. Table: fast reads, rebuilt each run. Incremental: large append/event tables, process only new rows. Ephemeral: inline CTE for tiny reusable logic. Materialized view: warehouse-maintained (adapter support varies, check current docs).
+<em>Follow-ups:</em> How does an incremental model recover from a bug? (<code>--full-refresh</code> or targeted backfill.) What does <code>unique_key</code> do? (Enables merge/delete+insert so updates replace rows.)</p>
+<p><strong>17. How does dbt build its DAG and why <code>ref()</code> instead of table names?</strong>
+<code>ref('x')</code> is parsed at compile time to add an edge and is resolved to the right schema/database per target environment. This gives correct run order, environment isolation and lineage. <code>source()</code> does the same for raw tables and enables freshness checks.
+<em>Follow-up:</em> What happens on circular refs? (Compile error.)</p>
+<p><strong>18. dbt tests and data quality.</strong>
+Generic tests (unique, not_null, accepted_values, relationships), singular SQL tests, packages (dbt_expectations), source freshness, contracts (check current docs). <code>dbt build</code> interleaves run and test so bad upstream models block downstream ones. Severity (<code>warn</code>/<code>error</code>) and <code>store_failures</code> for triage.
+<em>Follow-up:</em> What can't dbt tests catch? (Business-logic correctness without expectations, cross-system reconciliation, volume anomalies, so add anomaly monitoring.)</p>
+<p><strong>19. Snapshots vs incremental models?</strong>
+Snapshots track <em>changes of mutable source rows</em> over time (SCD2: <code>dbt_valid_from/to</code>), using timestamp or check strategy. Incremental models only keep the latest state (or append facts). Use snapshots when you need history the source does not keep.</p>
+<p><strong>20. Design: daily pipeline loading orders from an OLTP DB into the warehouse, with updates and deletes.</strong>
+Prefer CDC (Debezium/managed CDC) into a raw change-log table; staging dedupes to the latest change per key (<code>row_number</code> by LSN/ts) and flags deletes; mart applies MERGE (or incremental with soft-delete column). Orchestrate with idempotent, interval-keyed tasks; tests (unique, not_null, row-count vs source); late/out-of-order handled by ordering on source sequence; periodic reconciliation; DLQ for unparseable events; backfill by replaying the log. If CDC is unavailable: watermark on <code>updated_at</code> with lookback + daily full key-compare to detect deletes.
+<em>Follow-ups:</em> How do you backfill a year without disrupting production? How do you prove completeness? (Counts/checksums per partition, reconciliation job.)</p>
+</article><div class="pager"><a class="prev" href="../../14-data-engineering/week-03-orchestration-dbt/lesson.html">← Week 3 · Orchestration and dbt: Lesson</a><a class="next" href="../../14-data-engineering/week-03-orchestration-dbt/cheatsheet.html">Week 3 · Orchestration and dbt: Cheatsheet →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

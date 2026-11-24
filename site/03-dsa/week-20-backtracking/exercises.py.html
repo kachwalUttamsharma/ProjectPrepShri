@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-20-backtracking/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-20-backtracking/lesson.html">Week 20 · Backtracking</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="03-dsa/week-20-backtracking/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>03-dsa/week-20-backtracking/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 20 exercises: backtracking. Replace each `...` with your code.</span>
+
+<span class="sd">The order of the lists you return does not matter (tests sort them), but the order of</span>
+<span class="sd">elements *inside* each subset/permutation/combination should follow the examples.</span>
+<span class="sd">"""</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">subsets</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 78. Return all subsets of `nums` (distinct integers), including [] and nums.</span>
+
+<span class="sd">    Example: [1,2,3] -&gt; [[],[1],[2],[1,2],[3],[1,3],[2,3],[1,2,3]] (any order)</span>
+
+<span class="sd">    Hint: for i in range(start, n): choose nums[i], recurse with i+1, un-choose.</span>
+<span class="sd">    Expected: O(n * 2^n) time.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">combinations</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 77. Return all k-element combinations of the numbers 1..n (each ascending).</span>
+
+<span class="sd">    Example: n=4, k=2 -&gt; [[1,2],[1,3],[1,4],[2,3],[2,4],[3,4]]; k=0 -&gt; [[]]</span>
+
+<span class="sd">    Hint: prune when fewer than k - len(path) numbers remain.</span>
+<span class="sd">    Expected: O(k * C(n,k)).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">permutations</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 46. Return all permutations of `nums` (distinct integers).</span>
+
+<span class="sd">    Example: [1,2,3] -&gt; 6 permutations;  [] -&gt; [[]]</span>
+
+<span class="sd">    Hint: `used` boolean array, or swap elements in place.</span>
+<span class="sd">    Expected: O(n * n!).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">letter_combinations</span><span class="p">(</span><span class="n">digits</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 17. Phone keypad (2=abc 3=def 4=ghi 5=jkl 6=mno 7=pqrs 8=tuv 9=wxyz).</span>
+<span class="sd">    Return all strings the digit string could represent. Empty input -&gt; [].</span>
+
+<span class="sd">    Example: "23" -&gt; ["ad","ae","af","bd","be","bf","cd","ce","cf"]</span>
+
+<span class="sd">    Hint: one level of recursion per digit.</span>
+<span class="sd">    Expected: O(4^n * n).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">generate_parentheses</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 22. Return all well-formed strings of n pairs of parentheses.</span>
+
+<span class="sd">    Example: n=3 -&gt; ["((()))","(()())","(())()","()(())","()()()"]</span>
+
+<span class="sd">    Hint: track open/close counts; add "(" if open &lt; n, add ")" if close &lt; open.</span>
+<span class="sd">    Expected: O(4^n / sqrt(n)) outputs.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">combination_sum</span><span class="p">(</span><span class="n">candidates</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 39. `candidates` are distinct positive ints, each usable unlimited times.</span>
+<span class="sd">    Return all unique combinations (as lists, any order inside) summing to target.</span>
+
+<span class="sd">    Example: [2,3,6,7], 7 -&gt; [[2,2,3],[7]];  [2], 1 -&gt; []</span>
+
+<span class="sd">    Hint: recurse with the same index i to allow reuse; sort and break when too large.</span>
+<span class="sd">    Expected: exponential; bounded by target / min(candidates) depth.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">subsets_with_dup</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 90. `nums` may contain duplicates. Return all unique subsets.</span>
+
+<span class="sd">    Example: [1,2,2] -&gt; [[],[1],[1,2],[1,2,2],[2],[2,2]]</span>
+
+<span class="sd">    Hint: sort; at the same recursion level skip nums[i] if it equals nums[i-1] (i &gt; start).</span>
+<span class="sd">    Expected: O(n * 2^n).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">palindrome_partitioning</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 131. Partition s so every piece is a palindrome. Return all partitions.</span>
+
+<span class="sd">    Example: "aab" -&gt; [["a","a","b"],["aa","b"]]</span>
+
+<span class="sd">    Hint: choose the end of the next piece; only recurse if s[start:end] is a palindrome.</span>
+<span class="sd">    Expected: O(n * 2^n).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">word_search</span><span class="p">(</span><span class="n">board</span><span class="p">,</span> <span class="n">word</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 79. Return True if `word` can be built from sequentially adjacent</span>
+<span class="sd">    (up/down/left/right) cells of the board, using each cell at most once.</span>
+
+<span class="sd">    Example: board=[["A","B","C","E"],["S","F","C","S"],["A","D","E","E"]], "ABCCED" -&gt; True</span>
+
+<span class="sd">    Hint: DFS from every cell; mark the cell visited (e.g. replace with "#") and restore.</span>
+<span class="sd">    Expected: O(R*C * 3^L).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">solve_n_queens</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 51. Return all distinct solutions to the n-queens puzzle. Each solution is a</span>
+<span class="sd">    list of n strings of length n using "Q" and "." (one row per string).</span>
+
+<span class="sd">    Example: n=4 -&gt; [[".Q..","...Q","Q...","..Q."],["..Q.","Q...","...Q",".Q.."]]</span>
+
+<span class="sd">    Hint: place row by row; sets for used columns, r-c diagonals and r+c anti-diagonals.</span>
+<span class="sd">    Expected: roughly O(n!).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-20-backtracking/lesson.html">← Week 20 · Backtracking: Lesson</a><a class="next" href="../../03-dsa/week-20-backtracking/test_exercises.py.html">Week 20 · Backtracking: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

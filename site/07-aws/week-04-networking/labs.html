@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 4 Labs (OPTIONAL) | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="07-aws/week-04-networking/labs" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../07-aws/README.html">AWS</a> / <a href="../../07-aws/week-04-networking/lesson.html">Week 4 · Networking</a> / <span>Labs</span></nav><button id="mark-done" data-id="07-aws/week-04-networking/labs">Mark as done</button></div><article class="doc">
+<h1 id="week-4-labs-optional">Week 4 Labs (OPTIONAL)</h1>
+<p>COST WARNING: VPC, subnets, route tables, IGW, SGs, NACLs and gateway endpoints are free. NAT Gateway (~hourly + per GB), interface endpoints, Transit Gateway, VPN, ALB, and public IPv4 addresses are NOT free. Create the NAT Gateway only for a short test and delete it immediately; release Elastic IPs.</p>
+<ol>
+<li>Build a VPC by hand: 2 public + 2 private subnets in 2 AZs, IGW, route tables. Compare to the "VPC and more" wizard.</li>
+<li>Launch a t-class instance in a public subnet with an SG allowing nothing inbound; use Session Manager. Then try adding/removing SG rules and NACL deny rules to observe stateful vs stateless behavior.</li>
+<li>Add an S3 gateway endpoint and confirm a private instance can reach S3 without NAT.</li>
+<li>Route 53 (only if you own a domain, ~$0.50/zone/month): create weighted records.</li>
+<li>CloudFront in front of a private S3 bucket with OAC (free-tier traffic is small).</li>
+<li>Turn on VPC Flow Logs to S3 for a few minutes; read REJECT lines.</li>
+</ol>
+<p>Cleanup: delete NAT gateway then release its EIP, delete endpoints, terminate instances, delete VPC (dependency order: instances, endpoints, NAT, IGW detach/delete, subnets, route tables, SGs, VPC), delete CloudFront distributions (disable first), hosted zones, Flow Log S3 data.</p>
+</article><div class="pager"><a class="prev" href="../../07-aws/week-04-networking/cheatsheet.html">← Week 4 · Networking: Cheatsheet</a><a class="next" href="../../07-aws/week-05-integration-ops-security/lesson.html">Week 5 · Integration, ops, security: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

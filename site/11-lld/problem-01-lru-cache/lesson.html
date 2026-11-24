@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LLD 01: LRU cache | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="11-lld/problem-01-lru-cache/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../11-lld/README.html">Low-Level Design</a> / <a href="../../11-lld/problem-01-lru-cache/lesson.html">Problem 1 · LRU cache</a> / <span>Lesson</span></nav><button id="mark-done" data-id="11-lld/problem-01-lru-cache/lesson">Mark as done</button></div><article class="doc">
+<h1 id="lld-01-lru-cache">LLD 01: LRU cache</h1>
+<p>The most-asked "small" LLD question. It looks like a data-structure puzzle but interviewers grade the design too: clean API, generic keys, edge cases, testability (injected clock), and whether you can explain <em>why</em> hash map + doubly linked list gives O(1). Budget: ~3 hours. Sketch first (30 min), linked list (45 min), cache (1h), TTL + callback + review (45 min).</p>
+<h2 id="1-requirements-questions-to-ask-the-interviewer">1. Requirements: questions to ask the interviewer</h2>
+<ul>
+<li>Fixed capacity by <strong>item count</strong> (not bytes)? What happens at capacity &lt;= 0?</li>
+<li>What counts as "use"? (<code>get</code> and <code>put</code> both - yes; <code>peek</code>/<code>in</code> should not.)</li>
+<li>Must <code>get</code> and <code>put</code> be <strong>O(1)</strong>? (Yes - this forces the design.)</li>
+<li>Missing key: return <code>None</code>/default or raise? Can values be <code>None</code>?</li>
+<li>Do we need <strong>TTL / expiry</strong>? Is the TTL reset on read or on write?</li>
+<li><strong>Thread safety</strong>? (Out of scope here; see follow-ups.)</li>
+<li>Do callers need to know about evictions (callback, metrics)?</li>
+<li>Single process, in memory only? (Yes. Redis/distributed is a follow-up.)</li>
+</ul>
+<p>State assumptions out loud: count-based capacity, <code>get</code>/<code>put</code> refresh recency, None-able values, single-threaded, TTL optional.</p>
+<h2 id="2-entities">2. Entities</h2>
+<table>
+<thead>
+<tr>
+<th>Entity</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Node</code></td>
+<td>Holds key, value, expiry, prev/next pointers. Stores the <strong>key</strong> too so eviction can delete the map entry.</td>
+</tr>
+<tr>
+<td><code>DoublyLinkedList</code></td>
+<td>Maintains recency order with sentinel head/tail; O(1) add/remove/move/pop.</td>
+</tr>
+<tr>
+<td><code>LRUCache</code></td>
+<td>Public API; owns <code>dict[key -&gt; Node]</code> + the list; eviction policy; TTL; callback.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="3-class-diagram">3. Class diagram</h2>
+<div class="highlight"><pre><span></span><code> LRUCache
+ +--------------------------+       +---------------------+
+ | capacity, ttl, clock     |  has  | DoublyLinkedList    |
+ | _map: dict[key, Node] ---+------&gt;| head &lt;-&gt; ... &lt;-&gt; tail|
+ | _list ------------------&gt;|       | add_front/remove/   |
+ | on_evict(key, value)     |       | move_to_front/      |
+ | get/put/peek/delete/     |       | pop_back            |
+ | keys/clear/len/in        |       +----------+----------+
+ +--------------------------+                  | contains *
+                                         +-----v-----+
+                                         | Node      |
+                                         | key,value |
+                                         | expires_at|
+                                         | prev,next |
+                                         +-----------+
+
+ head(sentinel) &lt;-&gt; MRU &lt;-&gt; ... &lt;-&gt; LRU &lt;-&gt; tail(sentinel)
+</code></pre></div>
+
+<pre class="mermaid">classDiagram
+  class LRUCache { +get(key) +put(key,value) +peek(key) +delete(key) +keys() }
+  class DoublyLinkedList { +add_front(n) +remove(n) +move_to_front(n) +pop_back() }
+  class Node { key; value; expires_at; prev; next }
+  LRUCache o-- DoublyLinkedList
+  LRUCache --&gt; Node : dict lookup
+  DoublyLinkedList o-- Node</pre>
+<h2 id="4-patterns-used-and-why">4. Patterns used and why</h2>
+<ul>
+<li><strong>Composition of two structures</strong> (hash map for O(1) lookup, linked list for O(1) reorder/evict). Neither alone is O(1): a list can't find a key, a dict can't track order.</li>
+<li><strong>Sentinel (dummy) nodes</strong>: no <code>if node.prev is None</code> branches; insert/remove are the same code at the ends.</li>
+<li><strong>Dependency injection (clock)</strong>: TTL is testable without <code>sleep</code>. Same trick as the parking lot.</li>
+<li><strong>Observer-lite (<code>on_evict</code> callback)</strong>: cache announces evictions without knowing who cares (write-back, metrics).</li>
+<li><strong>Strategy (follow-up)</strong>: pull eviction policy behind an <code>EvictionPolicy</code> interface to support LFU/FIFO. Don't build it unless asked; mention it.</li>
+<li><strong>Encapsulation</strong>: the list is a separate class so <code>LRUCache</code> has no pointer-juggling.</li>
+</ul>
+<h2 id="5-extensibility-follow-ups-interviewers-ask">5. Extensibility follow-ups interviewers ask</h2>
+<ul>
+<li>Make it thread-safe (coarse <code>Lock</code>; then lock striping/sharding; why <code>get</code> is a write).</li>
+<li>Add LFU / FIFO / random eviction (Strategy; LFU needs freq buckets, also O(1)).</li>
+<li>Per-entry TTL, background cleanup thread vs lazy expiry.</li>
+<li>Size-aware (weight) capacity: evict until total weight fits.</li>
+<li>Write-through / write-back with a backing store; cache stampede protection.</li>
+<li>Distributed cache: consistent hashing, replication (point to system design).</li>
+<li>Stats: hits, misses, evictions, hit ratio.</li>
+<li>Generic typing: <code>LRUCache[K, V]</code> with <code>typing.Generic</code>.</li>
+</ul>
+<h2 id="6-what-to-say-out-loud">6. What to say out loud</h2>
+<ol>
+<li>"I'll use a dict from key to node plus a doubly linked list ordered by recency; the dict gives O(1) lookup and the list gives O(1) move-to-front and evict-from-back."</li>
+<li>"Singly linked wouldn't work: removing an arbitrary node needs its predecessor. Doubly linked gives that in O(1)."</li>
+<li>"Sentinel head and tail remove all the null checks."</li>
+<li>"Node stores the key, because when I pop the tail I need to delete it from the dict."</li>
+<li>"<code>get</code> mutates state - it's a write for locking purposes."</li>
+<li>"I'm injecting the clock so TTL tests are deterministic."</li>
+<li>Test plan: eviction order, get refreshes, update doesn't grow, capacity 1, delete, TTL boundary.</li>
+</ol>
+<h2 id="7-common-mistakes">7. Common mistakes</h2>
+<ul>
+<li>Using <code>OrderedDict</code> as the whole answer (fine as a footnote, wrong as the solution here).</li>
+<li>Forgetting to delete the map entry on eviction (memory leak, stale hits).</li>
+<li>Evicting <strong>before</strong> checking whether <code>put</code> is an update of an existing key (evicts a live entry needlessly).</li>
+<li><code>if value:</code> / <code>if self._map.get(k):</code> checks that treat <code>0</code>/<code>None</code>/<code>""</code> as a miss.</li>
+<li>Breaking the order of pointer updates in <code>add_front</code> (set the new node's pointers first).</li>
+<li><code>peek</code>/<code>in</code>/<code>keys</code> accidentally refreshing recency.</li>
+<li>Scanning for expired entries on every put (turns O(1) into O(n)).</li>
+<li>Not updating <code>size</code> consistently, or off-by-one on <code>&gt;=</code> vs <code>&gt;</code>.</li>
+<li>Using <code>time.time()</code> directly.</li>
+</ul>
+<h2 id="8-follow-up-qa">8. Follow-up Q&amp;A</h2>
+<p><strong>Q: Why not just a list or <code>collections.deque</code>?</strong> Finding/removing a middle item is O(n).
+<strong>Q: Why not a heap keyed by last-used time?</strong> O(log n) per op, and updating a key's priority needs a lazy-deletion trick.
+<strong>Q: How do you make it thread-safe?</strong> One lock around every public method (get too, since it reorders). If contention matters, shard by <code>hash(key) % N</code> with one lock + cache per shard; capacity is then per shard (approximate LRU).
+<strong>Q: How do you do TTL without a scan?</strong> Lazy expiry on access (what we do) plus optionally a min-heap of <code>(expires_at, key)</code> or a timer wheel for proactive cleanup. Full scan on <code>len</code> is O(n) by design here.
+<strong>Q: LFU in O(1)?</strong> dict key-&gt;node, dict freq-&gt;doubly linked list of nodes, track <code>min_freq</code>; on access move node from freq f to f+1.
+<strong>Q: What does <code>functools.lru_cache</code> do differently?</strong> It's the same structure in C, but is function-memoization-only (keys from args), no TTL/delete/callback.
+<strong>Q: What are the memory implications?</strong> Each entry = dict slot + Node object (use <code>__slots__</code> to shrink it).
+<strong>Q: Hit ratio is bad; why?</strong> Scan-resistant policies (2Q, ARC, TinyLFU) beat pure LRU when one-off scans flush the hot set.</p>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run
+<code>.venv/bin/pytest 11-lld/problem-01-lru-cache -v</code></p>
+<p>Then, out loud and on paper (10 min): re-derive the pointer updates of <code>add_front</code> and <code>remove</code> without looking.</p>
+</article><div class="pager"><a class="prev" href="../../11-lld/README.html">← Low-Level Design: Overview</a><a class="next" href="../../11-lld/problem-01-lru-cache/exercises.py.html">Problem 1 · LRU cache: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

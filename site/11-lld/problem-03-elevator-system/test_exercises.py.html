@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>test_exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="11-lld/problem-03-elevator-system/test_exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../11-lld/README.html">Low-Level Design</a> / <a href="../../11-lld/problem-03-elevator-system/lesson.html">Problem 3 · Elevator system</a> / <span>Tests (code)</span></nav><button id="mark-done" data-id="11-lld/problem-03-elevator-system/test_exercises.py">Mark as done</button></div><article class="doc">
+<h1>test_exercises.py</h1><p class="code-path"><code>11-lld/problem-03-elevator-system/test_exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">opened</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">max_steps</span><span class="o">=</span><span class="mi">200</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Step until idle; return the floors where doors opened, in order."""</span>
+    <span class="n">floors</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">max_steps</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">is_idle</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">floors</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">state</span> <span class="ow">is</span> <span class="n">ElevatorState</span><span class="o">.</span><span class="n">DOORS_OPEN</span><span class="p">:</span>
+            <span class="n">floors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">floor</span><span class="p">)</span>
+    <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s2">"elevator never became idle"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">steps</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">make_ctrl</span><span class="p">(</span><span class="o">*</span><span class="n">starts</span><span class="p">,</span> <span class="n">floors</span><span class="o">=</span><span class="mi">21</span><span class="p">,</span> <span class="n">strategy</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">elevators</span> <span class="o">=</span> <span class="p">[</span><span class="n">Elevator</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">floors</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">starts</span><span class="p">,</span> <span class="mi">1</span><span class="p">)]</span>
+    <span class="k">return</span> <span class="n">ElevatorController</span><span class="p">(</span><span class="n">elevators</span><span class="p">,</span> <span class="n">strategy</span><span class="p">),</span> <span class="n">elevators</span>
+
+
+<span class="c1"># ---- Elevator basics</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_initial_state</span><span class="p">():</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">Elevator</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">elevator_id</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">num_floors</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">floor</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">e</span><span class="o">.</span><span class="n">direction</span> <span class="ow">is</span> <span class="n">Direction</span><span class="o">.</span><span class="n">IDLE</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">state</span> <span class="ow">is</span> <span class="n">ElevatorState</span><span class="o">.</span><span class="n">IDLE</span>
+    <span class="k">assert</span> <span class="n">e</span><span class="o">.</span><span class="n">stops</span> <span class="o">==</span> <span class="p">[]</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">is_idle</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_start_floor</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">Elevator</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span><span class="o">.</span><span class="n">floor</span> <span class="o">==</span> <span class="mi">4</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_invalid_construction</span><span class="p">():</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">Elevator</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">InvalidFloorError</span><span class="p">):</span>
+        <span class="n">Elevator</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">InvalidFloorError</span><span class="p">):</span>
+        <span class="n">Elevator</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_add_stop_validates</span><span class="p">():</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">Elevator</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">bad</span> <span class="ow">in</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">99</span><span class="p">):</span>
+        <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">InvalidFloorError</span><span class="p">):</span>
+            <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="n">bad</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">e</span><span class="o">.</span><span class="n">stops</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_stops_sorted_deduped_and_copied</span><span class="p">():</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">Elevator</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">9</span><span class="p">):</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">e</span><span class="o">.</span><span class="n">stops</span> <span class="o">==</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">9</span><span class="p">]</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">stops</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">7</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">e</span><span class="o">.</span><span class="n">stops</span> <span class="o">==</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">9</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_error_hierarchy</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">InvalidFloorError</span><span class="p">,</span> <span class="n">ElevatorError</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">UnknownElevatorError</span><span class="p">,</span> <span class="n">ElevatorError</span><span class="p">)</span>
+
+
+<span class="c1"># ---- stepping</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_step_without_stops_stays_idle</span><span class="p">():</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">Elevator</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">e</span><span class="o">.</span><span class="n">floor</span> <span class="o">==</span> <span class="mi">3</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">state</span> <span class="ow">is</span> <span class="n">ElevatorState</span><span class="o">.</span><span class="n">IDLE</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">direction</span> <span class="ow">is</span> <span class="n">Direction</span><span class="o">.</span><span class="n">IDLE</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_moves_one_floor_per_step_up</span><span class="p">():</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">Elevator</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">floor</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">state</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">direction</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">ElevatorState</span><span class="o">.</span><span class="n">MOVING_UP</span><span class="p">,</span> <span class="n">Direction</span><span class="o">.</span><span class="n">UP</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">e</span><span class="o">.</span><span class="n">floor</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">e</span><span class="o">.</span><span class="n">floor</span> <span class="o">==</span> <span class="mi">3</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">stops</span> <span class="o">==</span> <span class="p">[</span><span class="mi">3</span><span class="p">]</span>  <span class="c1"># arrived, doors not yet open</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_opens_doors_on_step_after_arrival</span><span class="p">():</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">Elevator</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">steps</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">e</span><span class="o">.</span><span class="n">state</span> <span class="ow">is</span> <span class="n">ElevatorState</span><span class="o">.</span><span class="n">DOORS_OPEN</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">floor</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">stops</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">e</span><span class="o">.</span><span class="n">is_idle</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_doors_close_on_next_step_and_direction_kept</span><span class="p">():</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">Elevator</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+    <span class="n">steps</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>  <span class="c1"># at 2, doors open</span>
+    <span class="k">assert</span> <span class="n">e</span><span class="o">.</span><span class="n">state</span> <span class="ow">is</span> <span class="n">ElevatorState</span><span class="o">.</span><span class="n">DOORS_OPEN</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">direction</span> <span class="ow">is</span> <span class="n">Direction</span><span class="o">.</span><span class="n">UP</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">e</span><span class="o">.</span><span class="n">state</span> <span class="ow">is</span> <span class="n">ElevatorState</span><span class="o">.</span><span class="n">IDLE</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">direction</span> <span class="ow">is</span> <span class="n">Direction</span><span class="o">.</span><span class="n">UP</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">e</span><span class="o">.</span><span class="n">floor</span> <span class="o">==</span> <span class="mi">3</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">state</span> <span class="ow">is</span> <span class="n">ElevatorState</span><span class="o">.</span><span class="n">MOVING_UP</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_moves_down</span><span class="p">():</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">Elevator</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">floor</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">state</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">direction</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="n">ElevatorState</span><span class="o">.</span><span class="n">MOVING_DOWN</span><span class="p">,</span> <span class="n">Direction</span><span class="o">.</span><span class="n">DOWN</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_stop_at_current_floor_opens_doors</span><span class="p">():</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">Elevator</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">e</span><span class="o">.</span><span class="n">is_idle</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">e</span><span class="o">.</span><span class="n">state</span> <span class="ow">is</span> <span class="n">ElevatorState</span><span class="o">.</span><span class="n">DOORS_OPEN</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">floor</span> <span class="o">==</span> <span class="mi">4</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_add_stop_current_floor_while_doors_open_reopens</span><span class="p">():</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">Elevator</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>  <span class="c1"># closes</span>
+    <span class="k">assert</span> <span class="n">e</span><span class="o">.</span><span class="n">state</span> <span class="ow">is</span> <span class="n">ElevatorState</span><span class="o">.</span><span class="n">IDLE</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">stops</span> <span class="o">==</span> <span class="p">[</span><span class="mi">4</span><span class="p">]</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>  <span class="c1"># opens again</span>
+    <span class="k">assert</span> <span class="n">e</span><span class="o">.</span><span class="n">state</span> <span class="ow">is</span> <span class="n">ElevatorState</span><span class="o">.</span><span class="n">DOORS_OPEN</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">stops</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_full_trip_step_counts_and_idle_reset</span><span class="p">():</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">Elevator</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+    <span class="n">steps</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>   <span class="c1"># move</span>
+    <span class="n">steps</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>   <span class="c1"># open</span>
+    <span class="n">steps</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>   <span class="c1"># close</span>
+    <span class="k">assert</span> <span class="n">e</span><span class="o">.</span><span class="n">state</span> <span class="ow">is</span> <span class="n">ElevatorState</span><span class="o">.</span><span class="n">IDLE</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">direction</span> <span class="ow">is</span> <span class="n">Direction</span><span class="o">.</span><span class="n">UP</span>
+    <span class="k">assert</span> <span class="n">e</span><span class="o">.</span><span class="n">is_idle</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">e</span><span class="o">.</span><span class="n">direction</span> <span class="ow">is</span> <span class="n">Direction</span><span class="o">.</span><span class="n">IDLE</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_is_idle_false_while_stops_pending</span><span class="p">():</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">Elevator</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">e</span><span class="o">.</span><span class="n">is_idle</span>
+
+
+<span class="c1"># ---- LOOK ordering</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_serves_stops_in_upward_sweep</span><span class="p">():</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">Elevator</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">12</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">8</span><span class="p">):</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">opened</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">8</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_idle_tie_prefers_lower_floor</span><span class="p">():</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">Elevator</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="mi">8</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">opened</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">8</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_idle_goes_to_nearest_first</span><span class="p">():</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">Elevator</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="mi">9</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">opened</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="mi">4</span><span class="p">,</span> <span class="mi">9</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_keeps_direction_then_reverses</span><span class="p">():</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">Elevator</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">12</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="mi">6</span><span class="p">)</span>
+    <span class="n">steps</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>  <span class="c1"># at floor 3 heading up</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">opened</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="mi">4</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_downward_sweep_then_up</span><span class="p">():</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">Elevator</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
+    <span class="n">steps</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>  <span class="c1"># floor 8 going down</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="mi">9</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="mi">6</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">opened</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="mi">6</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">9</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_stop_added_on_passed_floor_waits_for_reversal</span><span class="p">():</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">Elevator</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">12</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+    <span class="n">steps</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>  <span class="c1"># floor 3</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">opened</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="mi">5</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_new_stop_ahead_is_served_in_passing</span><span class="p">():</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">Elevator</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">12</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="mi">9</span><span class="p">)</span>
+    <span class="n">steps</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">e</span><span class="o">.</span><span class="n">add_stop</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">opened</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="mi">4</span><span class="p">,</span> <span class="mi">9</span><span class="p">]</span>
+
+
+<span class="c1"># ---- strategies</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_strategy_is_abstract</span><span class="p">():</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">TypeError</span><span class="p">):</span>
+        <span class="n">SchedulingStrategy</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_nearest_picks_closest_idle</span><span class="p">():</span>
+    <span class="n">_</span><span class="p">,</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="o">=</span> <span class="n">make_ctrl</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">NearestElevatorStrategy</span><span class="p">()</span><span class="o">.</span><span class="n">select</span><span class="p">([</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">],</span> <span class="mi">8</span><span class="p">,</span> <span class="n">Direction</span><span class="o">.</span><span class="n">UP</span><span class="p">)</span> <span class="ow">is</span> <span class="n">b</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_nearest_tie_lowest_id</span><span class="p">():</span>
+    <span class="n">_</span><span class="p">,</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="o">=</span> <span class="n">make_ctrl</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">8</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">NearestElevatorStrategy</span><span class="p">()</span><span class="o">.</span><span class="n">select</span><span class="p">([</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">],</span> <span class="mi">5</span><span class="p">,</span> <span class="n">Direction</span><span class="o">.</span><span class="n">UP</span><span class="p">)</span> <span class="ow">is</span> <span class="n">a</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_nearest_prefers_idle_over_closer_opposite_mover</span><span class="p">():</span>
+    <span class="n">ctrl</span><span class="p">,</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="o">=</span> <span class="n">make_ctrl</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">9</span><span class="p">)</span>
+    <span class="n">ctrl</span><span class="o">.</span><span class="n">select_floor</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">a</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>  <span class="c1"># a at 4 heading DOWN</span>
+    <span class="k">assert</span> <span class="n">a</span><span class="o">.</span><span class="n">floor</span> <span class="o">==</span> <span class="mi">4</span> <span class="ow">and</span> <span class="n">a</span><span class="o">.</span><span class="n">direction</span> <span class="ow">is</span> <span class="n">Direction</span><span class="o">.</span><span class="n">DOWN</span>
+    <span class="k">assert</span> <span class="n">NearestElevatorStrategy</span><span class="p">()</span><span class="o">.</span><span class="n">select</span><span class="p">([</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">],</span> <span class="mi">6</span><span class="p">,</span> <span class="n">Direction</span><span class="o">.</span><span class="n">UP</span><span class="p">)</span> <span class="ow">is</span> <span class="n">b</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_nearest_picks_same_direction_approaching</span><span class="p">():</span>
+    <span class="n">ctrl</span><span class="p">,</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="o">=</span> <span class="n">make_ctrl</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span>
+    <span class="n">ctrl</span><span class="o">.</span><span class="n">select_floor</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">9</span><span class="p">)</span>
+    <span class="n">a</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>  <span class="c1"># a at 1 heading UP</span>
+    <span class="k">assert</span> <span class="n">NearestElevatorStrategy</span><span class="p">()</span><span class="o">.</span><span class="n">select</span><span class="p">([</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">],</span> <span class="mi">5</span><span class="p">,</span> <span class="n">Direction</span><span class="o">.</span><span class="n">UP</span><span class="p">)</span> <span class="ow">is</span> <span class="n">a</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_nearest_same_direction_but_already_passed_not_eligible</span><span class="p">():</span>
+    <span class="n">ctrl</span><span class="p">,</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="o">=</span> <span class="n">make_ctrl</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span>
+    <span class="n">ctrl</span><span class="o">.</span><span class="n">select_floor</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">9</span><span class="p">)</span>
+    <span class="n">steps</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="mi">7</span><span class="p">)</span>  <span class="c1"># at 7 heading UP; floor 5 already passed</span>
+    <span class="k">assert</span> <span class="n">NearestElevatorStrategy</span><span class="p">()</span><span class="o">.</span><span class="n">select</span><span class="p">([</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">],</span> <span class="mi">5</span><span class="p">,</span> <span class="n">Direction</span><span class="o">.</span><span class="n">UP</span><span class="p">)</span> <span class="ow">is</span> <span class="n">b</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_nearest_falls_back_to_all_when_none_eligible</span><span class="p">():</span>
+    <span class="n">ctrl</span><span class="p">,</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="o">=</span> <span class="n">make_ctrl</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">8</span><span class="p">)</span>
+    <span class="n">ctrl</span><span class="o">.</span><span class="n">select_floor</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">ctrl</span><span class="o">.</span><span class="n">select_floor</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">a</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+    <span class="n">b</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>  <span class="c1"># a at 4, b at 7, both DOWN</span>
+    <span class="k">assert</span> <span class="n">NearestElevatorStrategy</span><span class="p">()</span><span class="o">.</span><span class="n">select</span><span class="p">([</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">],</span> <span class="mi">6</span><span class="p">,</span> <span class="n">Direction</span><span class="o">.</span><span class="n">UP</span><span class="p">)</span> <span class="ow">is</span> <span class="n">b</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_least_loaded_strategy</span><span class="p">():</span>
+    <span class="n">ctrl</span><span class="p">,</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="o">=</span> <span class="n">make_ctrl</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="n">strategy</span><span class="o">=</span><span class="n">LeastLoadedStrategy</span><span class="p">())</span>
+    <span class="n">ctrl</span><span class="o">.</span><span class="n">select_floor</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+    <span class="n">ctrl</span><span class="o">.</span><span class="n">select_floor</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+    <span class="n">ctrl</span><span class="o">.</span><span class="n">select_floor</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">ctrl</span><span class="o">.</span><span class="n">request_pickup</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="n">Direction</span><span class="o">.</span><span class="n">DOWN</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>  <span class="c1"># 1 stop &lt; 2 stops</span>
+    <span class="n">ctrl2</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">make_ctrl</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="n">strategy</span><span class="o">=</span><span class="n">LeastLoadedStrategy</span><span class="p">())</span>
+    <span class="k">assert</span> <span class="n">ctrl2</span><span class="o">.</span><span class="n">request_pickup</span><span class="p">(</span><span class="mi">9</span><span class="p">,</span> <span class="n">Direction</span><span class="o">.</span><span class="n">UP</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>  <span class="c1"># tie 0/0 -&gt; nearer</span>
+
+
+<span class="c1"># ---- controller</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_controller_validation</span><span class="p">():</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">ElevatorController</span><span class="p">([])</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">ElevatorController</span><span class="p">([</span><span class="n">Elevator</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span> <span class="n">Elevator</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">)])</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_default_strategy_is_nearest</span><span class="p">():</span>
+    <span class="n">ctrl</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">make_ctrl</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ctrl</span><span class="o">.</span><span class="n">strategy</span><span class="p">,</span> <span class="n">NearestElevatorStrategy</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_request_pickup_returns_id_and_adds_stop</span><span class="p">():</span>
+    <span class="n">ctrl</span><span class="p">,</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="o">=</span> <span class="n">make_ctrl</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">15</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">ctrl</span><span class="o">.</span><span class="n">request_pickup</span><span class="p">(</span><span class="mi">14</span><span class="p">,</span> <span class="n">Direction</span><span class="o">.</span><span class="n">DOWN</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">b</span><span class="o">.</span><span class="n">stops</span> <span class="o">==</span> <span class="p">[</span><span class="mi">14</span><span class="p">]</span> <span class="ow">and</span> <span class="n">a</span><span class="o">.</span><span class="n">stops</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_request_pickup_validation</span><span class="p">():</span>
+    <span class="n">ctrl</span><span class="p">,</span> <span class="p">(</span><span class="n">a</span><span class="p">,)</span> <span class="o">=</span> <span class="n">make_ctrl</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">floors</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">InvalidFloorError</span><span class="p">):</span>
+        <span class="n">ctrl</span><span class="o">.</span><span class="n">request_pickup</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="n">Direction</span><span class="o">.</span><span class="n">UP</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">ctrl</span><span class="o">.</span><span class="n">request_pickup</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="n">Direction</span><span class="o">.</span><span class="n">IDLE</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">a</span><span class="o">.</span><span class="n">stops</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_select_floor</span><span class="p">():</span>
+    <span class="n">ctrl</span><span class="p">,</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="o">=</span> <span class="n">make_ctrl</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">floors</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+    <span class="n">ctrl</span><span class="o">.</span><span class="n">select_floor</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">7</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">b</span><span class="o">.</span><span class="n">stops</span> <span class="o">==</span> <span class="p">[</span><span class="mi">7</span><span class="p">]</span> <span class="ow">and</span> <span class="n">a</span><span class="o">.</span><span class="n">stops</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">UnknownElevatorError</span><span class="p">):</span>
+        <span class="n">ctrl</span><span class="o">.</span><span class="n">select_floor</span><span class="p">(</span><span class="mi">9</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">InvalidFloorError</span><span class="p">):</span>
+        <span class="n">ctrl</span><span class="o">.</span><span class="n">select_floor</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_get</span><span class="p">():</span>
+    <span class="n">ctrl</span><span class="p">,</span> <span class="p">(</span><span class="n">a</span><span class="p">,)</span> <span class="o">=</span> <span class="n">make_ctrl</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">ctrl</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="ow">is</span> <span class="n">a</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">UnknownElevatorError</span><span class="p">):</span>
+        <span class="n">ctrl</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_custom_strategy_is_used</span><span class="p">():</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">Last</span><span class="p">(</span><span class="n">SchedulingStrategy</span><span class="p">):</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">select</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">elevators</span><span class="p">,</span> <span class="n">floor</span><span class="p">,</span> <span class="n">direction</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">elevators</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="n">ctrl</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">make_ctrl</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">strategy</span><span class="o">=</span><span class="n">Last</span><span class="p">())</span>
+    <span class="k">assert</span> <span class="n">ctrl</span><span class="o">.</span><span class="n">request_pickup</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">Direction</span><span class="o">.</span><span class="n">UP</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="n">ctrl</span><span class="o">.</span><span class="n">strategy</span> <span class="o">=</span> <span class="n">NearestElevatorStrategy</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">ctrl</span><span class="o">.</span><span class="n">request_pickup</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">Direction</span><span class="o">.</span><span class="n">UP</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_controller_step_moves_all_and_is_idle</span><span class="p">():</span>
+    <span class="n">ctrl</span><span class="p">,</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="o">=</span> <span class="n">make_ctrl</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="n">floors</span><span class="o">=</span><span class="mi">15</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">ctrl</span><span class="o">.</span><span class="n">is_idle</span><span class="p">()</span>
+    <span class="n">ctrl</span><span class="o">.</span><span class="n">select_floor</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">ctrl</span><span class="o">.</span><span class="n">select_floor</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">7</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">ctrl</span><span class="o">.</span><span class="n">is_idle</span><span class="p">()</span>
+    <span class="n">ctrl</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">floor</span><span class="p">,</span> <span class="n">b</span><span class="o">.</span><span class="n">floor</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">9</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">50</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">ctrl</span><span class="o">.</span><span class="n">is_idle</span><span class="p">():</span>
+            <span class="k">break</span>
+        <span class="n">ctrl</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">ctrl</span><span class="o">.</span><span class="n">is_idle</span><span class="p">()</span> <span class="ow">and</span> <span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">floor</span><span class="p">,</span> <span class="n">b</span><span class="o">.</span><span class="n">floor</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">7</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_end_to_end_two_cars</span><span class="p">():</span>
+    <span class="n">ctrl</span><span class="p">,</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="o">=</span> <span class="n">make_ctrl</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">ctrl</span><span class="o">.</span><span class="n">request_pickup</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="n">Direction</span><span class="o">.</span><span class="n">UP</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">ctrl</span><span class="o">.</span><span class="n">request_pickup</span><span class="p">(</span><span class="mi">18</span><span class="p">,</span> <span class="n">Direction</span><span class="o">.</span><span class="n">DOWN</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="n">ctrl</span><span class="o">.</span><span class="n">select_floor</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">12</span><span class="p">)</span>
+    <span class="n">seen</span> <span class="o">=</span> <span class="p">{</span><span class="mi">1</span><span class="p">:</span> <span class="p">[],</span> <span class="mi">2</span><span class="p">:</span> <span class="p">[]}</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">100</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">ctrl</span><span class="o">.</span><span class="n">is_idle</span><span class="p">():</span>
+            <span class="k">break</span>
+        <span class="n">ctrl</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">state</span> <span class="ow">is</span> <span class="n">ElevatorState</span><span class="o">.</span><span class="n">DOORS_OPEN</span><span class="p">:</span>
+                <span class="n">seen</span><span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">elevator_id</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">floor</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">seen</span> <span class="o">==</span> <span class="p">{</span><span class="mi">1</span><span class="p">:</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">12</span><span class="p">],</span> <span class="mi">2</span><span class="p">:</span> <span class="p">[</span><span class="mi">18</span><span class="p">]}</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../11-lld/problem-03-elevator-system/exercises.py.html">← Problem 3 · Elevator system: Exercises (code)</a><a class="next" href="../../11-lld/problem-04-vending-machine/lesson.html">Problem 4 · Vending machine: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

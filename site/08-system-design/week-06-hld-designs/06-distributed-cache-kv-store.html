@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HLD 6 - Distributed Cache / Key-Value Store | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="08-system-design/week-06-hld-designs/06-distributed-cache-kv-store" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../08-system-design/README.html">System Design</a> / <a href="../../08-system-design/week-06-hld-designs/framework.html">Week 6 · HLD designs</a> / <span>HLD 6 - Distributed Cache / Key-Value Store</span></nav><button id="mark-done" data-id="08-system-design/week-06-hld-designs/06-distributed-cache-kv-store">Mark as done</button></div><article class="doc">
+<h1 id="hld-6-distributed-cache-key-value-store">HLD 6 - Distributed Cache / Key-Value Store</h1>
+<p>Background: <a href="../week-01-fundamentals/lesson.html">caching</a>, <a href="../week-02-data-storage/lesson.html">replication, sharding, consistent hashing, quorum</a>, <a href="../week-04-distributed-algorithms/lesson.html">gossip, failure detection, Raft</a>. Framework: <a href="framework.html">framework.md</a>.</p>
+<p>First ask: <strong>cache (Redis/Memcached-like, memory, lossy OK) or durable KV store (Dynamo/Cassandra-like)?</strong> Clarify; this design covers a Dynamo-style sharded replicated store with a cache mode noted where it differs.</p>
+<h2 id="1-requirements">1. Requirements</h2>
+<p>Functional: <code>get(key)</code>, <code>put(key, value, ttl?)</code>, <code>delete(key)</code>; values up to ~1 MB (typically &lt; 10 KB); optional CAS/increment.
+Non-functional: low latency (p99 &lt; 10 ms), high availability (tolerate node and AZ loss), horizontal scale, tunable consistency, automatic rebalancing. Cache mode: eviction (LRU/LFU), TTL, loss acceptable.</p>
+<h2 id="2-estimate">2. Estimate</h2>
+<ul>
+<li>10 TB of data, avg value 2 KB -&gt; 5 B keys. With RF=3 -&gt; 30 TB raw. At ~1 TB usable/node (SSD) -&gt; ~30 nodes; memory-only at 128 GB/node -&gt; ~240 nodes (hence caches hold hot subsets).</li>
+<li>1M ops/s, 90% reads, one node handles ~50-100k simple ops/s (hardware dependent) -&gt; need &gt;= 20 nodes for throughput anyway; plan ~40 for headroom (target 50% utilization).</li>
+<li>Network: 1M ops/s x 2 KB = 2 GB/s ~ 16 Gbps aggregate across the cluster, fine spread over nodes.</li>
+</ul>
+<h2 id="3-api">3. API</h2>
+<div class="highlight"><pre><span></span><code>GET    /kv/{key}               -&gt; 200 {value, version} | 404
+PUT    /kv/{key}  {value, ttl, if_version?}  -&gt; 200 {version} | 409
+DELETE /kv/{key}
+</code></pre></div>
+
+<p>Client library does routing (smart client) or any node can coordinate (Dynamo/Cassandra). Binary protocol in practice.</p>
+<h2 id="4-data-model">4. Data model</h2>
+<p><code>key -&gt; (value bytes, version/vector clock or timestamp, ttl, tombstone flag)</code>.
+Storage engine per node: in-memory hash table (cache) or LSM tree (memtable + WAL + SSTables + compaction; write-optimized, as in Cassandra/RocksDB) vs B-tree (read-optimized).</p>
+<h2 id="5-architecture">5. Architecture</h2>
+<div class="highlight"><pre><span></span><code> Client lib / coordinator
+      | hash(key)
+      v
+   Consistent-hash ring with virtual nodes (e.g. 256 vnodes/node)
+   key K -&gt; first N=3 distinct physical nodes clockwise (preference list)
+
+        [Node A]----[Node B]----[Node C] ...   gossip (membership, health)
+          | WAL + memtable -&gt; SSTables (LSM)
+          | hinted handoff, read repair, anti-entropy (Merkle trees)
+
+ Write: coordinator -&gt; N replicas in parallel; ack after W succeed
+ Read : coordinator -&gt; R replicas; return newest; repair stale ones
+ Quorum: R + W &gt; N  (N=3,W=2,R=2) gives overlap
+</code></pre></div>
+
+<h2 id="6-deep-dives">6. Deep dives</h2>
+<p><strong>Partitioning.</strong> Consistent hashing with virtual nodes: adding/removing a node moves ~1/N of keys; vnodes smooth load and let heterogeneous hardware take proportional shares. Alternative: fixed number of hash slots (Redis Cluster uses 16384) mapped to nodes - simpler rebalancing by moving slots.
+<strong>Replication and consistency.</strong> Leaderless quorum (Dynamo/Cassandra): tunable N/R/W. Leader-per-shard with Raft/Paxos (etcd, Spanner, CockroachDB): linearizable but a leader election pause on failure. Choose by requirement (AP vs CP; see CAP/PACELC in week 2).
+<strong>Conflicts.</strong> Concurrent writes to the same key on different replicas: last-write-wins by timestamp (simple, can lose writes, clock skew) vs vector clocks returning siblings to the client (Dynamo) vs CRDTs for counters/sets.
+<strong>Failure handling.</strong> Failure detection via gossip + phi-accrual. Sloppy quorum + hinted handoff: write to a stand-in node and hand back later. Read repair fixes stale replicas on read; Merkle-tree anti-entropy fixes cold data in background. Permanent loss: re-replicate from surviving replicas (streaming).
+<strong>Hot keys.</strong> One key can saturate a shard. Mitigations: client-side/near cache, replicate hot key to more nodes, key splitting (<code>key#0..k</code> for counters), request coalescing.
+<strong>Cache mode specifics.</strong> Eviction (LRU approximate sampling as Redis, LFU, TinyLFU admission), TTL with lazy + active expiry, memory fragmentation. Patterns: cache-aside, stampede protection (single flight, locks, probabilistic early refresh, jittered TTL). Warm-up after restart. Persistence optional (snapshot/AOF) - state your durability stance.
+<strong>Rebalancing.</strong> Join: new node bootstraps ranges via streaming while old owners still serve; throttle to protect foreground traffic. Avoid moving everything at once; one node at a time.
+<strong>Durability.</strong> WAL fsync policy (every write vs every second) is a latency/durability tradeoff. Multi-AZ replica placement (rack/AZ aware) so a preference list never sits in one AZ.
+<strong>Multi-region.</strong> Async cross-region replication (LWW or CRDT) vs synchronous consensus (Spanner-style, higher write latency); check current vendor docs for global-table semantics.</p>
+<h2 id="7-bottlenecks-and-failure-modes">7. Bottlenecks and failure modes</h2>
+<ul>
+<li>Hot shard/key; large values blocking the event loop; compaction storms causing latency spikes; GC pauses (JVM) mimic failures -&gt; false suspicion; split brain under partition (quorum prevents conflicting majorities); tombstone buildup; cascading rebalancing during overload; thundering herd on cache miss after node loss (cold cache hits DB).</li>
+</ul>
+<h2 id="8-tradeoffs">8. Tradeoffs</h2>
+<ul>
+<li>CP (linearizable, unavailable minority side) vs AP (always writable, reconcile later).</li>
+<li>Smart client (fewer hops, harder upgrades) vs proxy/coordinator (simple clients, extra hop).</li>
+<li>Memory (fast, expensive, volatile) vs SSD LSM (cheaper, higher tail latency).</li>
+<li>LWW (simple) vs vector clocks (correct, burdens client).</li>
+<li>Higher RF (durability, cost, write amplification).</li>
+</ul>
+<h2 id="9-what-to-say-out-loud">9. What to say out loud</h2>
+<p>"First: cache or durable store? I will design a Dynamo-style store. I partition with consistent hashing and virtual nodes, replicate to N=3 across AZs, and use quorums with R+W&gt;N for tunable consistency. Failures are handled by gossip detection, hinted handoff, read repair and Merkle anti-entropy. Conflicts use LWW by default; I would note its data-loss risk and offer vector clocks or CRDTs. Hot keys are my main operational concern."</p>
+<h2 id="10-follow-ups">10. Follow-ups</h2>
+<ul>
+<li>Walk through a node failure during a write at W=2. (hinted handoff, sloppy quorum)</li>
+<li>How do you guarantee read-your-writes? (R+W&gt;N, sticky routing, version tokens)</li>
+<li>How would you add transactions? (per-key CAS cheap; multi-key needs consensus/2PC; see week 4)</li>
+<li>Why can quorum reads still return stale data? (sloppy quorums, concurrent writes, failed partial writes)</li>
+<li>How is this different from Redis Cluster? (slots, async replication, leader per shard, can lose acked writes on failover)</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../../08-system-design/week-06-hld-designs/05-notification-service.html">← Week 6 · HLD designs: Notification service</a><a class="next" href="../../08-system-design/week-06-hld-designs/07-ride-hailing-dispatch.html">Week 6 · HLD designs: Ride-hailing dispatch →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

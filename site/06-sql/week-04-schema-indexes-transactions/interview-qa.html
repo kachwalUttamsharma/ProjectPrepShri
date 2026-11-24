@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 4 interview Q&amp;A: schema design, indexes, transactions | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="06-sql/week-04-schema-indexes-transactions/interview-qa" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../06-sql/week-04-schema-indexes-transactions/lesson.html">Week 4 · Schema, indexes, transactions</a> / <span>Interview Q&amp;A</span></nav><button id="mark-done" data-id="06-sql/week-04-schema-indexes-transactions/interview-qa">Mark as done</button></div><article class="doc">
+<h1 id="week-4-interview-qa-schema-design-indexes-transactions">Week 4 interview Q&amp;A: schema design, indexes, transactions</h1>
+<p><strong>1. Primary key vs unique key vs foreign key?</strong>
+PK: uniquely identifies a row, NOT NULL, one per table. UNIQUE: no duplicates among non-NULL values, many per table. FK: column(s) that must match an existing key in another table (or be NULL), enforcing referential integrity with a chosen ON DELETE action.</p>
+<p><strong>2. Natural vs surrogate keys?</strong>
+Natural keys are real attributes (email, ISBN) and can change or be non-unique in practice. Surrogate keys (auto-increment, UUID) are stable and compact. Common compromise: surrogate PK + UNIQUE constraint on the natural key. UUIDs avoid central coordination but fragment B-tree indexes if random (prefer time-ordered UUIDs like UUIDv7).</p>
+<p><strong>3. Explain 1NF, 2NF, 3NF in one sentence each.</strong>
+1NF: atomic values and no repeating groups. 2NF: no non-key attribute depends on part of a composite key. 3NF: no non-key attribute depends on another non-key attribute: "the key, the whole key and nothing but the key".</p>
+<p><strong>4. Why normalise? Why denormalise?</strong>
+Normalising removes redundancy and update/insert/delete anomalies, improves integrity. Denormalising (copied columns, counters, summary tables, star schemas) speeds reads and avoids joins at the cost of extra writes and potential inconsistency, so do it with measurements, and keep a source of truth.</p>
+<p><strong>5. How do you model a many-to-many relationship?</strong>
+A junction table with FKs to both sides and a composite PK (or a UNIQUE pair) preventing duplicates, plus any relationship attributes (enrolled_on, role, quantity).</p>
+<p><strong>6. What does an index do and what does it cost?</strong>
+A sorted B-tree structure that finds rows in O(log n) without scanning, and supports range queries and ordered output. Costs: disk space, slower INSERT/UPDATE/DELETE (every index maintained), more planner choices and write amplification.</p>
+<p><strong>7. Composite index (a, b, c): which queries can use it?</strong>
+Filters on <code>a</code>, <code>a,b</code>, <code>a,b,c</code> (leftmost prefix), and <code>a</code> equality plus range on <code>b</code>. A filter only on <code>b</code> or <code>c</code> cannot seek. Put equality columns first, then the range or sort column; after a range column the following columns cannot be used for seeking.</p>
+<p><strong>8. What is a covering index?</strong>
+An index that contains every column the query reads, so the engine never visits the table (SQLite "COVERING INDEX", PG "Index Only Scan", MySQL "Using index"). Trade-off: bigger index, more write cost.</p>
+<p><strong>9. Why might the database ignore an index?</strong>
+Function/expression on the column, implicit type cast, leading wildcard LIKE, low selectivity (planner decides a scan is cheaper), tiny table, OR conditions, stale statistics, non-leftmost column of a composite, or the query returns most of the table anyway.</p>
+<p><strong>10. Clustered vs non-clustered index?</strong>
+Clustered: table rows are stored in index order (InnoDB PK; SQLite rowid tables), one per table; lookups by PK hit the data directly. Non-clustered/secondary: separate structure storing key + pointer (PK or row id); needs an extra lookup unless covering. PG heap tables have only secondary indexes (CLUSTER is a one-time sort).</p>
+<p><strong>11. How do you find why a query is slow?</strong>
+Run EXPLAIN (ANALYZE in PG/MySQL 8.0.18+): look for full scans on large tables, sorts/temp tables, bad join order or estimates far from actual rows, large rows removed by filter. Then fix with an index, query rewrite (sargable predicates), pre-aggregation, or statistics refresh. Verify with timing and the plan afterwards.</p>
+<p><strong>12. Explain ACID.</strong>
+Atomicity (all-or-nothing, undo/rollback), Consistency (constraints and invariants hold across the transaction), Isolation (concurrent transactions do not interfere beyond what the level allows), Durability (committed data survives crashes via WAL/fsync).</p>
+<p><strong>13. List the isolation levels and anomalies each one prevents.</strong>
+READ UNCOMMITTED: nothing (dirty reads possible). READ COMMITTED: prevents dirty reads. REPEATABLE READ: also non-repeatable reads (phantoms depend on engine). SERIALIZABLE: also phantoms and write skew; behaves as if transactions ran one at a time.</p>
+<p><strong>14. What is MVCC?</strong>
+Multi-version concurrency control: writers create new row versions while readers keep reading the version visible to their snapshot, so readers do not block writers. Old versions are reclaimed later (PG VACUUM, InnoDB purge). Cost: bloat and long-transaction problems.</p>
+<p><strong>15. What are the defaults in Postgres, MySQL and SQLite?</strong>
+PG: READ COMMITTED. MySQL InnoDB: REPEATABLE READ. SQLite: effectively SERIALIZABLE (single writer; in WAL mode readers see a snapshot and do not block the writer).</p>
+<p><strong>16. What is a deadlock and how do you handle it?</strong>
+Two or more transactions each hold a lock the other needs. The DB detects the cycle and aborts a victim. Handle: catch the error and retry; prevent via consistent lock ordering, short transactions, fewer rows locked, proper indexes on updated/locked columns.</p>
+<p><strong>17. Two users try to buy the last item simultaneously. How do you prevent overselling?</strong>
+Make the check and the decrement a single atomic statement: <code>UPDATE inventory SET stock = stock - 1 WHERE id = ? AND stock &gt; 0</code> and check rowcount; or <code>SELECT ... FOR UPDATE</code> in a transaction; or optimistic version check with retry; plus a <code>CHECK (stock &gt;= 0)</code> as the backstop. A read-then-write in application code is a race.</p>
+<p><strong>18. What is a lost update and how do you prevent it?</strong>
+Two transactions read the same value and both write based on it; one write overwrites the other. Fix with atomic updates (<code>x = x + 1</code>), row locks, optimistic locking (version column), SERIALIZABLE/REPEATABLE READ with retry (PG aborts the second writer).</p>
+<p><strong>19. What is write skew?</strong>
+Each of two concurrent transactions reads an overlapping set, then updates different rows so that together they violate an invariant (e.g. both doctors go off-call). Snapshot isolation allows it; SERIALIZABLE, explicit locking of the read set, or a constraint prevents it.</p>
+<p><strong>20. Optimistic vs pessimistic locking?</strong>
+Pessimistic: lock rows up front (<code>FOR UPDATE</code>) so others wait; good under high contention, risk of blocking/deadlocks. Optimistic: no lock, detect conflict at write time via version/timestamp and retry; best when conflicts are rare and transactions are long (user think time).</p>
+<p><strong>21. SQL vs NoSQL: how do you choose?</strong>
+Start from access patterns, consistency and scale. Relational for structured data, joins, transactions, ad-hoc queries (default). NoSQL when you need horizontal write scale, key-based access at very low latency, flexible documents, graph/time-series shapes, and can accept limited joins/transactions and eventual consistency. Many systems use both (Postgres + Redis + a warehouse).</p>
+<p><strong>22. OLTP vs OLAP?</strong>
+OLTP: many short transactions touching few rows, normalised row stores with B-trees, latency-sensitive. OLAP: few large scans/aggregations, columnar storage, denormalised star schemas, batch loading. Keep analytics off the OLTP primary (replica or warehouse via ETL/CDC).</p>
+<p><strong>23. How would you add a NOT NULL column to a 500M-row production table safely?</strong>
+Add it nullable (or with a constant default on engines where that is metadata-only, e.g. PG 11+), backfill in small batches, add the NOT NULL/CHECK constraint (in PG as NOT VALID then VALIDATE), deploy code that writes the column before and reads after. Avoid long exclusive locks; test the migration on a copy.</p>
+<p><strong>24. Why must you use parameterised queries?</strong>
+To prevent SQL injection and let the driver/DB reuse plans. Values go through placeholders (<code>?</code>, <code>:name</code>, <code>%s</code>); identifiers (table/column names) cannot be parameterised, so whitelist them.</p>
+<p><strong>25. Name three differences between SQLite and Postgres that could bite you.</strong>
+Dynamic typing (affinity) vs strict types; foreign keys off by default in SQLite; single-writer locking vs MVCC concurrency; weaker ALTER TABLE; no real user/permission model; some functions (date handling) differ. Prototyping in SQLite and deploying on Postgres requires testing the real engine.</p>
+</article><div class="pager"><a class="prev" href="../../06-sql/week-04-schema-indexes-transactions/lesson.html">← Week 4 · Schema, indexes, transactions: Lesson</a><a class="next" href="../../06-sql/week-04-schema-indexes-transactions/exercises.py.html">Week 4 · Schema, indexes, transactions: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

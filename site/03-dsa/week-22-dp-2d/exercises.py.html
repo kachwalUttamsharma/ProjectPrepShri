@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-22-dp-2d/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-22-dp-2d/lesson.html">Week 22 · 2-D dynamic programming</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="03-dsa/week-22-dp-2d/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>03-dsa/week-22-dp-2d/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 22 exercises: 2-D dynamic programming. Replace each `...` with your code."""</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">unique_paths</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Robot starts top-left of an m x n grid, moves only right or down.</span>
+<span class="sd">    Return the number of paths to the bottom-right.</span>
+
+<span class="sd">    unique_paths(3, 7) -&gt; 28</span>
+<span class="sd">    unique_paths(1, 5) -&gt; 1</span>
+<span class="sd">    Expected: O(m*n) time, O(n) space.</span>
+<span class="sd">    Hint: dp[r][c] = dp[r-1][c] + dp[r][c-1]. Only the previous row is needed.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">min_path_sum</span><span class="p">(</span><span class="n">grid</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Min sum of a path from top-left to bottom-right moving right/down.</span>
+<span class="sd">    Empty grid -&gt; 0.</span>
+
+<span class="sd">    [[1,3,1],[1,5,1],[4,2,1]] -&gt; 7</span>
+<span class="sd">    Expected: O(m*n) time, O(n) space.</span>
+<span class="sd">    Hint: first row/column have only one way to be reached.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">unique_paths_with_obstacles</span><span class="p">(</span><span class="n">grid</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Like unique_paths but cells with 1 are obstacles (0 = free).</span>
+<span class="sd">    Return number of paths; 0 if start or end is blocked.</span>
+
+<span class="sd">    [[0,0,0],[0,1,0],[0,0,0]] -&gt; 2</span>
+<span class="sd">    [[1]] -&gt; 0</span>
+<span class="sd">    Expected: O(m*n) time, O(n) space.</span>
+<span class="sd">    Hint: an obstacle cell has dp = 0.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">longest_common_subsequence</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Length of the longest common subsequence of strings a and b.</span>
+
+<span class="sd">    ("abcde", "ace") -&gt; 3</span>
+<span class="sd">    ("abc", "def") -&gt; 0</span>
+<span class="sd">    Expected: O(len(a)*len(b)) time, O(min) space possible.</span>
+<span class="sd">    Hint: dp[i][j] for prefixes a[:i], b[:j]. Match -&gt; 1 + dp[i-1][j-1];</span>
+<span class="sd">    else max(dp[i-1][j], dp[i][j-1]).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">edit_distance</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Min insert/delete/replace operations to turn a into b.</span>
+
+<span class="sd">    ("horse", "ros") -&gt; 3</span>
+<span class="sd">    ("", "abc") -&gt; 3</span>
+<span class="sd">    Expected: O(len(a)*len(b)) time.</span>
+<span class="sd">    Hint: dp[i][0] = i, dp[0][j] = j. On mismatch take 1 + min(replace, delete, insert).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">knapsack_01</span><span class="p">(</span><span class="n">weights</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">capacity</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""0/1 knapsack: each item used at most once. Return max total value</span>
+<span class="sd">    with total weight &lt;= capacity.</span>
+
+<span class="sd">    weights=[1,3,4,5], values=[1,4,5,7], capacity=7 -&gt; 9</span>
+<span class="sd">    Expected: O(n*capacity) time, O(capacity) space.</span>
+<span class="sd">    Hint: 1-D dp, iterate capacity DOWNWARD so an item is not reused.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">can_partition</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Can nums (positive ints) be split into two subsets with equal sum?</span>
+
+<span class="sd">    [1,5,11,5] -&gt; True</span>
+<span class="sd">    [1,2,3,5] -&gt; False</span>
+<span class="sd">    Expected: O(n*sum) time, O(sum) space.</span>
+<span class="sd">    Hint: subset-sum to target = total/2; odd total -&gt; False immediately.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">maximal_square</span><span class="p">(</span><span class="n">matrix</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Matrix of '0'/'1' strings. Return the AREA of the largest square of all '1's.</span>
+
+<span class="sd">    [["1","0","1","0","0"],["1","0","1","1","1"],["1","1","1","1","1"],["1","0","0","1","0"]] -&gt; 4</span>
+<span class="sd">    Expected: O(m*n) time.</span>
+<span class="sd">    Hint: dp[r][c] = side of largest square ending at (r,c) as bottom-right:</span>
+<span class="sd">    1 + min(up, left, up-left) when cell is '1'.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">coin_change_ways</span><span class="p">(</span><span class="n">amount</span><span class="p">,</span> <span class="n">coins</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Number of combinations (order does not matter) of coins (unlimited use)</span>
+<span class="sd">    summing to amount. amount 0 -&gt; 1.</span>
+
+<span class="sd">    (5, [1,2,5]) -&gt; 4</span>
+<span class="sd">    (3, [2]) -&gt; 0</span>
+<span class="sd">    Expected: O(amount * len(coins)) time, O(amount) space.</span>
+<span class="sd">    Hint: loop coins OUTER, amounts inner (ascending) to count combinations,</span>
+<span class="sd">    not permutations.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">longest_palindromic_subsequence</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Length of the longest palindromic SUBSEQUENCE of s. Empty -&gt; 0.</span>
+
+<span class="sd">    "bbbab" -&gt; 4</span>
+<span class="sd">    "cbbd" -&gt; 2</span>
+<span class="sd">    Expected: O(n^2) time.</span>
+<span class="sd">    Hint: interval DP dp[i][j]; or LCS(s, reversed s).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-22-dp-2d/lesson.html">← Week 22 · 2-D dynamic programming: Lesson</a><a class="next" href="../../03-dsa/week-22-dp-2d/test_exercises.py.html">Week 22 · 2-D dynamic programming: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

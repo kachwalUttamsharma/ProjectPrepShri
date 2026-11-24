@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 4 - Distributed Algorithms: Consensus, Time, Coordination, Probabilistic Structures | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="08-system-design/week-04-distributed-algorithms/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../08-system-design/README.html">System Design</a> / <a href="../../08-system-design/week-04-distributed-algorithms/lesson.html">Week 4 · Distributed algorithms</a> / <span>Lesson</span></nav><button id="mark-done" data-id="08-system-design/week-04-distributed-algorithms/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-4-distributed-algorithms-consensus-time-coordination-probabilistic-structures">Week 4 - Distributed Algorithms: Consensus, Time, Coordination, Probabilistic Structures</h1>
+<p>Time budget: ~3 hrs. Read lesson (1.5h), Q&amp;A aloud (1h), cheatsheet (30 min).
+Numbers marked "(check current docs)" change over time; verify before quoting.
+Prereqs: Week 2 (replication, quorums, CAP/PACELC) and Week 3 (queues, idempotency). AWS cross-links: <code>../../07-aws/week-03-storage-databases</code> (DynamoDB, Aurora), <code>../../07-aws/week-05-integration-ops-security</code> (Step Functions = saga orchestrator, SQS/SNS).</p>
+<hr />
+<h2 id="0-why-distributed-algorithms-are-hard">0. Why distributed algorithms are hard</h2>
+<p>Three facts that make everything in this week necessary:</p>
+<ol>
+<li><strong>Partial failure</strong>: some nodes die while others keep running. A single machine is usually all-up or all-down.</li>
+<li><strong>Unbounded delay / no shared clock</strong>: you cannot distinguish "slow" from "dead". A timeout is a <em>guess</em>.</li>
+<li><strong>No shared memory</strong>: nodes only learn about each other via messages, which can be lost, duplicated, delayed, reordered.</li>
+</ol>
+<div class="highlight"><pre><span></span><code> Client --request--&gt; Node A ---(no reply within 1s)---&gt; ???
+   Possibilities: (a) A crashed before processing
+                  (b) A processed it, reply was lost
+                  (c) A is just slow (GC pause, network congestion)
+   You cannot tell (b) from (a). =&gt; idempotency + consensus + careful protocols.
+</code></pre></div>
+
+<p>System models you should name: <strong>crash-stop</strong> (nodes die and stay dead), <strong>crash-recovery</strong> (nodes restart, keep disk), <strong>Byzantine</strong> (nodes lie; blockchains, not typical datacenter systems). Network models: <strong>synchronous</strong> (bounded delay), <strong>partially synchronous</strong> (usually bounded - what Raft/Paxos assume for liveness), <strong>asynchronous</strong> (no bounds). </p>
+<p><strong>FLP impossibility (1985)</strong>: in a purely asynchronous network, no deterministic consensus algorithm can guarantee termination if even one node may crash. Practical systems sidestep this: Paxos/Raft always stay <em>safe</em> (never disagree) but may lose <em>liveness</em> (stall) during bad network periods; they use timeouts and randomization to make progress in practice.</p>
+<hr />
+<h2 id="1-consensus">1. Consensus</h2>
+<h3 id="11-the-problem">1.1 The problem</h3>
+<p>Get N nodes to agree on a value (or an ordered sequence of values) even though some fail. Properties:</p>
+<ul>
+<li><strong>Agreement</strong>: no two nodes decide different values.</li>
+<li><strong>Validity</strong>: the decided value was proposed by someone.</li>
+<li><strong>Termination</strong>: every non-faulty node eventually decides (liveness).</li>
+<li><strong>Integrity</strong>: decide at most once.</li>
+</ul>
+<p>Why you care: "who is leader?", "what is the next log entry?", "who holds this lock?", "what is the committed config?" are all consensus problems. Replicated state machines: if every replica applies the same log in the same order to a deterministic state machine, they end in the same state.</p>
+<div class="highlight"><pre><span></span><code> clients --&gt; [Leader] --append entry--&gt; [Follower 1]
+                |                       [Follower 2]
+                |   entry committed when a MAJORITY has stored it
+                v
+          apply to state machine (KV store, lock table, metadata)
+</code></pre></div>
+
+<h3 id="12-majority-quorums-the-core-trick">1.2 Majority quorums: the core trick</h3>
+<p>With N = 2f+1 nodes, any two majorities (f+1) overlap in at least one node. So a decision made by a majority will be seen by any later majority. Tolerates f failures.</p>
+<table>
+<thead>
+<tr>
+<th>Nodes N</th>
+<th>Majority</th>
+<th>Failures tolerated</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>3</td>
+<td>2</td>
+<td>1</td>
+</tr>
+<tr>
+<td>5</td>
+<td>3</td>
+<td>2</td>
+</tr>
+<tr>
+<td>7</td>
+<td>4</td>
+<td>3</td>
+</tr>
+</tbody>
+</table>
+<p>Even sizes are wasteful: 4 nodes tolerate 1 (same as 3), 6 tolerate 2 (same as 5). Production clusters (etcd, ZooKeeper, Consul servers) use 3 or 5. More nodes = slower writes (more acks) and no extra throughput; reads can scale only via followers with relaxed guarantees.</p>
+<h3 id="13-paxos-intuition-single-decree">1.3 Paxos intuition (single-decree)</h3>
+<p>Roles: proposers, acceptors, learners (often one node plays all). Two phases:</p>
+<div class="highlight"><pre><span></span><code> Phase 1 (Prepare/Promise)
+   Proposer picks unique, increasing proposal number n.
+   Proposer --Prepare(n)--&gt; acceptors
+   Acceptor: if n &gt; any n it has promised, PROMISE not to accept proposals &lt; n,
+             and report the highest-numbered proposal it already ACCEPTED (if any).
+ Phase 2 (Accept/Accepted)
+   If proposer got promises from a majority:
+      value = value of highest-numbered accepted proposal reported, ELSE its own value
+   Proposer --Accept(n, value)--&gt; acceptors
+   Acceptor accepts unless it promised a higher n.
+   Value is CHOSEN once a majority accepted the same (n, value).
+</code></pre></div>
+
+<p>Key intuition: phase 1 <em>discovers</em> anything that might already have been chosen and forces the new proposer to adopt it - this is why safety holds. Dueling proposers can livelock (each preempts the other); fix by electing a stable leader (<strong>Multi-Paxos</strong>: run phase 1 once, then stream phase-2 accepts for many log slots). Paxos is notoriously hard to implement from the paper; real systems (Chubby, Spanner, Megastore) use Multi-Paxos variants. You rarely need to recite it; you need the intuition: <strong>majorities overlap + higher number wins + adopt prior accepted value</strong>.</p>
+<h3 id="14-raft-understandable-consensus">1.4 Raft (understandable consensus)</h3>
+<p>Raft decomposes consensus into leader election, log replication, and safety. Used by etcd, Consul, CockroachDB (per range), TiKV, Kafka KRaft (controller quorum), RabbitMQ quorum queues.</p>
+<p>Node states: <strong>Follower</strong>, <strong>Candidate</strong>, <strong>Leader</strong>. Time is divided into <strong>terms</strong> (monotonic integers; a term has at most one leader).</p>
+<div class="highlight"><pre><span></span><code>        timeout, no heartbeat           wins majority votes
+ Follower ---------------&gt; Candidate ---------------------&gt; Leader
+    ^                         | ^  timeout / split vote:      |
+    |   sees higher term      | +-- new election, new term    |
+    +-------------------------+&lt;--------- sees higher term ---+
+</code></pre></div>
+
+<p><strong>Leader election</strong></p>
+<ul>
+<li>Followers expect heartbeats (AppendEntries) from the leader. If an <strong>election timeout</strong> (randomized, e.g. 150-300 ms typical; check current docs for etcd defaults) passes, a follower becomes a candidate: increments term, votes for itself, sends RequestVote.</li>
+<li>A node votes for at most one candidate per term, and only if the candidate's log is <strong>at least as up-to-date</strong> (compare last log term, then last index). This guarantees the winner has all committed entries.</li>
+<li>Majority of votes -&gt; leader. Randomized timeouts make split votes rare and quickly resolved.</li>
+</ul>
+<p><strong>Log replication</strong></p>
+<div class="highlight"><pre><span></span><code> index:     1   2   3   4   5
+ Leader:  [t1][t1][t2][t2][t3]      &lt;- leader appends, sends AppendEntries(prevIndex, prevTerm, entries)
+ Foll A:  [t1][t1][t2][t2][t3]      &lt;- consistency check passes, appends
+ Foll B:  [t1][t1][t2]              &lt;- lagging; leader backs up nextIndex and resends
+ Foll C:  [t1][t1][t2][t2']         &lt;- diverged (old leader's uncommitted entry): overwritten by leader
+ commitIndex = 4 once a majority (Leader, A, + one more having 4) stored index 4 in the CURRENT term rules
+</code></pre></div>
+
+<ul>
+<li>Entry is <strong>committed</strong> when stored on a majority; leader then applies it and tells followers via commitIndex.</li>
+<li>Raft never commits entries from previous terms by counting replicas alone; it commits them indirectly when a current-term entry commits (subtle safety rule - worth mentioning if asked about Figure 8 of the paper).</li>
+<li>Log Matching Property: if two logs have an entry with same index and term, all preceding entries are identical.</li>
+</ul>
+<p><strong>Safety summary</strong>: at most one leader per term; leader never overwrites its log; committed entries are in the logs of all future leaders (election restriction).</p>
+<p><strong>Other Raft features</strong>: log compaction via snapshots; membership changes (joint consensus or single-server changes); <strong>leader leases / read index</strong> for linearizable reads without a log write (leader confirms it's still leader by heartbeat quorum); learners/non-voting members.</p>
+<p><strong>Reads in Raft systems</strong>: a stale leader (partitioned, doesn't know it was deposed) could serve stale reads. Linearizable reads require the leader to confirm leadership (ReadIndex) or rely on bounded clock drift (lease reads). etcd offers linearizable (default) vs serializable (local, possibly stale) reads.</p>
+<p><strong>etcd in practice</strong>: backing store for Kubernetes control plane. Recommended small data (a few GB; check current docs for the default quota), SSD with low fsync latency (every commit fsyncs the WAL), odd member count, separate failure domains (AZs). Slow disks -&gt; missed heartbeats -&gt; leader churn -&gt; API server timeouts. That's the classic production failure.</p>
+<p><strong>ZooKeeper</strong> uses ZAB (similar to Raft/Multi-Paxos: leader, epochs, ordered broadcast). <strong>Spanner</strong> uses Paxos groups per shard plus TrueTime for global ordering.</p>
+<h3 id="15-what-consensus-costs-and-when-not-to-use-it">1.5 What consensus costs and when NOT to use it</h3>
+<ul>
+<li>Latency: at least one round trip to a majority (plus fsync). Cross-region consensus = tens to ~100+ ms per write.</li>
+<li>Throughput bounded by the leader.</li>
+<li>Unavailable without a majority (the C in CAP: consensus systems are CP).</li>
+<li>Use it for <em>small, critical metadata</em> (leader, config, locks, shard maps), not for bulk data path. Data path often uses simpler leader-follower or quorum replication, coordinated by a consensus-backed control plane (Kafka controller, HDFS NameNode HA, Bigtable master + Chubby).</li>
+</ul>
+<h3 id="16-failure-modes">1.6 Failure modes</h3>
+<ul>
+<li><strong>Split brain</strong>: two nodes both believe they are leader (old leader partitioned). Raft prevents <em>two committing leaders</em> via terms/quorum; but the old leader may still <em>think</em> it's leader and serve stale reads or send side-effects. Always check term/epoch downstream.</li>
+<li><strong>Leader flapping</strong>: slow disk/GC/network jitter triggers elections repeatedly; cluster stalls. Tune timeouts; fix root cause.</li>
+<li><strong>Quorum loss</strong>: 2 of 3 nodes down -&gt; read/write unavailability by design. Recovery may need manual intervention (force new cluster) with data-loss risk.</li>
+<li><strong>Disk corruption / lying fsync</strong>: breaks safety assumptions.</li>
+<li><strong>Membership change errors</strong>: adding/removing several nodes at once can create two disjoint majorities (why joint consensus exists).</li>
+</ul>
+<p><strong>How interviewers probe</strong>: "What happens if the leader crashes mid-replication?" "Why 5 nodes and not 4?" "Can a minority partition serve reads?" "How does Raft avoid two leaders?" "Why not use consensus for every write?" Strong answer: tie quorum overlap to safety, state CP tradeoff, and mention leader election timeout + terms.</p>
+<hr />
+<h2 id="2-leader-election">2. Leader election</h2>
+<p>Needed whenever one node must do a singleton job (primary DB, scheduler, cron runner, partition owner).</p>
+<p>Approaches:
+| Approach | How | Notes |
+|---|---|---|
+| Consensus-embedded | Raft/Paxos elect leader as part of protocol | Strongest; you get it by using etcd/ZK/Consul |
+| Lease via external store | Candidates try to create/renew a key with TTL in etcd/ZK/Consul/Redis/DynamoDB (conditional write) | Easy to use; must handle lease expiry races (see fencing) |
+| Bully algorithm | Highest ID wins; nodes with higher IDs preempt | Textbook; assumes reliable failure detection |
+| Ring algorithm | Token passed around ring | Textbook |
+| Kubernetes Lease objects | <code>coordination.k8s.io/Lease</code> for controller leader election | Backed by etcd |
+| Kafka | Controller elected via KRaft quorum (older: ZooKeeper); partition leaders picked from ISR | See week 3 |</p>
+<p>Lease-based pattern:</p>
+<div class="highlight"><pre><span></span><code> loop:
+   if I hold lease: renew every TTL/3
+   else: try conditional create key "leader" = myId with TTL
+   on renewal failure or elapsed time &gt; TTL: STOP acting as leader immediately
+</code></pre></div>
+
+<p>Risk: process pauses (GC, VM freeze, SIGSTOP) longer than TTL -&gt; it wakes and still thinks it's leader. Use <strong>fencing tokens</strong> (Section 3).</p>
+<p>Failure modes: two leaders for a TTL window; thundering herd of candidates on expiry (use watch on predecessor, as in ZooKeeper's sequential-ephemeral recipe); clock skew when TTL measured with wall clocks (use monotonic clocks locally).</p>
+<p><strong>How interviewers probe</strong>: "How do you ensure only one instance runs the nightly job?" Answer: lease/lock in strongly consistent store + fencing/idempotent job, and acknowledge brief overlap is possible so the job must be idempotent.</p>
+<hr />
+<h2 id="3-distributed-locks-and-why-theyre-hard">3. Distributed locks (and why they're hard)</h2>
+<h3 id="31-naive-redis-lock">3.1 Naive Redis lock</h3>
+<p><code>SET lock:resource &lt;random-id&gt; NX PX 30000</code> to acquire; release with a Lua script that deletes only if value matches. Good for <strong>efficiency</strong> (avoid duplicate work), risky for <strong>correctness</strong>.</p>
+<h3 id="32-the-core-problem-process-pauses-and-delayed-messages">3.2 The core problem: process pauses and delayed messages</h3>
+<div class="highlight"><pre><span></span><code> Client 1: acquire lock (TTL 30s) ---- long GC pause ---------------- write(X) !!
+ Lock service:        lock expires at 30s
+ Client 2:                          acquire lock ---- write(X)
+ Storage receives Client 2's write, THEN Client 1's stale write -&gt; corruption
+</code></pre></div>
+
+<p>A lease expiry cannot stop the old holder from acting; the holder cannot reliably know its lock expired (pause happens between "check" and "use").</p>
+<h3 id="33-fencing-tokens">3.3 Fencing tokens</h3>
+<p>Lock service returns a <strong>monotonically increasing token</strong> with each grant. The <em>protected resource</em> (storage) remembers the highest token seen and rejects requests carrying a lower one.</p>
+<div class="highlight"><pre><span></span><code> Client 1 gets lock, token 33 ... pauses
+ Client 2 gets lock, token 34 -&gt; write(token=34) accepted, storage max=34
+ Client 1 wakes -&gt; write(token=33) REJECTED (33 &lt; 34)
+</code></pre></div>
+
+<p>Requirements: lock service generates monotonic tokens (ZooKeeper zxid / znode version, etcd revision, a Raft log index); the resource must check them (conditional writes / compare-and-set / version column). If the resource cannot check tokens, the lock is only advisory.</p>
+<p>Database equivalent: optimistic concurrency <code>UPDATE ... SET ..., version = version+1 WHERE id=? AND version=?</code>. DynamoDB: conditional writes. </p>
+<h3 id="34-redlock-debate">3.4 Redlock debate</h3>
+<p>Redlock acquires on N independent Redis nodes (majority). Critique (Kleppmann): depends on bounded clock drift and pauses, provides no fencing token; fine for efficiency, unsafe for correctness. Antirez's reply: with assumptions it's practical. Interview-safe stance: "For correctness I want a consensus-backed lock (etcd/ZooKeeper) with fencing tokens, or better, avoid locks via idempotency/CAS; Redis locks are fine as an optimization."</p>
+<h3 id="35-options-ladder">3.5 Options ladder</h3>
+<ol>
+<li>Avoid the lock: idempotent operations, CAS/conditional write, single-writer partitioning (Kafka partition ownership).</li>
+<li>DB row lock / <code>SELECT ... FOR UPDATE</code> / advisory locks if you already have one strongly consistent DB.</li>
+<li>etcd/ZooKeeper/Consul lock + fencing token.</li>
+<li>Redis lock for best-effort efficiency only.</li>
+</ol>
+<p>Failure modes: lock holder crash (needs TTL/ephemeral node), lock never released (bug), TTL too short (premature expiry) vs too long (slow failover), lock service partition, non-reentrancy/deadlock, herd effect.</p>
+<p><strong>How interviewers probe</strong>: "Is Redis SETNX enough?" "Client holds lock, gets paused - what happens?" -&gt; fencing tokens. "How do you make a cron run once across 10 pods?"</p>
+<hr />
+<h2 id="4-time-and-ordering">4. Time and ordering</h2>
+<h3 id="41-physical-clocks">4.1 Physical clocks</h3>
+<ul>
+<li>Wall clocks (NTP-synced) drift; typical NTP error ms to tens of ms over internet, sub-ms in good datacenters with PTP (check current docs). They can jump backward (NTP step, leap second smear). Never use wall clock to order events across machines or as a lock validity proof.</li>
+<li>Monotonic clocks (<code>time.monotonic()</code> in Python): never go backward; only meaningful on one machine; use for timeouts/durations.</li>
+<li><strong>Last-write-wins (LWW)</strong> with wall clocks silently loses writes under skew (Cassandra default conflict resolution uses timestamps; DynamoDB global tables use LWW).</li>
+<li><strong>Google TrueTime</strong> (Spanner): API returns an interval [earliest, latest] using GPS + atomic clocks; Spanner waits out the uncertainty ("commit wait", a few ms) to guarantee external consistency (linearizable transactions globally). Alternatives: hybrid logical clocks (HLC) in CockroachDB/YugabyteDB; AWS Time Sync Service gives microsecond-ish accuracy on supported instances (check current docs).</li>
+</ul>
+<h3 id="42-happens-before-and-lamport-clocks">4.2 Happens-before and Lamport clocks</h3>
+<p>Event a <strong>happens-before</strong> b (a -&gt; b) if: same process and a before b; or a is send and b is the receive of that message; or transitive. Events not related are <strong>concurrent</strong>.</p>
+<p>Lamport clock rules: each process keeps counter L.</p>
+<ol>
+<li>Before local event or send: L = L + 1 (send carries L).</li>
+<li>On receive of timestamp T: L = max(L, T) + 1.</li>
+</ol>
+<p>Worked example:</p>
+<div class="highlight"><pre><span></span><code> P1:  a(1) ---send m1(1)-----------------&gt; 
+ P2:                 b(1)    c: recv m1 -&gt; L=max(1,1)+1 = 2, then d(3) send m2(3)
+ P3:                                          e(1)   f: recv m2 -&gt; L=max(1,3)+1 = 4
+ Timeline timestamps: a=1, b=1, c=2, d=3, e=1, f=4
+</code></pre></div>
+
+<p>Property: a -&gt; b implies L(a) &lt; L(b). The converse is false: L(b)=1 and L(a)=1 are equal, L(e)=1 &lt; L(c)=2 yet e and c are concurrent. Tie-break by process ID to get a total order (used for total-order broadcast, distributed mutual exclusion). Lamport clocks cannot <em>detect</em> concurrency.</p>
+<h3 id="43-vector-clocks">4.3 Vector clocks</h3>
+<p>Each process keeps a vector V[1..N]. </p>
+<ul>
+<li>Local event/send: V[i]++ (send carries V).</li>
+<li>Receive with vector W: V[j] = max(V[j], W[j]) for all j, then V[i]++.</li>
+</ul>
+<p>Compare: V1 &lt;= V2 if every component &lt;=. V1 &lt; V2 means a -&gt; b; if neither &lt;=, events are <strong>concurrent</strong>.</p>
+<p>Worked example (3 nodes A,B,C):</p>
+<div class="highlight"><pre><span></span><code> A: write x=1        A:[1,0,0]
+ B: reads A's write  B:[1,1,0]   (after receiving [1,0,0]: max -&gt; [1,0,0], B++ -&gt; [1,1,0])
+ C: independent write x=2   C:[0,0,1]
+ Compare [1,1,0] vs [0,0,1]: neither dominates -&gt; CONCURRENT -&gt; conflict, app/CRDT must merge
+ Compare [1,0,0] vs [1,1,0]: first &lt;= second -&gt; causal predecessor, safe to overwrite
+</code></pre></div>
+
+<p>Used by Dynamo (original paper; shopping-cart conflict -&gt; client merge), Riak (dotted version vectors). Cost: vector grows with number of writers; mitigations: pruning, dotted version vectors, per-key vs per-node actors. DynamoDB (the AWS service) does not expose vector clocks; Cassandra uses timestamps.</p>
+<p>Version vectors vs vector clocks: version vectors track versions of data replicas; vector clocks track events across processes. Often used interchangeably in interviews; note nuance if asked.</p>
+<h3 id="44-hybrid-logical-clocks-brief">4.4 Hybrid logical clocks (brief)</h3>
+<p>HLC = (physical time, logical counter): stays close to wall time but preserves causality like Lamport. Used by CockroachDB, MongoDB (cluster time), YugabyteDB.</p>
+<p><strong>How interviewers probe</strong>: "Why not just use timestamps?" (skew, LWW loses data). "Lamport vs vector clock?" (Lamport: causal implies order, not converse; vector: exact concurrency detection at O(N) space). "How does Spanner get global ordering?" (TrueTime + commit wait).</p>
+<hr />
+<h2 id="5-failure-detection-and-gossip">5. Failure detection and gossip</h2>
+<h3 id="51-failure-detectors">5.1 Failure detectors</h3>
+<p>Perfect detection is impossible in asynchronous systems; detectors are <strong>unreliable</strong>: can have false positives (alive node declared dead) and delays.</p>
+<ul>
+<li><strong>Heartbeat + timeout</strong>: simple; fixed timeouts are brittle (too short = false positives during GC/network blip; too long = slow failover).</li>
+<li><strong>Phi accrual failure detector</strong> (Cassandra, Akka): outputs a suspicion level phi based on the statistical distribution of heartbeat inter-arrival times; threshold (Cassandra <code>phi_convict_threshold</code>, commonly ~8; check current docs) adapts to network conditions.</li>
+<li><strong>SWIM</strong> (Consul/Serf, memberlist, Hashicorp): each node periodically pings a random peer; on no ack, asks k other nodes to ping indirectly (ping-req) before marking <strong>suspect</strong>, then <strong>dead</strong> after a timeout. Constant per-node load regardless of cluster size, lower false positive rate via indirect probes. Membership updates piggyback on ping messages.</li>
+</ul>
+<h3 id="52-gossip-epidemic-protocols">5.2 Gossip (epidemic) protocols</h3>
+<p>Each round, every node picks random peer(s) and exchanges state. Information spreads exponentially: O(log N) rounds to reach all nodes with high probability.</p>
+<div class="highlight"><pre><span></span><code> round 0:  [A]                      informed = 1
+ round 1:  A-&gt;B                     informed ~ 2
+ round 2:  A-&gt;C, B-&gt;D               informed ~ 4
+ round k:  ~ 2^k                    =&gt; ~log2(N) rounds (plus tail)
+</code></pre></div>
+
+<p>Styles: push, pull, push-pull (fastest convergence). Uses: cluster membership (Cassandra, Consul, Redis Cluster bus), anti-entropy of replica state (Dynamo/Cassandra Merkle-tree repair), aggregate computation, failure propagation.
+Pros: scalable, decentralized, robust, no single point of failure. Cons: eventual (not immediate) convergence, redundant messages, hard to reason about exact latency, only for state tolerating eventual consistency.</p>
+<p><strong>Anti-entropy with Merkle trees</strong>: replicas compare tree hashes top-down to find divergent key ranges quickly without sending all data (Cassandra repair, Dynamo).</p>
+<h3 id="53-failure-modes">5.3 Failure modes</h3>
+<ul>
+<li><strong>Gray failure</strong>: node responds to heartbeats but is functionally broken (disk stuck, partial network). Detectors say "healthy". Mitigation: deep health checks, outlier detection, client-side latency-based ejection.</li>
+<li><strong>Flapping membership</strong> from false positives -&gt; rebalance storms. Use suspect state, hysteresis.</li>
+<li><strong>Asymmetric partitions</strong>: A sees B, B doesn't see A.</li>
+</ul>
+<hr />
+<h2 id="6-distributed-transactions-2pc-3pc-sagas">6. Distributed transactions: 2PC, 3PC, sagas</h2>
+<h3 id="61-two-phase-commit-2pc">6.1 Two-phase commit (2PC)</h3>
+<p>Coordinator + participants (resource managers).</p>
+<div class="highlight"><pre><span></span><code> Phase 1: PREPARE   Coordinator --"can you commit?"--&gt; all participants
+                    Each: write to durable log, take locks, reply YES/NO (a YES is a PROMISE)
+ Phase 2: COMMIT    If all YES: coordinator logs decision, sends COMMIT; else ABORT
+                    Participants apply, release locks, ack
+</code></pre></div>
+
+<p>Guarantees atomic commit across participants. Problems:</p>
+<ul>
+<li><strong>Blocking</strong>: if the coordinator crashes after participants voted YES but before sending the decision, participants hold locks and <em>cannot unilaterally decide</em> until the coordinator recovers (in-doubt transactions). </li>
+<li>Latency: 2 round trips + multiple fsyncs; locks held across them -&gt; low throughput and contention.</li>
+<li>Availability: needs all participants up (all-or-nothing, not majority).</li>
+<li>Mitigation: make the coordinator highly available by replicating its log with consensus (Spanner: each participant is a Paxos group; 2PC across groups). Percolator/TiDB use 2PC over a KV with a primary-lock trick. XA is the standard API; supported by many RDBMS/message brokers, rarely used in modern microservices.</li>
+<li><strong>3PC</strong> adds a pre-commit phase to be non-blocking under crash assumptions but is unsafe under network partitions; practically unused. Say this in one line.</li>
+</ul>
+<p>2PC is <em>not</em> consensus: it needs all votes and a single coordinator; consensus tolerates minority failure. Consensus + 2PC combine in Spanner/CockroachDB.</p>
+<h3 id="62-sagas">6.2 Sagas</h3>
+<p>A saga is a sequence of <strong>local transactions</strong>, each with a <strong>compensating action</strong> to semantically undo it if a later step fails. No global locks; eventual consistency.</p>
+<div class="highlight"><pre><span></span><code> Book flight --&gt; Reserve hotel --&gt; Charge card --&gt; Issue ticket
+     |               |                 |
+ Cancel flight   Cancel hotel      Refund card      (compensations run in reverse on failure)
+</code></pre></div>
+
+<p>Two coordination styles:</p>
+<ul>
+<li><strong>Choreography</strong>: services emit events and react to each other. Decentralized, simple for 2-3 steps, but flow is implicit and hard to trace/debug; risk of cyclic dependencies.</li>
+<li><strong>Orchestration</strong>: a central orchestrator (state machine) calls steps and compensations. Explicit flow, easier monitoring and timeouts. Examples: AWS Step Functions, Temporal, Netflix Conductor, Camunda.</li>
+</ul>
+<p>Design rules:</p>
+<ul>
+<li>Each step and compensation must be <strong>idempotent</strong> and retryable (week 3).</li>
+<li>Compensations can't always truly undo (sent email, external payment) - design "semantic" undo (refund, cancellation notice).</li>
+<li>Lack of isolation: other transactions see intermediate states (dirty reads) -&gt; countermeasures: semantic locks (PENDING status), commutative updates, re-read values, versioning ("ACID without the I").</li>
+<li>Use <strong>outbox pattern</strong> so state change + event publish are atomic (week 3).</li>
+<li>Handle the "pivot transaction" (point of no return) and retriable steps after it.</li>
+</ul>
+<h3 id="63-2pc-vs-saga">6.3 2PC vs saga</h3>
+<table>
+<thead>
+<tr>
+<th>Aspect</th>
+<th>2PC</th>
+<th>Saga</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Atomicity</td>
+<td>Strict (all or nothing)</td>
+<td>Eventual, via compensation</td>
+</tr>
+<tr>
+<td>Isolation</td>
+<td>Yes (locks held)</td>
+<td>No (intermediate states visible)</td>
+</tr>
+<tr>
+<td>Availability</td>
+<td>Lower; blocking</td>
+<td>Higher</td>
+</tr>
+<tr>
+<td>Latency/lock time</td>
+<td>Locks across network round trips</td>
+<td>Short local txns</td>
+</tr>
+<tr>
+<td>Coupling</td>
+<td>Participants must support XA/prepare</td>
+<td>Any service with APIs</td>
+</tr>
+<tr>
+<td>Complexity</td>
+<td>In protocol</td>
+<td>In app logic (compensations)</td>
+</tr>
+<tr>
+<td>Use</td>
+<td>Within one DB / one trust domain, Spanner-like systems</td>
+<td>Microservices, long-running business flows</td>
+</tr>
+</tbody>
+</table>
+<p>Decision line: "Keep a transaction inside one database when possible (cheap, ACID). Across services, prefer sagas with idempotent steps and outbox. Use 2PC only inside a system built for it."</p>
+<h3 id="64-other-patterns">6.4 Other patterns</h3>
+<ul>
+<li><strong>Transactional outbox + CDC</strong> (Debezium) for reliable event publishing.</li>
+<li><strong>TCC (Try-Confirm-Cancel)</strong>: reserve resources (Try), then Confirm or Cancel; like application-level 2PC with timeouts. Common in payments.</li>
+<li><strong>Deterministic databases</strong> (Calvin/FaunaDB) - ordering before execution; mention only if asked.</li>
+<li><strong>Spanner</strong>: externally consistent distributed transactions: Paxos groups + 2PC + TrueTime.</li>
+</ul>
+<p><strong>How interviewers probe</strong>: "Transfer money between two services' DBs" -&gt; reject dual writes; discuss 2PC blocking, saga + compensation + idempotency keys; "What if the compensation fails?" -&gt; retry forever with backoff, dead-letter, human alert; "How do you see saga state?" -&gt; orchestrator state store.</p>
+<hr />
+<h2 id="7-crdts-introduction">7. CRDTs (introduction)</h2>
+<p><strong>Conflict-free Replicated Data Types</strong>: data structures whose replicas can be updated independently, without coordination, and are guaranteed to converge when they exchange state, because merge is <strong>commutative, associative, idempotent</strong> (a join-semilattice).</p>
+<p>Two families:</p>
+<ul>
+<li><strong>State-based (CvRDT)</strong>: replicas ship full (or delta) state; merge = join/least upper bound (e.g. element-wise max). Tolerates duplicated/reordered delivery.</li>
+<li><strong>Operation-based (CmRDT)</strong>: ship operations; requires reliable causal delivery, ops commutative.</li>
+</ul>
+<p>Examples:</p>
+<div class="highlight"><pre><span></span><code> G-Counter (grow-only), one slot per replica:
+   A: [3,0,0]   B: [0,2,0]   merge = element-wise max -&gt; [3,2,0], value = sum = 5
+ PN-Counter: two G-Counters (increments P, decrements N), value = sum(P)-sum(N)
+ G-Set: add-only set, merge = union
+ 2P-Set: add set + tombstone set (cannot re-add)
+ OR-Set (observed-remove): each add tagged with unique id; remove deletes only observed tags
+                           -&gt; concurrent add and remove: add wins
+ LWW-Register: (value, timestamp), merge = higher timestamp (loses a concurrent write)
+ Sequence CRDTs (RGA, Logoot, Yjs/Automerge) power collaborative text editing
+</code></pre></div>
+
+<p>Where used: Redis Enterprise/Active-Active (CRDB), Riak data types, Azure Cosmos DB (conflict resolution options), Akka Distributed Data, Figma/Notion-style collaboration (some use CRDT-inspired or OT approaches), AntidoteDB.</p>
+<p>Tradeoffs: always-available writes and convergence, but limited data types, metadata growth (tombstones, per-replica vectors; need garbage collection), semantics may surprise (add-wins). Not suitable for invariants such as "balance &gt;= 0" or unique usernames - those need coordination. Alternative: <strong>Operational Transformation</strong> (Google Docs) needs a central server.</p>
+<p><strong>How interviewers probe</strong>: "Design a like counter across regions" -&gt; PN-counter/G-counter with async merge; "Collaborative editor" -&gt; OT vs CRDT; "When can't you use CRDT?" -&gt; invariants needing coordination.</p>
+<hr />
+<h2 id="8-probabilistic-data-structures">8. Probabilistic data structures</h2>
+<h3 id="81-bloom-filter">8.1 Bloom filter</h3>
+<p>Set membership: answers "definitely not in set" or "probably in set". <strong>No false negatives; false positives possible.</strong> No deletion (standard version).</p>
+<p>Structure: bit array of m bits, k hash functions. Insert: set k bits. Query: all k bits set -&gt; "maybe".</p>
+<div class="highlight"><pre><span></span><code> m = 16 bits, k = 3
+ insert "cat": h1=2 h2=7 h3=11  -&gt; set bits 2,7,11
+ insert "dog": h1=5 h2=7 h3=14  -&gt; set bits 5,7,14
+ query "eel": h = 2,5,14 -&gt; all set -&gt; FALSE POSITIVE (never inserted)
+ query "owl": h = 3,... bit 3 is 0 -&gt; definitely not present
+</code></pre></div>
+
+<p>Math: with n items, false-positive rate p ~ (1 - e^(-kn/m))^k. Optimal k = (m/n) ln2 ~ 0.693 m/n. Bits per element for target p: m/n = -ln(p)/(ln2)^2 ~ 1.44 log2(1/p).</p>
+<ul>
+<li>p = 1% -&gt; ~9.6 bits/element, k ~ 7.</li>
+<li>p = 0.1% -&gt; ~14.4 bits/element, k ~ 10.
+Worked example: 100M URLs at 1% FPR -&gt; 100M x 9.6 bits = 960 Mbit ~ 120 MB. A hash set would need several GB.</li>
+</ul>
+<p>Uses: LSM-tree SSTable lookups avoid disk reads for absent keys (Cassandra, HBase, RocksDB, Bigtable); "have we seen this URL?" in crawlers; cache-penetration protection (check bloom before DB for nonexistent keys); Chrome safe-browsing early versions; deduping events.
+Variants: <strong>Counting Bloom</strong> (supports delete), <strong>Cuckoo filter</strong> (supports delete, better space at low FPR), <strong>Scalable Bloom</strong> (grows). Filter can't be resized without rebuilding; saturates if n exceeds design.
+Failure mode: overfilled filter -&gt; FPR rises sharply; you must size for peak n.</p>
+<h3 id="82-hyperloglog-cardinality-estimation">8.2 HyperLogLog (cardinality estimation)</h3>
+<p>Count distinct elements using tiny memory. Intuition: hash each item to a uniform bit string; if the longest run of leading zeros seen is z, then roughly 2^z distinct items were seen (like getting z heads in a row suggests ~2^z flips). One estimator is noisy, so split into m = 2^p registers by the first p bits ("stochastic averaging") and combine with a harmonic mean.</p>
+<ul>
+<li>Standard error ~ 1.04 / sqrt(m). Redis uses 16384 registers (m = 2^14) -&gt; ~0.81% std error in ~12 KB max (6 bits/register); <code>PFADD</code>, <code>PFCOUNT</code>, <code>PFMERGE</code>.</li>
+<li>Counts billions of distinct items with a few KB. Mergeable (register-wise max) -&gt; great for distributed aggregation, e.g. unique visitors per day, union across shards.</li>
+<li>Cannot list members, cannot delete, no exact counts, intersection only via inclusion-exclusion (inaccurate).
+Used by: Redis, BigQuery <code>APPROX_COUNT_DISTINCT</code>, Presto/Trino, Druid, Postgres extension, Elasticsearch cardinality agg.</li>
+</ul>
+<h3 id="83-related-structures-one-liners">8.3 Related structures (one-liners)</h3>
+<ul>
+<li><strong>Count-Min Sketch</strong>: approximate frequency of items (over-estimates); heavy hitters / top-K trending with a heap.</li>
+<li><strong>Merkle tree</strong>: hash tree for fast divergence detection (Cassandra repair, Git, blockchains, DynamoDB original).</li>
+<li><strong>Consistent hashing / rendezvous hashing</strong>: from week 2.</li>
+<li><strong>t-digest / HDR histogram</strong>: percentile estimation (p99 latency) mergeable across nodes. (Averaging percentiles is wrong!)</li>
+<li><strong>Skip lists, LSM trees</strong> are not probabilistic estimators but randomized structures; skip.</li>
+</ul>
+<p><strong>How interviewers probe</strong>: "Check if a username is taken among 1B users quickly?" -&gt; bloom filter front, DB confirmation for "maybe"; "Count unique visitors per page per day at scale?" -&gt; HLL per key, merge for week/month; "Top-K trending hashtags?" -&gt; count-min sketch + min-heap, windowed.</p>
+<hr />
+<h2 id="9-putting-it-together-real-systems-map">9. Putting it together: real systems map</h2>
+<table>
+<thead>
+<tr>
+<th>System</th>
+<th>Consensus / coordination</th>
+<th>Time/ordering</th>
+<th>Other</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>etcd / Kubernetes</td>
+<td>Raft</td>
+<td>revision numbers (monotonic)</td>
+<td>leases, watches</td>
+</tr>
+<tr>
+<td>ZooKeeper</td>
+<td>ZAB</td>
+<td>zxid</td>
+<td>ephemeral nodes, sequential znodes</td>
+</tr>
+<tr>
+<td>Kafka</td>
+<td>KRaft (formerly ZK) controller; ISR replication per partition</td>
+<td>offsets per partition</td>
+<td>idempotent producer, transactions (2PC-like over partitions)</td>
+</tr>
+<tr>
+<td>Cassandra</td>
+<td>none for data (leaderless quorum); Paxos for LWT</td>
+<td>timestamps (LWW)</td>
+<td>gossip, phi accrual, Merkle repair, bloom filters</td>
+</tr>
+<tr>
+<td>DynamoDB (service)</td>
+<td>Paxos-based replication per partition (leader per partition; check current docs)</td>
+<td>conditional writes, transactions</td>
+<td>global tables LWW</td>
+</tr>
+<tr>
+<td>Spanner</td>
+<td>Paxos per split, 2PC across</td>
+<td>TrueTime</td>
+<td>external consistency</td>
+</tr>
+<tr>
+<td>CockroachDB</td>
+<td>Raft per range</td>
+<td>HLC</td>
+<td>2PC-ish parallel commits</td>
+</tr>
+<tr>
+<td>Redis</td>
+<td>Cluster: gossip, epoch-based failover (not strongly consistent); Sentinel</td>
+<td>-</td>
+<td>HLL, bloom (module), Redlock debate</td>
+</tr>
+<tr>
+<td>Consul</td>
+<td>Raft (servers) + SWIM gossip (Serf)</td>
+<td>-</td>
+<td>service discovery</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="10-common-mistakes-to-avoid-in-interviews">10. Common mistakes to avoid in interviews</h2>
+<ol>
+<li>Saying "just use a distributed lock" without addressing pauses/fencing.</li>
+<li>Using wall-clock timestamps to order events across nodes.</li>
+<li>Treating a timeout as proof of failure (it's only suspicion).</li>
+<li>Proposing 2PC across microservices without discussing blocking.</li>
+<li>Choosing an even number of consensus nodes or putting all replicas in one AZ.</li>
+<li>Claiming exactly-once delivery as free; it's at-least-once + idempotency (week 3).</li>
+<li>Using consensus on the hot data path when a simpler replication suffices.</li>
+<li>Forgetting that bloom filters have false positives so a "maybe" needs a real check.</li>
+</ol>
+<h2 id="11-self-check-can-you-do-these-on-a-whiteboard">11. Self-check (can you do these on a whiteboard?)</h2>
+<ul>
+<li>Draw a Raft leader election and log replication with a follower that diverged.</li>
+<li>Show a fencing token preventing a stale write.</li>
+<li>Compute vector clocks for a 3-node scenario and mark the concurrent events.</li>
+<li>Size a Bloom filter for 50M items at 0.1% FPR (answer: ~14.4 bits x 50M = 720 Mbit ~ 90 MB, k ~ 10).</li>
+<li>Compare 2PC and saga for "place order + charge + reserve inventory".</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../../08-system-design/week-03-coordination-messaging/cheatsheet.html">← Week 3 · Coordination and messaging: Cheatsheet</a><a class="next" href="../../08-system-design/week-04-distributed-algorithms/interview-qa.html">Week 4 · Distributed algorithms: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

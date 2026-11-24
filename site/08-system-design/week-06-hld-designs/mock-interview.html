@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mock Interview Prompts and Grading Rubric | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="08-system-design/week-06-hld-designs/mock-interview" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../08-system-design/README.html">System Design</a> / <a href="../../08-system-design/week-06-hld-designs/framework.html">Week 6 · HLD designs</a> / <span>Mock Interview Prompts and Grading Rubric</span></nav><button id="mark-done" data-id="08-system-design/week-06-hld-designs/mock-interview">Mark as done</button></div><article class="doc">
+<h1 id="mock-interview-prompts-and-grading-rubric">Mock Interview Prompts and Grading Rubric</h1>
+<p>Use after finishing the eight designs. Practice out loud with a timer, whiteboard or paper, ideally with a partner. Method: <a href="framework.html">framework.md</a>.</p>
+<h2 id="time-boxes-45-min">Time boxes (45 min)</h2>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>Minutes</th>
+<th>Output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Clarify + scope</td>
+<td>5</td>
+<td>Written functional + non-functional list, explicit out-of-scope</td>
+</tr>
+<tr>
+<td>Estimate</td>
+<td>4</td>
+<td>QPS, storage, bandwidth, one conclusion drawn from them</td>
+</tr>
+<tr>
+<td>API + data model</td>
+<td>6</td>
+<td>Endpoints, tables/keys, access patterns</td>
+</tr>
+<tr>
+<td>High-level diagram</td>
+<td>8</td>
+<td>Boxes and flows for the main write and read paths</td>
+</tr>
+<tr>
+<td>Deep dives (2 areas)</td>
+<td>15</td>
+<td>Chosen with interviewer; tradeoffs, failure modes</td>
+</tr>
+<tr>
+<td>Wrap-up</td>
+<td>5</td>
+<td>Bottlenecks, monitoring, evolution, what you would do with more time</td>
+</tr>
+<tr>
+<td>For a 60 min slot add time to deep dives. For FDE loops, add 5 min to discuss customer constraints.</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="prompts-pick-one-set-timer">Prompts (pick one, set timer)</h2>
+<ol>
+<li>Design a pastebin / text sharing service with expiry and abuse handling. (focus: storage, TTL, CDN)</li>
+<li>Design Google Drive / Dropbox file sync. (chunking, dedupe, delta sync, conflict resolution)</li>
+<li>Design a web crawler. (frontier, politeness, dedupe with Bloom filter, DNS, priorities)</li>
+<li>Design a typeahead/autocomplete service. (trie, top-k aggregation, offline vs online, caching)</li>
+<li>Design YouTube/Netflix video streaming. (upload pipeline, transcoding, CDN, adaptive bitrate)</li>
+<li>Design a payments/ledger service. (idempotency, double-entry, consistency, reconciliation, sagas)</li>
+<li>Design a distributed job scheduler/cron. (exactly-once-ish, leases, sharding, retries, time zones)</li>
+<li>Design a metrics/monitoring system (Prometheus/Datadog-like). (time-series storage, ingestion, downsampling, alerting)</li>
+<li>Design a real-time leaderboard / top-K for a game. (sorted sets, sharding, approximate counts)</li>
+<li>Design Google Docs real-time collaboration. (OT vs CRDT, websockets, presence, persistence)</li>
+<li>Design a feature-flag / config service used by 1000 services. (push vs poll, consistency, blast radius)</li>
+<li>Design a ticket booking system (Ticketmaster). (inventory contention, holds with TTL, queue for flash sales)</li>
+<li>FDE: An airline wants an LLM assistant over 50k policy PDFs and live booking APIs, with no data leaving their VPC. (RAG + tools, ACLs, evals, deployment, rollout plan)</li>
+<li>FDE: A customer's nightly ETL of 2 TB now takes 14 hours and misses its SLA. You have two days on site. How do you approach it? (diagnose first: measure, bottleneck, quick wins, then redesign)</li>
+<li>Failure drill: your Kafka consumer lag grows continuously after a deploy. Walk through diagnosis and mitigation.</li>
+<li>Scaling drill: your single Postgres at 70% CPU, traffic doubling in 3 months. Plan the evolution.</li>
+</ol>
+<h2 id="grading-rubric-score-each-0-4-0-absent-2-adequate-4-strong">Grading rubric (score each 0-4; 0 absent, 2 adequate, 4 strong)</h2>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th>What 4 looks like</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Requirements</td>
+<td>Asks sharp questions, states assumptions, prioritizes, sets scope, identifies the hardest requirement</td>
+</tr>
+<tr>
+<td>Estimation</td>
+<td>Correct arithmetic, state units, uses numbers to drive decisions (e.g., "writes dominate so...")</td>
+</tr>
+<tr>
+<td>API and data model</td>
+<td>Clear contracts, idempotency/pagination considered, schema matches access patterns, keys chosen to avoid hot spots</td>
+</tr>
+<tr>
+<td>Architecture</td>
+<td>Coherent diagram, clear read/write paths, right components, no unnecessary parts</td>
+</tr>
+<tr>
+<td>Depth</td>
+<td>Goes deep on 2 areas with mechanisms (not buzzwords): how it works, how it fails</td>
+</tr>
+<tr>
+<td>Tradeoffs</td>
+<td>Names alternatives and why rejected; connects to requirements; knows CAP/consistency implications</td>
+</tr>
+<tr>
+<td>Reliability and scale</td>
+<td>Failure modes, retries/timeouts, backpressure, multi-AZ/region, capacity growth, hot keys</td>
+</tr>
+<tr>
+<td>Operability and security</td>
+<td>Metrics/alerts/tracing, rollout/rollback, authn/authz, privacy, cost</td>
+</tr>
+<tr>
+<td>Communication</td>
+<td>Structured, narrates thinking, checks in, takes hints, handles pushback calmly, manages time</td>
+</tr>
+<tr>
+<td>(FDE only) Customer sense</td>
+<td>Frames business outcome, constraints, phased delivery, risks, how to explain to non-experts</td>
+</tr>
+</tbody>
+</table>
+<p>Scoring: 28-36 (of 36, excluding FDE row) = strong hire signal; 20-27 = borderline, repeat prompt in a week; &lt;20 = revisit the lessons for the weak dimensions.</p>
+<h2 id="self-scoring-sheet-copy-per-attempt">Self-scoring sheet (copy per attempt)</h2>
+<div class="highlight"><pre><span></span><code>Prompt: ______________   Date: ______   Time used: ___ / 45
+Requirements __  Estimation __  API/Data __  Architecture __  Depth __
+Tradeoffs __  Reliability/Scale __  Ops/Security __  Communication __   Total __/36
+Went well: 
+Missed / wrong facts:
+Time overruns (which phase):
+Concepts to review (link lesson):
+Redo date:
+</code></pre></div>
+
+<h2 id="red-flags-interviewers-note">Red flags interviewers note</h2>
+<ul>
+<li>Jumping to boxes before requirements; no numbers; "just use Kafka/Redis" without why.</li>
+<li>One giant diagram with no flows; ignoring failure; claiming exactly-once or "no downtime" casually.</li>
+<li>Not driving: waiting for the interviewer to ask every question.</li>
+<li>Over-engineering (microservices and multi-region for 100 QPS).</li>
+<li>Contradicting earlier choices (said strong consistency, then async replicas).</li>
+<li>Defensive about feedback.</li>
+</ul>
+<h2 id="practice-schedule-suggestion">Practice schedule suggestion</h2>
+<ul>
+<li>Week 6, session 1-2: re-do two designs from memory (blank page, timer), then compare against the file.</li>
+<li>Session 3: mock with a prompt from above you have not seen; score honestly.</li>
+<li>Repeat with a different prompt each week alongside DSA until interviews; record yourself once and review pacing.</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../../08-system-design/week-06-hld-designs/08-enterprise-rag-platform.html">← Week 6 · HLD designs: Enterprise RAG platform</a><a class="next" href="../../PROGRESS.html">Progress notes →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

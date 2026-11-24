@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Project 4: Tool-calling agent over a CRM | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="05-fde-projects/project-04-tool-calling-agent/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../05-fde-projects/project-01-llm-basics/lesson.html">FDE Projects</a> / <a href="../../05-fde-projects/project-04-tool-calling-agent/lesson.html">Project 4 · Tool-calling agent</a> / <span>Lesson</span></nav><button id="mark-done" data-id="05-fde-projects/project-04-tool-calling-agent/lesson">Mark as done</button></div><article class="doc">
+<h1 id="project-4-tool-calling-agent-over-a-crm">Project 4: Tool-calling agent over a CRM</h1>
+<p>Budget: ~2 hrs. Read (20 min), validation + registry (30 min), parsing + run_tool (25 min), SQL layer (25 min), agent loop (20 min).</p>
+<h2 id="the-customer-scenario">The customer scenario</h2>
+<blockquote>
+<p>"Our support reps spend half their day switching between the CRM and the orders database to answer 'where is my order?' and 'is this customer on the Pro plan?'. Can the assistant just look things up itself? We are nervous about it changing data or going haywire."</p>
+</blockquote>
+<p>Spec: the assistant may call three read-only tools (<code>lookup_customer</code>, <code>list_orders</code>, <code>run_query</code>), loop until it has an answer, and never write data or run forever.</p>
+<h2 id="concepts">Concepts</h2>
+<ul>
+<li><strong>Tool calling</strong> = the model emits a structured request, YOUR code runs it, you feed the result back. The model never touches the database; you do.</li>
+<li><strong>Protocol used here</strong> (the model replies with exactly one JSON object as text):</li>
+<li><code>{"tool": "list_orders", "args": {"customer_id": 1}}</code> call a tool</li>
+<li><code>{"final": "Ada has 1 pending order."}</code> finish</li>
+<li>Tool results come back as a user message: <code>TOOL_RESULT: {"ok": true, "result": ...}</code>; problems as <code>ERROR: ...</code>.</li>
+<li><strong>Registry + schema</strong>: tools declared once (name, description, parameter spec). The same declaration feeds the prompt (<code>describe()</code>), argument validation, and execution.</li>
+<li><strong>Validate model output like user input.</strong> It is untrusted: wrong types, extra keys, made-up tool names.</li>
+<li><strong>Errors are observations, not crashes.</strong> <code>run_tool</code> never raises; the error text goes back to the model so it can self-correct.</li>
+<li><strong>Guardrails</strong>: allow-list per customer/role, <code>max_steps</code>, read-only SQL guard, parameterized queries, row limits.</li>
+<li><strong>Dependency injection</strong>: <code>llm(messages) -&gt; str</code>. Tests use a scripted FakeLLM, so no network or API key.</li>
+</ul>
+<h2 id="how-an-fde-would-approach-it">How an FDE would approach it</h2>
+<ol>
+<li>Ask what actions the rep needs and which are dangerous. Ship read-only first; writes (refunds) later behind human approval.</li>
+<li>Prefer a few narrow tools (<code>list_orders</code>) over one powerful one (<code>run_query</code>). Free-form SQL is a demo convenience; in production give a DB user with SELECT-only rights too (the regex guard is a second layer, not the only one).</li>
+<li>Log every tool call and result (the <code>trace</code>); customers will ask "why did it say that?".</li>
+<li>Build with the FakeLLM first so the loop is deterministic, then try the real model.</li>
+<li>Explain tradeoffs to non-engineers: more tools = more capability but more risk and cost; each step is another paid LLM call.</li>
+</ol>
+<h2 id="exercises-in-exercisespy">Exercises (in <code>exercises.py</code>)</h2>
+<ol>
+<li><code>validate_args</code> 2. <code>ToolRegistry</code> 3. <code>parse_action</code> 4. <code>run_tool</code> 5. <code>is_read_only_sql</code> 6. <code>lookup_customer</code> / <code>list_orders</code> / <code>run_readonly_query</code> 7. <code>build_crm_registry</code> 8. <code>run_agent</code></li>
+</ol>
+<p>Run: <code>cd 05-fde-projects/project-04-tool-calling-agent &amp;&amp; ../../.venv/bin/pytest -q</code></p>
+<h2 id="optional-manual-step-real-model">Optional manual step: real model</h2>
+<p>Not needed for tests. Needs <code>ANTHROPIC_API_KEY</code> in your shell.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">anthropic</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+
+<span class="n">client</span> <span class="o">=</span> <span class="n">anthropic</span><span class="o">.</span><span class="n">Anthropic</span><span class="p">()</span>
+<span class="n">reg</span> <span class="o">=</span> <span class="n">build_crm_registry</span><span class="p">(</span><span class="n">seed_crm_db</span><span class="p">())</span>
+<span class="n">SYSTEM</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"You answer support questions. Reply with ONE JSON object only: "</span>
+          <span class="s1">'{"tool": name, "args": {...}} or {"final": answer}.</span><span class="se">\n</span><span class="s1">Tools:</span><span class="se">\n</span><span class="s1">'</span> <span class="o">+</span> <span class="n">reg</span><span class="o">.</span><span class="n">describe</span><span class="p">())</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">llm</span><span class="p">(</span><span class="n">messages</span><span class="p">):</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">messages</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">"claude-sonnet-5-5"</span><span class="p">,</span> <span class="n">max_tokens</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span>
+                               <span class="n">system</span><span class="o">=</span><span class="n">SYSTEM</span><span class="p">,</span> <span class="n">messages</span><span class="o">=</span><span class="n">messages</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">r</span><span class="o">.</span><span class="n">content</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">run_agent</span><span class="p">(</span><span class="n">llm</span><span class="p">,</span> <span class="n">reg</span><span class="p">,</span> <span class="s2">"How many pending orders does ada@example.com have?"</span><span class="p">))</span>
+</code></pre></div>
+
+<p>(Anthropic also has native tool use via the <code>tools=</code> parameter; this JSON-text protocol teaches the same loop with no SDK coupling.) Note: messages must alternate user/assistant; the loop here does.</p>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li><code>isinstance(True, int)</code> is True, so booleans slip through integer checks.</li>
+<li>Building SQL with f-strings (injection). Use <code>?</code> placeholders.</li>
+<li>Checking only that SQL "starts with SELECT"; <code>SELECT 1; DROP TABLE x</code> passes. Reject <code>;</code> stacking.</li>
+<li>Letting a tool exception crash the loop instead of returning it to the model.</li>
+<li>No <code>max_steps</code>: a confused model loops and burns money.</li>
+<li>Counting a malformed reply as free; it is still a paid LLM call.</li>
+<li>Returning huge result sets into the prompt; always cap rows.</li>
+</ul>
+<h2 id="demo-tips">Demo tips</h2>
+<ul>
+<li>Show the <code>trace</code> live: "it looked up the customer, then the orders, then answered".</li>
+<li>Demo a refusal: ask it to delete orders and show the guard saying no. Non-engineers love this.</li>
+<li>Keep a canned seed DB so the demo is repeatable; mention what you would swap for their real CRM API.</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../../05-fde-projects/project-03-document-qa-rag/test_exercises.py.html">← Project 3 · Document Q&amp;A (RAG): Tests (code)</a><a class="next" href="../../05-fde-projects/project-04-tool-calling-agent/exercises.py.html">Project 4 · Tool-calling agent: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

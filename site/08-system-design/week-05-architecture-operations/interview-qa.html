@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 5 - Interview Q&amp;A: Architecture and Operations | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="08-system-design/week-05-architecture-operations/interview-qa" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../08-system-design/README.html">System Design</a> / <a href="../../08-system-design/week-05-architecture-operations/lesson.html">Week 5 · Architecture and operations</a> / <span>Interview Q&amp;A</span></nav><button id="mark-done" data-id="08-system-design/week-05-architecture-operations/interview-qa">Mark as done</button></div><article class="doc">
+<h1 id="week-5-interview-qa-architecture-and-operations">Week 5 - Interview Q&amp;A: Architecture and Operations</h1>
+<p>Cover the answer, say yours aloud (30-60 s), then compare. Numbers marked "check current docs" change.</p>
+<hr />
+<p><strong>1. Monolith or microservices for a new product?</strong>
+Start with a modular monolith unless team size or divergent scaling forces otherwise. Microservices add network failure modes, distributed data, and ops overhead. Keep clean module boundaries so extraction later (strangler fig) is cheap. Split when teams block each other on deploys or components have very different scaling/availability needs.</p>
+<p><strong>2. What is a "distributed monolith" and how do you avoid it?</strong>
+Services that must be deployed together, share a database, or are chatty synchronously. You get microservice costs without benefits. Avoid with bounded contexts, database per service, async events, versioned contracts, and independent deployability as a hard test.</p>
+<p><strong>3. REST vs gRPC vs GraphQL?</strong>
+REST: public APIs, cacheable, simple. gRPC: internal low-latency typed contracts, streaming, Protobuf, needs HTTP/2-aware LB. GraphQL: many client shapes, avoids over/under-fetching, but needs N+1 handling (DataLoader), query depth/cost limits, and is harder to cache.</p>
+<p><strong>4. Offset vs cursor pagination?</strong>
+Offset scans and discards rows (slow deep) and shifts when data changes. Cursor/keyset uses <code>WHERE (sort_key, id) &lt; cursor ORDER BY ... LIMIT n</code>, stable and index-friendly, but no random page jump. Use opaque cursors with a unique tiebreaker.</p>
+<p><strong>5. How do you version an API without breaking clients?</strong>
+Additive-only changes where possible (new optional fields), tolerant readers, explicit version (URL or header) for breaking changes, deprecation window with Sunset header and usage metrics. For Protobuf never reuse field numbers. DB and API changes go expand then contract because old and new code coexist during rollout.</p>
+<p><strong>6. What does an API gateway do, and what are its risks?</strong>
+Edge concerns: TLS termination, authn, rate limiting, routing, aggregation, logging, canary routing. Risks: bottleneck/SPOF (run redundant and stateless), extra latency, business logic creeping in. Distinguish from LB (traffic distribution) and service mesh (east-west).</p>
+<p><strong>7. How does service discovery work?</strong>
+Instances register (or the platform tracks them) in a registry; health checks remove bad ones; clients look up via client-side discovery (Eureka), server-side (LB, Kubernetes Service), or DNS/mesh. Registries can be stale so clients need retries and timeouts. CP stores (etcd/Consul) vs AP (Eureka) tradeoff.</p>
+<p><strong>8. Metrics, logs, traces: when do you use each?</strong>
+Metrics: cheap aggregates for alerting and trends. Logs: detailed events for debugging. Traces: per-request path and timing across services to find the slow/failing hop. Link them via trace_id and exemplars. Avoid high-cardinality metric labels.</p>
+<p><strong>9. What should you alert on?</strong>
+User-visible symptoms tied to SLOs (error rate, latency, availability) using burn-rate alerts, not causes like CPU. Every alert actionable with a runbook. Use RED for services, USE for resources, golden signals overall.</p>
+<p><strong>10. Why percentiles instead of averages, and why does tail latency matter more with fan-out?</strong>
+Averages hide the slow tail. With fan-out to N dependencies, probability at least one is slow is 1-(1-p)^N; 100 calls at p99 means ~63% of requests hit a slow one. Mitigate with hedged requests, timeouts, fewer hops, caching.</p>
+<p><strong>11. Compare rolling, blue-green, and canary.</strong>
+Rolling: gradual, cheap, mixed versions, slower rollback. Blue-green: full parallel stack, instant switch and rollback, 2x capacity, DB compatibility still needed. Canary: small traffic slice with metric-gated promotion and auto-rollback; needs good SLIs. Add feature flags to decouple deploy from release.</p>
+<p><strong>12. How do you do a zero-downtime schema change?</strong>
+Expand/contract: add nullable column or new table, deploy code writing both, backfill, switch reads, then drop old after all old code is gone. Avoid long locks (online schema tools), and make each step independently reversible.</p>
+<p><strong>13. Define RPO and RTO and map to DR strategies.</strong>
+RPO = tolerable data loss; RTO = tolerable downtime. Backup/restore (hours/hours, cheapest), pilot light (minutes), warm standby (seconds-minutes), active-active (near zero, most expensive and needs conflict handling). Choose by business cost of downtime; test with drills.</p>
+<p><strong>14. Active-active multi-region: what is hard?</strong>
+Data. Writes in two regions need conflict resolution (LWW, CRDTs), or partition users by home region, or a globally consistent DB (Spanner, higher write latency). Also routing, replication lag, split-brain, cross-region egress cost, and the control plane living in the failed region. Active-passive is simpler if RTO of minutes is acceptable.</p>
+<p><strong>15. How do you avoid split-brain during failover?</strong>
+Single authority for who is leader (consensus system like etcd/ZooKeeper), quorum-based promotion, fencing tokens or STONITH so the old leader cannot write, and avoiding automatic failover on flaky health checks without hysteresis.</p>
+<p><strong>16. JWT vs session cookies?</strong>
+Sessions: server state, easy revoke, needs shared store. JWT: stateless verification, good for service-to-service and scale, but hard to revoke, so use short expiry plus refresh tokens or a denylist. Always validate signature, exp, iss, aud; reject alg none. JWT is signed, not encrypted.</p>
+<p><strong>17. How do you enforce multi-tenant isolation?</strong>
+Tenant id from verified token (never client-supplied), enforced in every query/cache key (row-level security or per-tenant schema/index), per-tenant quotas, optionally per-tenant encryption keys and separate stores for high-sensitivity tenants. Test with cross-tenant access tests. In RAG, filter by ACL in the vector query itself.</p>
+<p><strong>18. Where should secrets live and how should they be used?</strong>
+In a secrets manager (Vault, AWS Secrets Manager) accessed via workload identity, injected at runtime, rotated, audited, short-lived where possible. Never in git, images, or logs. Prefer IAM roles over static keys.</p>
+<p><strong>19. Design the serving path for an LLM feature. What is different from a normal service?</strong>
+Slow (seconds), costly per token, rate-limited by tokens, nondeterministic. So: stream responses, per-tenant token quotas plus a global limiter for provider limits, timeouts and retries with jitter, fallback model, caching (exact and careful semantic), model routing, async queue for non-interactive work, tracing with token/cost metrics, guardrails, and evals.</p>
+<p><strong>20. How do you reduce LLM latency and cost?</strong>
+Latency: stream, smaller prompts, fewer chunks, small model for easy steps, parallelize independent calls, prefix caching, cap output, fewer agent hops. Cost: route to cheaper models, cache, trim context and history, batch APIs for offline work, cap output tokens, per-tenant budgets, consider fine-tuned small models at stable high volume. Verify current pricing and features in provider docs.</p>
+<p><strong>21. How do you evaluate a RAG system and detect regressions?</strong>
+Curated eval set per domain; measure retrieval (recall@k, MRR, nDCG) separately from generation (faithfulness, relevance, correctness, citation accuracy); run in CI on any prompt/model/chunking/embedding change; calibrate LLM-as-judge against human labels; online feedback and sampled review; version prompts, models, indexes. Most failures are retrieval, so debug retrieval first.</p>
+<p><strong>22. What are the main security risks in RAG/agent systems?</strong>
+Prompt injection (direct and via retrieved documents), data leakage across tenants/permissions, over-privileged tools, PII in prompts/logs, and unverified outputs. Controls: ACL-filtered retrieval, treat retrieved text as untrusted, least-privilege tools with approval for destructive actions, output validation, redaction, step/cost limits, audit logs.</p>
+<p><strong>23. The provider is returning 429s and timeouts. What do you do?</strong>
+Backoff with jitter honoring Retry-After, circuit breaker, fall back to alternate model/provider, queue and prioritize interactive over batch, shed load with clear 503s, ensure timeouts and bulkheads so the LLM pool cannot exhaust shared threads, and alert on provider error budget. Longer term: provisioned capacity, multi-provider.</p>
+<p><strong>24. Walk me through debugging a p99 latency spike.</strong>
+Check dashboards (RED) to scope endpoint/service and start time; correlate with deploys, config, traffic, dependency health; pull slow traces to find the slow span; check saturation (CPU, pools, queues, GC) and downstream; read logs for that trace; mitigate (rollback, scale, shed load, disable feature flag); then root-cause and postmortem with action items.</p>
+</article><div class="pager"><a class="prev" href="../../08-system-design/week-05-architecture-operations/lesson.html">← Week 5 · Architecture and operations: Lesson</a><a class="next" href="../../08-system-design/week-05-architecture-operations/cheatsheet.html">Week 5 · Architecture and operations: Cheatsheet →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

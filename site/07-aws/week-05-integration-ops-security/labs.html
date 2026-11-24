@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 5 Labs (OPTIONAL) | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="07-aws/week-05-integration-ops-security/labs" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../07-aws/README.html">AWS</a> / <a href="../../07-aws/week-05-integration-ops-security/lesson.html">Week 5 · Integration, ops, security</a> / <span>Labs</span></nav><button id="mark-done" data-id="07-aws/week-05-integration-ops-security/labs">Mark as done</button></div><article class="doc">
+<h1 id="week-5-labs-optional">Week 5 Labs (OPTIONAL)</h1>
+<p>COST WARNING: SQS, SNS, EventBridge, Lambda, Step Functions Standard, CloudWatch basics and CloudTrail event history have free tiers. Secrets Manager ($0.40/secret/month, 30-day trial), KMS customer keys ($1/month prorated), WAF, Kinesis shards (hourly), API Gateway beyond free tier and CloudWatch log ingestion cost money.</p>
+<ol>
+<li>SQS: create standard queue + DLQ (maxReceiveCount 3); send a message; receive without deleting 3 times; watch it land in the DLQ.</li>
+<li>SNS -&gt; 2 SQS fan-out with a filter policy.</li>
+<li>EventBridge: rule on a custom event pattern -&gt; SQS; put events with <code>aws events put-events</code>. Add a Scheduler schedule.</li>
+<li>Step Functions: build a 3-state workflow (Pass, Choice, Fail with retry) in Workflow Studio; run it.</li>
+<li>CloudTrail: browse Event history, find your own CreateQueue call.</li>
+<li>KMS (optional): create a CMK, encrypt a small file via CLI, schedule key deletion (7 days) afterward.</li>
+<li>CDK/CloudFormation: deploy a stack with one S3 bucket, run drift detection, destroy the stack.</li>
+</ol>
+<p>Cleanup: delete queues/topics/rules/state machines, schedule KMS key deletion, delete secrets (7+ day recovery window; use force delete if you want it now), delete stacks, delete log groups.</p>
+</article><div class="pager"><a class="prev" href="../../07-aws/week-05-integration-ops-security/cheatsheet.html">← Week 5 · Integration, ops, security: Cheatsheet</a><a class="next" href="../../07-aws/week-06-architecture-fde/lesson.html">Week 6 · Architecture and FDE angle: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

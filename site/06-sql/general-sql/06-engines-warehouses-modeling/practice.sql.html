@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>practice.sql | Study Hub</title><link rel="stylesheet" href="../../../assets/style.css"><link rel="stylesheet" href="../../../assets/pygments.css"></head>
+<body data-root="../../../" data-page-id="06-sql/general-sql/06-engines-warehouses-modeling/practice.sql" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../../index.html">Home</a> / <a href="../../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../../06-sql/general-sql/README.html">General SQL</a> / <a href="../../../06-sql/general-sql/06-engines-warehouses-modeling/lesson.html">Part 6 · Engines, warehouses, modeling</a> / <span>practice.sql (code)</span></nav><button id="mark-done" data-id="06-sql/general-sql/06-engines-warehouses-modeling/practice.sql">Mark as done</button></div><article class="doc">
+<h1>practice.sql</h1><p class="code-path"><code>06-sql/general-sql/06-engines-warehouses-modeling/practice.sql</code></p>
+<div class="highlight"><pre><span></span><span class="c1">-- Part 06 practice. Run:  sqlite3 :memory: ".read setup.sql" ".read practice.sql"</span>
+<span class="c1">-- Write each query under its task. Compare with your own reasoning first; reference</span>
+<span class="c1">-- solutions are kept outside the repo (/tmp/ref-generalsql/06/solutions.sql).</span>
+<span class="p">.</span><span class="n">headers</span><span class="w"> </span><span class="k">on</span>
+<span class="p">.</span><span class="k">mode</span><span class="w"> </span><span class="k">column</span>
+
+<span class="c1">-- T1. Total revenue (SUM of amount) per product category. Highest first.</span>
+
+
+<span class="c1">-- T2. Revenue per year-quarter-month: show month and total, ordered by month.</span>
+<span class="c1">--     (Join the date dimension.)</span>
+
+
+<span class="c1">-- T3. Which customers (name) have never bought anything? Dimension-side anti-join.</span>
+
+
+<span class="c1">-- T4. Revenue by customer region, with a RANK() over total revenue (highest = 1).</span>
+
+
+<span class="c1">-- T5. Share of revenue that happened on weekends, as a percentage rounded to 1 decimal.</span>
+
+
+<span class="c1">-- T6. For each category, the single best-selling product by revenue (ties: lowest product name).</span>
+<span class="c1">--     Hint: window function or correlated subquery.</span>
+
+
+<span class="c1">-- T7. Running total of revenue by date_key across the whole fact table (one row per date).</span>
+
+
+<span class="c1">-- T8. (SCD2) Apply stg_customer to dim_customer_scd2 with the two-step close-then-insert pattern.</span>
+<span class="c1">--     Use '2024-09-01' as the change date. Wrap in BEGIN; ... COMMIT;</span>
+
+
+<span class="c1">-- T9. (SCD2) After T8: list each customer's city as of '2024-02-01' (half-open range).</span>
+
+
+<span class="c1">-- T10. (SCD2) How many versions does each customer have? Show only customers with more than one.</span>
+
+
+<span class="c1">-- T11. (SCD2 trap) Explain in a comment why joining a fact to dim_customer_scd2 by customer_id</span>
+<span class="c1">--      alone double counts, and write the join condition that fixes it given a sale date column sale_date.</span>
+<span class="c1">--      (No query to run; answer in comments.)</span>
+
+
+<span class="c1">-- T12. Thought questions (answer in comments, no SQL):</span>
+<span class="c1">--   a) State the grain of fact_sales.</span>
+<span class="c1">--   b) Which of quantity, amount, and an average_price column are additive?</span>
+<span class="c1">--   c) Where would partitioning help if fact_sales had 5 billion rows? On which column?</span>
+<span class="c1">--   d) Why might SELECT * be a bad idea on BigQuery but harmless on SQLite?</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../../06-sql/general-sql/06-engines-warehouses-modeling/setup.sql.html">← Part 6 · Engines, warehouses, modeling: setup.sql (code)</a><a class="next" href="../../../06-sql/general-sql/cheatsheet.html">General SQL: Cheatsheet →</a></div></main><aside id="toc"></aside></div>
+<script src="../../../assets/data.js"></script><script src="../../../assets/app.js"></script></body></html>

@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 4 Cheatsheet - Networking | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="07-aws/week-04-networking/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../07-aws/README.html">AWS</a> / <a href="../../07-aws/week-04-networking/lesson.html">Week 4 · Networking</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="07-aws/week-04-networking/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="week-4-cheatsheet-networking">Week 4 Cheatsheet - Networking</h1>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>One-liner</th>
+<th>Typical use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>VPC</td>
+<td>Private network in a region</td>
+<td>Isolate workloads</td>
+</tr>
+<tr>
+<td>Subnet</td>
+<td>CIDR slice in one AZ</td>
+<td>Public/private tiers</td>
+</tr>
+<tr>
+<td>Route table</td>
+<td>Rules choosing next hop</td>
+<td>IGW/NAT/TGW routing</td>
+</tr>
+<tr>
+<td>Internet Gateway</td>
+<td>Two-way internet (free)</td>
+<td>Public subnets</td>
+</tr>
+<tr>
+<td>NAT Gateway</td>
+<td>Outbound-only internet, per AZ, $$</td>
+<td>Private subnet egress</td>
+</tr>
+<tr>
+<td>Security group</td>
+<td>Stateful allow-only, ENI-level</td>
+<td>Primary firewall</td>
+</tr>
+<tr>
+<td>NACL</td>
+<td>Stateless allow/deny, subnet-level</td>
+<td>Coarse deny rules</td>
+</tr>
+<tr>
+<td>Gateway endpoint</td>
+<td>Free private path to S3/DynamoDB</td>
+<td>Avoid NAT charges</td>
+</tr>
+<tr>
+<td>Interface endpoint / PrivateLink</td>
+<td>ENI to AWS/3rd-party/own services</td>
+<td>Private service access</td>
+</tr>
+<tr>
+<td>VPC peering</td>
+<td>1:1, non-transitive</td>
+<td>Few VPCs</td>
+</tr>
+<tr>
+<td>Transit Gateway</td>
+<td>Regional hub-spoke router</td>
+<td>Many VPCs + on-prem</td>
+</tr>
+<tr>
+<td>Site-to-Site VPN</td>
+<td>IPsec over internet, 2 tunnels</td>
+<td>Quick hybrid / DX backup</td>
+</tr>
+<tr>
+<td>Direct Connect</td>
+<td>Dedicated private link 1-100 Gbps</td>
+<td>Steady hybrid, low latency</td>
+</tr>
+<tr>
+<td>Route 53</td>
+<td>DNS + health checks + routing policies</td>
+<td>Failover, latency, weighted</td>
+</tr>
+<tr>
+<td>CloudFront</td>
+<td>CDN with edge caching, WAF, OAC</td>
+<td>Static + dynamic acceleration</td>
+</tr>
+<tr>
+<td>Global Accelerator</td>
+<td>Anycast static IPs over AWS backbone</td>
+<td>TCP/UDP global failover</td>
+</tr>
+<tr>
+<td>Flow Logs / Reachability Analyzer</td>
+<td>Traffic metadata / path analysis</td>
+<td>Connectivity debugging</td>
+</tr>
+<tr>
+<td>ELB (ALB/NLB/GWLB)</td>
+<td>Load balancing L7/L4/appliance</td>
+<td>Entry points</td>
+</tr>
+<tr>
+<td>Network Firewall</td>
+<td>Managed stateful firewall (VPC)</td>
+<td>Egress filtering, IDS/IPS</td>
+</tr>
+</tbody>
+</table>
+<p>Numbers: AWS reserves 5 IPs/subnet; VPC CIDR /16-/28; 5 VPCs/region default; VPN tunnel ~1.25 Gbps, 2 tunnels; DX 1/10/100 Gbps; CloudFront ACM cert in us-east-1.
+Routing policies: simple, weighted, latency, failover, geolocation, geoproximity, multivalue, IP-based.
+Remember: SG = stateful allow; NACL = stateless allow/deny; peering non-transitive; NAT per AZ; endpoints save NAT cost.</p>
+</article><div class="pager"><a class="prev" href="../../07-aws/week-04-networking/interview-qa.html">← Week 4 · Networking: Interview Q&amp;A</a><a class="next" href="../../07-aws/week-04-networking/labs.html">Week 4 · Networking: Labs →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

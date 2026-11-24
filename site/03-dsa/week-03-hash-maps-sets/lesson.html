@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 3: Hash maps and sets | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-03-hash-maps-sets/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-03-hash-maps-sets/lesson.html">Week 3 · Hash maps and sets</a> / <span>Lesson</span></nav><button id="mark-done" data-id="03-dsa/week-03-hash-maps-sets/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-3-hash-maps-and-sets">Week 3: Hash maps and sets</h1>
+<h2 id="1-concept-2-hrs">1. Concept (~2 hrs)</h2>
+<p>A hash map (<code>dict</code>) stores key -&gt; value; a set stores unique keys. Both give <strong>O(1) average</strong> insert, lookup and delete, at the cost of O(n) memory. Keys must be hashable (int, str, tuple of hashables; NOT list/dict/set). Worst case is O(n) with many collisions, but in interviews you say "O(1) average".</p>
+<p>Useful tools: <code>dict.get(k, default)</code>, <code>setdefault</code>, <code>collections.Counter</code>, <code>collections.defaultdict(list/int/set)</code>, <code>frozenset</code>, <code>tuple(sorted(s))</code> as a hashable key.</p>
+<h2 id="2-how-to-recognize-the-pattern">2. How to recognize the pattern</h2>
+<ul>
+<li>"Have I seen this before?" / duplicates -&gt; set.</li>
+<li>"Find a pair/complement" -&gt; dict from value to index (one pass).</li>
+<li>"Count frequency", "most common", "anagram" -&gt; Counter or a 26-length tuple key.</li>
+<li>"Group by some property" -&gt; dict of key -&gt; list, where the key is a canonical form.</li>
+<li>"Subarray with sum k" -&gt; prefix sums + dict of prefix -&gt; count.</li>
+<li>"Longest consecutive / sequence in unsorted data in O(n)" -&gt; set + only start from sequence starts.</li>
+<li>"Cache / O(1) get and put with eviction" -&gt; dict + doubly linked list (or OrderedDict).</li>
+</ul>
+<h2 id="3-templates">3. Templates</h2>
+<p>Complement lookup:</p>
+<div class="highlight"><pre><span></span><code><span class="n">seen</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">target</span> <span class="o">-</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">seen</span><span class="p">[</span><span class="n">target</span> <span class="o">-</span> <span class="n">x</span><span class="p">],</span> <span class="n">i</span><span class="p">]</span>
+    <span class="n">seen</span><span class="p">[</span><span class="n">x</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span>
+</code></pre></div>
+
+<p>Group by canonical key:</p>
+<div class="highlight"><pre><span></span><code><span class="n">groups</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">words</span><span class="p">:</span>
+    <span class="n">groups</span><span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">w</span><span class="p">))]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">w</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Prefix-sum counting:</p>
+<div class="highlight"><pre><span></span><code><span class="n">count</span> <span class="o">=</span> <span class="p">{</span><span class="mi">0</span><span class="p">:</span> <span class="mi">1</span><span class="p">};</span> <span class="n">total</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">ans</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">nums</span><span class="p">:</span>
+    <span class="n">total</span> <span class="o">+=</span> <span class="n">x</span>
+    <span class="n">ans</span> <span class="o">+=</span> <span class="n">count</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">total</span> <span class="o">-</span> <span class="n">k</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">count</span><span class="p">[</span><span class="n">total</span><span class="p">]</span> <span class="o">=</span> <span class="n">count</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">total</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+</code></pre></div>
+
+<p>Longest consecutive run:</p>
+<div class="highlight"><pre><span></span><code><span class="n">s</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">s</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">x</span> <span class="o">-</span> <span class="mi">1</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">s</span><span class="p">:</span>        <span class="c1"># x starts a run</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">x</span>
+        <span class="k">while</span> <span class="n">y</span> <span class="o">+</span> <span class="mi">1</span> <span class="ow">in</span> <span class="n">s</span><span class="p">:</span> <span class="n">y</span> <span class="o">+=</span> <span class="mi">1</span>
+</code></pre></div>
+
+<p>Two-way mapping check (isomorphic/pattern): maintain map a-&gt;b and b-&gt;a, both must stay consistent.</p>
+<h2 id="4-complexity">4. Complexity</h2>
+<p>Building a map/set of n items is O(n) time/space. Order the check-then-insert carefully so each element is processed once. Sorting-based keys cost O(k log k) per key (k = key length); counting-based keys cost O(k).</p>
+<h2 id="5-common-mistakes">5. Common mistakes</h2>
+<ul>
+<li>Inserting before checking the complement (a number pairing with itself).</li>
+<li>Using a list as a dict key (TypeError); use a tuple.</li>
+<li>Forgetting <code>count[0] = 1</code> for prefix sums (misses subarrays starting at index 0).</li>
+<li>Iterating a dict while mutating it.</li>
+<li>Using <code>in list</code> where a set would do (silently O(n^2)).</li>
+<li>In the consecutive-sequence problem, expanding from every number (O(n^2)).</li>
+<li>LRU: forgetting to refresh recency on <code>get</code>.</li>
+</ul>
+<h2 id="6-interview-tips">6. Interview tips</h2>
+<ul>
+<li>Say the trade-off aloud: "O(n) extra space to reduce O(n^2) to O(n)".</li>
+<li>Clarify duplicates, negatives, and whether exactly one answer exists.</li>
+<li>Know <code>OrderedDict.move_to_end</code> / <code>popitem(last=False)</code> for LRU, but be ready to hand-build the linked list version (week 9).</li>
+<li>Normal Python dicts preserve insertion order; mention it when relevant.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run <code>.venv/bin/pytest 03-dsa/week-03-hash-maps-sets -q</code>.</p>
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-02-arrays-strings/test_exercises.py.html">← Week 2 · Arrays and strings: Tests (code)</a><a class="next" href="../../03-dsa/week-03-hash-maps-sets/exercises.py.html">Week 3 · Hash maps and sets: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

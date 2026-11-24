@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="05-fde-projects/project-03-document-qa-rag/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../05-fde-projects/project-01-llm-basics/lesson.html">FDE Projects</a> / <a href="../../05-fde-projects/project-03-document-qa-rag/lesson.html">Project 3 · Document Q&amp;A (RAG)</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="05-fde-projects/project-03-document-qa-rag/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>05-fde-projects/project-03-document-qa-rag/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Project 3: document Q&amp;A (RAG). Read lesson.md first.</span>
+
+<span class="sd">Provided: tokenize, BagOfWordsEmbedder, Chunk, Answer, STOPWORDS.</span>
+<span class="sd">Implement everything marked `...`. No network or API key is needed: the LLM is</span>
+<span class="sd">an injected callable `llm(prompt: str) -&gt; str`.</span>
+<span class="sd">"""</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">zlib</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pypdf</span><span class="w"> </span><span class="kn">import</span> <span class="n">PdfReader</span>
+
+<span class="n">IDK</span> <span class="o">=</span> <span class="s2">"I don't know based on the provided documents."</span>
+
+<span class="n">STOPWORDS</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
+    <span class="s2">"a an the is are was were be to of in on at for and or by with from as it its this that "</span>
+    <span class="s2">"what which who how do does did can i you we our your my"</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+<span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">tokenize</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""PROVIDED. Lowercase word tokens with stopwords removed."""</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">t</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s2">"[a-z0-9]+"</span><span class="p">,</span> <span class="n">text</span><span class="o">.</span><span class="n">lower</span><span class="p">())</span> <span class="k">if</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">STOPWORDS</span><span class="p">]</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">BagOfWordsEmbedder</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""PROVIDED. Deterministic hashing bag-of-words embedder (no model, no network).</span>
+
+<span class="sd">    Each token is hashed (crc32, stable across runs) into one of `dim` buckets;</span>
+<span class="sd">    the count vector is L2-normalised. Stands in for a real embedding model.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">512</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">=</span> <span class="n">dim</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">embed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+        <span class="n">vec</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">tok</span> <span class="ow">in</span> <span class="n">tokenize</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+            <span class="n">vec</span><span class="p">[</span><span class="n">zlib</span><span class="o">.</span><span class="n">crc32</span><span class="p">(</span><span class="n">tok</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="p">]</span> <span class="o">+=</span> <span class="mf">1.0</span>
+        <span class="n">norm</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">vec</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">vec</span> <span class="o">/</span> <span class="n">norm</span> <span class="k">if</span> <span class="n">norm</span> <span class="k">else</span> <span class="n">vec</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">embed_many</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">texts</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">texts</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">embed</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">texts</span><span class="p">])</span>
+
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Chunk</span><span class="p">:</span>
+    <span class="n">text</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">source</span><span class="p">:</span> <span class="nb">str</span>  <span class="c1"># file name, e.g. "handbook.pdf"</span>
+    <span class="n">page</span><span class="p">:</span> <span class="nb">int</span>  <span class="c1"># 1-based page number (text files are page 1)</span>
+    <span class="n">chunk_id</span><span class="p">:</span> <span class="nb">int</span>  <span class="c1"># position in the whole index, 0-based</span>
+
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Answer</span><span class="p">:</span>
+    <span class="n">text</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">citations</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Chunk</span><span class="p">]</span>  <span class="c1"># chunks the answer actually cites, in citation order</span>
+    <span class="n">hits</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Chunk</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span>  <span class="c1"># everything retrieved, best first</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">load_text_file</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the full text of a UTF-8 text file. `path` may be a str or Path.</span>
+
+<span class="sd">    Hint: pathlib.Path(path).read_text(encoding="utf-8")</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">load_pdf</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return one string per PDF page (stripped). A page with no extractable text -&gt; "".</span>
+
+<span class="sd">    Hint: pypdf.PdfReader(str(path)).pages; page.extract_text() may return None/"".</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">load_document</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">"""Load .txt/.md/.pdf into [(page_number, text), ...] with 1-based page numbers.</span>
+
+<span class="sd">    - text files are a single page 1</span>
+<span class="sd">    - texts are stripped; blank pages are SKIPPED but numbering of the others is kept</span>
+<span class="sd">    - any other extension -&gt; ValueError</span>
+<span class="sd">    Hint: reuse load_text_file / load_pdf; Path(path).suffix.lower().</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">chunk_text</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">chunk_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50</span><span class="p">,</span> <span class="n">overlap</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Split text into chunks of `chunk_size` WORDS, consecutive chunks sharing `overlap` words.</span>
+
+<span class="sd">    chunk_text("w0 ... w9", 4, 1) -&gt; ["w0 w1 w2 w3", "w3 w4 w5 w6", "w6 w7 w8 w9"]</span>
+<span class="sd">    - empty text -&gt; []</span>
+<span class="sd">    - stop as soon as a chunk reaches the end (no trailing duplicate/tiny chunk)</span>
+<span class="sd">    - ValueError unless chunk_size &gt; 0 and 0 &lt;= overlap &lt; chunk_size</span>
+<span class="sd">    Hint: step = chunk_size - overlap; range(0, len(words), step).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">build_chunks</span><span class="p">(</span><span class="n">pages</span><span class="p">,</span> <span class="n">source</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">chunk_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50</span><span class="p">,</span> <span class="n">overlap</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Chunk</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Chunk every (page_number, text) page into Chunk objects.</span>
+
+<span class="sd">    chunk_id counts 0, 1, 2... across ALL pages (not reset per page); chunks never span pages.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">cosine_similarity</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Cosine similarity of two vectors as a Python float. If either has zero norm -&gt; 0.0.</span>
+
+<span class="sd">    Hint: np.dot(a, b) / (norm(a) * norm(b)); np.linalg.norm.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">top_k</span><span class="p">(</span><span class="n">query_vec</span><span class="p">,</span> <span class="n">matrix</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">"""Return [(row_index, score), ...] for the k rows of `matrix` most similar to query_vec.</span>
+
+<span class="sd">    Sorted best first; ties broken by LOWER row index. Fewer than k rows -&gt; return them all.</span>
+<span class="sd">    Empty matrix or k &lt;= 0 -&gt; [].</span>
+<span class="sd">    Hint: sorted(range(n), key=lambda i: (-scores[i], i)).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Retriever</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Index chunks once, then answer many queries."""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">embedder</span><span class="p">,</span> <span class="n">chunks</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Chunk</span><span class="p">]):</span>
+<span class="w">        </span><span class="sd">"""Store embedder and chunks; precompute self.matrix = embedder.embed_many(texts)."""</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">retrieve</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span> <span class="n">min_score</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Chunk</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">"""Return up to k (Chunk, score) best first. Drop hits with score &lt;= 0 or &lt; min_score.</span>
+
+<span class="sd">        A query sharing no words with anything (score 0) must return [].</span>
+<span class="sd">        """</span>
+        <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">build_prompt</span><span class="p">(</span><span class="n">question</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">hits</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Build the RAG prompt from (Chunk, score) hits (best first).</span>
+
+<span class="sd">    Must contain, in this order: instructions (say "ONLY" the sources may be used, and</span>
+<span class="sd">    to reply exactly IDK when they lack the answer, and to cite like [1]), then a</span>
+<span class="sd">    "Sources:" section with one line per hit: "[n] (source, p.page) text" numbered from 1,</span>
+<span class="sd">    then "Question: &lt;question&gt;" and a final "Answer:" line.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">extract_citations</span><span class="p">(</span><span class="n">answer</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return the sorted unique ints found in [n] markers: "A [2] B [1] [2]" -&gt; [1, 2].</span>
+
+<span class="sd">    Hint: re.findall(r"\[(\d+)\]", answer). "array[x]" is not a citation.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">answer_question</span><span class="p">(</span><span class="n">question</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">retriever</span><span class="p">,</span> <span class="n">llm</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span> <span class="n">min_score</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.15</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Answer</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""The whole pipeline: retrieve -&gt; prompt -&gt; llm -&gt; citations.</span>
+
+<span class="sd">    - hits = retriever.retrieve(question, k=k, min_score=min_score)</span>
+<span class="sd">    - no hits -&gt; Answer(IDK, [], []) and DO NOT call the llm (cheaper and no hallucination)</span>
+<span class="sd">    - else text = llm(build_prompt(question, hits)).strip()</span>
+<span class="sd">    - citations = chunks for cited numbers, in ascending number order; ignore numbers</span>
+<span class="sd">      outside 1..len(hits) (models invent citations!)</span>
+<span class="sd">    - return Answer(text, citations, hits)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../05-fde-projects/project-03-document-qa-rag/lesson.html">← Project 3 · Document Q&amp;A (RAG): Lesson</a><a class="next" href="../../05-fde-projects/project-03-document-qa-rag/test_exercises.py.html">Project 3 · Document Q&amp;A (RAG): Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

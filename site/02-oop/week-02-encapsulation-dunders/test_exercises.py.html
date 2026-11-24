@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>test_exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="02-oop/week-02-encapsulation-dunders/test_exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../02-oop/week-01-classes-objects/lesson.html">Object-Oriented Python</a> / <a href="../../02-oop/week-02-encapsulation-dunders/lesson.html">Week 2 · Encapsulation and dunders</a> / <span>Tests (code)</span></nav><button id="mark-done" data-id="02-oop/week-02-encapsulation-dunders/test_exercises.py">Mark as done</button></div><article class="doc">
+<h1>test_exercises.py</h1><p class="code-path"><code>02-oop/week-02-encapsulation-dunders/test_exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_temperature</span><span class="p">():</span>
+    <span class="n">t</span> <span class="o">=</span> <span class="n">Temperature</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">t</span><span class="o">.</span><span class="n">celsius</span> <span class="o">==</span> <span class="mi">100</span>
+    <span class="k">assert</span> <span class="n">t</span><span class="o">.</span><span class="n">fahrenheit</span> <span class="o">==</span> <span class="mi">212</span>
+    <span class="n">t</span><span class="o">.</span><span class="n">fahrenheit</span> <span class="o">=</span> <span class="mi">32</span>
+    <span class="k">assert</span> <span class="n">t</span><span class="o">.</span><span class="n">celsius</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">t</span><span class="o">.</span><span class="n">kelvin</span> <span class="o">==</span> <span class="n">pytest</span><span class="o">.</span><span class="n">approx</span><span class="p">(</span><span class="mf">273.15</span><span class="p">)</span>
+    <span class="n">t</span><span class="o">.</span><span class="n">celsius</span> <span class="o">=</span> <span class="mi">25</span>
+    <span class="k">assert</span> <span class="n">t</span><span class="o">.</span><span class="n">celsius</span> <span class="o">==</span> <span class="mi">25</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_temperature_validation</span><span class="p">():</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">Temperature</span><span class="p">(</span><span class="o">-</span><span class="mi">300</span><span class="p">)</span>
+    <span class="n">t</span> <span class="o">=</span> <span class="n">Temperature</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">t</span><span class="o">.</span><span class="n">celsius</span> <span class="o">=</span> <span class="o">-</span><span class="mf">273.16</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">t</span><span class="o">.</span><span class="n">fahrenheit</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1000</span>
+    <span class="k">assert</span> <span class="n">t</span><span class="o">.</span><span class="n">celsius</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">AttributeError</span><span class="p">):</span>
+        <span class="n">t</span><span class="o">.</span><span class="n">kelvin</span> <span class="o">=</span> <span class="mi">5</span>
+    <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">Temperature</span><span class="o">.</span><span class="n">celsius</span><span class="p">,</span> <span class="nb">property</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_circle</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">Circle</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">diameter</span> <span class="o">==</span> <span class="mi">4</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">area</span> <span class="o">==</span> <span class="n">pytest</span><span class="o">.</span><span class="n">approx</span><span class="p">(</span><span class="mf">12.566370614</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">radius</span> <span class="o">=</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">diameter</span> <span class="o">==</span> <span class="mi">6</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">radius</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">Circle</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">AttributeError</span><span class="p">):</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">area</span> <span class="o">=</span> <span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_vector_basics</span><span class="p">():</span>
+    <span class="n">v</span> <span class="o">=</span> <span class="n">Vector2D</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">repr</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"Vector2D(1, 2)"</span>
+    <span class="k">assert</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"(1, 2)"</span>
+    <span class="k">assert</span> <span class="n">v</span> <span class="o">==</span> <span class="n">Vector2D</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">v</span> <span class="o">!=</span> <span class="n">Vector2D</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">v</span> <span class="o">!=</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">v</span> <span class="o">+</span> <span class="n">Vector2D</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span> <span class="o">==</span> <span class="n">Vector2D</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">v</span> <span class="o">*</span> <span class="mi">3</span> <span class="o">==</span> <span class="n">Vector2D</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">abs</span><span class="p">(</span><span class="n">Vector2D</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span> <span class="o">==</span> <span class="mi">5</span>
+    <span class="k">assert</span> <span class="nb">bool</span><span class="p">(</span><span class="n">Vector2D</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="nb">bool</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_vector_hash</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="nb">hash</span><span class="p">(</span><span class="n">Vector2D</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span> <span class="o">==</span> <span class="nb">hash</span><span class="p">(</span><span class="n">Vector2D</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">({</span><span class="n">Vector2D</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">Vector2D</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">Vector2D</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)})</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="p">{</span><span class="n">Vector2D</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">):</span> <span class="s2">"a"</span><span class="p">}[</span><span class="n">Vector2D</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)]</span> <span class="o">==</span> <span class="s2">"a"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_version_ordering</span><span class="p">():</span>
+    <span class="n">vs</span> <span class="o">=</span> <span class="p">[</span><span class="n">Version</span><span class="p">(</span><span class="s2">"1.10.0"</span><span class="p">),</span> <span class="n">Version</span><span class="p">(</span><span class="s2">"1.2.0"</span><span class="p">),</span> <span class="n">Version</span><span class="p">(</span><span class="s2">"1.2"</span><span class="p">),</span> <span class="n">Version</span><span class="p">(</span><span class="s2">"0.9.9"</span><span class="p">)]</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">vs</span><span class="p">)]</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"0.9.9"</span><span class="p">,</span> <span class="s2">"1.2.0"</span><span class="p">,</span> <span class="s2">"1.2"</span><span class="p">,</span> <span class="s2">"1.10.0"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">Version</span><span class="p">(</span><span class="s2">"1.10"</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">Version</span><span class="p">(</span><span class="s2">"1.9"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">Version</span><span class="p">(</span><span class="s2">"1.0"</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">Version</span><span class="p">(</span><span class="s2">"1.0.0"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">Version</span><span class="p">(</span><span class="s2">"2.0"</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">Version</span><span class="p">(</span><span class="s2">"1.99.99"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">max</span><span class="p">(</span><span class="n">vs</span><span class="p">)</span> <span class="o">==</span> <span class="n">Version</span><span class="p">(</span><span class="s2">"1.10.0"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">Version</span><span class="p">(</span><span class="s2">"1.0.3"</span><span class="p">)</span><span class="o">.</span><span class="n">parts</span> <span class="o">==</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_version_eq_hash_repr</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">Version</span><span class="p">(</span><span class="s2">"1.0"</span><span class="p">)</span> <span class="o">==</span> <span class="n">Version</span><span class="p">(</span><span class="s2">"1.0.0"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">hash</span><span class="p">(</span><span class="n">Version</span><span class="p">(</span><span class="s2">"1.0"</span><span class="p">))</span> <span class="o">==</span> <span class="nb">hash</span><span class="p">(</span><span class="n">Version</span><span class="p">(</span><span class="s2">"1.0.0"</span><span class="p">))</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">({</span><span class="n">Version</span><span class="p">(</span><span class="s2">"1.0"</span><span class="p">),</span> <span class="n">Version</span><span class="p">(</span><span class="s2">"1.0.0"</span><span class="p">),</span> <span class="n">Version</span><span class="p">(</span><span class="s2">"1.1"</span><span class="p">)})</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="nb">repr</span><span class="p">(</span><span class="n">Version</span><span class="p">(</span><span class="s2">"1.10.2"</span><span class="p">))</span> <span class="o">==</span> <span class="s2">"Version('1.10.2')"</span>
+    <span class="k">assert</span> <span class="nb">str</span><span class="p">(</span><span class="n">Version</span><span class="p">(</span><span class="s2">"1.10.2"</span><span class="p">))</span> <span class="o">==</span> <span class="s2">"1.10.2"</span>
+    <span class="k">assert</span> <span class="n">Version</span><span class="p">(</span><span class="s2">"1.0"</span><span class="p">)</span> <span class="o">!=</span> <span class="s2">"1.0"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_playlist</span><span class="p">():</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">Playlist</span><span class="p">([</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">])</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="n">p</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"a"</span> <span class="ow">and</span> <span class="n">p</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"c"</span>
+    <span class="k">assert</span> <span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"b"</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="nb">list</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="nb">list</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="s2">"b"</span> <span class="ow">in</span> <span class="n">p</span> <span class="ow">and</span> <span class="s2">"z"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">p</span>
+    <span class="k">assert</span> <span class="nb">bool</span><span class="p">(</span><span class="n">Playlist</span><span class="p">())</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="n">p</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">"d"</span><span class="p">)</span> <span class="ow">is</span> <span class="n">p</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_playlist_copies_input</span><span class="p">():</span>
+    <span class="n">src</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">]</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">Playlist</span><span class="p">(</span><span class="n">src</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">"b"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">src</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_countdown</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">Countdown</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">list</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="nb">list</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="nb">sum</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">==</span> <span class="mi">6</span>
+    <span class="k">assert</span> <span class="nb">list</span><span class="p">(</span><span class="n">Countdown</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_person</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">Person</span><span class="o">.</span><span class="n">is_adult</span><span class="p">(</span><span class="mi">18</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span>
+    <span class="k">assert</span> <span class="n">Person</span><span class="o">.</span><span class="n">is_adult</span><span class="p">(</span><span class="mi">17</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">Person</span><span class="o">.</span><span class="n">from_string</span><span class="p">(</span><span class="s2">" Sam , 30"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">age</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="s2">"Sam"</span><span class="p">,</span> <span class="mi">30</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">Person</span><span class="p">)</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="n">Person</span><span class="o">.</span><span class="n">from_birth_year</span><span class="p">(</span><span class="s2">"Al"</span><span class="p">,</span> <span class="mi">2000</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">q</span><span class="o">.</span><span class="n">age</span> <span class="o">==</span> <span class="mi">26</span>
+    <span class="k">assert</span> <span class="n">Person</span><span class="o">.</span><span class="n">from_birth_year</span><span class="p">(</span><span class="s2">"Al"</span><span class="p">,</span> <span class="mi">2000</span><span class="p">,</span> <span class="n">current_year</span><span class="o">=</span><span class="mi">2020</span><span class="p">)</span><span class="o">.</span><span class="n">age</span> <span class="o">==</span> <span class="mi">20</span>
+    <span class="k">assert</span> <span class="nb">repr</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"Person('Sam', 30)"</span>
+    <span class="k">assert</span> <span class="n">p</span><span class="o">.</span><span class="n">is_adult_person</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_person_classmethod_subclass</span><span class="p">():</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">Kid</span><span class="p">(</span><span class="n">Person</span><span class="p">):</span>
+        <span class="k">pass</span>
+
+    <span class="k">assert</span> <span class="nb">type</span><span class="p">(</span><span class="n">Kid</span><span class="o">.</span><span class="n">from_string</span><span class="p">(</span><span class="s2">"a,5"</span><span class="p">))</span> <span class="ow">is</span> <span class="n">Kid</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_card</span><span class="p">():</span>
+    <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">Card</span><span class="p">(</span><span class="s2">"A"</span><span class="p">,</span> <span class="s2">"spades"</span><span class="p">),</span> <span class="n">Card</span><span class="p">(</span><span class="s2">"A"</span><span class="p">,</span> <span class="s2">"spades"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">a</span> <span class="o">==</span> <span class="n">b</span> <span class="ow">and</span> <span class="n">a</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">b</span>
+    <span class="k">assert</span> <span class="n">a</span> <span class="o">!=</span> <span class="n">Card</span><span class="p">(</span><span class="s2">"K"</span><span class="p">,</span> <span class="s2">"spades"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">({</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">Card</span><span class="p">(</span><span class="s2">"K"</span><span class="p">,</span> <span class="s2">"hearts"</span><span class="p">)})</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="p">{</span><span class="n">a</span><span class="p">:</span> <span class="mi">1</span><span class="p">}[</span><span class="n">b</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="nb">repr</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"Card('A', 'spades')"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_fraction</span><span class="p">():</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="n">Fraction</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">numerator</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">denominator</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">g</span> <span class="o">=</span> <span class="n">Fraction</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="mi">4</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">numerator</span><span class="p">,</span> <span class="n">g</span><span class="o">.</span><span class="n">denominator</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">Fraction</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">Fraction</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> <span class="o">==</span> <span class="n">Fraction</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">Fraction</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> <span class="o">*</span> <span class="n">Fraction</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span> <span class="o">==</span> <span class="n">Fraction</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">hash</span><span class="p">(</span><span class="n">Fraction</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span> <span class="o">==</span> <span class="nb">hash</span><span class="p">(</span><span class="n">Fraction</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span>
+    <span class="k">assert</span> <span class="nb">repr</span><span class="p">(</span><span class="n">Fraction</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span> <span class="o">==</span> <span class="s2">"Fraction(1, 2)"</span>
+    <span class="k">assert</span> <span class="nb">str</span><span class="p">(</span><span class="n">Fraction</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span> <span class="o">==</span> <span class="s2">"1/2"</span>
+    <span class="k">assert</span> <span class="nb">str</span><span class="p">(</span><span class="n">Fraction</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span> <span class="o">==</span> <span class="s2">"2"</span>
+    <span class="k">assert</span> <span class="nb">float</span><span class="p">(</span><span class="n">Fraction</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span> <span class="o">==</span> <span class="mf">0.25</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ZeroDivisionError</span><span class="p">):</span>
+        <span class="n">Fraction</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">Fraction</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span> <span class="o">==</span> <span class="n">Fraction</span><span class="p">(</span><span class="mi">6</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_vault</span><span class="p">():</span>
+    <span class="n">v</span> <span class="o">=</span> <span class="n">PasswordVault</span><span class="p">(</span><span class="s2">"pw"</span><span class="p">)</span>
+    <span class="n">v</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s2">"pw"</span><span class="p">,</span> <span class="s2">"email"</span><span class="p">,</span> <span class="s2">"secret"</span><span class="p">)</span>
+    <span class="n">v</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s2">"pw"</span><span class="p">,</span> <span class="s2">"bank"</span><span class="p">,</span> <span class="s2">"1234"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">v</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"pw"</span><span class="p">,</span> <span class="s2">"email"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"secret"</span>
+    <span class="k">assert</span> <span class="n">v</span><span class="o">.</span><span class="n">keys</span><span class="p">(</span><span class="s2">"pw"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"bank"</span><span class="p">,</span> <span class="s2">"email"</span><span class="p">]</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">PermissionError</span><span class="p">):</span>
+        <span class="n">v</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"bad"</span><span class="p">,</span> <span class="s2">"email"</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">PermissionError</span><span class="p">):</span>
+        <span class="n">v</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s2">"bad"</span><span class="p">,</span> <span class="s2">"x"</span><span class="p">,</span> <span class="s2">"y"</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">PermissionError</span><span class="p">):</span>
+        <span class="n">v</span><span class="o">.</span><span class="n">keys</span><span class="p">(</span><span class="s2">"bad"</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">KeyError</span><span class="p">):</span>
+        <span class="n">v</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"pw"</span><span class="p">,</span> <span class="s2">"nope"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_vault_mangled</span><span class="p">():</span>
+    <span class="n">v</span> <span class="o">=</span> <span class="n">PasswordVault</span><span class="p">(</span><span class="s2">"pw"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="s2">"data"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="s2">"master"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="s2">"_PasswordVault__data"</span> <span class="ow">in</span> <span class="nb">vars</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="s2">"_PasswordVault__master"</span> <span class="ow">in</span> <span class="nb">vars</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../02-oop/week-02-encapsulation-dunders/exercises.py.html">← Week 2 · Encapsulation and dunders: Exercises (code)</a><a class="next" href="../../02-oop/week-03-inheritance-polymorphism/lesson.html">Week 3 · Inheritance and polymorphism: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="01-basics/week-05-dicts-sets/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../01-basics/week-01-first-steps/lesson.html">Python Basics</a> / <a href="../../01-basics/week-05-dicts-sets/lesson.html">Week 5 · Dictionaries and sets</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="01-basics/week-05-dicts-sets/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>01-basics/week-05-dicts-sets/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 5 exercises. Replace each `...` with your code."""</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">char_count</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a dict of how many times each character appears. 'aab' -&gt; {'a': 2, 'b': 1}."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">word_count</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a dict of word counts, case-insensitive, words split on whitespace.</span>
+<span class="sd">    'the cat The dog' -&gt; {'the': 2, 'cat': 1, 'dog': 1}"""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">most_common_char</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the character that appears most often. On a tie return the one that</span>
+<span class="sd">    appears FIRST in s. Return None for an empty string. 'abca' -&gt; 'a'; 'abcb' -&gt; 'b'."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">has_duplicates</span><span class="p">(</span><span class="n">items</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return True if any item appears more than once. Hint: compare len(items) and len(set(items))."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">two_sum</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a tuple (i, j) with i &lt; j of indexes where nums[i] + nums[j] == target,</span>
+<span class="sd">    or None if no pair exists. two_sum([2, 7, 11, 15], 9) -&gt; (0, 1).</span>
+<span class="sd">    Hint: dict from value -&gt; index; for each n look up target - n. One pass, no nested loops."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">invert_dict</span><span class="p">(</span><span class="n">d</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Swap keys and values. {'a': 1, 'b': 2} -&gt; {1: 'a', 2: 'b'}. Values are unique."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">group_by_length</span><span class="p">(</span><span class="n">words</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a dict mapping length -&gt; list of words of that length (original order).</span>
+<span class="sd">    ['hi', 'yo', 'sup'] -&gt; {2: ['hi', 'yo'], 3: ['sup']}"""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">common_elements</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a sorted list of unique items present in BOTH lists. Hint: set intersection."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">unique_to_first</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a sorted list of unique items in a that are NOT in b. Hint: set difference."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">merge_dicts_sum</span><span class="p">(</span><span class="n">d1</span><span class="p">,</span> <span class="n">d2</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Merge two dicts of numbers. For keys in both, add the values. Return a NEW dict;</span>
+<span class="sd">    do not modify the inputs. {'a': 1, 'b': 2}, {'b': 3, 'c': 4} -&gt; {'a': 1, 'b': 5, 'c': 4}"""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">first_unique_char</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the index of the first character that appears exactly once in s, or -1.</span>
+<span class="sd">    'leetcode' -&gt; 0; 'loveleetcode' -&gt; 2; 'aabb' -&gt; -1. Hint: count first, then scan again."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">group_anagrams</span><span class="p">(</span><span class="n">words</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Group words that are anagrams of each other. Return a list of groups; each group keeps</span>
+<span class="sd">    input order, and groups are ordered by the first appearance of their first word.</span>
+<span class="sd">    ['eat','tea','tan','ate','nat','bat'] -&gt; [['eat','tea','ate'],['tan','nat'],['bat']]</span>
+<span class="sd">    Hint: key = ''.join(sorted(word))."""</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../01-basics/week-05-dicts-sets/lesson.html">← Week 5 · Dictionaries and sets: Lesson</a><a class="next" href="../../01-basics/week-05-dicts-sets/test_exercises.py.html">Week 5 · Dictionaries and sets: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

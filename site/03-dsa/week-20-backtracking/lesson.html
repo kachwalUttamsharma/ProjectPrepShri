@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 20: Backtracking | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-20-backtracking/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-20-backtracking/lesson.html">Week 20 · Backtracking</a> / <span>Lesson</span></nav><button id="mark-done" data-id="03-dsa/week-20-backtracking/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-20-backtracking">Week 20: Backtracking</h1>
+<p>Time budget: ~7-8 hrs. Lesson (1h), problems 1-5 (3h), problems 6-10 (3h), review (1h).</p>
+<h2 id="1-concept">1. Concept</h2>
+<p>Backtracking = DFS over a <strong>decision tree</strong> of partial solutions. At each step you
+<strong>choose</strong> an option, <strong>explore</strong> recursively, then <strong>un-choose</strong> (undo) to try the next option.
+You <strong>prune</strong> a branch as soon as it cannot lead to a valid answer.</p>
+<p>Think of three questions for every problem:</p>
+<ol>
+<li>What is a <em>state</em>? (the path built so far + where I am in the input)</li>
+<li>What are the <em>choices</em> at this state?</li>
+<li>When is the state a complete answer (<em>base case</em>), and when can I stop early (<em>pruning</em>)?</li>
+</ol>
+<h2 id="2-how-to-recognize-the-pattern">2. How to recognize the pattern</h2>
+<ul>
+<li>"Return <strong>all</strong> subsets / permutations / combinations / partitions / valid configurations."</li>
+<li>"Does <strong>any</strong> arrangement exist?" with small constraints (n &lt;= ~20, board &lt;= ~9x9).</li>
+<li>Constraints that are tiny (n &lt;= 15) signal exponential time is expected.</li>
+<li>Words: "generate", "enumerate", "all possible", "place N things such that".
+If it asks for a <em>count or an optimum</em> and subproblems overlap, think DP instead (weeks 21-22).</li>
+</ul>
+<h2 id="3-template-code">3. Template code</h2>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">solve</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+    <span class="n">res</span><span class="p">,</span> <span class="n">path</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">dfs</span><span class="p">(</span><span class="n">start</span><span class="p">):</span>
+        <span class="n">res</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">path</span><span class="p">[:])</span>              <span class="c1"># record (copy!) when each node is a solution</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)):</span>
+            <span class="n">path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>         <span class="c1"># choose</span>
+            <span class="n">dfs</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>                   <span class="c1"># explore</span>
+            <span class="n">path</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>                   <span class="c1"># un-choose</span>
+    <span class="n">dfs</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">res</span>
+</code></pre></div>
+
+<p>Variants (memorize the differences):
+| Problem | Loop over | Recurse with | Notes |
+|---|---|---|---|
+| Subsets | <code>i in range(start, n)</code> | <code>i + 1</code> | record at every node |
+| Combinations (size k) | same | <code>i + 1</code> | record when <code>len(path) == k</code>; prune if not enough left |
+| Combination sum (reuse) | same | <code>i</code> | prune when remaining &lt; 0; sort to break early |
+| Permutations | all unused indices | -- | <code>used[]</code> array, record when <code>len == n</code> |
+| With duplicates | sort first | -- | <code>if i &gt; start and nums[i] == nums[i-1]: continue</code> |
+| Grid search (word search) | 4 neighbours | -- | mark visited in place, restore after |
+| N-Queens | columns in this row | <code>row + 1</code> | sets for cols / diagonals (<code>r-c</code>, <code>r+c</code>) |</p>
+<h2 id="4-complexity">4. Complexity</h2>
+<p>Count the leaves of the decision tree times the work to copy an answer:</p>
+<ul>
+<li>Subsets: O(n * 2^n). Permutations: O(n * n!). Combinations C(n,k): O(k * C(n,k)).</li>
+<li>Parentheses: O(Catalan(n) * n) ~ O(4^n / sqrt(n)). N-Queens: roughly O(n!) with pruning.</li>
+<li>Word search: O(R*C * 3^L). Space: O(depth) recursion plus output.
+Always state "output-sensitive": you can't beat the size of the output.</li>
+</ul>
+<h2 id="5-common-mistakes">5. Common mistakes</h2>
+<ul>
+<li><code>res.append(path)</code> instead of <code>res.append(path[:])</code> -&gt; all results alias one list.</li>
+<li>Forgetting to undo (<code>pop</code>, <code>visited = False</code>, board restore).</li>
+<li>Duplicates: skipping with <code>used[i-1]</code> logic wrong, or forgetting to sort first.</li>
+<li>Using <code>start</code> for permutations (that gives combinations) or no <code>start</code> for subsets (repeats).</li>
+<li>Pruning too late: check constraints <em>before</em> recursing, not at the leaf.</li>
+<li>Strings: building with <code>+</code> is fine for short strings; for deep paths use a list and <code>join</code>.</li>
+<li>Python recursion limit (1000) is not a concern for these depths, but know it.</li>
+</ul>
+<h2 id="6-interview-tips">6. Interview tips</h2>
+<ul>
+<li>Draw the decision tree for a tiny input (n = 3) before coding; interviewers love this.</li>
+<li>Say the complexity as "number of leaves x cost per leaf".</li>
+<li>Mention pruning optimizations (sorting + break, early <code>False</code>, sets for O(1) conflict checks).</li>
+<li>Be ready for the follow-up "now with duplicates" and "count only, don't list" (-&gt; DP/math).</li>
+<li>Prefer a nested <code>dfs</code> with closures over many parameters; but pass indices explicitly.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run <code>.venv/bin/pytest 03-dsa/week-20-backtracking</code>.
+Tests compare results as sorted lists, so order of your output does not matter.</p>
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-19-shortest-paths/test_exercises.py.html">← Week 19 · Shortest paths: Tests (code)</a><a class="next" href="../../03-dsa/week-20-backtracking/exercises.py.html">Week 20 · Backtracking: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

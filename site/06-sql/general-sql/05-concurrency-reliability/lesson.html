@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Part 05: Concurrency and reliability | Study Hub</title><link rel="stylesheet" href="../../../assets/style.css"><link rel="stylesheet" href="../../../assets/pygments.css"></head>
+<body data-root="../../../" data-page-id="06-sql/general-sql/05-concurrency-reliability/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../../index.html">Home</a> / <a href="../../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../../06-sql/general-sql/README.html">General SQL</a> / <a href="../../../06-sql/general-sql/05-concurrency-reliability/lesson.html">Part 5 · Concurrency and reliability</a> / <span>Lesson</span></nav><button id="mark-done" data-id="06-sql/general-sql/05-concurrency-reliability/lesson">Mark as done</button></div><article class="doc">
+<h1 id="part-05-concurrency-and-reliability">Part 05: Concurrency and reliability</h1>
+<p>Goal: predict what two simultaneous sessions will see, pick the right lock or isolation level, and know how data survives crashes and deploys.
+ACID basics, BEGIN/COMMIT/ROLLBACK, and a first look at isolation and deadlocks are already in
+<a href="../../week-04-schema-indexes-transactions/lesson.html">week-04 lesson</a> (sections 5-6). Read that first; this part goes deeper.</p>
+<p>Snippets marked "not run here, verify" were not executed (no <code>psql</code>/<code>mysql</code> installed). Version-dependent behaviour: check current docs.
+Setup: <code>sqlite3 bank.db &lt; setup.sql</code>. For real two-session work, use Postgres via Docker (see ../README.md).</p>
+<h2 id="1-transactions-a-bit-deeper">1. Transactions, a bit deeper</h2>
+<ul>
+<li>A transaction is a unit of atomicity AND the scope of isolation. Keep them short: long transactions hold locks, block vacuum/purge (bloat, long undo history), and hold connections.</li>
+<li>Autocommit: most clients commit each statement unless you <code>BEGIN</code>. Postgres <code>psql</code> and MySQL default to autocommit; Python drivers often open a transaction implicitly (sqlite3, psycopg2) - know which one you have.</li>
+<li>Errors inside a transaction: in Postgres, after an error the whole transaction is aborted ("current transaction is aborted") until ROLLBACK or ROLLBACK TO SAVEPOINT. MySQL lets you continue after a failed statement.</li>
+<li>Savepoints: <code>SAVEPOINT s1; ... ROLLBACK TO s1; RELEASE s1;</code> (all three engines).</li>
+<li>DDL: Postgres and SQLite have transactional DDL (CREATE/ALTER can roll back). MySQL DDL causes an implicit commit.</li>
+<li>SQLite specifics: <code>BEGIN</code> is DEFERRED (lock taken on first read/write); <code>BEGIN IMMEDIATE</code> takes the write lock up front; one writer at a time per database file. Default journal is rollback journal; WAL mode (<code>PRAGMA journal_mode=WAL</code>) lets readers not block the writer.</li>
+</ul>
+<h2 id="2-anomalies-concrete">2. Anomalies (concrete)</h2>
+<p>Two accounts: alice 100, bob 50.</p>
+<table>
+<thead>
+<tr>
+<th>Anomaly</th>
+<th>Story</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Dirty read</td>
+<td>T1 updates alice to 0, not committed. T2 reads 0. T1 rolls back. T2 acted on data that never existed.</td>
+</tr>
+<tr>
+<td>Non-repeatable read</td>
+<td>T1 reads alice = 100. T2 sets 70 and commits. T1 reads again: 70. Same row, different value.</td>
+</tr>
+<tr>
+<td>Phantom</td>
+<td>T1 <code>SELECT COUNT(*) WHERE balance &gt; 40</code> = 2. T2 inserts a matching row, commits. T1 repeats: 3. Different set of rows.</td>
+</tr>
+<tr>
+<td>Lost update</td>
+<td>T1 and T2 both read 100, T1 writes 100-30, T2 writes 100-10 (computed in the app). Final 90; T1's change is gone.</td>
+</tr>
+<tr>
+<td>Write skew</td>
+<td>Rule: at least one doctor on call. T1 and T2 each see both on call, T1 sets dr_a off, T2 sets dr_b off. Different rows written, so no row conflict; rule broken (see <code>oncall</code> table in setup.sql).</td>
+</tr>
+</tbody>
+</table>
+<p>Lost update fix options: atomic <code>UPDATE ... SET balance = balance - 30</code>; <code>SELECT ... FOR UPDATE</code>; optimistic version column; or a stricter isolation level (Postgres REPEATABLE READ aborts the second writer with a serialization error).</p>
+<h2 id="3-isolation-levels-who-prevents-what">3. Isolation levels: who prevents what</h2>
+<p>The SQL standard defines four levels by which anomalies they allow; real engines differ. Summary (check current docs for your version):</p>
+<table>
+<thead>
+<tr>
+<th>Level</th>
+<th>PostgreSQL</th>
+<th>MySQL InnoDB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>READ UNCOMMITTED</td>
+<td>Accepted but behaves as READ COMMITTED: no dirty reads ever</td>
+<td>Real: dirty reads possible</td>
+</tr>
+<tr>
+<td>READ COMMITTED</td>
+<td>Each statement sees a fresh snapshot. Dirty read: prevented. Non-repeatable, phantom, write skew, lost update (read-modify-write in app): allowed</td>
+<td>Same semantics (snapshot per statement). Same allowed anomalies</td>
+</tr>
+<tr>
+<td>REPEATABLE READ</td>
+<td>Snapshot isolation (one snapshot per transaction). Dirty, non-repeatable, phantom (for plain reads): prevented. Write skew: ALLOWED. Concurrent update of the same row: second writer gets "could not serialize access" error</td>
+<td><strong>Default.</strong> Consistent snapshot for plain SELECT; locking reads and writes use next-key/gap locks which block many phantoms. Lost update possible if you read with a plain SELECT then write (writes see latest committed data). Write skew: possible</td>
+</tr>
+<tr>
+<td>SERIALIZABLE</td>
+<td>SSI (serializable snapshot isolation): optimistic, detects dangerous patterns, aborts with SQLSTATE 40001; you must retry. Prevents all of the above</td>
+<td>Plain SELECTs become locking reads (shared locks), so more blocking and deadlocks; prevents the anomalies by locking</td>
+</tr>
+</tbody>
+</table>
+<p>Defaults: Postgres READ COMMITTED; MySQL InnoDB REPEATABLE READ; SQLite is effectively SERIALIZABLE (single writer) for connections not in WAL-with-read-uncommitted modes.
+Set per transaction: <code>BEGIN ISOLATION LEVEL REPEATABLE READ;</code> (Postgres) or <code>SET TRANSACTION ISOLATION LEVEL ...;</code> before <code>START TRANSACTION</code> (MySQL). Not run here, verify.</p>
+<p>Rule of thumb: any level above READ COMMITTED means your code must handle aborts and retry.</p>
+<h2 id="4-mvcc-in-one-paragraph">4. MVCC in one paragraph</h2>
+<p>Readers do not block writers and writers do not block readers; each row version carries visibility info and each transaction reads a snapshot (see part 04). Writers still block writers on the same row. Hence locks matter only for write-write conflicts, explicit locking reads, and DDL.</p>
+<h2 id="5-locks">5. Locks</h2>
+<ul>
+<li>Row locks: taken by UPDATE/DELETE automatically; held until COMMIT/ROLLBACK.</li>
+<li>Explicit row locks (Postgres and MySQL 8+): </li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="k">BEGIN</span><span class="p">;</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">balance</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">accounts</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">FOR</span><span class="w"> </span><span class="k">UPDATE</span><span class="p">;</span><span class="w">   </span><span class="c1">-- not run here, verify (SQLite has no FOR UPDATE)</span>
+<span class="k">UPDATE</span><span class="w"> </span><span class="n">accounts</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">balance</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">balance</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">30</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="k">COMMIT</span><span class="p">;</span>
+</code></pre></div>
+
+<p><code>FOR SHARE</code> (Postgres; <code>LOCK IN SHARE MODE</code> / <code>FOR SHARE</code> in MySQL) blocks writers but not other share-lockers. Postgres also has <code>FOR NO KEY UPDATE</code>, <code>FOR KEY SHARE</code> (used by foreign key checks).
+- <code>NOWAIT</code>: error immediately instead of waiting. <code>SKIP LOCKED</code>: skip rows locked by others - the standard job-queue pattern:</p>
+<div class="highlight"><pre><span></span><code><span class="c1">-- not run here, verify (Postgres 9.5+, MySQL 8.0+)</span>
+<span class="k">WITH</span><span class="w"> </span><span class="k">next</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span>
+<span class="w">  </span><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">jobs</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'queued'</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">FOR</span><span class="w"> </span><span class="k">UPDATE</span><span class="w"> </span><span class="n">SKIP</span><span class="w"> </span><span class="n">LOCKED</span>
+<span class="p">)</span>
+<span class="k">UPDATE</span><span class="w"> </span><span class="n">jobs</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'running'</span><span class="p">,</span><span class="w"> </span><span class="n">claimed_by</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'w1'</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="k">next</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">jobs</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">next</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="n">RETURNING</span><span class="w"> </span><span class="n">jobs</span><span class="p">.</span><span class="o">*</span><span class="p">;</span>
+</code></pre></div>
+
+<p>SKIP LOCKED gives an inconsistent view by design: fine for queues, wrong for reports.
+- Table locks: <code>LOCK TABLE t IN ... MODE</code> (Postgres), <code>LOCK TABLES</code> (MySQL). ALTER TABLE usually takes a strong lock; a queued ALTER behind a long transaction blocks every later query on that table (lock queue pile-up). Use <code>SET lock_timeout = '2s'</code> (Postgres) before DDL.
+- Advisory locks: application-defined mutexes held by the database. Postgres: <code>pg_advisory_lock(key)</code>, <code>pg_try_advisory_lock(key)</code>, <code>pg_advisory_xact_lock(key)</code> (released at transaction end). MySQL: <code>GET_LOCK('name', timeout)</code> / <code>RELEASE_LOCK</code>. Use for "only one cron instance runs this".
+- InnoDB gap/next-key locks: in REPEATABLE READ, <code>SELECT ... WHERE id BETWEEN 10 AND 20 FOR UPDATE</code> locks the gaps too, so inserts into that range block. Surprising source of lock waits.</p>
+<h2 id="6-deadlocks">6. Deadlocks</h2>
+<p>T1 locks row A then wants B; T2 locks B then wants A. Engines detect cycles (Postgres after <code>deadlock_timeout</code>, default 1s; InnoDB immediately) and abort one victim with an error (Postgres 40P01, MySQL 1213).
+Prevention: always lock in a consistent order (e.g. <code>ORDER BY id</code>), keep transactions short, lock up front with <code>SELECT ... FOR UPDATE ORDER BY id</code>, retry the victim. Diagnose: Postgres log with <code>log_lock_waits</code>, <code>pg_locks</code>/<code>pg_stat_activity</code>; MySQL <code>SHOW ENGINE INNODB STATUS</code>.</p>
+<h2 id="7-optimistic-vs-pessimistic-locking">7. Optimistic vs pessimistic locking</h2>
+<ul>
+<li>Pessimistic: lock first (<code>FOR UPDATE</code>), then change. Good under high contention; holds locks across user think-time (bad for web forms).</li>
+<li>Optimistic: read a <code>version</code>, update with <code>WHERE id = ? AND version = ?</code>, check rows affected; 0 rows means someone else changed it, so re-read and retry. No locks held between read and write. Good under low contention. SQLite-runnable (this is practice tasks 5-6):</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="k">UPDATE</span><span class="w"> </span><span class="n">accounts</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">balance</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">balance</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">30</span><span class="p">,</span><span class="w"> </span><span class="k">version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">version</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="k">version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">changes</span><span class="p">();</span><span class="w">   </span><span class="c1">-- 1 on success; a second writer holding version=1 gets 0</span>
+</code></pre></div>
+
+<p>Verified output: first update <code>1</code>, stale repeat <code>0</code>.</p>
+<ul>
+<li>Atomic relative updates (<code>balance = balance - 30</code>) are the simplest lost-update fix when the logic fits in one statement.</li>
+<li>Idempotency keys: a unique constraint on a request id turns client retries into safe no-ops.</li>
+</ul>
+<h2 id="8-reliability-durability-replication-backups">8. Reliability: durability, replication, backups</h2>
+<ul>
+<li>WAL / redo log: changes are logged and fsynced before COMMIT returns (see part 04). <code>synchronous_commit = off</code> (Postgres) or <code>innodb_flush_log_at_trx_commit</code> != 1 trade durability for speed.</li>
+<li>Replication: physical/streaming (Postgres WAL shipping, byte-for-byte replica) vs logical (row changes, per-table, cross-version; Postgres publications/subscriptions) vs MySQL binlog-based (statement/row/mixed; GTIDs). Async replicas can lag: read-your-writes bugs; sync replication costs commit latency. Failover tools (Patroni, managed services) promote a replica; risk is split-brain and lost last commits if async.</li>
+<li>Backups: logical (<code>pg_dump</code>, <code>mysqldump</code>: portable, slow to restore) vs physical (<code>pg_basebackup</code>, Percona XtraBackup: fast, same version). Not run here, verify:</li>
+</ul>
+<div class="highlight"><pre><span></span><code>pg_dump -Fc mydb &gt; mydb.dump
+pg_restore -d mydb_new mydb.dump
+</code></pre></div>
+
+<ul>
+<li>PITR (point-in-time recovery): base backup plus continuously archived WAL (Postgres) or binlogs (MySQL); restore the base, replay logs up to a timestamp just before the bad <code>DELETE</code>. A backup you have never restored is not a backup; test restores. Replicas are not backups (a DROP replicates).</li>
+<li>RPO (how much data you can lose) and RTO (how long to recover) drive the design.</li>
+</ul>
+<h2 id="9-connection-pooling">9. Connection pooling</h2>
+<p>Each Postgres connection is a process (several MB); thousands of direct connections hurt. Use an app-side pool (HikariCP, SQLAlchemy pool) and/or PgBouncer. PgBouncer modes: session, transaction (most common; breaks session state such as <code>SET</code>, advisory session locks, prepared statements in some setups), statement. Size pools small: roughly cores x 2 plus disks as a starting point, then measure. Pool exhaustion shows as requests waiting for a connection; a leaked or idle-in-transaction connection is the usual cause (set <code>idle_in_transaction_session_timeout</code>).</p>
+<h2 id="10-migrations-without-downtime">10. Migrations without downtime</h2>
+<p>Principle: every deploy step must work with both old and new application code (expand / contract).</p>
+<ol>
+<li>Expand: add new column nullable (fast, metadata-only in modern Postgres; <code>ADD COLUMN ... DEFAULT const</code> is fast in PG 11+, MySQL 8 INSTANT in many cases - check current docs).</li>
+<li>Deploy code that writes both old and new.</li>
+<li>Backfill in small batches (<code>UPDATE ... WHERE id BETWEEN a AND b</code>), not one giant transaction.</li>
+<li>Deploy code that reads new.</li>
+<li>Contract: drop old column later.
+Other tricks: <code>CREATE INDEX CONCURRENTLY</code> (Postgres; not inside a transaction), add constraints as <code>NOT VALID</code> then <code>VALIDATE CONSTRAINT</code>, MySQL online DDL (<code>ALGORITHM=INPLACE, LOCK=NONE</code>) or tools like gh-ost/pt-online-schema-change, rename via add+copy+swap rather than <code>RENAME COLUMN</code> while old code runs. Always set lock timeouts and have a rollback plan. All not run here, verify.</li>
+</ol>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li>Read-modify-write in application code without a lock or version check.</li>
+<li>Assuming REPEATABLE READ means the same thing in Postgres and MySQL.</li>
+<li>Not retrying on 40001 / 40P01 / 1213 / 1205 (lock wait timeout).</li>
+<li>Holding a transaction open across an HTTP call or user prompt.</li>
+<li>Treating replicas as backups; never test-restoring.</li>
+<li>Running ALTER TABLE without a lock timeout during peak traffic.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Do <code>practice.sql</code>, then answer <code>interview-qa.md</code> aloud.</p>
+</article><div class="pager"><a class="prev" href="../../../06-sql/general-sql/04-how-databases-work/practice.sql.html">← Part 4 · How databases work: practice.sql (code)</a><a class="next" href="../../../06-sql/general-sql/05-concurrency-reliability/interview-qa.html">Part 5 · Concurrency and reliability: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../../assets/data.js"></script><script src="../../../assets/app.js"></script></body></html>

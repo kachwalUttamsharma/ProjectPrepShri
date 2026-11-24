@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 5 Cheatsheet: Lakehouse and Formats | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="14-data-engineering/week-05-lakehouse-formats/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../14-data-engineering/week-05-lakehouse-formats/lesson.html">Week 5 · Lakehouse and formats</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="14-data-engineering/week-05-lakehouse-formats/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="week-5-cheatsheet-lakehouse-and-formats">Week 5 Cheatsheet: Lakehouse and Formats</h1>
+<h2 id="parquet">Parquet</h2>
+<p>file -&gt; row groups (~128 MB) -&gt; column chunks -&gt; pages; footer = schema + stats; magic PAR1.
+Stats: min/max/null count per chunk (+page index); optional Bloom filter.
+Encodings: dictionary, RLE/bit-pack, delta; then Snappy/ZSTD/Gzip/LZ4.
+Pushdown works only if data is clustered on the filter column. Files are immutable.</p>
+<h2 id="formats">Formats</h2>
+<p>Parquet: analytics, widest support. ORC: Hive, ACID in Hive. Avro: row, schema in header, Kafka + registry, best evolution. CSV/JSON: interchange/landing only.</p>
+<h2 id="layout">Layout</h2>
+<p>Partition: low cardinality, filtered often, big partitions (date). Sort/cluster: tight stats on other columns. Z-order: multi-column locality, rewrite cost. Iceberg: hidden partitioning + partition evolution. Avoid partitioning by user_id.</p>
+<h2 id="small-files">Small files</h2>
+<p>Cause: streaming, over-partitioning, many tasks. Cost: listing, requests, tasks, stats. Fix: write-side tuning + compaction (OPTIMIZE / rewrite_data_files). Target 128 MB-1 GB. Compaction then vacuum/expire to free space.</p>
+<h2 id="table-formats">Table formats</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Delta</th>
+<th>Iceberg</th>
+<th>Hudi</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Metadata</td>
+<td>_delta_log JSON + checkpoints</td>
+<td>catalog -&gt; metadata.json -&gt; manifest list -&gt; manifests</td>
+<td>.hoodie timeline</td>
+</tr>
+<tr>
+<td>Strength</td>
+<td>Spark/Databricks, simple</td>
+<td>multi-engine, hidden partitioning, evolution</td>
+<td>upserts/CDC, incremental</td>
+</tr>
+<tr>
+<td>Row-level</td>
+<td>CoW, deletion vectors</td>
+<td>CoW/MoR, delete files</td>
+<td>CoW/MoR</td>
+</tr>
+<tr>
+<td>Cleanup</td>
+<td>VACUUM</td>
+<td>expire_snapshots, remove_orphan_files</td>
+<td>clean, compaction</td>
+</tr>
+</tbody>
+</table>
+<p>Commit = write data files, then atomic publish of metadata; optimistic concurrency; snapshot isolation for readers.
+CoW: slow write, fast read. MoR: fast write, read merges until compaction.
+Time travel bounded by retention; vacuum below longest reader = failures. Never delete files by hand.</p>
+<h2 id="lake-warehouse-lakehouse">Lake / warehouse / lakehouse</h2>
+<p>Lake: files, schema on read. Warehouse: managed, ACID. Lakehouse: files + table format + catalog + many engines.</p>
+<h2 id="medallion">Medallion</h2>
+<p>Bronze raw append-only; silver cleaned/deduped/conformed; gold marts/aggregates/features. Idempotent MERGE/overwrite between layers.</p>
+<h2 id="catalogs">Catalogs</h2>
+<p>Hive Metastore, Glue Data Catalog, Unity Catalog, Iceberg REST/Polaris/Nessie. Iceberg commit authority = catalog.</p>
+<h2 id="aws">AWS</h2>
+<p>S3 (strong consistency, prefixes, lifecycle, KMS) | Glue (catalog, crawlers, Spark ETL) | Athena (serverless SQL, pay per scanned data, CTAS, partition projection) | EMR (managed Spark/Hive/Trino) | Redshift Spectrum (S3 external tables) | Lake Formation (table/column/row permissions, LF-tags).
+Athena cost: Parquet + partitions + column pruning + compaction.</p>
+<h2 id="ops-checklist">Ops checklist</h2>
+<p>File sizes, compaction schedule, snapshot expiry, schema policy, idempotent writes, concurrency plan, access control, monitoring (file counts, commit failures, freshness).</p>
+</article><div class="pager"><a class="prev" href="../../14-data-engineering/week-05-lakehouse-formats/interview-qa.html">← Week 5 · Lakehouse and formats: Interview Q&amp;A</a><a class="next" href="../../14-data-engineering/week-06-quality-governance/lesson.html">Week 6 · Quality and governance: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

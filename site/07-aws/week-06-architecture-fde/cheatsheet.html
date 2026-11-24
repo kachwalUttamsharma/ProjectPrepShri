@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 6 Cheatsheet - Architecture and FDE | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="07-aws/week-06-architecture-fde/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../07-aws/README.html">AWS</a> / <a href="../../07-aws/week-06-architecture-fde/lesson.html">Week 6 · Architecture and FDE angle</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="07-aws/week-06-architecture-fde/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="week-6-cheatsheet-architecture-and-fde">Week 6 Cheatsheet - Architecture and FDE</h1>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>One-liner</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Well-Architected</td>
+<td>6 pillars: Ops, Security, Reliability, Performance, Cost, Sustainability</td>
+<td>Review framework</td>
+</tr>
+<tr>
+<td>RTO / RPO</td>
+<td>Time to restore / acceptable data loss</td>
+<td>Drive DR design</td>
+</tr>
+<tr>
+<td>Backup &amp; restore</td>
+<td>Hours RTO, cheapest</td>
+<td>Non-critical</td>
+</tr>
+<tr>
+<td>Pilot light</td>
+<td>Core data replicated, compute off</td>
+<td>Moderate RTO</td>
+</tr>
+<tr>
+<td>Warm standby</td>
+<td>Scaled-down full copy running</td>
+<td>Minutes RTO</td>
+</tr>
+<tr>
+<td>Active-active</td>
+<td>Both regions live</td>
+<td>Near-zero RTO, highest cost</td>
+</tr>
+<tr>
+<td>Multi-AZ</td>
+<td>Survive a data center loss</td>
+<td>Default for prod</td>
+</tr>
+<tr>
+<td>AWS Backup</td>
+<td>Central backup policies, vault lock</td>
+<td>Compliance/ransomware</td>
+</tr>
+<tr>
+<td>Fargate vs Lambda vs EKS vs EC2</td>
+<td>Containers no-ops / events / K8s / full control</td>
+<td>Compute choice</td>
+</tr>
+<tr>
+<td>Bedrock</td>
+<td>Managed foundation models via IAM</td>
+<td>LLM in AWS boundary</td>
+</tr>
+<tr>
+<td>Bedrock Knowledge Bases</td>
+<td>Managed RAG ingest+retrieve</td>
+<td>Fast RAG pilot</td>
+</tr>
+<tr>
+<td>pgvector (Aurora/RDS)</td>
+<td>Vectors in Postgres</td>
+<td>RAG with SQL filters</td>
+</tr>
+<tr>
+<td>OpenSearch</td>
+<td>k-NN + BM25 hybrid search</td>
+<td>Larger/hybrid RAG</td>
+</tr>
+<tr>
+<td>Secrets Manager</td>
+<td>Rotating secrets</td>
+<td>DB creds</td>
+</tr>
+<tr>
+<td>ECS task role</td>
+<td>App permissions (Bedrock, S3)</td>
+<td>Keyless access</td>
+</tr>
+<tr>
+<td>Savings Plans / Spot / Graviton</td>
+<td>Cost levers</td>
+<td>FinOps</td>
+</tr>
+<tr>
+<td>Cost Explorer / Budgets / CUR</td>
+<td>Visibility</td>
+<td>FinOps</td>
+</tr>
+</tbody>
+</table>
+<p>RAG-on-AWS blueprint: CloudFront+WAF -&gt; ALB -&gt; Fargate FastAPI -&gt; (Aurora pgvector | OpenSearch) + S3 + Secrets Manager + Bedrock (VPC endpoint); async ingestion S3 -&gt; SQS -&gt; worker; CI/CD via OIDC -&gt; ECR -&gt; ECS.
+Customer comms: goals -&gt; options (2-3) -&gt; recommendation -&gt; numbers -&gt; risks -&gt; next steps.
+Watch: API GW 29 s timeout for LLM calls; Bedrock quotas/throttling; NAT cost; tenant isolation in retrieval.</p>
+</article><div class="pager"><a class="prev" href="../../07-aws/week-06-architecture-fde/interview-qa.html">← Week 6 · Architecture and FDE angle: Interview Q&amp;A</a><a class="next" href="../../07-aws/week-06-architecture-fde/labs.html">Week 6 · Architecture and FDE angle: Labs →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>test_exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="10-python-depth/week-01-functions-deep-dive/test_exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../10-python-depth/week-01-functions-deep-dive/lesson.html">Python Depth</a> / <a href="../../10-python-depth/week-01-functions-deep-dive/lesson.html">Week 1 · Functions deep dive</a> / <span>Tests (code)</span></nav><button id="mark-done" data-id="10-python-depth/week-01-functions-deep-dive/test_exercises.py">Mark as done</button></div><article class="doc">
+<h1>test_exercises.py</h1><p class="code-path"><code>10-python-depth/week-01-functions-deep-dive/test_exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">itertools</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_make_counter</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">make_counter</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">c</span><span class="p">(),</span> <span class="n">c</span><span class="p">(),</span> <span class="n">c</span><span class="p">()]</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">make_counter</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">d</span><span class="p">()</span> <span class="o">==</span> <span class="mi">11</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="p">()</span> <span class="o">==</span> <span class="mi">4</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_make_multipliers</span><span class="p">():</span>
+    <span class="n">fs</span> <span class="o">=</span> <span class="n">make_multipliers</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">fs</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">f</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">fs</span><span class="p">]</span> <span class="o">==</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">30</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_append_item</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">append_item</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">append_item</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+    <span class="n">mine</span> <span class="o">=</span> <span class="p">[</span><span class="mi">9</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">append_item</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">mine</span><span class="p">)</span> <span class="ow">is</span> <span class="n">mine</span>
+    <span class="k">assert</span> <span class="n">mine</span> <span class="o">==</span> <span class="p">[</span><span class="mi">9</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_count_calls</span><span class="p">():</span>
+    <span class="nd">@count_calls</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""adds"""</span>
+        <span class="k">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
+
+    <span class="k">assert</span> <span class="n">add</span><span class="o">.</span><span class="n">calls</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">add</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="n">add</span><span class="p">(</span><span class="n">a</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">b</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span>
+    <span class="k">assert</span> <span class="n">add</span><span class="o">.</span><span class="n">calls</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">add</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"add"</span>
+    <span class="k">assert</span> <span class="n">add</span><span class="o">.</span><span class="vm">__doc__</span> <span class="o">==</span> <span class="s2">"adds"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_retry_succeeds_after_failures</span><span class="p">():</span>
+    <span class="n">state</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"n"</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+
+    <span class="nd">@retry</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="n">exceptions</span><span class="o">=</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">,))</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">flaky</span><span class="p">():</span>
+        <span class="n">state</span><span class="p">[</span><span class="s2">"n"</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">state</span><span class="p">[</span><span class="s2">"n"</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"no"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s2">"ok"</span>
+
+    <span class="k">assert</span> <span class="n">flaky</span><span class="p">()</span> <span class="o">==</span> <span class="s2">"ok"</span>
+    <span class="k">assert</span> <span class="n">state</span><span class="p">[</span><span class="s2">"n"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="n">flaky</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"flaky"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_retry_gives_up_and_reraises_last</span><span class="p">():</span>
+    <span class="n">state</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"n"</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+
+    <span class="nd">@retry</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">bad</span><span class="p">():</span>
+        <span class="n">state</span><span class="p">[</span><span class="s2">"n"</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"fail </span><span class="si">{</span><span class="n">state</span><span class="p">[</span><span class="s1">'n'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">RuntimeError</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">"fail 2"</span><span class="p">):</span>
+        <span class="n">bad</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">state</span><span class="p">[</span><span class="s2">"n"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_retry_other_exception_propagates_immediately</span><span class="p">():</span>
+    <span class="n">state</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"n"</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+
+    <span class="nd">@retry</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="n">exceptions</span><span class="o">=</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">,))</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">f</span><span class="p">():</span>
+        <span class="n">state</span><span class="p">[</span><span class="s2">"n"</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s2">"x"</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">KeyError</span><span class="p">):</span>
+        <span class="n">f</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">state</span><span class="p">[</span><span class="s2">"n"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_retry_passes_args</span><span class="p">():</span>
+    <span class="nd">@retry</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">mul</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">a</span> <span class="o">*</span> <span class="n">b</span>
+
+    <span class="k">assert</span> <span class="n">mul</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="n">b</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span> <span class="o">==</span> <span class="mi">12</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_singleton</span><span class="p">():</span>
+    <span class="nd">@singleton</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">Config</span><span class="p">:</span>
+        <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">"default"</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+
+    <span class="n">a</span> <span class="o">=</span> <span class="n">Config</span><span class="p">(</span><span class="s2">"first"</span><span class="p">)</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">Config</span><span class="p">(</span><span class="s2">"second"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">a</span> <span class="ow">is</span> <span class="n">b</span>
+    <span class="k">assert</span> <span class="n">a</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">"first"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_singleton_independent_classes</span><span class="p">():</span>
+    <span class="nd">@singleton</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">A</span><span class="p">:</span>
+        <span class="k">pass</span>
+
+    <span class="nd">@singleton</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">B</span><span class="p">:</span>
+        <span class="k">pass</span>
+
+    <span class="k">assert</span> <span class="n">A</span><span class="p">()</span> <span class="ow">is</span> <span class="n">A</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">A</span><span class="p">()</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">B</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_temp_attr_restores</span><span class="p">():</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">Obj</span><span class="p">:</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="mi">1</span>
+
+    <span class="n">o</span> <span class="o">=</span> <span class="n">Obj</span><span class="p">()</span>
+    <span class="k">with</span> <span class="n">temp_attr</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="s2">"x"</span><span class="p">,</span> <span class="mi">99</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">o</span><span class="o">.</span><span class="n">x</span> <span class="o">==</span> <span class="mi">99</span>
+    <span class="k">assert</span> <span class="n">o</span><span class="o">.</span><span class="n">x</span> <span class="o">==</span> <span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_temp_attr_deletes_new_attribute_and_restores_on_error</span><span class="p">():</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">Obj</span><span class="p">:</span>
+        <span class="k">pass</span>
+
+    <span class="n">o</span> <span class="o">=</span> <span class="n">Obj</span><span class="p">()</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ZeroDivisionError</span><span class="p">):</span>
+        <span class="k">with</span> <span class="n">temp_attr</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="s2">"y"</span><span class="p">,</span> <span class="mi">5</span><span class="p">):</span>
+            <span class="k">assert</span> <span class="n">o</span><span class="o">.</span><span class="n">y</span> <span class="o">==</span> <span class="mi">5</span>
+            <span class="mi">1</span> <span class="o">/</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="s2">"y"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_countdown</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="nb">list</span><span class="p">(</span><span class="n">Countdown</span><span class="p">(</span><span class="mi">3</span><span class="p">))</span> <span class="o">==</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="nb">list</span><span class="p">(</span><span class="n">Countdown</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_countdown_is_one_shot_iterator</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">Countdown</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">iter</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="ow">is</span> <span class="n">c</span>
+    <span class="k">assert</span> <span class="nb">next</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="nb">list</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="nb">list</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">StopIteration</span><span class="p">):</span>
+        <span class="nb">next</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_chunked</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="nb">list</span><span class="p">(</span><span class="n">chunked</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">),</span> <span class="mi">2</span><span class="p">))</span> <span class="o">==</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span> <span class="p">[</span><span class="mi">4</span><span class="p">]]</span>
+    <span class="k">assert</span> <span class="nb">list</span><span class="p">(</span><span class="n">chunked</span><span class="p">([],</span> <span class="mi">3</span><span class="p">))</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="nb">list</span><span class="p">(</span><span class="n">chunked</span><span class="p">(</span><span class="s2">"abcd"</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span> <span class="o">==</span> <span class="p">[[</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">],</span> <span class="p">[</span><span class="s2">"c"</span><span class="p">,</span> <span class="s2">"d"</span><span class="p">]]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_chunked_lazy_on_infinite</span><span class="p">():</span>
+    <span class="n">gen</span> <span class="o">=</span> <span class="n">chunked</span><span class="p">(</span><span class="n">itertools</span><span class="o">.</span><span class="n">count</span><span class="p">(),</span> <span class="mi">3</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">next</span><span class="p">(</span><span class="n">gen</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="nb">next</span><span class="p">(</span><span class="n">gen</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_chunked_invalid_n</span><span class="p">():</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="nb">list</span><span class="p">(</span><span class="n">chunked</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="mi">0</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_fib_cached</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">fib</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">fib</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">fib</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span> <span class="o">==</span> <span class="mi">55</span>
+    <span class="k">assert</span> <span class="n">fib</span><span class="p">(</span><span class="mi">90</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2880067194370816120</span>
+    <span class="k">assert</span> <span class="n">fib</span><span class="o">.</span><span class="n">cache_info</span><span class="p">()</span><span class="o">.</span><span class="n">hits</span> <span class="o">&gt;</span> <span class="mi">0</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_compose</span><span class="p">():</span>
+    <span class="n">inc</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="n">dbl</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="o">*</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">compose</span><span class="p">(</span><span class="n">inc</span><span class="p">,</span> <span class="n">dbl</span><span class="p">)(</span><span class="mi">5</span><span class="p">)</span> <span class="o">==</span> <span class="mi">11</span>   <span class="c1"># inc(dbl(5))</span>
+    <span class="k">assert</span> <span class="n">compose</span><span class="p">(</span><span class="n">dbl</span><span class="p">,</span> <span class="n">inc</span><span class="p">)(</span><span class="mi">5</span><span class="p">)</span> <span class="o">==</span> <span class="mi">12</span>   <span class="c1"># dbl(inc(5))</span>
+    <span class="k">assert</span> <span class="n">compose</span><span class="p">()(</span><span class="mi">7</span><span class="p">)</span> <span class="o">==</span> <span class="mi">7</span>
+    <span class="k">assert</span> <span class="n">compose</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">inc</span><span class="p">,</span> <span class="n">dbl</span><span class="p">)(</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"3"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_run_length_encode</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">run_length_encode</span><span class="p">(</span><span class="s2">"aaabcc"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="s2">"c"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)]</span>
+    <span class="k">assert</span> <span class="n">run_length_encode</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="n">run_length_encode</span><span class="p">(</span><span class="s2">"abab"</span><span class="p">)</span> <span class="o">==</span> <span class="p">[(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)]</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../10-python-depth/week-01-functions-deep-dive/exercises.py.html">← Week 1 · Functions deep dive: Exercises (code)</a><a class="next" href="../../10-python-depth/week-02-data-model-and-memory/lesson.html">Week 2 · Data model and memory: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 5 - Containers and Orchestration: Cheatsheet | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="12-cs-fundamentals/week-05-containers-orchestration/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../12-cs-fundamentals/README.html">CS Fundamentals</a> / <a href="../../12-cs-fundamentals/week-05-containers-orchestration/lesson.html">Week 5 · Containers and orchestration</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="12-cs-fundamentals/week-05-containers-orchestration/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="week-5-containers-and-orchestration-cheatsheet">Week 5 - Containers and Orchestration: Cheatsheet</h1>
+<p>Facts marked "(check current docs)" are version-dependent (K8s API versions, base image tags, compose spec details).</p>
+<hr />
+<h2 id="core-one-liners">Core one-liners</h2>
+<table>
+<thead>
+<tr>
+<th>Concept</th>
+<th>One-liner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Container</td>
+<td>Isolated Linux process: namespaces (see) + cgroups (use) + overlayfs (files), shared host kernel</td>
+</tr>
+<tr>
+<td>Namespace types</td>
+<td>pid, net, mnt, uts, ipc, user, cgroup</td>
+</tr>
+<tr>
+<td>cgroups</td>
+<td>Limit cpu/mem/pids/io; mem over limit -&gt; OOM kill (137); cpu over limit -&gt; throttle</td>
+</tr>
+<tr>
+<td>Image</td>
+<td>Ordered read-only layers + config; content-addressed by sha256</td>
+</tr>
+<tr>
+<td>Container</td>
+<td>Image + thin writable layer; writes lost on <code>rm</code></td>
+</tr>
+<tr>
+<td>Tag vs digest</td>
+<td>Tag mutable pointer; digest immutable identity</td>
+</tr>
+<tr>
+<td>Cache rule</td>
+<td>Change a layer -&gt; all later layers rebuild; put volatile COPY last</td>
+</tr>
+<tr>
+<td>Exec vs shell CMD</td>
+<td>Exec form makes app PID 1, gets SIGTERM; shell form wraps in sh, signals lost</td>
+</tr>
+<tr>
+<td>ENTRYPOINT vs CMD</td>
+<td>ENTRYPOINT = executable, CMD = default args; K8s <code>command</code>=ENTRYPOINT, <code>args</code>=CMD</td>
+</tr>
+<tr>
+<td>EXPOSE</td>
+<td>Documentation only; <code>-p</code> actually publishes</td>
+</tr>
+<tr>
+<td>Volume / bind / tmpfs</td>
+<td>Managed persistent / host path / RAM</td>
+</tr>
+<tr>
+<td>Compose depends_on</td>
+<td>Order only, unless <code>condition: service_healthy</code></td>
+</tr>
+<tr>
+<td>localhost in container</td>
+<td>The container itself; use service name</td>
+</tr>
+<tr>
+<td>Pod</td>
+<td>1+ containers, shared IP and volumes; ephemeral</td>
+</tr>
+<tr>
+<td>Deployment</td>
+<td>Manages ReplicaSets for stateless apps; rolling update + rollback</td>
+</tr>
+<tr>
+<td>StatefulSet</td>
+<td>Stable identity + per-pod storage + ordered rollout</td>
+</tr>
+<tr>
+<td>Service</td>
+<td>Stable virtual IP/DNS selecting READY pods by labels</td>
+</tr>
+<tr>
+<td>Ingress</td>
+<td>L7 host/path routing; needs a controller</td>
+</tr>
+<tr>
+<td>ConfigMap / Secret</td>
+<td>Config / sensitive config (base64, NOT encrypted)</td>
+</tr>
+<tr>
+<td>Liveness</td>
+<td>Failing -&gt; container restart</td>
+</tr>
+<tr>
+<td>Readiness</td>
+<td>Failing -&gt; removed from endpoints, no restart</td>
+</tr>
+<tr>
+<td>Startup</td>
+<td>Failing -&gt; restart; protects slow boot</td>
+</tr>
+<tr>
+<td>Requests / limits</td>
+<td>Scheduling guarantee / runtime ceiling</td>
+</tr>
+<tr>
+<td>QoS</td>
+<td>Guaranteed (req==lim) &gt; Burstable &gt; BestEffort (evicted first)</td>
+</tr>
+<tr>
+<td>HPA</td>
+<td>desired = ceil(current * currentMetric / target); needs requests + metrics-server</td>
+</tr>
+<tr>
+<td>Job / CronJob</td>
+<td>Run-to-completion / scheduled</td>
+</tr>
+<tr>
+<td>PV / PVC / StorageClass</td>
+<td>Storage / request for storage / dynamic provisioner</td>
+</tr>
+<tr>
+<td>RBAC</td>
+<td>Role(Binding) namespaced; ClusterRole(Binding) cluster-wide; additive only</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="control-plane-and-node">Control plane and node</h2>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>kube-apiserver</td>
+<td>REST front door, authn/authz/admission, only one talking to etcd</td>
+</tr>
+<tr>
+<td>etcd</td>
+<td>Consistent KV store of all cluster state; back it up</td>
+</tr>
+<tr>
+<td>kube-scheduler</td>
+<td>Picks node for unscheduled pods (filter, score)</td>
+</tr>
+<tr>
+<td>controller-manager</td>
+<td>Runs controllers (Deployment, ReplicaSet, Node, Job, EndpointSlice)</td>
+</tr>
+<tr>
+<td>kubelet</td>
+<td>Node agent: starts containers, runs probes, reports status</td>
+</tr>
+<tr>
+<td>kube-proxy</td>
+<td>Programs Service routing (iptables/IPVS)</td>
+</tr>
+<tr>
+<td>container runtime</td>
+<td>containerd / CRI-O via CRI (dockershim removed in 1.24)</td>
+</tr>
+<tr>
+<td>CNI</td>
+<td>Pod networking plugin (Calico, Cilium, Flannel); NetworkPolicy needs support</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="failure-decision-table">Failure decision table</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>First check</th>
+<th>Common causes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CrashLoopBackOff</td>
+<td><code>logs --previous</code>, <code>describe</code> exit code</td>
+<td>app error, bad env/secret, wrong command, liveness too strict, OOM</td>
+</tr>
+<tr>
+<td>ImagePullBackOff</td>
+<td><code>describe</code> events</td>
+<td>bad tag/name, no imagePullSecret, rate limit, arch mismatch</td>
+</tr>
+<tr>
+<td>Pending</td>
+<td><code>describe</code> events (<code>0/N nodes available</code>)</td>
+<td>requests too big, taints, affinity, unbound PVC, quota</td>
+</tr>
+<tr>
+<td>ContainerCreating</td>
+<td><code>describe</code> events</td>
+<td>missing ConfigMap/Secret/PVC, CNI, slow pull</td>
+</tr>
+<tr>
+<td>OOMKilled / 137</td>
+<td><code>describe</code> Reason</td>
+<td>limit too low, leak, too many workers</td>
+</tr>
+<tr>
+<td>Exit 143</td>
+<td>-</td>
+<td>SIGTERM (normal stop)</td>
+</tr>
+<tr>
+<td>Exit 127 / 126</td>
+<td>logs</td>
+<td>command not found / not executable</td>
+</tr>
+<tr>
+<td>exec format error</td>
+<td>image arch</td>
+<td>built arm64, running amd64</td>
+</tr>
+<tr>
+<td>Running, not Ready</td>
+<td>probe events, port-forward + curl</td>
+<td>wrong probe path/port, dep down, timeout</td>
+</tr>
+<tr>
+<td>Service no endpoints</td>
+<td><code>get endpointslices</code>, <code>--show-labels</code></td>
+<td>selector mismatch, pods not ready, wrong ns/targetPort</td>
+</tr>
+<tr>
+<td>502/503 from Ingress</td>
+<td>controller logs, svc via port-forward</td>
+<td>no endpoints, wrong port, ingressClass</td>
+</tr>
+<tr>
+<td>Evicted</td>
+<td><code>describe node</code></td>
+<td>node memory/disk pressure, BestEffort pods</td>
+</tr>
+<tr>
+<td>CreateContainerConfigError</td>
+<td><code>describe</code> event</td>
+<td>missing key in ConfigMap/Secret</td>
+</tr>
+<tr>
+<td>Forbidden in app logs</td>
+<td>RBAC</td>
+<td>missing Role/RoleBinding for ServiceAccount</td>
+</tr>
+</tbody>
+</table>
+<p>Exit code math: 128 + signal. 137 = SIGKILL(9), 143 = SIGTERM(15), 139 = SIGSEGV(11).</p>
+<hr />
+<h2 id="memorize">Memorize</h2>
+<ul>
+<li>Container = process + namespaces + cgroups + overlayfs; shared kernel.</li>
+<li>Order Dockerfile layers by change frequency; deps before source.</li>
+<li>Never put secrets in layers/ENV/ARG; deleting later does not help.</li>
+<li>Non-root numeric USER, exec-form CMD, HEALTHCHECK, <code>.dockerignore</code>, multi-stage, pinned versions.</li>
+<li><code>depends_on</code> + <code>service_healthy</code>; DB by service name; bind <code>0.0.0.0</code>.</li>
+<li><code>down -v</code> destroys named volumes.</li>
+<li>K8s = declarative desired state + reconciliation loops; apiserver is the only etcd client.</li>
+<li>Pending = scheduling problem; ContainerCreating = kubelet/volume/image problem.</li>
+<li>Liveness = restart; readiness = traffic gate; liveness must not check dependencies.</li>
+<li>Memory over limit = 137 OOMKilled; CPU over limit = throttled.</li>
+<li>Secrets are base64, not encrypted: etcd encryption + RBAC + external manager.</li>
+<li>Migrations as a one-shot Job, backward-compatible schema changes.</li>
+<li><code>kubectl logs --previous</code> for crash loops; <code>describe</code> events first.</li>
+<li>Selector must match labels; no endpoints = label/readiness problem.</li>
+<li>Harden: non-root, read-only rootfs, drop ALL caps, no privilege escalation, seccomp, NetworkPolicy default-deny (allow DNS), scan with trivy, pin digests, SBOM, sign images.</li>
+<li>FDE habit: ask "what changed?", read-only evidence first, mitigate (rollback) before root cause, document.</li>
+</ul>
+<hr />
+<h2 id="docker-command-reference">Docker command reference</h2>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Build</td>
+<td><code>docker build -t app:1.0 .</code> ; multi-arch <code>docker buildx build --platform linux/amd64,linux/arm64 -t repo/app:1.0 --push .</code></td>
+</tr>
+<tr>
+<td>Build with secret</td>
+<td><code>docker build --secret id=tok,src=tok.txt .</code> (Dockerfile: <code>RUN --mount=type=secret,id=tok ...</code>)</td>
+</tr>
+<tr>
+<td>Run</td>
+<td><code>docker run -d --name api -p 8000:8000 --env-file .env app:1.0</code></td>
+</tr>
+<tr>
+<td>Run limits</td>
+<td><code>docker run -m 256m --cpus 1 --read-only --tmpfs /tmp --cap-drop ALL app</code></td>
+</tr>
+<tr>
+<td>List</td>
+<td><code>docker ps -a</code> ; <code>docker images</code></td>
+</tr>
+<tr>
+<td>Logs</td>
+<td><code>docker logs -f --tail 100 api</code></td>
+</tr>
+<tr>
+<td>Inspect state</td>
+<td><code>docker inspect api --format '{{.State.ExitCode}} {{.State.OOMKilled}}'</code></td>
+</tr>
+<tr>
+<td>Shell</td>
+<td><code>docker exec -it api sh</code> ; <code>docker run --rm -it --entrypoint sh app:1.0</code></td>
+</tr>
+<tr>
+<td>Stats</td>
+<td><code>docker stats</code></td>
+</tr>
+<tr>
+<td>Layers</td>
+<td><code>docker history app:1.0</code></td>
+</tr>
+<tr>
+<td>Volumes</td>
+<td><code>docker volume ls</code> ; <code>docker volume rm pgdata</code></td>
+</tr>
+<tr>
+<td>Networks</td>
+<td><code>docker network ls</code> ; <code>docker network inspect &lt;net&gt;</code></td>
+</tr>
+<tr>
+<td>Cleanup</td>
+<td><code>docker system prune</code> (careful) ; <code>docker system df</code></td>
+</tr>
+<tr>
+<td>Push</td>
+<td><code>docker tag app:1.0 reg/app:1.0 &amp;&amp; docker push reg/app:1.0</code></td>
+</tr>
+<tr>
+<td>Digest</td>
+<td><code>docker buildx imagetools inspect reg/app:1.0</code></td>
+</tr>
+<tr>
+<td>Scan</td>
+<td><code>trivy image app:1.0</code> ; SBOM <code>syft app:1.0</code> / <code>trivy image --format cyclonedx app:1.0</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="compose-command-reference">Compose command reference</h2>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Validate / show config</td>
+<td><code>docker compose config</code></td>
+</tr>
+<tr>
+<td>Up (build, detached)</td>
+<td><code>docker compose up --build -d</code></td>
+</tr>
+<tr>
+<td>Status</td>
+<td><code>docker compose ps</code></td>
+</tr>
+<tr>
+<td>Logs</td>
+<td><code>docker compose logs -f api</code></td>
+</tr>
+<tr>
+<td>Exec</td>
+<td><code>docker compose exec db psql -U app -d appdb</code></td>
+</tr>
+<tr>
+<td>One-off</td>
+<td><code>docker compose run --rm api alembic upgrade head</code></td>
+</tr>
+<tr>
+<td>Stop, keep data</td>
+<td><code>docker compose down</code></td>
+</tr>
+<tr>
+<td>Stop, delete volumes</td>
+<td><code>docker compose down -v</code></td>
+</tr>
+<tr>
+<td>Rebuild one</td>
+<td><code>docker compose build api</code></td>
+</tr>
+</tbody>
+</table>
+<p>Compose notes: <code>version:</code> key obsolete in Compose Spec (check current docs); <code>.env</code> = interpolation, <code>env_file</code> = container env; healthcheck states: starting, healthy, unhealthy.</p>
+<hr />
+<h2 id="kubectl-command-reference">kubectl command reference</h2>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Context / namespace</td>
+<td><code>kubectl config get-contexts</code> ; <code>kubectl config use-context X</code> ; <code>kubectl config set-context --current --namespace=myapp</code></td>
+</tr>
+<tr>
+<td>Apply / delete</td>
+<td><code>kubectl apply -f k8s/</code> ; <code>kubectl apply -k overlays/prod</code> ; <code>kubectl delete -f k8s/</code></td>
+</tr>
+<tr>
+<td>List</td>
+<td><code>kubectl get pods -n ns -o wide</code> ; <code>kubectl get all -n ns</code> ; <code>kubectl get pods --show-labels</code></td>
+</tr>
+<tr>
+<td>Describe (events)</td>
+<td><code>kubectl describe pod P -n ns</code></td>
+</tr>
+<tr>
+<td>Logs</td>
+<td><code>kubectl logs P -n ns -c C -f</code> ; <code>--previous</code> ; <code>--tail 100</code> ; <code>-l app=api --all-containers</code></td>
+</tr>
+<tr>
+<td>Exec</td>
+<td><code>kubectl exec -it P -n ns -- sh</code></td>
+</tr>
+<tr>
+<td>Ephemeral debug</td>
+<td><code>kubectl debug -it P --image=busybox --target=C</code></td>
+</tr>
+<tr>
+<td>Port-forward</td>
+<td><code>kubectl port-forward svc/api 8080:80 -n ns</code></td>
+</tr>
+<tr>
+<td>Events</td>
+<td><code>kubectl get events -n ns --sort-by=.lastTimestamp</code></td>
+</tr>
+<tr>
+<td>Metrics</td>
+<td><code>kubectl top pod -n ns</code> ; <code>kubectl top node</code></td>
+</tr>
+<tr>
+<td>Endpoints</td>
+<td><code>kubectl get endpointslices -n ns</code></td>
+</tr>
+<tr>
+<td>Rollout</td>
+<td><code>kubectl rollout status deploy/api</code> ; <code>history</code> ; <code>undo</code> ; <code>restart</code></td>
+</tr>
+<tr>
+<td>Update image</td>
+<td><code>kubectl set image deploy/api api=repo/app:1.4.3</code></td>
+</tr>
+<tr>
+<td>Scale</td>
+<td><code>kubectl scale deploy/api --replicas=5</code></td>
+</tr>
+<tr>
+<td>YAML out</td>
+<td><code>kubectl get deploy api -o yaml</code> ; <code>kubectl explain deployment.spec.strategy</code></td>
+</tr>
+<tr>
+<td>Dry run / diff</td>
+<td><code>kubectl apply -f x.yaml --dry-run=server</code> ; <code>kubectl diff -f x.yaml</code></td>
+</tr>
+<tr>
+<td>Create secret</td>
+<td><code>kubectl create secret generic s --from-literal=K=V -n ns</code></td>
+</tr>
+<tr>
+<td>Decode secret</td>
+<td><code>kubectl get secret s -o jsonpath='{.data.K}' \| base64 -d</code></td>
+</tr>
+<tr>
+<td>RBAC check</td>
+<td><code>kubectl auth can-i list pods --as system:serviceaccount:ns:sa -n ns</code></td>
+</tr>
+<tr>
+<td>Node issues</td>
+<td><code>kubectl describe node N</code> ; <code>kubectl cordon N</code> ; <code>kubectl drain N --ignore-daemonsets</code></td>
+</tr>
+<tr>
+<td>Wait</td>
+<td><code>kubectl wait --for=condition=available deploy/api --timeout=120s</code></td>
+</tr>
+<tr>
+<td>Local cluster</td>
+<td><code>kind create cluster</code> ; <code>minikube start</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="key-manifest-values-and-defaults">Key manifest values and defaults</h2>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Deployment/ReplicaSet apiVersion</td>
+<td><code>apps/v1</code></td>
+</tr>
+<tr>
+<td>Service / ConfigMap / Secret / Pod</td>
+<td><code>v1</code></td>
+</tr>
+<tr>
+<td>Ingress</td>
+<td><code>networking.k8s.io/v1</code></td>
+</tr>
+<tr>
+<td>HPA</td>
+<td><code>autoscaling/v2</code></td>
+</tr>
+<tr>
+<td>PDB</td>
+<td><code>policy/v1</code></td>
+</tr>
+<tr>
+<td>Job / CronJob</td>
+<td><code>batch/v1</code></td>
+</tr>
+<tr>
+<td>NetworkPolicy</td>
+<td><code>networking.k8s.io/v1</code></td>
+</tr>
+<tr>
+<td>(all above: check current docs for deprecations)</td>
+<td></td>
+</tr>
+<tr>
+<td>Default rolling update</td>
+<td>maxSurge 25%, maxUnavailable 25% (check current docs)</td>
+</tr>
+<tr>
+<td>Default grace period</td>
+<td>30s (K8s), 10s (docker stop)</td>
+</tr>
+<tr>
+<td>NodePort range</td>
+<td>30000-32767</td>
+</tr>
+<tr>
+<td>imagePullPolicy default</td>
+<td><code>Always</code> for <code>latest</code>/no tag, else <code>IfNotPresent</code></td>
+</tr>
+<tr>
+<td>CPU units</td>
+<td>1 = 1000m; memory Mi/Gi (binary) vs M/G (decimal)</td>
+</tr>
+<tr>
+<td>Pod DNS / Service DNS</td>
+<td><code>svc.ns.svc.cluster.local</code></td>
+</tr>
+<tr>
+<td>PSP</td>
+<td>removed in 1.25; use Pod Security Admission</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="hardened-securitycontext-snippet">Hardened securityContext snippet</h2>
+<div class="highlight"><pre><span></span><code><span class="nt">securityContext</span><span class="p">:</span><span class="w">             </span><span class="c1"># pod level</span>
+<span class="w">  </span><span class="nt">runAsNonRoot</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">runAsUser</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10001</span>
+<span class="w">  </span><span class="nt">seccompProfile</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> type</span><span class="p">:</span><span class="w"> </span><span class="nv">RuntimeDefault</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="nt">containers</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">securityContext</span><span class="p">:</span><span class="w">         </span><span class="c1"># container level</span>
+<span class="w">      </span><span class="nt">allowPrivilegeEscalation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">      </span><span class="nt">readOnlyRootFilesystem</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">capabilities</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> drop</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"ALL"</span><span class="p p-Indicator">]</span><span class="w"> </span><span class="p p-Indicator">}</span>
+</code></pre></div>
+
+<h2 id="dockerfile-skeleton">Dockerfile skeleton</h2>
+<div class="highlight"><pre><span></span><code><span class="k">FROM</span><span class="w"> </span><span class="s">python:3.12-slim</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="s">builder</span><span class="w">      </span>#<span class="w"> </span>check<span class="w"> </span>current<span class="w"> </span>docs<span class="w"> </span><span class="k">for</span><span class="w"> </span>tags
+<span class="k">COPY</span><span class="w"> </span>pyproject.toml<span class="w"> </span>uv.lock<span class="w"> </span>./
+<span class="k">RUN</span><span class="w"> </span>--mount<span class="o">=</span><span class="nv">type</span><span class="o">=</span>cache,target<span class="o">=</span>/root/.cache/uv<span class="w"> </span>uv<span class="w"> </span>sync<span class="w"> </span>--frozen<span class="w"> </span>--no-dev
+<span class="k">COPY</span><span class="w"> </span>src<span class="w"> </span>./src
+<span class="k">FROM</span><span class="w"> </span><span class="s">python:3.12-slim</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="s">runtime</span>
+<span class="k">COPY</span><span class="w"> </span>--from<span class="o">=</span>builder<span class="w"> </span>--chown<span class="o">=</span><span class="m">10001</span>:10001<span class="w"> </span>/app<span class="w"> </span>/app
+<span class="k">USER</span><span class="w"> </span><span class="s">10001</span>
+<span class="k">HEALTHCHECK</span><span class="w"> </span><span class="k">CMD</span><span class="w"> </span><span class="p">[</span><span class="s2">"python"</span><span class="p">,</span><span class="s2">"-c"</span><span class="p">,</span><span class="s2">"..."</span><span class="p">]</span>
+<span class="k">CMD</span><span class="w"> </span><span class="p">[</span><span class="s2">"uvicorn"</span><span class="p">,</span><span class="s2">"app.main:app"</span><span class="p">,</span><span class="s2">"--host"</span><span class="p">,</span><span class="s2">"0.0.0.0"</span><span class="p">,</span><span class="s2">"--port"</span><span class="p">,</span><span class="s2">"8000"</span><span class="p">]</span>
+</code></pre></div>
+</article><div class="pager"><a class="prev" href="../../12-cs-fundamentals/week-05-containers-orchestration/interview-qa.html">← Week 5 · Containers and orchestration: Interview Q&amp;A</a><a class="next" href="../../12-cs-fundamentals/rapid-fire.html">CS Fundamentals: Rapid-fire Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

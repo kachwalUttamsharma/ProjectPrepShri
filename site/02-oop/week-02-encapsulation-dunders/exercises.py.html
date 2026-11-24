@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="02-oop/week-02-encapsulation-dunders/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../02-oop/week-01-classes-objects/lesson.html">Object-Oriented Python</a> / <a href="../../02-oop/week-02-encapsulation-dunders/lesson.html">Week 2 · Encapsulation and dunders</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="02-oop/week-02-encapsulation-dunders/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>02-oop/week-02-encapsulation-dunders/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 2 exercises: encapsulation, properties, dunder methods.</span>
+
+<span class="sd">Replace each `...`. Keep names and signatures.</span>
+<span class="sd">"""</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">total_ordering</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Temperature</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Temperature(celsius).</span>
+
+<span class="sd">    - property `celsius` (get/set). Setting below -273.15 raises ValueError.</span>
+<span class="sd">      The constructor must also validate (so assign through the property).</span>
+<span class="sd">    - property `fahrenheit` (get/set): F = C * 9/5 + 32. Setting converts to</span>
+<span class="sd">      Celsius and goes through the same validation.</span>
+<span class="sd">    - read-only property `kelvin` = celsius + 273.15 (assigning raises AttributeError).</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">celsius</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Circle</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Circle(radius). `radius` is a property; must be &gt; 0 else ValueError</span>
+<span class="sd">    (also in the constructor).</span>
+
+<span class="sd">    Read-only properties: `diameter` and `area` (math.pi * r ** 2).</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">radius</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Vector2D</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Immutable-ish 2D vector.</span>
+
+<span class="sd">    - repr: 'Vector2D(1, 2)'   str: '(1, 2)'</span>
+<span class="sd">    - == compares x and y (NotImplemented for other types)</span>
+<span class="sd">    - hashable and consistent with ==  (hint: hash((x, y)))</span>
+<span class="sd">    - v1 + v2 -&gt; new Vector2D;  v * 3 -&gt; new Vector2D (scalar on the right)</span>
+<span class="sd">    - abs(v) -&gt; length (float)   Hint: __abs__ and math.hypot</span>
+<span class="sd">    - bool(v) is False only for the zero vector (__bool__)</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="nd">@total_ordering</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Version</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Version('1.10.2') compares numerically, not as strings.</span>
+
+<span class="sd">    - attribute `parts`: tuple of ints, e.g. (1, 10, 2)</span>
+<span class="sd">    - __eq__ / __lt__ compare `parts` (hint: tuples compare element-wise).</span>
+<span class="sd">      Missing parts count as zero: Version('1.0') == Version('1.0.0').</span>
+<span class="sd">    - total_ordering gives you &lt;=, &gt;, &gt;= (already applied).</span>
+<span class="sd">    - repr: "Version('1.10.2')"; str: '1.10.2' (the original text)</span>
+<span class="sd">    - hashable and consistent with == (careful with the '1.0' vs '1.0.0' case!</span>
+<span class="sd">      hint: strip trailing zeros when hashing).</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__lt__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Playlist</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""A collection of song titles.</span>
+
+<span class="sd">    Playlist(songs=()) copies the songs. Support:</span>
+<span class="sd">    - len(p), bool(p) (empty -&gt; False)</span>
+<span class="sd">    - p[i] returns a title; p[1:3] returns a LIST of titles</span>
+<span class="sd">    - iteration via __iter__ (must work repeatedly)</span>
+<span class="sd">    - 'x' in p  (__contains__)</span>
+<span class="sd">    - add(title): append and return self (so calls can be chained)</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">songs</span><span class="o">=</span><span class="p">()):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Countdown</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Countdown(start): iterating yields start, start-1, ..., 1.</span>
+
+<span class="sd">    Must be re-iterable: `list(c) == list(c)`. Hint: make __iter__ a generator</span>
+<span class="sd">    (use `yield`). len(c) == start.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Person</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Person(name, age).</span>
+
+<span class="sd">    - @staticmethod is_adult(age) -&gt; age &gt;= 18</span>
+<span class="sd">    - @classmethod from_string('Sam,30') -&gt; Person (use `cls`, strip spaces)</span>
+<span class="sd">    - @classmethod from_birth_year(name, birth_year, current_year=2026)</span>
+<span class="sd">    - repr: "Person('Sam', 30)"</span>
+<span class="sd">    - instance method is_adult_person() uses the staticmethod.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">age</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_adult</span><span class="p">(</span><span class="n">age</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_string</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">text</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_birth_year</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">birth_year</span><span class="p">,</span> <span class="n">current_year</span><span class="o">=</span><span class="mi">2026</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_adult_person</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Card</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Playing card Card(rank, suit), e.g. Card('A', 'spades').</span>
+
+<span class="sd">    Equal when rank and suit match; hashable so a set removes duplicates and</span>
+<span class="sd">    cards work as dict keys. repr: "Card('A', 'spades')".</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rank</span><span class="p">,</span> <span class="n">suit</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Fraction</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Fraction(num, den) always stored in lowest terms with den &gt; 0.</span>
+
+<span class="sd">    - den == 0 -&gt; ZeroDivisionError</span>
+<span class="sd">    - Fraction(2, -4) -&gt; numerator -1, denominator 2   (attrs: numerator, denominator)</span>
+<span class="sd">    - + and * with another Fraction -&gt; new Fraction</span>
+<span class="sd">    - == compares value; hashable; repr 'Fraction(1, 2)'; str '1/2' ('3' if den == 1)</span>
+<span class="sd">    - float(f) works (__float__)</span>
+<span class="sd">    Hint: math.gcd.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">numerator</span><span class="p">,</span> <span class="n">denominator</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">PasswordVault</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Stores secrets behind a master password using name mangling.</span>
+
+<span class="sd">    - PasswordVault(master)</span>
+<span class="sd">    - set(master, key, value) / get(master, key)</span>
+<span class="sd">    - wrong master -&gt; PermissionError; missing key -&gt; KeyError</span>
+<span class="sd">    - store data in `self.__data` and password in `self.__master`</span>
+<span class="sd">      (so `vault.__data` outside the class fails, and no plain `.data` attribute exists)</span>
+<span class="sd">    - keys(master) -&gt; sorted list of keys</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">master</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">set</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">master</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">master</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">keys</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">master</span><span class="p">):</span>
+        <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../02-oop/week-02-encapsulation-dunders/lesson.html">← Week 2 · Encapsulation and dunders: Lesson</a><a class="next" href="../../02-oop/week-02-encapsulation-dunders/test_exercises.py.html">Week 2 · Encapsulation and dunders: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>test_exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="05-fde-projects/project-05-evaluation/test_exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../05-fde-projects/project-01-llm-basics/lesson.html">FDE Projects</a> / <a href="../../05-fde-projects/project-05-evaluation/lesson.html">Project 5 · Evaluation</a> / <span>Tests (code)</span></nav><button id="mark-done" data-id="05-fde-projects/project-05-evaluation/test_exercises.py">Mark as done</button></div><article class="doc">
+<h1>test_exercises.py</h1><p class="code-path"><code>05-fde-projects/project-05-evaluation/test_exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+
+<span class="n">TEMPLATE</span> <span class="o">=</span> <span class="s2">"Classify the ticket as billing, technical or other.</span><span class="se">\n</span><span class="s2">Ticket: </span><span class="si">{input}</span><span class="se">\n</span><span class="s2">Answer with one word."</span>
+
+<span class="n">CASES</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="s2">"t1"</span><span class="p">,</span> <span class="s2">"input"</span><span class="p">:</span> <span class="s2">"I was charged twice"</span><span class="p">,</span> <span class="s2">"expected"</span><span class="p">:</span> <span class="s2">"billing"</span><span class="p">},</span>
+    <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="s2">"t2"</span><span class="p">,</span> <span class="s2">"input"</span><span class="p">:</span> <span class="s2">"refund my invoice"</span><span class="p">,</span> <span class="s2">"expected"</span><span class="p">:</span> <span class="s2">"billing"</span><span class="p">},</span>
+    <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="s2">"t3"</span><span class="p">,</span> <span class="s2">"input"</span><span class="p">:</span> <span class="s2">"app crashes on login"</span><span class="p">,</span> <span class="s2">"expected"</span><span class="p">:</span> <span class="s2">"technical"</span><span class="p">},</span>
+    <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="s2">"t4"</span><span class="p">,</span> <span class="s2">"input"</span><span class="p">:</span> <span class="s2">"cannot reset password"</span><span class="p">,</span> <span class="s2">"expected"</span><span class="p">:</span> <span class="s2">"technical"</span><span class="p">},</span>
+    <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="s2">"t5"</span><span class="p">,</span> <span class="s2">"input"</span><span class="p">:</span> <span class="s2">"where is your office"</span><span class="p">,</span> <span class="s2">"expected"</span><span class="p">:</span> <span class="s2">"other"</span><span class="p">},</span>
+    <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="s2">"t6"</span><span class="p">,</span> <span class="s2">"input"</span><span class="p">:</span> <span class="s2">"thanks for the help"</span><span class="p">,</span> <span class="s2">"expected"</span><span class="p">:</span> <span class="s2">"other"</span><span class="p">},</span>
+    <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="s2">"t7"</span><span class="p">,</span> <span class="s2">"input"</span><span class="p">:</span> <span class="s2">"server is down"</span><span class="p">,</span> <span class="s2">"expected"</span><span class="p">:</span> <span class="s2">"technical"</span><span class="p">},</span>
+    <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="s2">"t8"</span><span class="p">,</span> <span class="s2">"input"</span><span class="p">:</span> <span class="s2">"update my card"</span><span class="p">,</span> <span class="s2">"expected"</span><span class="p">:</span> <span class="s2">"billing"</span><span class="p">},</span>
+<span class="p">]</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">FakeLLM</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Deterministic fake: looks up the ticket text in a table."""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">"other"</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table</span> <span class="o">=</span> <span class="n">table</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">default</span> <span class="o">=</span> <span class="n">default</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prompts</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prompt</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prompts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">prompt</span><span class="p">)</span>
+        <span class="n">ticket</span> <span class="o">=</span> <span class="n">prompt</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">"Ticket: "</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">ticket</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">default</span><span class="p">)</span>
+
+
+<span class="c1"># v1: gets t2 and t4 wrong (6/8 correct)</span>
+<span class="n">V1</span> <span class="o">=</span> <span class="n">FakeLLM</span><span class="p">({</span>
+    <span class="s2">"I was charged twice"</span><span class="p">:</span> <span class="s2">"billing"</span><span class="p">,</span>
+    <span class="s2">"refund my invoice"</span><span class="p">:</span> <span class="s2">"other"</span><span class="p">,</span>
+    <span class="s2">"app crashes on login"</span><span class="p">:</span> <span class="s2">"technical"</span><span class="p">,</span>
+    <span class="s2">"cannot reset password"</span><span class="p">:</span> <span class="s2">"other"</span><span class="p">,</span>
+    <span class="s2">"server is down"</span><span class="p">:</span> <span class="s2">"technical"</span><span class="p">,</span>
+    <span class="s2">"update my card"</span><span class="p">:</span> <span class="s2">"billing"</span><span class="p">,</span>
+<span class="p">})</span>
+<span class="c1"># v2: fixes t2 and t4 but regresses t6 and t7 (also 6/8), noisy formatting</span>
+<span class="n">V2</span> <span class="o">=</span> <span class="n">FakeLLM</span><span class="p">({</span>
+    <span class="s2">"I was charged twice"</span><span class="p">:</span> <span class="s2">"Billing."</span><span class="p">,</span>
+    <span class="s2">"refund my invoice"</span><span class="p">:</span> <span class="s2">" billing</span><span class="se">\n</span><span class="s2">"</span><span class="p">,</span>
+    <span class="s2">"app crashes on login"</span><span class="p">:</span> <span class="s1">'"Technical"'</span><span class="p">,</span>
+    <span class="s2">"cannot reset password"</span><span class="p">:</span> <span class="s2">"technical!"</span><span class="p">,</span>
+    <span class="s2">"server is down"</span><span class="p">:</span> <span class="s2">"other"</span><span class="p">,</span>
+    <span class="s2">"update my card"</span><span class="p">:</span> <span class="s2">"billing"</span><span class="p">,</span>
+    <span class="s2">"thanks for the help"</span><span class="p">:</span> <span class="s2">"technical"</span><span class="p">,</span>
+<span class="p">})</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">write_jsonl</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">,</span> <span class="n">rows</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">"cases.jsonl"</span><span class="p">):</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">tmp_path</span> <span class="o">/</span> <span class="n">name</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">r</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">)</span> <span class="o">+</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">p</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">res</span><span class="p">(</span><span class="nb">id</span><span class="p">,</span> <span class="n">expected</span><span class="p">,</span> <span class="n">predicted</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="nb">id</span><span class="p">,</span> <span class="s2">"input"</span><span class="p">:</span> <span class="s2">"x"</span><span class="p">,</span> <span class="s2">"expected"</span><span class="p">:</span> <span class="n">expected</span><span class="p">,</span> <span class="s2">"predicted"</span><span class="p">:</span> <span class="n">predicted</span><span class="p">}</span>
+
+
+<span class="c1"># ---------- load_test_set ----------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_load_test_set</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">):</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">write_jsonl</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">,</span> <span class="p">[</span><span class="n">CASES</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s2">""</span><span class="p">,</span> <span class="n">CASES</span><span class="p">[</span><span class="mi">1</span><span class="p">]])</span>
+    <span class="k">assert</span> <span class="n">load_test_set</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">==</span> <span class="n">CASES</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">load_test_set</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">))</span> <span class="o">==</span> <span class="n">CASES</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_load_test_set_bad_json_reports_line</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">):</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">write_jsonl</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">,</span> <span class="p">[</span><span class="n">CASES</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s2">"{not json"</span><span class="p">])</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">"line 2"</span><span class="p">):</span>
+        <span class="n">load_test_set</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_load_test_set_missing_key_and_non_object</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">):</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">write_jsonl</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">,</span> <span class="p">[</span><span class="n">CASES</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="s2">"x"</span><span class="p">,</span> <span class="s2">"input"</span><span class="p">:</span> <span class="s2">"hi"</span><span class="p">}])</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">"line 2"</span><span class="p">):</span>
+        <span class="n">load_test_set</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">write_jsonl</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">,</span> <span class="p">[</span><span class="n">CASES</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">CASES</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s2">"[1, 2]"</span><span class="p">],</span> <span class="s2">"b.jsonl"</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">"line 3"</span><span class="p">):</span>
+        <span class="n">load_test_set</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_load_test_set_duplicate_ids</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">):</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">write_jsonl</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">,</span> <span class="p">[</span><span class="n">CASES</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">CASES</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">"t1"</span><span class="p">):</span>
+        <span class="n">load_test_set</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+
+
+<span class="c1"># ---------- prompt + normalise ----------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_build_prompt_keeps_other_braces</span><span class="p">():</span>
+    <span class="n">t</span> <span class="o">=</span> <span class="s1">'Return {"label": "x"} for: </span><span class="si">{input}</span><span class="s1">'</span>
+    <span class="k">assert</span> <span class="n">build_prompt</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="s2">"hello"</span><span class="p">)</span> <span class="o">==</span> <span class="s1">'Return {"label": "x"} for: hello'</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_normalize_label</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">normalize_label</span><span class="p">(</span><span class="s1">' "Billing." '</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"billing"</span>
+    <span class="k">assert</span> <span class="n">normalize_label</span><span class="p">(</span><span class="s2">"TECHNICAL!</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"technical"</span>
+    <span class="k">assert</span> <span class="n">normalize_label</span><span class="p">(</span><span class="s2">"other"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"other"</span>
+
+
+<span class="c1"># ---------- run_prompt ----------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_run_prompt_v1</span><span class="p">():</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="n">run_prompt</span><span class="p">(</span><span class="n">V1</span><span class="p">,</span> <span class="n">TEMPLATE</span><span class="p">,</span> <span class="n">CASES</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">r</span><span class="p">[</span><span class="s2">"id"</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">results</span><span class="p">]</span> <span class="o">==</span> <span class="p">[</span><span class="n">c</span><span class="p">[</span><span class="s2">"id"</span><span class="p">]</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">CASES</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">r</span><span class="p">[</span><span class="s2">"predicted"</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">results</span><span class="p">]</span> <span class="o">==</span> <span class="p">[</span>
+        <span class="s2">"billing"</span><span class="p">,</span> <span class="s2">"other"</span><span class="p">,</span> <span class="s2">"technical"</span><span class="p">,</span> <span class="s2">"other"</span><span class="p">,</span> <span class="s2">"other"</span><span class="p">,</span> <span class="s2">"other"</span><span class="p">,</span> <span class="s2">"technical"</span><span class="p">,</span> <span class="s2">"billing"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="nb">set</span><span class="p">(</span><span class="n">results</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">,</span> <span class="s2">"input"</span><span class="p">,</span> <span class="s2">"expected"</span><span class="p">,</span> <span class="s2">"predicted"</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">results</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s2">"expected"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"billing"</span>
+    <span class="k">assert</span> <span class="s2">"Ticket: I was charged twice"</span> <span class="ow">in</span> <span class="n">V1</span><span class="o">.</span><span class="n">prompts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="s2">"</span><span class="si">{input}</span><span class="s2">"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">V1</span><span class="o">.</span><span class="n">prompts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_run_prompt_normalizes_output</span><span class="p">():</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="n">run_prompt</span><span class="p">(</span><span class="n">V2</span><span class="p">,</span> <span class="n">TEMPLATE</span><span class="p">,</span> <span class="n">CASES</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">r</span><span class="p">[</span><span class="s2">"predicted"</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">results</span><span class="p">]</span> <span class="o">==</span> <span class="p">[</span>
+        <span class="s2">"billing"</span><span class="p">,</span> <span class="s2">"billing"</span><span class="p">,</span> <span class="s2">"technical"</span><span class="p">,</span> <span class="s2">"technical"</span><span class="p">,</span> <span class="s2">"other"</span><span class="p">,</span> <span class="s2">"technical"</span><span class="p">,</span> <span class="s2">"other"</span><span class="p">,</span> <span class="s2">"billing"</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_run_prompt_survives_llm_errors</span><span class="p">():</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">flaky</span><span class="p">(</span><span class="n">prompt</span><span class="p">):</span>
+        <span class="k">if</span> <span class="s2">"crashes"</span> <span class="ow">in</span> <span class="n">prompt</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TimeoutError</span><span class="p">(</span><span class="s2">"boom"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s2">"billing"</span>
+
+    <span class="n">results</span> <span class="o">=</span> <span class="n">run_prompt</span><span class="p">(</span><span class="n">flaky</span><span class="p">,</span> <span class="n">TEMPLATE</span><span class="p">,</span> <span class="n">CASES</span><span class="p">[:</span><span class="mi">4</span><span class="p">])</span>
+    <span class="k">assert</span> <span class="n">results</span><span class="p">[</span><span class="mi">2</span><span class="p">][</span><span class="s2">"predicted"</span><span class="p">]</span> <span class="o">==</span> <span class="n">ERROR_LABEL</span>
+    <span class="k">assert</span> <span class="n">results</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s2">"predicted"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"billing"</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">results</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span>
+
+
+<span class="c1"># ---------- metrics ----------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_accuracy</span><span class="p">():</span>
+    <span class="n">r1</span> <span class="o">=</span> <span class="n">run_prompt</span><span class="p">(</span><span class="n">V1</span><span class="p">,</span> <span class="n">TEMPLATE</span><span class="p">,</span> <span class="n">CASES</span><span class="p">)</span>
+    <span class="n">r2</span> <span class="o">=</span> <span class="n">run_prompt</span><span class="p">(</span><span class="n">V2</span><span class="p">,</span> <span class="n">TEMPLATE</span><span class="p">,</span> <span class="n">CASES</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">accuracy</span><span class="p">(</span><span class="n">r1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">6</span> <span class="o">/</span> <span class="mi">8</span>
+    <span class="k">assert</span> <span class="n">accuracy</span><span class="p">(</span><span class="n">r2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">6</span> <span class="o">/</span> <span class="mi">8</span>
+    <span class="k">assert</span> <span class="n">accuracy</span><span class="p">([])</span> <span class="o">==</span> <span class="mf">0.0</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_confusion_matrix</span><span class="p">():</span>
+    <span class="n">r1</span> <span class="o">=</span> <span class="n">run_prompt</span><span class="p">(</span><span class="n">V1</span><span class="p">,</span> <span class="n">TEMPLATE</span><span class="p">,</span> <span class="n">CASES</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">confusion_matrix</span><span class="p">(</span><span class="n">r1</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span>
+        <span class="s2">"billing"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"billing"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"other"</span><span class="p">:</span> <span class="mi">1</span><span class="p">},</span>
+        <span class="s2">"technical"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"technical"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"other"</span><span class="p">:</span> <span class="mi">1</span><span class="p">},</span>
+        <span class="s2">"other"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"other"</span><span class="p">:</span> <span class="mi">2</span><span class="p">},</span>
+    <span class="p">}</span>
+    <span class="k">assert</span> <span class="n">confusion_matrix</span><span class="p">([])</span> <span class="o">==</span> <span class="p">{}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_precision_recall_f1</span><span class="p">():</span>
+    <span class="n">r1</span> <span class="o">=</span> <span class="n">run_prompt</span><span class="p">(</span><span class="n">V1</span><span class="p">,</span> <span class="n">TEMPLATE</span><span class="p">,</span> <span class="n">CASES</span><span class="p">)</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="n">precision_recall_f1</span><span class="p">(</span><span class="n">r1</span><span class="p">,</span> <span class="s2">"billing"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">m</span><span class="p">[</span><span class="s2">"precision"</span><span class="p">]</span> <span class="o">==</span> <span class="mf">1.0</span>
+    <span class="k">assert</span> <span class="n">m</span><span class="p">[</span><span class="s2">"recall"</span><span class="p">]</span> <span class="o">==</span> <span class="n">pytest</span><span class="o">.</span><span class="n">approx</span><span class="p">(</span><span class="mi">2</span> <span class="o">/</span> <span class="mi">3</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">m</span><span class="p">[</span><span class="s2">"f1"</span><span class="p">]</span> <span class="o">==</span> <span class="n">pytest</span><span class="o">.</span><span class="n">approx</span><span class="p">(</span><span class="mf">0.8</span><span class="p">)</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="n">precision_recall_f1</span><span class="p">(</span><span class="n">r1</span><span class="p">,</span> <span class="s2">"other"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">m</span><span class="p">[</span><span class="s2">"precision"</span><span class="p">]</span> <span class="o">==</span> <span class="n">pytest</span><span class="o">.</span><span class="n">approx</span><span class="p">(</span><span class="mi">2</span> <span class="o">/</span> <span class="mi">4</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">m</span><span class="p">[</span><span class="s2">"recall"</span><span class="p">]</span> <span class="o">==</span> <span class="mf">1.0</span>
+    <span class="k">assert</span> <span class="n">m</span><span class="p">[</span><span class="s2">"f1"</span><span class="p">]</span> <span class="o">==</span> <span class="n">pytest</span><span class="o">.</span><span class="n">approx</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="mi">1</span> <span class="o">/</span> <span class="mf">1.5</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_precision_recall_f1_zero_division</span><span class="p">():</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="p">[</span><span class="n">res</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"x"</span><span class="p">,</span> <span class="s2">"y"</span><span class="p">)]</span>
+    <span class="k">assert</span> <span class="n">precision_recall_f1</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="s2">"x"</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"precision"</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span> <span class="s2">"recall"</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span> <span class="s2">"f1"</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">precision_recall_f1</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="s2">"never"</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"precision"</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span> <span class="s2">"recall"</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span> <span class="s2">"f1"</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">precision_recall_f1</span><span class="p">([],</span> <span class="s2">"x"</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"precision"</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span> <span class="s2">"recall"</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span> <span class="s2">"f1"</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">}</span>
+
+
+<span class="c1"># ---------- failure analysis ----------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_worst_confusions</span><span class="p">():</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">res</span><span class="p">(</span><span class="s2">"1"</span><span class="p">,</span> <span class="s2">"billing"</span><span class="p">,</span> <span class="s2">"other"</span><span class="p">),</span> <span class="n">res</span><span class="p">(</span><span class="s2">"2"</span><span class="p">,</span> <span class="s2">"billing"</span><span class="p">,</span> <span class="s2">"other"</span><span class="p">),</span>
+        <span class="n">res</span><span class="p">(</span><span class="s2">"3"</span><span class="p">,</span> <span class="s2">"technical"</span><span class="p">,</span> <span class="s2">"other"</span><span class="p">),</span> <span class="n">res</span><span class="p">(</span><span class="s2">"4"</span><span class="p">,</span> <span class="s2">"other"</span><span class="p">,</span> <span class="s2">"technical"</span><span class="p">),</span>
+        <span class="n">res</span><span class="p">(</span><span class="s2">"5"</span><span class="p">,</span> <span class="s2">"billing"</span><span class="p">,</span> <span class="s2">"billing"</span><span class="p">),</span> <span class="n">res</span><span class="p">(</span><span class="s2">"6"</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">),</span>
+    <span class="p">]</span>
+    <span class="k">assert</span> <span class="n">worst_confusions</span><span class="p">(</span><span class="n">results</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="p">[((</span><span class="s2">"billing"</span><span class="p">,</span> <span class="s2">"other"</span><span class="p">),</span> <span class="mi">2</span><span class="p">),</span> <span class="p">((</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">),</span> <span class="mi">1</span><span class="p">)]</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">worst_confusions</span><span class="p">(</span><span class="n">results</span><span class="p">,</span> <span class="mi">10</span><span class="p">))</span> <span class="o">==</span> <span class="mi">4</span>
+    <span class="k">assert</span> <span class="n">worst_confusions</span><span class="p">([</span><span class="n">res</span><span class="p">(</span><span class="s2">"1"</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">)])</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="c1"># ---------- regression comparison ----------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_compare_runs</span><span class="p">():</span>
+    <span class="n">old</span> <span class="o">=</span> <span class="n">run_prompt</span><span class="p">(</span><span class="n">V1</span><span class="p">,</span> <span class="n">TEMPLATE</span><span class="p">,</span> <span class="n">CASES</span><span class="p">)</span>
+    <span class="n">new</span> <span class="o">=</span> <span class="n">run_prompt</span><span class="p">(</span><span class="n">V2</span><span class="p">,</span> <span class="n">TEMPLATE</span><span class="p">,</span> <span class="n">CASES</span><span class="p">)</span>
+    <span class="n">cmp</span> <span class="o">=</span> <span class="n">compare_runs</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">cmp</span> <span class="o">==</span> <span class="p">{</span>
+        <span class="s2">"fixed"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"t2"</span><span class="p">,</span> <span class="s2">"t4"</span><span class="p">],</span>
+        <span class="s2">"regressed"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"t6"</span><span class="p">,</span> <span class="s2">"t7"</span><span class="p">],</span>
+        <span class="s2">"still_correct"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"t1"</span><span class="p">,</span> <span class="s2">"t3"</span><span class="p">,</span> <span class="s2">"t5"</span><span class="p">,</span> <span class="s2">"t8"</span><span class="p">],</span>
+        <span class="s2">"still_wrong"</span><span class="p">:</span> <span class="p">[],</span>
+    <span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_compare_runs_same_set_of_ids_required</span><span class="p">():</span>
+    <span class="n">old</span> <span class="o">=</span> <span class="p">[</span><span class="n">res</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"x"</span><span class="p">,</span> <span class="s2">"x"</span><span class="p">),</span> <span class="n">res</span><span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="s2">"x"</span><span class="p">,</span> <span class="s2">"x"</span><span class="p">)]</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">compare_runs</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="n">old</span><span class="p">[:</span><span class="mi">1</span><span class="p">])</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">compare_runs</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="p">[</span><span class="n">res</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"x"</span><span class="p">,</span> <span class="s2">"x"</span><span class="p">),</span> <span class="n">res</span><span class="p">(</span><span class="s2">"c"</span><span class="p">,</span> <span class="s2">"x"</span><span class="p">,</span> <span class="s2">"x"</span><span class="p">)])</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_compare_runs_matches_by_id_not_position</span><span class="p">():</span>
+    <span class="n">old</span> <span class="o">=</span> <span class="p">[</span><span class="n">res</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"x"</span><span class="p">,</span> <span class="s2">"y"</span><span class="p">),</span> <span class="n">res</span><span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="s2">"x"</span><span class="p">,</span> <span class="s2">"x"</span><span class="p">)]</span>
+    <span class="n">new</span> <span class="o">=</span> <span class="p">[</span><span class="n">res</span><span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="s2">"x"</span><span class="p">,</span> <span class="s2">"x"</span><span class="p">),</span> <span class="n">res</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"x"</span><span class="p">,</span> <span class="s2">"x"</span><span class="p">)]</span>
+    <span class="n">cmp</span> <span class="o">=</span> <span class="n">compare_runs</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">cmp</span><span class="p">[</span><span class="s2">"fixed"</span><span class="p">]</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">cmp</span><span class="p">[</span><span class="s2">"still_correct"</span><span class="p">]</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"b"</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_verdict</span><span class="p">():</span>
+    <span class="n">base</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"fixed"</span><span class="p">:</span> <span class="p">[],</span> <span class="s2">"regressed"</span><span class="p">:</span> <span class="p">[],</span> <span class="s2">"still_correct"</span><span class="p">:</span> <span class="p">[],</span> <span class="s2">"still_wrong"</span><span class="p">:</span> <span class="p">[]}</span>
+    <span class="k">assert</span> <span class="n">verdict</span><span class="p">({</span><span class="o">**</span><span class="n">base</span><span class="p">,</span> <span class="s2">"fixed"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">],</span> <span class="s2">"regressed"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"c"</span><span class="p">]})</span> <span class="o">==</span> <span class="s2">"hold"</span>
+    <span class="k">assert</span> <span class="n">verdict</span><span class="p">({</span><span class="o">**</span><span class="n">base</span><span class="p">,</span> <span class="s2">"fixed"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">],</span> <span class="s2">"regressed"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"c"</span><span class="p">]},</span> <span class="n">max_regressions</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"ship"</span>
+    <span class="k">assert</span> <span class="n">verdict</span><span class="p">({</span><span class="o">**</span><span class="n">base</span><span class="p">,</span> <span class="s2">"fixed"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">]})</span> <span class="o">==</span> <span class="s2">"ship"</span>
+    <span class="k">assert</span> <span class="n">verdict</span><span class="p">(</span><span class="n">base</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"no change"</span>
+    <span class="k">assert</span> <span class="n">verdict</span><span class="p">({</span><span class="o">**</span><span class="n">base</span><span class="p">,</span> <span class="s2">"fixed"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">],</span> <span class="s2">"regressed"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"b"</span><span class="p">]},</span> <span class="n">max_regressions</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"no change"</span>
+    <span class="k">assert</span> <span class="n">verdict</span><span class="p">({</span><span class="o">**</span><span class="n">base</span><span class="p">,</span> <span class="s2">"regressed"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"b"</span><span class="p">]},</span> <span class="n">max_regressions</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"no change"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_verdict_on_real_runs</span><span class="p">():</span>
+    <span class="n">cmp</span> <span class="o">=</span> <span class="n">compare_runs</span><span class="p">(</span><span class="n">run_prompt</span><span class="p">(</span><span class="n">V1</span><span class="p">,</span> <span class="n">TEMPLATE</span><span class="p">,</span> <span class="n">CASES</span><span class="p">),</span> <span class="n">run_prompt</span><span class="p">(</span><span class="n">V2</span><span class="p">,</span> <span class="n">TEMPLATE</span><span class="p">,</span> <span class="n">CASES</span><span class="p">))</span>
+    <span class="k">assert</span> <span class="n">verdict</span><span class="p">(</span><span class="n">cmp</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"hold"</span>
+    <span class="k">assert</span> <span class="n">verdict</span><span class="p">(</span><span class="n">cmp</span><span class="p">,</span> <span class="n">max_regressions</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"no change"</span>
+
+
+<span class="c1"># ---------- report ----------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_format_report</span><span class="p">():</span>
+    <span class="n">report</span> <span class="o">=</span> <span class="n">format_report</span><span class="p">(</span><span class="s2">"v1"</span><span class="p">,</span> <span class="n">run_prompt</span><span class="p">(</span><span class="n">V1</span><span class="p">,</span> <span class="n">TEMPLATE</span><span class="p">,</span> <span class="n">CASES</span><span class="p">))</span>
+    <span class="n">lines</span> <span class="o">=</span> <span class="n">report</span><span class="o">.</span><span class="n">splitlines</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="s2">"Prompt: v1"</span> <span class="ow">in</span> <span class="n">lines</span>
+    <span class="k">assert</span> <span class="s2">"Cases: 8"</span> <span class="ow">in</span> <span class="n">lines</span>
+    <span class="k">assert</span> <span class="s2">"Accuracy: 75.0%"</span> <span class="ow">in</span> <span class="n">lines</span>
+    <span class="k">assert</span> <span class="s2">"Failures: 2"</span> <span class="ow">in</span> <span class="n">lines</span>
+    <span class="k">assert</span> <span class="s2">"Most common mistakes:"</span> <span class="ow">in</span> <span class="n">lines</span>
+    <span class="k">assert</span> <span class="s2">"- expected billing, got other (1 times)"</span> <span class="ow">in</span> <span class="n">report</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_format_report_top_n_and_perfect</span><span class="p">():</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="p">[</span><span class="n">res</span><span class="p">(</span><span class="s2">"1"</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">),</span> <span class="n">res</span><span class="p">(</span><span class="s2">"2"</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">),</span> <span class="n">res</span><span class="p">(</span><span class="s2">"3"</span><span class="p">,</span> <span class="s2">"c"</span><span class="p">,</span> <span class="s2">"d"</span><span class="p">)]</span>
+    <span class="n">report</span> <span class="o">=</span> <span class="n">format_report</span><span class="p">(</span><span class="s2">"p"</span><span class="p">,</span> <span class="n">results</span><span class="p">,</span> <span class="n">top_n</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="s2">"- expected a, got b (2 times)"</span> <span class="ow">in</span> <span class="n">report</span>
+    <span class="k">assert</span> <span class="s2">"expected c"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">report</span>
+    <span class="n">perfect</span> <span class="o">=</span> <span class="n">format_report</span><span class="p">(</span><span class="s2">"p"</span><span class="p">,</span> <span class="p">[</span><span class="n">res</span><span class="p">(</span><span class="s2">"1"</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">)])</span>
+    <span class="k">assert</span> <span class="s2">"Accuracy: 100.0%"</span> <span class="ow">in</span> <span class="n">perfect</span>
+    <span class="k">assert</span> <span class="s2">"Failures: 0"</span> <span class="ow">in</span> <span class="n">perfect</span>
+    <span class="k">assert</span> <span class="s2">"Most common mistakes"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">perfect</span>
+    <span class="k">assert</span> <span class="s2">"Accuracy: 0.0%"</span> <span class="ow">in</span> <span class="n">format_report</span><span class="p">(</span><span class="s2">"p"</span><span class="p">,</span> <span class="p">[])</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../05-fde-projects/project-05-evaluation/exercises.py.html">← Project 5 · Evaluation: Exercises (code)</a><a class="next" href="../../05-fde-projects/project-06-capstone-messy-data-demo/lesson.html">Project 6 · Capstone: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

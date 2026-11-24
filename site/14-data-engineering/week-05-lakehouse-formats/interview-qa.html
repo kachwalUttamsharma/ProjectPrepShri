@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 5 Interview Q&amp;A: Lakehouse and Formats | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="14-data-engineering/week-05-lakehouse-formats/interview-qa" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../14-data-engineering/week-05-lakehouse-formats/lesson.html">Week 5 · Lakehouse and formats</a> / <span>Interview Q&amp;A</span></nav><button id="mark-done" data-id="14-data-engineering/week-05-lakehouse-formats/interview-qa">Mark as done</button></div><article class="doc">
+<h1 id="week-5-interview-qa-lakehouse-and-formats">Week 5 Interview Q&amp;A: Lakehouse and Formats</h1>
+<p>Cover the answer, say yours out loud, then compare. Version-specific defaults: check current docs.</p>
+<hr />
+<p><strong>1. Why is Parquet faster than CSV/JSON for analytics?</strong>
+Columnar layout means only needed columns are read; typed, compressed (dictionary, RLE, delta + Snappy/ZSTD) data is much smaller; footer statistics allow skipping row groups; no parsing of text. Probe: "When is CSV/JSON fine?" Tiny data, interchange, landing zone where you need human readability.</p>
+<p><strong>2. Describe the structure of a Parquet file.</strong>
+Magic bytes, row groups, each containing column chunks, each made of pages (dictionary + data pages), then a footer with schema and per-chunk metadata and statistics. Readers read the footer first, then byte ranges for needed columns/row groups.</p>
+<p><strong>3. How does predicate pushdown work and when does it fail?</strong>
+Engine compares filter to min/max (and page index, dictionary, Bloom filter) to skip row groups/pages. Fails when data is not clustered on the filter column (min/max ranges overlap everywhere), on functions applied to the column (<code>WHERE date(ts) = ...</code> may block pushdown in some engines), on non-sargable expressions, or with high-cardinality strings lacking Bloom filters. Fix: sort/cluster/Z-order on filter columns, write predicates in a pushdown-friendly form.</p>
+<p><strong>4. What are Parquet encodings and when does dictionary encoding stop helping?</strong>
+Dictionary (distinct values + codes), RLE/bit-pack, delta. Dictionary helps low-cardinality columns; for high-cardinality columns the dictionary grows, writers fall back to plain encoding, and gain disappears.</p>
+<p><strong>5. Row group size trade-offs?</strong>
+Large row groups: better compression, fewer metadata entries, but more memory to write/read and coarser skipping. Small: finer skipping but more overhead and worse compression. Defaults are often about 128 MB (check current docs); align with HDFS/S3 read size and executor memory.</p>
+<p><strong>6. Parquet vs ORC vs Avro?</strong>
+Parquet and ORC: columnar for analytics (Parquet has the widest ecosystem; ORC strong with Hive ACID). Avro: row-based with embedded schema and great schema evolution; ideal for Kafka and CDC payloads, poor for scans.</p>
+<p><strong>7. How does Avro schema evolution work?</strong>
+Writer schema is stored with the data (or in a registry); reader supplies its own schema; resolution matches fields by name, uses defaults for fields missing in the writer data and ignores fields unknown to the reader. Backward compatible changes: add field with default, remove field with default. Registry compatibility modes (backward, forward, full) enforce this.</p>
+<p><strong>8. Partitioning vs clustering vs Z-order?</strong>
+Partitioning: directory-level split on low-cardinality columns for exact pruning. Clustering/sorting: orders data within files for tight stats on other columns. Z-order: multi-column locality via bit interleaving, for filters on several columns, at the cost of an expensive rewrite and diminishing returns with more columns. Newer: liquid clustering, Iceberg partition evolution (check current docs).</p>
+<p><strong>9. How would you choose a partition column for a 5 TB/day events table?</strong>
+Event date (maybe plus a coarse, bounded column like region if queries always filter on it and partitions stay large). Not user_id. Cluster/sort by commonly filtered high-cardinality columns. Verify with actual query patterns and partition sizes.</p>
+<p><strong>10. What is the small files problem, symptoms, and fix?</strong>
+Many tiny files: slow listing, high S3 request counts, task-scheduling overhead, poor compression and stats. Symptoms: planning takes minutes, thousands of tiny tasks. Fix at write (repartition/coalesce, AQE, optimized writes, longer streaming triggers) and with scheduled compaction (OPTIMIZE / rewrite_data_files). Target about 128 MB-1 GB files. Cleanup of old files via vacuum/expire.
+Probe: "Does compaction block readers?" No, it commits a new snapshot; readers on older snapshots keep working until files are vacuumed. Concurrent writers may conflict, so schedule/partition-scope compaction.</p>
+<p><strong>11. Why can't you just use Parquet files in S3 as a table?</strong>
+No atomic multi-file commit, no isolation (readers see partial writes), no row-level update/delete, no schema enforcement or history, slow listing, no safe concurrent writers. Table formats add a transaction log/manifest layer.</p>
+<p><strong>12. Explain how Delta Lake achieves ACID.</strong>
+<code>_delta_log</code> holds ordered JSON commit files (actions: add/remove file, metadata, protocol) with periodic Parquet checkpoints. A table version = replay of the log. Writers write data files first, then atomically create the next log file (needs put-if-absent semantics); on conflict, validate and retry or fail (optimistic concurrency). Readers snapshot a version.</p>
+<p><strong>13. Explain Iceberg's metadata structure.</strong>
+Catalog holds pointer to current metadata JSON; metadata lists snapshots; each snapshot references a manifest list; manifest list references manifests; manifests list data/delete files with column-level stats and partition values. Commit = atomic swap of the catalog pointer. Planning uses manifest stats to prune files without listing directories.</p>
+<p><strong>14. What is Hudi's niche?</strong>
+Record-level upserts/deletes with a record key and precombine field, built-in indexing, MOR/COW table types, incremental pull queries, streaming-style ingestion; strong for CDC into the lake. Timeline of instants instead of snapshots.</p>
+<p><strong>15. How do you choose between Delta, Iceberg, Hudi?</strong>
+Ecosystem and engine mix first (Databricks-centric: Delta; multi-engine, Snowflake/Trino/Athena/Flink: Iceberg; heavy CDC upserts on EMR/Spark: Hudi), then features (partition evolution, deletion vectors, governance), catalog support, team skills. Formats are converging and bridges exist (UniForm, XTable; check current docs). Do not claim a "winner" without context.</p>
+<p><strong>16. Copy-on-write vs merge-on-read?</strong>
+CoW rewrites files on update: simple fast reads, heavy writes. MoR writes delta/delete files merged at read or compaction: fast writes, slower reads until compaction. Choose by update frequency and read latency needs.</p>
+<p><strong>17. How does time travel work and what limits it?</strong>
+Old snapshots/versions still reference older data files, so you can read them by version/timestamp. Limited by retention: vacuum/expiry deletes files no longer referenced by retained snapshots. Long retention costs storage; GDPR deletions require expiring old snapshots.</p>
+<p><strong>18. What does VACUUM do and what can go wrong?</strong>
+Deletes files no longer referenced by the retained table versions (older than the retention threshold). Danger: vacuuming below the duration of long readers/streams or concurrent writes causes failures; deleting files manually corrupts the table. Default retention 7 days in Delta (check current docs).</p>
+<p><strong>19. How does schema evolution work, and what breaks it?</strong>
+Add columns, widen types, rename/drop depending on format support (Iceberg uses column IDs; Delta uses column mapping). Breaks: incompatible type changes, reusing names, downstream readers pinned to old schema, schema-on-read by position in CSV. Use a contract, enforcement on write, and a controlled evolution path.</p>
+<p><strong>20. How do you handle concurrent writers?</strong>
+Optimistic concurrency with conflict detection: non-overlapping partitions/files usually commit fine; overlapping updates fail and retry. Design: one writer per partition, retry with backoff, narrow MERGE predicates (include partition column in the condition), queue/serialize writers on hot tables.</p>
+<p><strong>21. What is the medallion architecture and its criticisms?</strong>
+Bronze raw, silver cleaned/conformed, gold business-ready. Benefits: replayability, clear quality gates. Criticisms: more layers than needed adds latency and cost; "silver" is vague; ownership unclear. Use only the layers you can justify and define contracts per layer.</p>
+<p><strong>22. Data lake vs warehouse vs lakehouse in one answer.</strong>
+Lake: cheap files, schema on read, no ACID. Warehouse: managed, schema on write, ACID, SQL-first. Lakehouse: lake storage with a table format and catalog to get ACID/governance for BI and ML on the same data with multiple engines. Trade-off is operational burden (compaction, catalog, permissions).</p>
+<p><strong>23. What does a catalog do and why does it matter?</strong>
+Name-to-location mapping, schemas, partition metadata, permissions, sometimes lineage. For Iceberg the catalog is also the atomic commit point. Options: Hive Metastore, Glue, Unity, REST/Polaris/Nessie. Matters for interoperability (every engine must reach it), governance and availability.</p>
+<p><strong>24. How do you cut Athena cost?</strong>
+Convert to Parquet/ORC with compression, partition and prune, select only needed columns, use partition projection, compact small files, use CTAS to materialize, workgroup data-scanned limits, and pick Iceberg for efficient planning. Athena bills by data scanned (check current docs for price).</p>
+<p><strong>25. Glue crawlers: good or bad?</strong>
+Convenient for discovery, but they can infer unstable schemas and mis-detect partitions, cost money, and make schema changes implicit. Prefer explicit DDL/IaC and schema contracts for production tables; crawlers for exploration.</p>
+<p><strong>26. How does Lake Formation fit with Athena, EMR and Redshift Spectrum?</strong>
+It is the permission layer over Glue catalog resources: grant table/column/row permissions (and LF-tags) to IAM principals; integrated engines enforce them, avoiding raw S3 access grants. Probe: "What if a user can read S3 directly?" Then LF is bypassed; lock down bucket access so only trusted engines/roles read data.</p>
+<p><strong>27. Design a lakehouse on AWS for CDC from Postgres.</strong>
+DMS (or Debezium into MSK) -&gt; S3 bronze (Parquet/Avro with op, ts, lsn) -&gt; Spark (Glue/EMR) MERGE into silver Iceberg/Delta/Hudi tables keyed by primary key, handling out-of-order events via source LSN/timestamp and deletes via tombstones -&gt; gold marts for Athena/Redshift -&gt; Lake Formation for access, compaction and snapshot expiry scheduled, data quality checks, orchestration with Airflow/MWAA. Discuss initial snapshot plus change stream handoff and schema evolution.</p>
+<p><strong>28. A dashboard on Athena got 20x slower overnight. Debug.</strong>
+Check file count and size distribution in the partition (small-file explosion from a new streaming job), partition projection or partition metadata missing, a schema change breaking pushdown, query changed to <code>SELECT *</code>, concurrency/queue limits, and recent compaction failure. Look at bytes scanned and execution stats per stage.</p>
+<p><strong>29. How do you do GDPR delete in a lakehouse?</strong>
+Row-level DELETE/MERGE (rewrite or deletion vectors), then expire old snapshots/vacuum so prior file versions with the data are physically removed; also handle bronze raw files, backups and derived tables. Track subject-to-file mapping if deletes are frequent. Encryption-key-per-subject (crypto shredding) is an alternative.</p>
+<p><strong>30. What are the risks of Z-ordering/clustering everywhere?</strong>
+Rewrite cost grows with table size; benefits fade with many columns or filters on non-clustered columns; ongoing maintenance on frequently updated data. Measure files skipped before/after.</p>
+<hr />
+<h2 id="drills">Drills</h2>
+<ul>
+<li>Draw Iceberg metadata tree and Delta log from memory (2 min each).</li>
+<li>Explain compaction + vacuum + time travel interaction in 60 seconds.</li>
+<li>Given 3 query patterns, choose partition and sort columns and defend.</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../../14-data-engineering/week-05-lakehouse-formats/lesson.html">← Week 5 · Lakehouse and formats: Lesson</a><a class="next" href="../../14-data-engineering/week-05-lakehouse-formats/cheatsheet.html">Week 5 · Lakehouse and formats: Cheatsheet →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

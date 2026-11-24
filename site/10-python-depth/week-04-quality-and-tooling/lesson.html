@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 4: Quality and tooling | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="10-python-depth/week-04-quality-and-tooling/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../10-python-depth/week-01-functions-deep-dive/lesson.html">Python Depth</a> / <a href="../../10-python-depth/week-04-quality-and-tooling/lesson.html">Week 4 · Quality and tooling</a> / <span>Lesson</span></nav><button id="mark-done" data-id="10-python-depth/week-04-quality-and-tooling/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-4-quality-and-tooling">Week 4: Quality and tooling</h1>
+<p>Interviewers (and teammates) judge you by how you test, fail, log, ship and measure code, not just by whether it works once.</p>
+<h2 id="1-pytest-essentials">1. pytest essentials</h2>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">test_add</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">add</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> <span class="o">==</span> <span class="mi">5</span>          <span class="c1"># plain assert; pytest rewrites it to show details</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+<span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">"bad"</span><span class="p">):</span>   <span class="c1"># assert an exception (and its message regex)</span>
+    <span class="n">parse</span><span class="p">(</span><span class="s2">"x"</span><span class="p">)</span>
+<span class="k">assert</span> <span class="mf">0.1</span> <span class="o">+</span> <span class="mf">0.2</span> <span class="o">==</span> <span class="n">pytest</span><span class="o">.</span><span class="n">approx</span><span class="p">(</span><span class="mf">0.3</span><span class="p">)</span>         <span class="c1"># floats: never use ==</span>
+</code></pre></div>
+
+<p><strong>Fixtures</strong> = reusable setup, injected by argument name.</p>
+<div class="highlight"><pre><span></span><code><span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">cart</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">Cart</span><span class="p">()</span>
+    <span class="k">yield</span> <span class="n">c</span>          <span class="c1"># code after yield is teardown</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_empty</span><span class="p">(</span><span class="n">cart</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">cart</span><span class="o">.</span><span class="n">total</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span>
+</code></pre></div>
+
+<p>Scopes: <code>function</code> (default), <code>class</code>, <code>module</code>, <code>session</code>. <code>conftest.py</code> shares fixtures across files with no imports. Built-ins: <code>tmp_path</code> (fresh temp dir), <code>monkeypatch</code>, <code>caplog</code>, <code>capsys</code>.</p>
+<p><strong>parametrize</strong> runs one test over many inputs (each is its own test id):</p>
+<div class="highlight"><pre><span></span><code><span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">parametrize</span><span class="p">(</span><span class="s2">"text,expected"</span><span class="p">,</span> <span class="p">[(</span><span class="s2">"1"</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="s2">"42"</span><span class="p">,</span> <span class="mi">42</span><span class="p">)])</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_parse</span><span class="p">(</span><span class="n">text</span><span class="p">,</span> <span class="n">expected</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">parse</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="o">==</span> <span class="n">expected</span>
+</code></pre></div>
+
+<p>Other marks: <code>skip</code>, <code>skipif</code>, <code>xfail</code>, custom marks (register them to avoid warnings). Run: <code>pytest -q</code>, <code>-x</code> (stop at first failure), <code>-k name</code>, <code>-v</code>, <code>--lf</code> (last failed), <code>-s</code> (show prints), <code>--pdb</code>.</p>
+<h2 id="2-mocking">2. Mocking</h2>
+<p><code>unittest.mock.Mock</code> records calls and returns whatever you configure.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">unittest.mock</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mock</span><span class="p">,</span> <span class="n">patch</span>
+<span class="n">client</span> <span class="o">=</span> <span class="n">Mock</span><span class="p">()</span>
+<span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="o">.</span><span class="n">return_value</span><span class="o">.</span><span class="n">status_code</span> <span class="o">=</span> <span class="mi">200</span>
+<span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="o">.</span><span class="n">return_value</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">return_value</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"Ada"</span><span class="p">}</span>
+<span class="o">...</span>
+<span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="o">.</span><span class="n">assert_called_once_with</span><span class="p">(</span><span class="s2">"/users/7"</span><span class="p">)</span>
+<span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="o">.</span><span class="n">side_effect</span> <span class="o">=</span> <span class="ne">TimeoutError</span>      <span class="c1"># or a list of results/exceptions</span>
+</code></pre></div>
+
+<p><code>patch</code> swaps a name <strong>where it is looked up, not where it is defined</strong>:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># app.py does `from requests import get` -&gt; patch "app.get", NOT "requests.get"</span>
+<span class="k">with</span> <span class="n">patch</span><span class="p">(</span><span class="s2">"app.get"</span><span class="p">)</span> <span class="k">as</span> <span class="n">m</span><span class="p">:</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">return_value</span><span class="o">.</span><span class="n">status_code</span> <span class="o">=</span> <span class="mi">200</span>
+</code></pre></div>
+
+<p><code>MagicMock</code> also supports magic methods (<code>__len__</code>, <code>__enter__</code>). <code>autospec=True</code> / <code>create_autospec</code> makes the mock reject calls that do not match the real signature (catches typos and wrong arg counts).</p>
+<p><strong>monkeypatch</strong> (pytest) is simpler for env vars, attributes, cwd, dict items; undone automatically:</p>
+<div class="highlight"><pre><span></span><code><span class="n">monkeypatch</span><span class="o">.</span><span class="n">setenv</span><span class="p">(</span><span class="s2">"APP_PORT"</span><span class="p">,</span> <span class="s2">"9000"</span><span class="p">)</span>
+<span class="n">monkeypatch</span><span class="o">.</span><span class="n">setattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s2">"func"</span><span class="p">,</span> <span class="k">lambda</span><span class="p">:</span> <span class="mi">42</span><span class="p">)</span>
+<span class="n">monkeypatch</span><span class="o">.</span><span class="n">delenv</span><span class="p">(</span><span class="s2">"X"</span><span class="p">,</span> <span class="n">raising</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Prefer <strong>dependency injection</strong> (pass the client in) over patching: simpler tests, fewer surprises. Mock the boundary (network, clock, disk), not your own logic. Over-mocking makes tests pass while the code is broken.</p>
+<p>Good tests: fast, deterministic (no sleeps, no real network, inject clocks), one behaviour each, named for the behaviour, arrange-act-assert.</p>
+<h2 id="3-exception-design">3. Exception design</h2>
+<ul>
+<li>Catch the narrowest type you can handle. Never bare <code>except:</code>; <code>except Exception:</code> only at boundaries (top-level handler, worker loop) and log with traceback.</li>
+<li>Create a base exception per library/app, then subclass: callers can catch <code>AppError</code> or something specific.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">AppError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">,</span> <span class="n">code</span><span class="o">=</span><span class="mi">500</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">code</span> <span class="o">=</span> <span class="n">code</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">NotFoundError</span><span class="p">(</span><span class="n">AppError</span><span class="p">):</span> <span class="o">...</span>
+</code></pre></div>
+
+<ul>
+<li><strong>Chaining</strong>: <code>raise Domain(...) from exc</code> sets <code>__cause__</code> (explicit translation). Raising inside <code>except</code> without <code>from</code> sets <code>__context__</code> implicitly. <code>from None</code> hides the original.</li>
+<li><code>try / except / else / finally</code>: <code>else</code> runs only if no exception (keep the <code>try</code> body tiny); <code>finally</code> always runs (cleanup). Prefer <code>with</code> for cleanup.</li>
+<li>EAFP ("ask forgiveness") is idiomatic: <code>try: d[k] except KeyError</code>. LBYL for cheap checks and race-free conditions.</li>
+<li><code>raise</code> (bare) re-raises preserving traceback. <code>ExceptionGroup</code> / <code>except*</code> (3.11+) handle several simultaneous errors (e.g. <code>asyncio.TaskGroup</code>).</li>
+<li>Don't use exceptions for hot-path control flow when a simple check is clearer; do use <code>StopIteration</code>-style protocols where they exist.</li>
+<li><code>add_note()</code> (3.11+) attaches context to an exception without changing its type.</li>
+</ul>
+<h2 id="4-logging">4. Logging</h2>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>      <span class="c1"># one per module; never the root logger in libraries</span>
+
+<span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"processed order </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">order_id</span><span class="p">)</span>   <span class="c1"># lazy formatting: not an f-string</span>
+<span class="n">logger</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="s2">"failed"</span><span class="p">)</span>                    <span class="c1"># ERROR + traceback; use inside except</span>
+</code></pre></div>
+
+<p>Levels: DEBUG &lt; INFO &lt; WARNING &lt; ERROR &lt; CRITICAL. Pieces: <strong>Logger</strong> (named, hierarchical: <code>a.b</code> propagates to <code>a</code>), <strong>Handler</strong> (where: stream, file, rotating), <strong>Formatter</strong> (how), <strong>Filter</strong>. Application entrypoint configures once:</p>
+<div class="highlight"><pre><span></span><code><span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span>
+    <span class="nb">format</span><span class="o">=</span><span class="s2">"</span><span class="si">%(asctime)s</span><span class="s2"> </span><span class="si">%(levelname)s</span><span class="s2"> </span><span class="si">%(name)s</span><span class="s2">: </span><span class="si">%(message)s</span><span class="s2">"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Libraries add only <code>NullHandler</code> and let the app decide. Production: structured (JSON) logs, correlation/request ids (<code>contextvars</code> + filter), no secrets/PII, don't log in tight loops. Duplicate lines usually mean a handler added twice or propagation to root as well.</p>
+<h2 id="5-packaging-venv-pip-pyproject">5. Packaging, venv, pip, pyproject</h2>
+<ul>
+<li><strong>venv</strong> isolates dependencies per project: <code>python -m venv .venv</code>, <code>source .venv/bin/activate</code>. Never <code>pip install</code> into system Python. Always <code>python -m pip</code> so you know which interpreter.</li>
+<li><code>pip install -r requirements.txt</code> (pinned for apps), <code>pip freeze</code>, <code>pip install -e .</code> (editable install of your own package). Tools like <code>uv</code>/<code>pip-tools</code>/<code>poetry</code> add lockfiles and speed.</li>
+<li>Libraries declare loose ranges (<code>requests&gt;=2.31,&lt;3</code>); apps pin exact versions (reproducible deploys). Separate dev dependencies (pytest, ruff, mypy).</li>
+<li><code>pyproject.toml</code> is the single config file (PEP 517/518/621):</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="k">[build-system]</span>
+<span class="n">requires</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"setuptools&gt;=68"</span><span class="p">]</span>
+<span class="n">build-backend</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"setuptools.build_meta"</span>
+
+<span class="k">[project]</span>
+<span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"mypkg"</span>
+<span class="n">version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"0.1.0"</span>
+<span class="n">requires-python</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"&gt;=3.12"</span>
+<span class="n">dependencies</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"httpx&gt;=0.27"</span><span class="p">]</span>
+<span class="k">[project.optional-dependencies]</span>
+<span class="n">dev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"pytest"</span><span class="p">,</span><span class="w"> </span><span class="s2">"ruff"</span><span class="p">,</span><span class="w"> </span><span class="s2">"mypy"</span><span class="p">]</span>
+<span class="k">[project.scripts]</span>
+<span class="n">mycli</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"mypkg.cli:main"</span>
+
+<span class="k">[tool.pytest.ini_options]</span>
+<span class="n">testpaths</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"tests"</span><span class="p">]</span>
+<span class="k">[tool.ruff]</span>
+<span class="n">line-length</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">100</span>
+<span class="k">[tool.mypy]</span>
+<span class="n">strict</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+</code></pre></div>
+
+<ul>
+<li>Layout: <code>src/mypkg/__init__.py</code> + <code>tests/</code>. A directory with <code>__init__.py</code> is a package; <code>if __name__ == "__main__":</code> guards script entry; <code>python -m mypkg</code> runs <code>__main__.py</code>.</li>
+<li>Import gotchas: circular imports (move import inside function or restructure), shadowing stdlib names (<code>random.py</code>), relative vs absolute imports (prefer absolute).</li>
+</ul>
+<h2 id="6-profiling-and-performance">6. Profiling and performance</h2>
+<p>Measure first; guessing is usually wrong.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">timeit</span>
+<span class="n">timeit</span><span class="o">.</span><span class="n">timeit</span><span class="p">(</span><span class="s2">"sum(range(1000))"</span><span class="p">,</span> <span class="n">number</span><span class="o">=</span><span class="mi">10_000</span><span class="p">)</span>
+<span class="n">timeit</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="o">...</span><span class="p">,</span> <span class="n">repeat</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">number</span><span class="o">=...</span><span class="p">)</span>   <span class="c1"># take the MIN: noise only slows runs</span>
+</code></pre></div>
+
+<p>CLI: <code>python -m timeit "..."</code>. <code>time.perf_counter()</code> for manual timing (monotonic, high resolution).</p>
+<div class="highlight"><pre><span></span><code><span class="n">python</span> <span class="o">-</span><span class="n">m</span> <span class="n">cProfile</span> <span class="o">-</span><span class="n">s</span> <span class="n">cumtime</span> <span class="n">script</span><span class="o">.</span><span class="n">py</span>       <span class="c1"># which functions take time</span>
+<span class="c1"># programmatic: cProfile.Profile() + pstats.Stats(pr).sort_stats("cumtime").print_stats(10)</span>
+</code></pre></div>
+
+<p><code>tracemalloc</code> for memory allocations; <code>sys.getsizeof</code> is shallow only. Sampling profilers (py-spy) attach to running processes with low overhead. <code>line_profiler</code> shows per-line cost.</p>
+<p>Idioms that matter:</p>
+<ul>
+<li>Right data structure: <code>x in set/dict</code> is O(1), <code>x in list</code> is O(n). <code>deque</code> for queues (<code>list.pop(0)</code> is O(n)). <code>bisect</code> on sorted data.</li>
+<li><code>"".join(parts)</code> instead of <code>s += part</code> in a loop.</li>
+<li>Comprehensions / generator expressions beat manual append loops; generators avoid materialising big data. <code>sum(x for x ...)</code> not <code>sum([...])</code>.</li>
+<li>Hoist invariants out of loops; bind hot globals/methods to locals only when profiling says so.</li>
+<li><code>functools.lru_cache</code> for pure repeated calls; <code>collections.Counter</code>/<code>defaultdict</code> over manual dict code.</li>
+<li>Use builtins (<code>sum</code>, <code>min</code>, <code>sorted(key=)</code>, <code>any</code>/<code>all</code>) which are C-speed. For numeric work use numpy; for CPU-bound parallelism use multiprocessing (week 3).</li>
+<li>Don't optimise before you have a profile; algorithmic wins (O(n^2) to O(n log n)) dwarf micro-tuning.</li>
+</ul>
+<h2 id="7-style-linting-typing-tools">7. Style, linting, typing tools</h2>
+<ul>
+<li><strong>PEP 8</strong>: 4-space indent, <code>snake_case</code> functions/variables, <code>PascalCase</code> classes, <code>UPPER_CASE</code> constants, imports grouped stdlib / third-party / local, line length ~88-100. <strong>PEP 257</strong>: docstrings.</li>
+<li><strong>ruff</strong>: one very fast tool for lint + import sorting + (via <code>ruff format</code>) formatting. <code>ruff check .</code>, <code>ruff check --fix .</code>, <code>ruff format .</code>. Common rules: <code>E/F</code> (pycodestyle/pyflakes), <code>I</code> (isort), <code>B</code> (bugbear: mutable defaults, bare except), <code>UP</code> (modernise syntax).</li>
+<li><strong>mypy</strong> (or pyright): static type checks from annotations, run in CI. <code>mypy src/</code>; <code>--strict</code> for new code; adopt gradually with <code># type: ignore[code]</code> sparingly. Types are not enforced at runtime.</li>
+<li>Wire it together: pre-commit hooks or CI running <code>ruff check</code>, <code>ruff format --check</code>, <code>mypy</code>, <code>pytest</code>. A green pipeline is the team contract.</li>
+<li>Coverage (<code>pytest --cov</code>) shows untested lines, not test quality.</li>
+</ul>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li>Patching where a thing is defined instead of where it is used.</li>
+<li><code>assert</code> on a tuple (<code>assert (x, "msg")</code> is always true); using <code>assert</code> for runtime validation (stripped under <code>-O</code>).</li>
+<li>Catching <code>Exception</code> and silently passing; swallowing the traceback (use <code>logger.exception</code> or <code>raise ... from</code>).</li>
+<li>f-strings in logging calls (formats even when the level is disabled).</li>
+<li>Adding handlers inside a function called repeatedly (duplicate log lines).</li>
+<li>Tests depending on order, wall-clock time, or network.</li>
+<li>Benchmarking once, or taking the mean of noisy runs.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run <code>../../.venv/bin/pytest -q</code> in this folder. After that, read <code>interview-qa.md</code> aloud, then <code>../rapid-fire.md</code>.</p>
+</article><div class="pager"><a class="prev" href="../../10-python-depth/week-03-concurrency/test_exercises.py.html">← Week 3 · Concurrency: Tests (code)</a><a class="next" href="../../10-python-depth/week-04-quality-and-tooling/interview-qa.html">Week 4 · Quality and tooling: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

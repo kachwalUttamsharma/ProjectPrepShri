@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 16: Tries (prefix trees) | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-16-tries/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-16-tries/lesson.html">Week 16 · Tries</a> / <span>Lesson</span></nav><button id="mark-done" data-id="03-dsa/week-16-tries/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-16-tries-prefix-trees">Week 16: Tries (prefix trees)</h1>
+<h2 id="1-concept">1. Concept</h2>
+<p>A <strong>trie</strong> stores a set of strings as a tree where each edge is one character and
+each root-to-node path spells a prefix. A flag on a node marks "a word ends here".
+All words sharing a prefix share the same path, so prefix questions become
+"walk down the tree".</p>
+<div class="highlight"><pre><span></span><code>insert "car", "card", "cat"
+root - c - a - r*  - d*
+           \ t*          (* = end of word)
+</code></pre></div>
+
+<p>Compared to a hash set of words:
+| Operation            | Hash set        | Trie          |
+|----------------------|-----------------|---------------|
+| exact lookup         | O(L) (hashing)  | O(L)          |
+| "any word starting with p?" | O(N * L) | O(len(p))   |
+| enumerate words with prefix | O(N * L) | O(len(p) + output) |
+| wildcard / char-by-char pruning | hard | natural (DFS on tree) |</p>
+<h2 id="2-how-to-recognize-the-pattern">2. How to recognize the pattern</h2>
+<ul>
+<li>"Starts with", "prefix", "autocomplete", "dictionary of words".</li>
+<li>Many words + many queries over the same set.</li>
+<li>Matching words on a grid/board (Word Search II): prune DFS when no word has this prefix.</li>
+<li>Streaming characters, checking suffixes (reverse the words).</li>
+<li>Maximum XOR / bitwise problems: a <strong>binary trie</strong> over bits, choose the opposite bit greedily.</li>
+<li>Wildcards (<code>.</code>): DFS branching over children.</li>
+</ul>
+<h2 id="3-template-code">3. Template code</h2>
+<p>Dict-of-dicts trie (fastest to write on a whiteboard):</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Trie</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">root</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">insert</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">word</span><span class="p">):</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root</span>
+        <span class="k">for</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">word</span><span class="p">:</span>
+            <span class="n">node</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">ch</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="n">node</span><span class="p">[</span><span class="s2">"$"</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>            <span class="c1"># end-of-word marker (not a lowercase letter)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_walk</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root</span>
+        <span class="k">for</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">s</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">ch</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">node</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">None</span>
+            <span class="n">node</span> <span class="o">=</span> <span class="n">node</span><span class="p">[</span><span class="n">ch</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">node</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">word</span><span class="p">):</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_walk</span><span class="p">(</span><span class="n">word</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">node</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="s2">"$"</span> <span class="ow">in</span> <span class="n">node</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">starts_with</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prefix</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_walk</span><span class="p">(</span><span class="n">prefix</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+</code></pre></div>
+
+<p>Class-based node (use when nodes carry extra data such as counts or top-3 lists):</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">TrieNode</span><span class="p">:</span>
+    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"children"</span><span class="p">,</span> <span class="s2">"end"</span><span class="p">,</span> <span class="s2">"count"</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">children</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">end</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>              <span class="c1"># words passing through this node</span>
+</code></pre></div>
+
+<p>Binary trie for XOR: children keyed by 0/1, insert bits 30..0 of each number.</p>
+<p>Trie + DFS on a grid (Word Search II): build one trie of all words, DFS from every
+cell moving to <code>node[board[r][c]]</code>, store the full word at the terminal node, and
+delete finished branches to prune.</p>
+<h2 id="4-complexity">4. Complexity</h2>
+<ul>
+<li>Build: O(total characters of all words). Space O(total characters) worst case
+  (alphabet-size factor if you use arrays of 26 children instead of dicts).</li>
+<li>Insert / search / prefix: O(L).</li>
+<li>Wildcard search: O(L) typical, O(26^dots * L) worst case.</li>
+<li>Word Search II: O(M * N * 3^(L-1)) worst case, pruning makes it practical.</li>
+</ul>
+<h2 id="5-common-mistakes">5. Common mistakes</h2>
+<ul>
+<li>Forgetting the end-of-word marker: <code>search("app")</code> returns True just because "apple" exists.</li>
+<li>Using <code>"$"</code> as a key then iterating children for <code>.</code> wildcards: skip the marker key.</li>
+<li>Overwriting vs adding in <code>MapSum</code>: on re-insert, add the <strong>delta</strong>, not the new value.</li>
+<li>Returning duplicates in Word Search II: pop the word from the node when found.</li>
+<li>Forgetting to restore the board cell after DFS (backtracking).</li>
+<li>Reaching for a trie when sorting + binary search is simpler (autocomplete with top-3).</li>
+<li>Mutable default / shared node bug: <code>[{}] * 26</code> shares one dict. Use a comprehension.</li>
+<li>Recursion depth: a trie over long strings (10^5 chars) should be iterative.</li>
+</ul>
+<h2 id="6-interview-tips">6. Interview tips</h2>
+<ul>
+<li>Say: "Words share prefixes, so a trie gives O(L) per query regardless of how many words."</li>
+<li>State the trade-off: tries use more memory than a hash set; mention compressed tries (radix) if asked.</li>
+<li>Always ask: alphabet (lowercase only? unicode?), case sensitivity, duplicates, empty string.</li>
+<li>Ask if the trie must support delete; the usual approach is to decrement counts or prune childless nodes.</li>
+<li>For Google-style follow-ups: "what if the dictionary does not fit in memory?" (shard by prefix, on-disk structure),
+  "return top-k by frequency" (store top-k / counts per node).</li>
+<li>Reverse words for suffix problems (StreamChecker); mention Aho-Corasick for many-pattern matching in a stream.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run the tests from this directory with <code>../../.venv/bin/pytest</code> (see PROGRESS.md).</p>
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-15-heaps/test_exercises.py.html">← Week 15 · Heaps: Tests (code)</a><a class="next" href="../../03-dsa/week-16-tries/exercises.py.html">Week 16 · Tries: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 5 Interview Q&amp;A: Classic ML Essentials | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="13-llm-ai-concepts/week-05-classic-ml-essentials/interview-qa" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../13-llm-ai-concepts/README.html">LLM and AI Concepts</a> / <a href="../../13-llm-ai-concepts/week-05-classic-ml-essentials/lesson.html">Week 5 · Classic ML essentials</a> / <span>Interview Q&amp;A</span></nav><button id="mark-done" data-id="13-llm-ai-concepts/week-05-classic-ml-essentials/interview-qa">Mark as done</button></div><article class="doc">
+<h1 id="week-5-interview-qa-classic-ml-essentials">Week 5 Interview Q&amp;A: Classic ML Essentials</h1>
+<hr />
+<p><strong>1. Supervised vs unsupervised learning?</strong>
+Supervised learns from labeled pairs to predict labels (classification, regression). Unsupervised finds structure in unlabeled data (clustering, dimensionality reduction, anomaly detection). LLM pretraining is self-supervised: labels come from the data itself (the next token).</p>
+<p><strong>2. Explain overfitting and how to fight it.</strong>
+The model fits noise: low training error, high test error. Fight with more data, simpler model, regularization (L1/L2, dropout, weight decay), early stopping, tree depth limits, ensembling, augmentation, and honest validation. Diagnose with learning curves.</p>
+<p><strong>3. Explain the bias-variance tradeoff.</strong>
+Expected error = bias^2 + variance + irreducible noise. Simple models have high bias, low variance; complex models the reverse. Aim for the complexity that minimizes validation error. High bias: add capacity/features. High variance: add data/regularization.</p>
+<p><strong>4. L1 vs L2 regularization?</strong>
+Both add a penalty on weights. L2 (ridge) penalizes squared magnitude: shrinks weights smoothly, handles correlated features. L1 (lasso) penalizes absolute value: produces sparse weights, doing feature selection. Elastic net mixes both.</p>
+<p><strong>5. What are train, validation and test sets for?</strong>
+Train fits parameters; validation selects models/hyperparameters; test gives a single unbiased final estimate. If you tune on test it stops being unbiased. With little data use k-fold cross-validation.</p>
+<p><strong>6. What is data leakage? Give examples.</strong>
+Using information at training time that will not be available at prediction time. Examples: a feature derived from the target or from the future, scaling/imputing/embedding fit on all data before splitting, duplicates or the same user across splits, random splits on time series, repeated tuning on the test set, benchmark items present in a prompt or fine-tuning data. Symptom: unbelievably good metrics.</p>
+<p><strong>7. How do you split time-series data?</strong>
+By time: train on the past, validate on the next window, test on the latest; walk-forward validation. Never shuffle across time.</p>
+<p><strong>8. Precision, recall, F1: define and give a worked example.</strong>
+With TP=40, FP=10, FN=20, TN=930: precision 40/50 = 0.80, recall 40/60 = 0.667, F1 = 0.727, accuracy 0.97. Accuracy hides that a third of fraud is missed.</p>
+<p><strong>9. When is accuracy misleading, and what do you use instead?</strong>
+Imbalanced classes (always predicting the majority class scores high). Use precision/recall/F1 per class, PR-AUC, confusion matrices, and cost-weighted metrics; tune the threshold to business costs.</p>
+<p><strong>10. Precision or recall for: cancer screening, spam filter, fraud alerts to a small review team?</strong>
+Screening: recall (missing a case is costly; follow-up tests filter false positives). Spam: precision (losing real email is worse). Fraud with limited reviewers: precision at a capacity-bounded top-k, balanced with recall by cost. Always tie to error costs.</p>
+<p><strong>11. What is ROC-AUC and when is it misleading?</strong>
+ROC plots TPR vs FPR across thresholds; AUC is the probability a random positive scores above a random negative. Threshold-free. With very rare positives, FPR stays small even with many false positives, so AUC looks great; use PR-AUC and precision at the operating point.</p>
+<p><strong>12. How do you choose a classification threshold?</strong>
+From the cost of FP vs FN or a required precision/recall target, using the validation set's PR curve; re-check after calibration and when class priors shift.</p>
+<p><strong>13. Linear vs logistic regression?</strong>
+Linear predicts a continuous value by minimizing squared error. Logistic applies a sigmoid to a linear score to produce a probability and minimizes log loss; it is a classifier with a linear decision boundary. Both are interpretable baselines.</p>
+<p><strong>14. Decision tree, random forest, gradient boosting: differences?</strong>
+A tree splits greedily to reduce impurity; interpretable but high variance. Random forest averages many decorrelated deep trees (bagging) to reduce variance. Gradient boosting adds shallow trees sequentially, each correcting the previous residuals, reducing bias; best on much tabular data but needs tuning and early stopping.</p>
+<p><strong>15. Why does boosting often beat a single deep net on tabular data?</strong>
+Trees handle mixed types, missing values, interactions and nonlinearity without scaling, and work with modest data; nets shine with unstructured data and scale. Not a law: test both.</p>
+<p><strong>16. How does k-means work, and what are its limits?</strong>
+Assign points to the nearest centroid, recompute centroids, repeat until stable. Limits: need to choose k, assumes spherical similar-size clusters, sensitive to scale/initialization/outliers, Euclidean only. Choose k via silhouette/elbow and business sense; try DBSCAN or GMM for other shapes.</p>
+<p><strong>17. What are embeddings and how do you evaluate them?</strong>
+Learned dense vectors where proximity reflects similarity. Evaluate on downstream tasks (retrieval recall, classification accuracy) and by inspection; intrinsic similarity benchmarks are weaker proxies.</p>
+<p><strong>18. Explain backpropagation intuitively.</strong>
+Run the input forward to get a loss; then apply the chain rule backward to find how much each weight contributed to the loss (its gradient); nudge each weight against its gradient scaled by the learning rate. Repeat over mini-batches.</p>
+<p><strong>19. Scenario: "Model has 98 percent train accuracy and 70 percent test accuracy. What now?"</strong>
+First rule out leakage or a distribution mismatch in the test set. Then treat as variance: learning curves, more data or augmentation, stronger regularization, simpler model/fewer features, cross-validation for stability, ensembling. Check per-segment errors to see if the gap is concentrated. Report before and after.</p>
+<p><strong>20. Scenario: "Customer says their churn model hits 99 percent AUC in notebook but fails in production."</strong>
+Suspect leakage (features populated after churn, like cancellation-survey fields), train/serve skew (features computed differently online), time-split mistakes (random split), and drift. Audit feature timestamps against prediction time, replay with a time-based split, compare feature distributions train vs serving, then rebuild the pipeline with point-in-time-correct features and monitor.</p>
+<hr />
+<h2 id="bonus-probes">Bonus probes</h2>
+<ul>
+<li>"Why normalize features?" Gradient-based and distance-based methods are scale-sensitive; trees are not.</li>
+<li>"What is cross-entropy?" Penalizes assigning low probability to the true class; same loss used to train LLMs.</li>
+<li>"Class imbalance tools?" Class weights, resampling, threshold tuning, PR metrics, anomaly-detection framing.</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../../13-llm-ai-concepts/week-05-classic-ml-essentials/lesson.html">← Week 5 · Classic ML essentials: Lesson</a><a class="next" href="../../13-llm-ai-concepts/week-05-classic-ml-essentials/cheatsheet.html">Week 5 · Classic ML essentials: Cheatsheet →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

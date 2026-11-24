@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 4: Two pointers | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-04-two-pointers/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-04-two-pointers/lesson.html">Week 4 · Two pointers</a> / <span>Lesson</span></nav><button id="mark-done" data-id="03-dsa/week-04-two-pointers/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-4-two-pointers">Week 4: Two pointers</h1>
+<h2 id="1-the-idea">1. The idea</h2>
+<p>Instead of checking every pair (O(n^2)), keep two indices and move them by a rule so each index
+only travels once: O(n). The rule is what makes it correct, and it usually relies on <strong>order</strong>
+(sorted input) or on a <strong>monotonic property</strong> (moving a pointer only makes some quantity shrink).</p>
+<h2 id="2-how-to-recognise-it">2. How to recognise it</h2>
+<ul>
+<li>Input is a sorted array / string and you look for a pair, triplet, or target sum.</li>
+<li>"In place", "O(1) extra space", "remove / move / partition elements".</li>
+<li>Palindromes, reversing, comparing from both ends.</li>
+<li>Merging two sorted sequences.</li>
+<li>You are tempted to write a nested loop, and a sorted order or greedy argument says one pointer
+  can safely be discarded each step.</li>
+</ul>
+<h2 id="3-the-three-flavours">3. The three flavours</h2>
+<p><strong>a) Opposite ends (converging)</strong>: <code>l = 0, r = n-1</code>, move toward each other.</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">pair_sum_sorted</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
+    <span class="n">l</span><span class="p">,</span> <span class="n">r</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="k">while</span> <span class="n">l</span> <span class="o">&lt;</span> <span class="n">r</span><span class="p">:</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="n">a</span><span class="p">[</span><span class="n">l</span><span class="p">]</span> <span class="o">+</span> <span class="n">a</span><span class="p">[</span><span class="n">r</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">s</span> <span class="o">==</span> <span class="n">target</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">l</span><span class="p">,</span> <span class="n">r</span>
+        <span class="k">if</span> <span class="n">s</span> <span class="o">&lt;</span> <span class="n">target</span><span class="p">:</span>
+            <span class="n">l</span> <span class="o">+=</span> <span class="mi">1</span>          <span class="c1"># need a bigger sum -&gt; only moving l can help</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">r</span> <span class="o">-=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="kc">None</span>
+</code></pre></div>
+
+<p><strong>b) Same direction (slow / fast, read / write)</strong>: <code>w</code> is where the next kept element goes,
+<code>r</code> scans.</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">compact</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">keep</span><span class="p">):</span>            <span class="c1"># remove elements failing keep(); returns new length</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="n">keep</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="n">r</span><span class="p">]):</span>
+            <span class="n">a</span><span class="p">[</span><span class="n">w</span><span class="p">]</span> <span class="o">=</span> <span class="n">a</span><span class="p">[</span><span class="n">r</span><span class="p">]</span>
+            <span class="n">w</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">w</span>
+</code></pre></div>
+
+<p><strong>c) Two sequences</strong>: one pointer per input (merge, subsequence check, intersection). Often
+filling from the <strong>back</strong> avoids overwriting (<code>merge_sorted_in_place</code>).</p>
+<p><strong>d) Fix one, two-pointer the rest</strong> (3Sum): sort, loop <code>i</code>, run converging pointers on
+<code>i+1..n-1</code>. O(n^2) instead of O(n^3). Skip duplicates at every level.</p>
+<h2 id="4-why-moving-a-pointer-is-safe-proof-sketch-say-it-out-loud">4. Why moving a pointer is safe (proof sketch, say it out loud)</h2>
+<p>Container with most water: area = width * min(h[l], h[r]). If you move the TALLER side inward,
+width shrinks and min can't grow (still bounded by the shorter), so that move can never improve
+things. Hence discard the shorter side. Being able to justify the discard rule is what
+interviewers grade.</p>
+<h2 id="5-complexity">5. Complexity</h2>
+<table>
+<thead>
+<tr>
+<th>Pattern</th>
+<th>Time</th>
+<th>Space</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Converging on sorted data</td>
+<td>O(n)</td>
+<td>O(1)</td>
+</tr>
+<tr>
+<td>Read/write in place</td>
+<td>O(n)</td>
+<td>O(1)</td>
+</tr>
+<tr>
+<td>Sort + two pointers</td>
+<td>O(n log n)</td>
+<td>O(1)-O(n) depending on sort</td>
+</tr>
+<tr>
+<td>3Sum</td>
+<td>O(n^2)</td>
+<td>O(1) extra</td>
+</tr>
+</tbody>
+</table>
+<p>If the array is unsorted and you need a pair sum, a hash map (O(n) time, O(n) space) is the
+alternative. State the tradeoff.</p>
+<h2 id="6-common-mistakes">6. Common mistakes</h2>
+<ul>
+<li><code>while l &lt;= r</code> vs <code>while l &lt; r</code>: decide whether a pointer may meet itself (pair sums: no;
+  Dutch flag: yes for <code>mid &lt;= hi</code>).</li>
+<li>Not skipping duplicates in 3Sum (duplicate triplets) or skipping them in the wrong place
+  (skipping before use loses valid answers like <code>[0,0,0]</code>).</li>
+<li>Dutch national flag: after swapping with <code>hi</code>, advancing <code>mid</code> skips an unexamined value.</li>
+<li>Overwriting unread data when merging in place (go from the back).</li>
+<li>Forgetting empty / one-element input.</li>
+<li>Using <code>s = s[1:]</code> or building copies, which turns O(n) into O(n^2).</li>
+</ul>
+<h2 id="7-interview-tips">7. Interview tips</h2>
+<ul>
+<li>First say the brute force and its cost, then say what property lets you discard candidates.</li>
+<li>Ask: is it sorted? can I sort it (does the answer need original indices)? may I modify input?</li>
+<li>Write the loop invariant in a comment ("everything left of <code>w</code> is already kept").</li>
+<li>Test on: empty, one element, all equal, already sorted, pointers meeting in the middle.</li>
+<li>Follow-ups often asked: 4Sum (k-Sum generalisation), closest 3Sum, count pairs, linked-list
+  version (fast/slow cycle detection next weeks).</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code> (ordered easy to hard), then run <code>pytest -q</code> in this folder.
+Plan: ~2 hrs reading and re-deriving the proofs above, ~5 hrs on problems.</p>
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-03-hash-maps-sets/test_exercises.py.html">← Week 3 · Hash maps and sets: Tests (code)</a><a class="next" href="../../03-dsa/week-04-two-pointers/exercises.py.html">Week 4 · Two pointers: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

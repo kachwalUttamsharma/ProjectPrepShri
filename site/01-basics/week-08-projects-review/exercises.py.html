@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="01-basics/week-08-projects-review/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../01-basics/week-01-first-steps/lesson.html">Python Basics</a> / <a href="../../01-basics/week-08-projects-review/lesson.html">Week 8 · Projects and review</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="01-basics/week-08-projects-review/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>01-basics/week-08-projects-review/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 8: two small projects. Replace each `...` with your code."""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="c1"># ===========================================================================</span>
+<span class="c1"># Project A: Todo list.  tasks is a list of {"id": int, "title": str, "done": bool}</span>
+<span class="c1"># ===========================================================================</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">add_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="n">title</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Append a new task to `tasks` and return it.</span>
+<span class="sd">    - id is max existing id + 1 (1 if the list is empty)</span>
+<span class="sd">    - title is stripped of surrounding spaces; if it is empty afterwards raise ValueError</span>
+<span class="sd">    - done starts as False"""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">complete_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="n">task_id</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Set the task's 'done' to True. Raise ValueError('no such task') if the id doesn't exist."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">remove_task</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="n">task_id</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Remove the task from the list (in place). Raise ValueError('no such task') if missing."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">list_tasks</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="n">show_done</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a list of display lines, one per task, in list order:</span>
+<span class="sd">    '[ ] 1: buy milk' for open tasks, '[x] 2: call mom' for done tasks.</span>
+<span class="sd">    If show_done is False, leave out the done tasks."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">save_tasks</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">tasks</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Save the task list to `path` as JSON."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">load_tasks</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Load the task list from `path`. If the file does not exist return []."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">handle_command</span><span class="p">(</span><span class="n">tasks</span><span class="p">,</span> <span class="n">line</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Run one text command and return the message to show the user.</span>
+<span class="sd">      'add buy milk'  -&gt; adds the task, returns 'Added 1: buy milk'</span>
+<span class="sd">      'done 1'        -&gt; completes it, returns 'Completed 1'</span>
+<span class="sd">      'remove 1'      -&gt; removes it, returns 'Removed 1'</span>
+<span class="sd">      'list'          -&gt; returns the list_tasks lines joined with '\\n'</span>
+<span class="sd">                         (or 'No tasks' when there is nothing to show)</span>
+<span class="sd">    Anything wrong returns a message instead of raising:</span>
+<span class="sd">      empty line / unknown word -&gt; 'Unknown command: &lt;line&gt;'  (for an empty line: 'Unknown command: ')</span>
+<span class="sd">      'add' with no title       -&gt; 'Error: title required'</span>
+<span class="sd">      'done'/'remove' with a missing or non-number id -&gt; 'Error: invalid id'</span>
+<span class="sd">      id that doesn't exist     -&gt; 'Error: no such task'</span>
+<span class="sd">    The command word is case-insensitive. Hint: line.strip().split(maxsplit=1)."""</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># ===========================================================================</span>
+<span class="c1"># Project B: Word-frequency analyzer</span>
+<span class="c1"># ===========================================================================</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">tokenize</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a list of lowercase words. A word is a run of letters and apostrophes;</span>
+<span class="sd">    apostrophes at the start/end of a word are removed (empty results are dropped).</span>
+<span class="sd">    "Don't stop!" -&gt; ["don't", "stop"]; "Hello, World... hello" -&gt; ['hello', 'world', 'hello']</span>
+<span class="sd">    Hint: go through characters, build the current word, flush it when you hit anything else."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">count_words</span><span class="p">(</span><span class="n">words</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return {word: count} for a list of words."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">top_words</span><span class="p">(</span><span class="n">counts</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return up to n pairs (word, count): highest count first, ties alphabetical.</span>
+<span class="sd">    {'b': 2, 'a': 2, 'c': 1}, 2 -&gt; [('a', 2), ('b', 2)]"""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">remove_stop_words</span><span class="p">(</span><span class="n">words</span><span class="p">,</span> <span class="n">stop_words</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the words that are not in stop_words (compare stop words in lowercase).</span>
+<span class="sd">    Keeps the original order."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">word_stats</span><span class="p">(</span><span class="n">words</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return {'total': int, 'unique': int, 'longest': str or None, 'average_length': float}.</span>
+<span class="sd">    longest = the first longest word; average_length rounded to 2 decimals.</span>
+<span class="sd">    For an empty list: total 0, unique 0, longest None, average_length 0."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">analyze_file</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">stop_words</span><span class="o">=</span><span class="p">()):</span>
+<span class="w">    </span><span class="sd">"""Read the text file, tokenize, remove stop words, and return word_stats(...) as a dict</span>
+<span class="sd">    plus the key 'top' = top_words(count_words(words), n).</span>
+<span class="sd">    Raise FileNotFoundError naturally if the file doesn't exist."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">format_report</span><span class="p">(</span><span class="n">stats</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a multi-line string (lines joined with '\\n', no trailing newline):</span>
+<span class="sd">      Total words: 5</span>
+<span class="sd">      Unique words: 3</span>
+<span class="sd">      Longest word: hello</span>
+<span class="sd">      Average length: 4.2</span>
+<span class="sd">      Top words:</span>
+<span class="sd">        hello: 2</span>
+<span class="sd">        world: 2</span>
+<span class="sd">    The 'Top words:' section lists each pair as two spaces + word + ': ' + count.</span>
+<span class="sd">    If stats['longest'] is None print 'Longest word: -'. If 'top' is missing or empty,</span>
+<span class="sd">    still print the 'Top words:' line with nothing under it.</span>
+<span class="sd">    Average length is shown with str() of the value (4.2 -&gt; '4.2')."""</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../01-basics/week-08-projects-review/lesson.html">← Week 8 · Projects and review: Lesson</a><a class="next" href="../../01-basics/week-08-projects-review/test_exercises.py.html">Week 8 · Projects and review: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

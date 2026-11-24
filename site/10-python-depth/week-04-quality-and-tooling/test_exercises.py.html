@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>test_exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="10-python-depth/week-04-quality-and-tooling/test_exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../10-python-depth/week-01-functions-deep-dive/lesson.html">Python Depth</a> / <a href="../../10-python-depth/week-04-quality-and-tooling/lesson.html">Week 4 · Quality and tooling</a> / <span>Tests (code)</span></nav><button id="mark-done" data-id="10-python-depth/week-04-quality-and-tooling/test_exercises.py">Mark as done</button></div><article class="doc">
+<h1>test_exercises.py</h1><p class="code-path"><code>10-python-depth/week-04-quality-and-tooling/test_exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">io</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">unittest.mock</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mock</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+
+
+<span class="c1"># ---------- 1. exception hierarchy ----------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_exception_hierarchy</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">NotFoundError</span><span class="p">,</span> <span class="n">AppError</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">ValidationFailed</span><span class="p">,</span> <span class="n">AppError</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">AppError</span><span class="p">,</span> <span class="ne">Exception</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_exception_codes_and_messages</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">AppError</span><span class="p">(</span><span class="s2">"boom"</span><span class="p">)</span><span class="o">.</span><span class="n">code</span> <span class="o">==</span> <span class="mi">500</span>
+    <span class="k">assert</span> <span class="n">AppError</span><span class="p">(</span><span class="s2">"boom"</span><span class="p">,</span> <span class="n">code</span><span class="o">=</span><span class="mi">503</span><span class="p">)</span><span class="o">.</span><span class="n">code</span> <span class="o">==</span> <span class="mi">503</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">NotFoundError</span><span class="p">(</span><span class="s2">"missing"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">e</span><span class="o">.</span><span class="n">code</span> <span class="o">==</span> <span class="mi">404</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">message</span> <span class="o">==</span> <span class="s2">"missing"</span> <span class="ow">and</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"missing"</span>
+    <span class="n">v</span> <span class="o">=</span> <span class="n">ValidationFailed</span><span class="p">(</span><span class="s2">"bad"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">v</span><span class="o">.</span><span class="n">code</span> <span class="o">==</span> <span class="mi">422</span> <span class="ow">and</span> <span class="n">v</span><span class="o">.</span><span class="n">message</span> <span class="o">==</span> <span class="s2">"bad"</span>
+
+
+<span class="c1"># ---------- 2. parse_age (parametrize) ----------</span>
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">parametrize</span><span class="p">(</span><span class="s2">"text,expected"</span><span class="p">,</span> <span class="p">[(</span><span class="s2">"0"</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="s2">"42"</span><span class="p">,</span> <span class="mi">42</span><span class="p">),</span> <span class="p">(</span><span class="s2">" 150 "</span><span class="p">,</span> <span class="mi">150</span><span class="p">)])</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_parse_age_ok</span><span class="p">(</span><span class="n">text</span><span class="p">,</span> <span class="n">expected</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">parse_age</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="o">==</span> <span class="n">expected</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">parametrize</span><span class="p">(</span><span class="s2">"text"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"abc"</span><span class="p">,</span> <span class="s2">""</span><span class="p">,</span> <span class="s2">"-1"</span><span class="p">,</span> <span class="s2">"151"</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">"3.5"</span><span class="p">])</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_parse_age_invalid</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">ValidationFailed</span><span class="p">):</span>
+        <span class="n">parse_age</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_parse_age_chains_cause</span><span class="p">():</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">ValidationFailed</span><span class="p">)</span> <span class="k">as</span> <span class="n">info</span><span class="p">:</span>
+        <span class="n">parse_age</span><span class="p">(</span><span class="s2">"abc"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">info</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">__cause__</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span>
+
+
+<span class="c1"># ---------- 3. retry ----------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">make_flaky</span><span class="p">(</span><span class="n">fail_times</span><span class="p">,</span> <span class="n">exc</span><span class="o">=</span><span class="ne">ValueError</span><span class="p">):</span>
+    <span class="n">state</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"calls"</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">f</span><span class="p">():</span>
+        <span class="n">state</span><span class="p">[</span><span class="s2">"calls"</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">state</span><span class="p">[</span><span class="s2">"calls"</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">fail_times</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">exc</span><span class="p">(</span><span class="s2">"fail"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s2">"ok"</span>
+
+    <span class="n">f</span><span class="o">.</span><span class="n">state</span> <span class="o">=</span> <span class="n">state</span>
+    <span class="k">return</span> <span class="n">f</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_retry_succeeds_after_failures</span><span class="p">():</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="n">make_flaky</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">retry</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">attempts</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"ok"</span>
+    <span class="k">assert</span> <span class="n">f</span><span class="o">.</span><span class="n">state</span><span class="p">[</span><span class="s2">"calls"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_retry_gives_up_and_reraises_last</span><span class="p">():</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="n">make_flaky</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">retry</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">attempts</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">f</span><span class="o">.</span><span class="n">state</span><span class="p">[</span><span class="s2">"calls"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_retry_only_catches_listed_exceptions</span><span class="p">():</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="n">make_flaky</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">exc</span><span class="o">=</span><span class="ne">KeyError</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">KeyError</span><span class="p">):</span>
+        <span class="n">retry</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">attempts</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">exceptions</span><span class="o">=</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">,))</span>
+    <span class="k">assert</span> <span class="n">f</span><span class="o">.</span><span class="n">state</span><span class="p">[</span><span class="s2">"calls"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_retry_no_failure_single_call</span><span class="p">():</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="n">make_flaky</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">retry</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"ok"</span>
+    <span class="k">assert</span> <span class="n">f</span><span class="o">.</span><span class="n">state</span><span class="p">[</span><span class="s2">"calls"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_retry_rejects_bad_attempts</span><span class="p">():</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">retry</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="n">attempts</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+
+<span class="c1"># ---------- 4. get_logger ----------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_get_logger_format_and_level</span><span class="p">():</span>
+    <span class="n">stream</span> <span class="o">=</span> <span class="n">io</span><span class="o">.</span><span class="n">StringIO</span><span class="p">()</span>
+    <span class="n">log</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">(</span><span class="s2">"w4.format"</span><span class="p">,</span> <span class="n">stream</span><span class="p">)</span>
+    <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"hi"</span><span class="p">)</span>
+    <span class="n">log</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"hidden"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">stream</span><span class="o">.</span><span class="n">getvalue</span><span class="p">()</span> <span class="o">==</span> <span class="s2">"INFO:hi</span><span class="se">\n</span><span class="s2">"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_get_logger_no_duplicate_handlers_and_no_propagation</span><span class="p">():</span>
+    <span class="n">stream</span> <span class="o">=</span> <span class="n">io</span><span class="o">.</span><span class="n">StringIO</span><span class="p">()</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">(</span><span class="s2">"w4.dupe"</span><span class="p">,</span> <span class="n">stream</span><span class="p">)</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">(</span><span class="s2">"w4.dupe"</span><span class="p">,</span> <span class="n">stream</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">a</span> <span class="ow">is</span> <span class="n">b</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">handlers</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">a</span><span class="o">.</span><span class="n">propagate</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="n">a</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"once"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">stream</span><span class="o">.</span><span class="n">getvalue</span><span class="p">()</span> <span class="o">==</span> <span class="s2">"WARNING:once</span><span class="se">\n</span><span class="s2">"</span>
+
+
+<span class="c1"># ---------- 5. process_orders (caplog) ----------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_process_orders_total_and_logs</span><span class="p">(</span><span class="n">caplog</span><span class="p">):</span>
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">"w4.orders"</span><span class="p">)</span>
+    <span class="n">orders</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"amount"</span><span class="p">:</span> <span class="mi">10</span><span class="p">},</span>
+        <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"amount"</span><span class="p">:</span> <span class="o">-</span><span class="mi">5</span><span class="p">},</span>
+        <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">"amount"</span><span class="p">:</span> <span class="mi">7</span><span class="p">},</span>
+    <span class="p">]</span>
+    <span class="k">with</span> <span class="n">caplog</span><span class="o">.</span><span class="n">at_level</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="s2">"w4.orders"</span><span class="p">):</span>
+        <span class="n">total</span> <span class="o">=</span> <span class="n">process_orders</span><span class="p">(</span><span class="n">orders</span><span class="p">,</span> <span class="n">logger</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">total</span> <span class="o">==</span> <span class="mi">17</span>
+    <span class="k">assert</span> <span class="n">caplog</span><span class="o">.</span><span class="n">messages</span> <span class="o">==</span> <span class="p">[</span>
+        <span class="s2">"processed order 1"</span><span class="p">,</span>
+        <span class="s2">"skipping order 2: negative amount"</span><span class="p">,</span>
+        <span class="s2">"processed order 3"</span><span class="p">,</span>
+    <span class="p">]</span>
+    <span class="n">levels</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span><span class="o">.</span><span class="n">levelno</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">caplog</span><span class="o">.</span><span class="n">records</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">levels</span> <span class="o">==</span> <span class="p">[</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> <span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span><span class="p">,</span> <span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_process_orders_empty</span><span class="p">(</span><span class="n">caplog</span><span class="p">):</span>
+    <span class="k">with</span> <span class="n">caplog</span><span class="o">.</span><span class="n">at_level</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="s2">"w4.orders"</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">process_orders</span><span class="p">([],</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">"w4.orders"</span><span class="p">))</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">caplog</span><span class="o">.</span><span class="n">records</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="c1"># ---------- 6. fetch_username (Mock) ----------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">make_client</span><span class="p">(</span><span class="n">status</span><span class="p">,</span> <span class="n">payload</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">resp</span> <span class="o">=</span> <span class="n">Mock</span><span class="p">()</span>
+    <span class="n">resp</span><span class="o">.</span><span class="n">status_code</span> <span class="o">=</span> <span class="n">status</span>
+    <span class="n">resp</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">return_value</span> <span class="o">=</span> <span class="n">payload</span>
+    <span class="n">client</span> <span class="o">=</span> <span class="n">Mock</span><span class="p">()</span>
+    <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="o">.</span><span class="n">return_value</span> <span class="o">=</span> <span class="n">resp</span>
+    <span class="k">return</span> <span class="n">client</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_fetch_username_ok</span><span class="p">():</span>
+    <span class="n">client</span> <span class="o">=</span> <span class="n">make_client</span><span class="p">(</span><span class="mi">200</span><span class="p">,</span> <span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"Ada"</span><span class="p">})</span>
+    <span class="k">assert</span> <span class="n">fetch_username</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="n">client</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"Ada"</span>
+    <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="o">.</span><span class="n">assert_called_once_with</span><span class="p">(</span><span class="s2">"/users/7"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_fetch_username_not_found</span><span class="p">():</span>
+    <span class="n">client</span> <span class="o">=</span> <span class="n">make_client</span><span class="p">(</span><span class="mi">404</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">NotFoundError</span><span class="p">)</span> <span class="k">as</span> <span class="n">info</span><span class="p">:</span>
+        <span class="n">fetch_username</span><span class="p">(</span><span class="mi">9</span><span class="p">,</span> <span class="n">client</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">info</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">code</span> <span class="o">==</span> <span class="mi">404</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_fetch_username_upstream_error</span><span class="p">():</span>
+    <span class="n">client</span> <span class="o">=</span> <span class="n">make_client</span><span class="p">(</span><span class="mi">500</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">AppError</span><span class="p">)</span> <span class="k">as</span> <span class="n">info</span><span class="p">:</span>
+        <span class="n">fetch_username</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">client</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">info</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">NotFoundError</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">info</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">code</span> <span class="o">==</span> <span class="mi">502</span>
+
+
+<span class="c1"># ---------- 7. get_config (monkeypatch) ----------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_get_config_defaults</span><span class="p">(</span><span class="n">monkeypatch</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"APP_DEBUG"</span><span class="p">,</span> <span class="s2">"APP_PORT"</span><span class="p">,</span> <span class="s2">"APP_NAME"</span><span class="p">):</span>
+        <span class="n">monkeypatch</span><span class="o">.</span><span class="n">delenv</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">raising</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">get_config</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"debug"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s2">"port"</span><span class="p">:</span> <span class="mi">8000</span><span class="p">,</span> <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"app"</span><span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_get_config_from_env</span><span class="p">(</span><span class="n">monkeypatch</span><span class="p">):</span>
+    <span class="n">monkeypatch</span><span class="o">.</span><span class="n">setenv</span><span class="p">(</span><span class="s2">"APP_DEBUG"</span><span class="p">,</span> <span class="s2">"true"</span><span class="p">)</span>
+    <span class="n">monkeypatch</span><span class="o">.</span><span class="n">setenv</span><span class="p">(</span><span class="s2">"APP_PORT"</span><span class="p">,</span> <span class="s2">"9001"</span><span class="p">)</span>
+    <span class="n">monkeypatch</span><span class="o">.</span><span class="n">setenv</span><span class="p">(</span><span class="s2">"APP_NAME"</span><span class="p">,</span> <span class="s2">"svc"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">get_config</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"debug"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s2">"port"</span><span class="p">:</span> <span class="mi">9001</span><span class="p">,</span> <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"svc"</span><span class="p">}</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">parametrize</span><span class="p">(</span><span class="s2">"raw,expected"</span><span class="p">,</span> <span class="p">[(</span><span class="s2">"1"</span><span class="p">,</span> <span class="kc">True</span><span class="p">),</span> <span class="p">(</span><span class="s2">"TRUE"</span><span class="p">,</span> <span class="kc">True</span><span class="p">),</span> <span class="p">(</span><span class="s2">"0"</span><span class="p">,</span> <span class="kc">False</span><span class="p">),</span> <span class="p">(</span><span class="s2">"no"</span><span class="p">,</span> <span class="kc">False</span><span class="p">)])</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_get_config_debug_values</span><span class="p">(</span><span class="n">monkeypatch</span><span class="p">,</span> <span class="n">raw</span><span class="p">,</span> <span class="n">expected</span><span class="p">):</span>
+    <span class="n">monkeypatch</span><span class="o">.</span><span class="n">setenv</span><span class="p">(</span><span class="s2">"APP_DEBUG"</span><span class="p">,</span> <span class="n">raw</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">get_config</span><span class="p">()[</span><span class="s2">"debug"</span><span class="p">]</span> <span class="ow">is</span> <span class="n">expected</span>
+
+
+<span class="c1"># ---------- 8. count_words_in_file (tmp_path) ----------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_count_words_in_file</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">):</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">tmp_path</span> <span class="o">/</span> <span class="s2">"notes.txt"</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="s2">"The cat and the Dog</span><span class="se">\n</span><span class="s2">and THE bird</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">count_words_in_file</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span>
+        <span class="s2">"the"</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">"cat"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"and"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"dog"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"bird"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_count_words_in_empty_file</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">):</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">tmp_path</span> <span class="o">/</span> <span class="s2">"empty.txt"</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">count_words_in_file</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">))</span> <span class="o">==</span> <span class="p">{}</span>
+
+
+<span class="c1"># ---------- 9. best_time (fake timer, deterministic) ----------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_best_time_uses_min_of_repeats</span><span class="p">():</span>
+    <span class="c1"># Timer is read twice per repeat: (start, end). Runs take 1, 2, 1 -&gt; /number</span>
+    <span class="n">ticks</span> <span class="o">=</span> <span class="nb">iter</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">21</span><span class="p">])</span>
+    <span class="n">calls</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">best_time</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">calls</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="n">number</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">repeat</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">timer</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="nb">next</span><span class="p">(</span><span class="n">ticks</span><span class="p">))</span>
+    <span class="k">assert</span> <span class="n">result</span> <span class="o">==</span> <span class="n">pytest</span><span class="o">.</span><span class="n">approx</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">calls</span><span class="p">)</span> <span class="o">==</span> <span class="mi">6</span>  <span class="c1"># number * repeat</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_best_time_picks_fastest_even_if_not_first</span><span class="p">():</span>
+    <span class="n">ticks</span> <span class="o">=</span> <span class="nb">iter</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">10</span><span class="p">])</span>
+    <span class="k">assert</span> <span class="n">best_time</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="n">number</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">repeat</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">timer</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="nb">next</span><span class="p">(</span><span class="n">ticks</span><span class="p">))</span> <span class="o">==</span> <span class="n">pytest</span><span class="o">.</span><span class="n">approx</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+
+
+<span class="c1"># ---------- 10. profile_calls ----------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_profile_calls_counts_calls</span><span class="p">():</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">helper</span><span class="p">():</span>
+        <span class="k">return</span> <span class="mi">1</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">work</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">):</span>
+            <span class="n">helper</span><span class="p">()</span>
+
+    <span class="n">calls</span> <span class="o">=</span> <span class="n">profile_calls</span><span class="p">(</span><span class="n">work</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">calls</span><span class="p">[</span><span class="s2">"helper"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">5</span>
+    <span class="k">assert</span> <span class="n">calls</span><span class="p">[</span><span class="s2">"work"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_profile_calls_propagates_errors</span><span class="p">():</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">boom</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"x"</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">RuntimeError</span><span class="p">):</span>
+        <span class="n">profile_calls</span><span class="p">(</span><span class="n">boom</span><span class="p">)</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../10-python-depth/week-04-quality-and-tooling/exercises.py.html">← Week 4 · Quality and tooling: Exercises (code)</a><a class="next" href="../../10-python-depth/rapid-fire.html">Python Depth: Rapid-fire Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

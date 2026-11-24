@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="05-fde-projects/project-05-evaluation/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../05-fde-projects/project-01-llm-basics/lesson.html">FDE Projects</a> / <a href="../../05-fde-projects/project-05-evaluation/lesson.html">Project 5 · Evaluation</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="05-fde-projects/project-05-evaluation/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>05-fde-projects/project-05-evaluation/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Project 5: evaluating an LLM feature. Read lesson.md for the spec.</span>
+
+<span class="sd">Replace each `...` with your code. No network or API key is needed:</span>
+<span class="sd">`llm` is always an injected callable `llm(prompt: str) -&gt; str`.</span>
+
+<span class="sd">A "result" is a dict: {"id", "input", "expected", "predicted"}.</span>
+<span class="sd">"""</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">Counter</span>
+
+<span class="n">ERROR_LABEL</span> <span class="o">=</span> <span class="s2">"error"</span>  <span class="c1"># predicted value recorded when the llm raises</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">load_test_set</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Load a JSONL test set and return a list of dicts.</span>
+
+<span class="sd">    Each non-blank line must be a JSON object with keys "id", "input", "expected".</span>
+<span class="sd">    - Skip blank lines.</span>
+<span class="sd">    - Invalid JSON, a non-object, or a missing key -&gt; ValueError whose message</span>
+<span class="sd">      contains the 1-based line number, e.g. "line 3: ...".</span>
+<span class="sd">    - Duplicate ids -&gt; ValueError mentioning the duplicate id.</span>
+<span class="sd">    Hint: enumerate(f, start=1); json.JSONDecodeError is a ValueError subclass.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">build_prompt</span><span class="p">(</span><span class="n">template</span><span class="p">,</span> <span class="n">case_input</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the template with the literal text "{input}" replaced by case_input.</span>
+
+<span class="sd">    Hint: use str.replace, NOT str.format -- templates may contain other braces</span>
+<span class="sd">    such as JSON examples like {"label": "billing"}.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">normalize_label</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Normalise raw model output into a label: strip whitespace and trailing</span>
+<span class="sd">    punctuation ('.', '!', quotes), lowercase.  ' "Billing." ' -&gt; 'billing'.</span>
+<span class="sd">    Hint: str.strip() accepts a string of characters to remove.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">run_prompt</span><span class="p">(</span><span class="n">llm</span><span class="p">,</span> <span class="n">template</span><span class="p">,</span> <span class="n">cases</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Run `llm` over every case and return a list of result dicts (same order).</span>
+
+<span class="sd">    prompt = build_prompt(template, case["input"]); predicted = normalize_label(llm(prompt)).</span>
+<span class="sd">    If llm raises any Exception, predicted = ERROR_LABEL (do not crash the run).</span>
+<span class="sd">    Result keys: id, input, expected, predicted.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">accuracy</span><span class="p">(</span><span class="n">results</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Fraction (0.0-1.0) of results where predicted == expected. Empty -&gt; 0.0."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">confusion_matrix</span><span class="p">(</span><span class="n">results</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a nested dict matrix[expected][predicted] -&gt; count.</span>
+
+<span class="sd">    Only include pairs that occur (plain dicts, not defaultdicts, so tests can</span>
+<span class="sd">    compare with ==). Hint: Counter over (expected, predicted), then nest.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">precision_recall_f1</span><span class="p">(</span><span class="n">results</span><span class="p">,</span> <span class="n">label</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return {"precision": p, "recall": r, "f1": f} for one class `label`.</span>
+
+<span class="sd">    precision = TP / (TP + FP)  (FP: predicted label, expected something else)</span>
+<span class="sd">    recall    = TP / (TP + FN)  (FN: expected label, predicted something else)</span>
+<span class="sd">    f1        = 2pr / (p + r)</span>
+<span class="sd">    Any zero denominator -&gt; that value is 0.0.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">worst_confusions</span><span class="p">(</span><span class="n">results</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">3</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the n most common mistakes as [((expected, predicted), count), ...].</span>
+
+<span class="sd">    Only count failures. Sort by count descending, ties by the (expected, predicted)</span>
+<span class="sd">    pair ascending. Hint: Counter, then sorted with key=lambda kv: (-kv[1], kv[0]).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">compare_runs</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Compare two result lists over the SAME cases (matched by id).</span>
+
+<span class="sd">    Return {"fixed": [...ids], "regressed": [...ids],</span>
+<span class="sd">            "still_correct": [...ids], "still_wrong": [...ids]}</span>
+<span class="sd">    - fixed: wrong in old, correct in new.  regressed: correct in old, wrong in new.</span>
+<span class="sd">    - ids are listed in the order of `old`.</span>
+<span class="sd">    - If the two runs do not contain exactly the same set of ids -&gt; ValueError.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">verdict</span><span class="p">(</span><span class="n">comparison</span><span class="p">,</span> <span class="n">max_regressions</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Decide what to tell the customer about the NEW prompt. Return one of:</span>
+<span class="sd">    - "hold": regressions &gt; max_regressions  (checked first, even if many fixes)</span>
+<span class="sd">    - "ship": otherwise, and fixed &gt; regressed</span>
+<span class="sd">    - "no change": otherwise (nothing meaningfully better)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">format_report</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">results</span><span class="p">,</span> <span class="n">top_n</span><span class="o">=</span><span class="mi">2</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a plain-English multi-line report (str) for non-engineers.</span>
+
+<span class="sd">    Required lines (exact text, tests check them):</span>
+<span class="sd">      "Prompt: {name}"</span>
+<span class="sd">      "Cases: {total}"</span>
+<span class="sd">      "Accuracy: {pct}%"            pct = accuracy*100 rounded to 1 decimal, e.g. 75.0</span>
+<span class="sd">      "Failures: {k}"</span>
+<span class="sd">    Then, if there are failures, a line "Most common mistakes:" followed by up to</span>
+<span class="sd">    top_n lines like "- expected billing, got other (2 times)" (use worst_confusions;</span>
+<span class="sd">    "1 times" is fine).  Free to add more.  Empty results -&gt; "Accuracy: 0.0%".</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../05-fde-projects/project-05-evaluation/lesson.html">← Project 5 · Evaluation: Lesson</a><a class="next" href="../../05-fde-projects/project-05-evaluation/test_exercises.py.html">Project 5 · Evaluation: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

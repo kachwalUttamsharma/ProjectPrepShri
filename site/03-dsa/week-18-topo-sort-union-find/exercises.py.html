@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-18-topo-sort-union-find/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-18-topo-sort-union-find/lesson.html">Week 18 · Topological sort and Union-Find</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="03-dsa/week-18-topo-sort-union-find/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>03-dsa/week-18-topo-sort-union-find/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 18 exercises: Topological sort and Union-Find (disjoint set union).</span>
+
+<span class="sd">Replace each `...` with your code. Problems are ordered easy -&gt; hard.</span>
+<span class="sd">"""</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">defaultdict</span><span class="p">,</span> <span class="n">deque</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">UnionFind</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Disjoint Set Union with path compression and union by size.</span>
+
+<span class="sd">    UnionFind(n)         n elements 0..n-1, each in its own set.</span>
+<span class="sd">    find(x) -&gt; int       representative (root) of x's set.</span>
+<span class="sd">    union(a, b) -&gt; bool  merge the sets; True if they were different, False if</span>
+<span class="sd">                         a and b were already connected.</span>
+<span class="sd">    connected(a, b) -&gt; bool</span>
+<span class="sd">    count() -&gt; int       current number of disjoint sets.</span>
+<span class="sd">    size(x) -&gt; int       size of the set containing x.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        uf = UnionFind(5)</span>
+<span class="sd">        uf.union(0, 1) -&gt; True; uf.union(1, 0) -&gt; False</span>
+<span class="sd">        uf.connected(0, 1) -&gt; True; uf.count() -&gt; 4; uf.size(0) -&gt; 2</span>
+
+<span class="sd">    Expected: near O(1) amortized (inverse Ackermann) per operation.</span>
+<span class="sd">    Hint: parent[] and size[] arrays. Make find ITERATIVE (path halving:</span>
+<span class="sd">    parent[x] = parent[parent[x]]) so long chains cannot hit the recursion limit.</span>
+<span class="sd">    Attach the smaller root under the larger one.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Create n singleton sets."""</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">find</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Return the root of x."""</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">union</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Merge the sets of a and b. Return True if a merge happened."""</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">connected</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Return True if a and b are in the same set."""</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">count</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Return the number of disjoint sets."""</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">size</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Return the size of x's set."""</span>
+        <span class="o">...</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">find_circle_num</span><span class="p">(</span><span class="n">is_connected</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 547. Number of provinces.</span>
+
+<span class="sd">    is_connected is an n x n matrix; is_connected[i][j] == 1 means cities i and</span>
+<span class="sd">    j are directly connected (symmetric, diagonal is 1). A province is a group</span>
+<span class="sd">    of directly or indirectly connected cities. Return the number of provinces.</span>
+
+<span class="sd">    Examples:</span>
+<span class="sd">        [[1,1,0],[1,1,0],[0,0,1]] -&gt; 2</span>
+<span class="sd">        [[1,0,0],[0,1,0],[0,0,1]] -&gt; 3</span>
+<span class="sd">        [] -&gt; 0</span>
+
+<span class="sd">    Expected: O(n^2 * alpha(n)) time (reading the matrix dominates).</span>
+<span class="sd">    Hint: UnionFind, count() at the end. Or DFS counting component starts.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">count_components</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">edges</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 323. Number of connected components in an undirected graph.</span>
+
+<span class="sd">    Nodes are 0..n-1. Duplicate edges and self loops may appear.</span>
+
+<span class="sd">    Examples:</span>
+<span class="sd">        n=5, edges=[[0,1],[1,2],[3,4]] -&gt; 2</span>
+<span class="sd">        n=5, edges=[[0,1],[1,2],[2,3],[3,4]] -&gt; 1</span>
+<span class="sd">        n=3, edges=[] -&gt; 3</span>
+<span class="sd">        n=0, edges=[] -&gt; 0</span>
+
+<span class="sd">    Expected: O(n + E * alpha(n)).</span>
+<span class="sd">    Hint: start with n components and subtract 1 for every union that merges.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">can_finish</span><span class="p">(</span><span class="n">num_courses</span><span class="p">,</span> <span class="n">prerequisites</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 207. Can all courses be finished?</span>
+
+<span class="sd">    Courses are 0..num_courses-1. prerequisites[i] = [a, b] means you must take</span>
+<span class="sd">    b BEFORE a. Return True if some order completes every course, i.e. the</span>
+<span class="sd">    directed graph has no cycle.</span>
+
+<span class="sd">    Examples:</span>
+<span class="sd">        2, [[1,0]] -&gt; True</span>
+<span class="sd">        2, [[1,0],[0,1]] -&gt; False</span>
+<span class="sd">        3, [] -&gt; True</span>
+<span class="sd">        1, [[0,0]] -&gt; False  (self dependency)</span>
+
+<span class="sd">    Expected: O(V + E).</span>
+<span class="sd">    Hint: Kahn's algorithm. Compute in-degrees, queue the zero in-degree</span>
+<span class="sd">    nodes, pop and decrement neighbors. If you processed fewer than V nodes,</span>
+<span class="sd">    a cycle exists.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">find_order</span><span class="p">(</span><span class="n">num_courses</span><span class="p">,</span> <span class="n">prerequisites</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 210. Return a valid course order, or [] if impossible.</span>
+
+<span class="sd">    Same input as can_finish. Any valid order is accepted: for every</span>
+<span class="sd">    [a, b], b must appear before a, and all courses appear exactly once.</span>
+
+<span class="sd">    Examples:</span>
+<span class="sd">        2, [[1,0]] -&gt; [0, 1]</span>
+<span class="sd">        4, [[1,0],[2,0],[3,1],[3,2]] -&gt; [0,1,2,3] or [0,2,1,3]</span>
+<span class="sd">        2, [[0,1],[1,0]] -&gt; []</span>
+
+<span class="sd">    Expected: O(V + E).</span>
+<span class="sd">    Hint: Kahn's algorithm, recording the pop order. Alternative: DFS with</span>
+<span class="sd">    3 states (unvisited / in progress / done) and reverse post-order; reaching</span>
+<span class="sd">    an "in progress" node means a cycle.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">minimum_semesters</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">relations</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 1136. Parallel courses.</span>
+
+<span class="sd">    Courses are labeled 1..n. relations[i] = [prev, next]: prev must be taken</span>
+<span class="sd">    before next. In one semester you can take any number of courses whose</span>
+<span class="sd">    prerequisites were all completed in EARLIER semesters. Return the minimum</span>
+<span class="sd">    number of semesters to finish everything, or -1 if there is a cycle.</span>
+
+<span class="sd">    Examples:</span>
+<span class="sd">        n=3, relations=[[1,3],[2,3]] -&gt; 2</span>
+<span class="sd">        n=3, relations=[[1,2],[2,3],[3,1]] -&gt; -1</span>
+<span class="sd">        n=4, relations=[] -&gt; 1</span>
+
+<span class="sd">    Expected: O(V + E).</span>
+<span class="sd">    Hint: Kahn's algorithm processed LEVEL BY LEVEL; the number of levels is</span>
+<span class="sd">    the answer (= length of the longest prerequisite chain).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">find_redundant_connection</span><span class="p">(</span><span class="n">edges</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 684. Redundant connection.</span>
+
+<span class="sd">    edges is a list of n edges [u, v] (nodes labeled 1..n) that form a tree</span>
+<span class="sd">    plus ONE extra edge. Return the edge that can be removed so the result is</span>
+<span class="sd">    a tree. If several answers exist, return the one that occurs LAST in the</span>
+<span class="sd">    input.</span>
+
+<span class="sd">    Examples:</span>
+<span class="sd">        [[1,2],[1,3],[2,3]] -&gt; [2,3]</span>
+<span class="sd">        [[1,2],[2,3],[3,4],[1,4],[1,5]] -&gt; [1,4]</span>
+
+<span class="sd">    Expected: O(n * alpha(n)).</span>
+<span class="sd">    Hint: process edges in order with UnionFind; the first edge whose</span>
+<span class="sd">    endpoints are already connected closes the cycle.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">find_min_height_trees</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">edges</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 310. Minimum height trees.</span>
+
+<span class="sd">    The undirected edges form a tree on nodes 0..n-1. Any node can be the root;</span>
+<span class="sd">    return all roots that give the minimum possible tree height (any order).</span>
+<span class="sd">    There are always 1 or 2 such roots.</span>
+
+<span class="sd">    Examples:</span>
+<span class="sd">        n=4, edges=[[1,0],[1,2],[1,3]] -&gt; [1]</span>
+<span class="sd">        n=6, edges=[[3,0],[3,1],[3,2],[3,4],[5,4]] -&gt; [3, 4]</span>
+<span class="sd">        n=1, edges=[] -&gt; [0]</span>
+<span class="sd">        n=2, edges=[[0,1]] -&gt; [0, 1]</span>
+
+<span class="sd">    Expected: O(n).</span>
+<span class="sd">    Hint: topological-sort style "leaf peeling": repeatedly remove all current</span>
+<span class="sd">    leaves (degree 1) until at most 2 nodes remain; those are the centers of</span>
+<span class="sd">    the tree.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">accounts_merge</span><span class="p">(</span><span class="n">accounts</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 721. Accounts merge.</span>
+
+<span class="sd">    accounts[i] = [name, email1, email2, ...]. Two accounts belong to the same</span>
+<span class="sd">    person if they share at least one email (names alone prove nothing: two</span>
+<span class="sd">    different people may share a name). Return merged accounts as</span>
+<span class="sd">    [name, sorted unique emails...] in any order.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        [["John","a@m","b@m"],["John","c@m"],["John","a@m","d@m"],["Mary","m@m"]]</span>
+<span class="sd">        -&gt; [["John","a@m","b@m","d@m"],["John","c@m"],["Mary","m@m"]]</span>
+
+<span class="sd">    Expected: O(E log E) where E is the total number of emails.</span>
+<span class="sd">    Hint: union ACCOUNT indices through the first account that owned each</span>
+<span class="sd">    email (dict email -&gt; account index), then group emails by root.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">alien_order</span><span class="p">(</span><span class="n">words</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 269. Alien dictionary.</span>
+
+<span class="sd">    `words` is sorted lexicographically by the rules of an unknown alphabet.</span>
+<span class="sd">    Return a string of ALL letters appearing in words, ordered consistently</span>
+<span class="sd">    with that alphabet (any valid order is accepted). Return "" if the input is</span>
+<span class="sd">    inconsistent: a cycle in the constraints, or a longer word that precedes</span>
+<span class="sd">    its own prefix (e.g. ["abc", "ab"]).</span>
+
+<span class="sd">    Examples:</span>
+<span class="sd">        ["wrt","wrf","er","ett","rftt"] -&gt; "wertf" (any valid order)</span>
+<span class="sd">        ["z","x"] -&gt; "zx"</span>
+<span class="sd">        ["z","x","z"] -&gt; ""</span>
+<span class="sd">        ["abc","ab"] -&gt; ""</span>
+<span class="sd">        ["a"] -&gt; "a"</span>
+
+<span class="sd">    Expected: O(total characters + alphabet constraints).</span>
+<span class="sd">    Hint: compare each ADJACENT pair of words; the first differing characters</span>
+<span class="sd">    give one edge c1 -&gt; c2. Add every letter as a node first (letters that</span>
+<span class="sd">    appear in no edge still belong in the output). Then Kahn's algorithm; if</span>
+<span class="sd">    the result is shorter than the number of letters there is a cycle.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-18-topo-sort-union-find/lesson.html">← Week 18 · Topological sort and Union-Find: Lesson</a><a class="next" href="../../03-dsa/week-18-topo-sort-union-find/test_exercises.py.html">Week 18 · Topological sort and Union-Find: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

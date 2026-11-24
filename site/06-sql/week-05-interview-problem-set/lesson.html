@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 5: Interview problem set | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="06-sql/week-05-interview-problem-set/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../06-sql/week-05-interview-problem-set/lesson.html">Week 5 · Interview problem set</a> / <span>Lesson</span></nav><button id="mark-done" data-id="06-sql/week-05-interview-problem-set/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-5-interview-problem-set">Week 5: Interview problem set</h1>
+<p>This week is practice, not new syntax. The 26 exercises in <code>exercises.py</code> are the classic questions that show up in Google, Uber and similar SQL rounds. This lesson gives you a method and the pattern behind each problem family. The examples here use tiny made-up data so they do not give away the exercises.</p>
+<p>Run the tests with <code>pytest -q</code> from this folder. Work the problems in order of family, not in file order, if you prefer.</p>
+<h2 id="1-a-method-for-any-sql-interview-question">1. A method for any SQL interview question</h2>
+<ol>
+<li>Restate the question and ask about the grain. "One row per what?" in the output and in each input table.</li>
+<li>Ask about edge cases out loud: NULLs, ties, duplicates, empty groups, missing days.</li>
+<li>Sketch the output columns first, then work backwards.</li>
+<li>Build in small steps with CTEs. Name each step for what it produces.</li>
+<li>Check fan-out after every join. Count rows before and after.</li>
+<li>Run it mentally on 3 or 4 rows, including a tie and a NULL.</li>
+<li>State complexity and indexes at the end ("this scans once and sorts once").</li>
+</ol>
+<p>Interviewers grade the process as much as the answer. Talking through ties and NULLs unprompted is a strong signal.</p>
+<h2 id="2-problem-families-and-their-patterns">2. Problem families and their patterns</h2>
+<h3 id="21-nth-highest-and-ties">2.1 Nth highest and ties</h3>
+<p>Rank, then filter. <code>DENSE_RANK</code> counts distinct values, so "second highest salary" means rank 2 with <code>DENSE_RANK</code>. <code>RANK</code> skips numbers after ties and <code>ROW_NUMBER</code> breaks ties arbitrarily.</p>
+<div class="highlight"><pre><span></span><code><span class="k">WITH</span><span class="w"> </span><span class="n">t</span><span class="p">(</span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">v</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="s1">'a'</span><span class="p">,</span><span class="mi">30</span><span class="p">),(</span><span class="s1">'b'</span><span class="p">,</span><span class="mi">20</span><span class="p">),(</span><span class="s1">'c'</span><span class="p">,</span><span class="mi">20</span><span class="p">),(</span><span class="s1">'d'</span><span class="p">,</span><span class="mi">10</span><span class="p">))</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">v</span><span class="p">,</span><span class="w"> </span><span class="n">DENSE_RANK</span><span class="p">()</span><span class="w"> </span><span class="n">OVER</span><span class="w"> </span><span class="p">(</span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="k">DESC</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">dr</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">t</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>a | 30 | 1
+b | 20 | 2
+c | 20 | 2
+d | 10 | 3
+</code></pre></div>
+
+<p>Ask: what if there is no second value? A scalar subquery returns NULL, which is usually the expected answer. A bare <code>LIMIT 1 OFFSET 1</code> returns no row. Know both.</p>
+<h3 id="22-duplicates">2.2 Duplicates</h3>
+<p>Find them with <code>GROUP BY ... HAVING COUNT(*) &gt; 1</code>. Delete them by keeping one row per group: rank rows within each duplicate group, or keep <code>MIN(id)</code> per group, and delete the rest. Always say which row you keep and why.</p>
+<div class="highlight"><pre><span></span><code><span class="k">WITH</span><span class="w"> </span><span class="n">t</span><span class="p">(</span><span class="n">k</span><span class="p">,</span><span class="w"> </span><span class="n">v</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="s1">'x'</span><span class="p">,</span><span class="mi">1</span><span class="p">),(</span><span class="s1">'x'</span><span class="p">,</span><span class="mi">2</span><span class="p">),(</span><span class="s1">'y'</span><span class="p">,</span><span class="mi">5</span><span class="p">))</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">k</span><span class="p">,</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="k">HAVING</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>x | 2
+</code></pre></div>
+
+<h3 id="23-top-n-per-group">2.3 Top N per group</h3>
+<p><code>ROW_NUMBER() OVER (PARTITION BY group ORDER BY metric DESC)</code> in a subquery, then filter <code>rn &lt;= N</code>. Switch to <code>DENSE_RANK</code> if ties should all be included. A correlated count (<code>SELECT COUNT(DISTINCT ...) ... WHERE other &gt; this</code>) is the pre-window alternative, and interviewers like to hear it.</p>
+<h3 id="24-compare-to-a-related-row">2.4 Compare to a related row</h3>
+<p>Self-join (employee vs manager), or a window function (<code>LAG</code>, <code>LEAD</code>, <code>AVG() OVER</code>). Pick the self-join when the relation is a key, the window when it is order or a partition.</p>
+<h3 id="25-relational-division-did-x-for-every-y">2.5 Relational division ("did X for every Y")</h3>
+<p>Count distinct matches per entity and compare to the total number of Ys:
+<code>HAVING COUNT(DISTINCT y) = (SELECT COUNT(DISTINCT y) FROM ys)</code>. Watch for NULL and for duplicates, which is why the <code>DISTINCT</code> is there.</p>
+<h3 id="26-median">2.6 Median</h3>
+<p>SQLite has no <code>MEDIAN</code>. Number rows within each group with <code>ROW_NUMBER</code> and also compute the group's <code>COUNT(*) OVER (PARTITION BY ...)</code>. Keep the middle row (odd count) or the two middle rows (even count) and average them.</p>
+<div class="highlight"><pre><span></span><code><span class="c1">-- rows with rn IN ((cnt+1)/2, (cnt+2)/2) are the middle one or two (integer division)</span>
+</code></pre></div>
+
+<p>Group a has 4 values 1..4, so the middle rows are 2 and 3. Group b has 3 values, so the middle row is 20.</p>
+<h3 id="27-gaps-and-islands-consecutive-runs">2.7 Gaps and islands (consecutive runs)</h3>
+<p>Subtract <code>ROW_NUMBER()</code> from the value (or from a day number). Consecutive values give the same difference, so the difference identifies the island. Group by it.</p>
+<div class="highlight"><pre><span></span><code><span class="k">WITH</span><span class="w"> </span><span class="n">t</span><span class="p">(</span><span class="n">d</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="p">),(</span><span class="mi">2</span><span class="p">),(</span><span class="mi">3</span><span class="p">),(</span><span class="mi">7</span><span class="p">),(</span><span class="mi">8</span><span class="p">),(</span><span class="mi">10</span><span class="p">))</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="k">MIN</span><span class="p">(</span><span class="n">d</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="k">start</span><span class="p">,</span><span class="w"> </span><span class="k">MAX</span><span class="p">(</span><span class="n">d</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">stop</span><span class="p">,</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">len</span>
+<span class="k">FROM</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="n">d</span><span class="p">,</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">ROW_NUMBER</span><span class="p">()</span><span class="w"> </span><span class="n">OVER</span><span class="w"> </span><span class="p">(</span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">d</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">grp</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">t</span><span class="p">)</span>
+<span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">grp</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>1 | 3 | 3
+7 | 8 | 2
+10 | 10 | 1
+</code></pre></div>
+
+<p>Duplicates break this. Deduplicate first. For dates use <code>julianday(date)</code>. The "gaps" are the spaces between one island's end and the next island's start; <code>LEAD</code> finds them too.</p>
+<h3 id="28-sessionization">2.8 Sessionization</h3>
+<p>Sort events per user, compute the gap to the previous event with <code>LAG</code>, flag a new session when the gap exceeds the timeout (or there is no previous event), then take a running <code>SUM</code> of the flags to get a session number.</p>
+<div class="highlight"><pre><span></span><code><span class="k">WITH</span><span class="w"> </span><span class="n">t</span><span class="p">(</span><span class="n">u</span><span class="p">,</span><span class="w"> </span><span class="n">ts</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="s1">'u'</span><span class="p">,</span><span class="mi">0</span><span class="p">),(</span><span class="s1">'u'</span><span class="p">,</span><span class="mi">10</span><span class="p">),(</span><span class="s1">'u'</span><span class="p">,</span><span class="mi">50</span><span class="p">),(</span><span class="s1">'u'</span><span class="p">,</span><span class="mi">55</span><span class="p">))</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">u</span><span class="p">,</span><span class="w"> </span><span class="n">ts</span><span class="p">,</span>
+<span class="w">       </span><span class="n">ts</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">LAG</span><span class="p">(</span><span class="n">ts</span><span class="p">)</span><span class="w"> </span><span class="n">OVER</span><span class="w"> </span><span class="p">(</span><span class="n">PARTITION</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">u</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">ts</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">gap</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">t</span><span class="p">;</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code>u | 0  | NULL
+u | 10 | 10
+u | 50 | 40
+u | 55 | 5
+</code></pre></div>
+
+<p>With a 30 unit timeout the third row starts a new session. Flag, then running sum.</p>
+<h3 id="29-running-and-rolling-metrics">2.9 Running and rolling metrics</h3>
+<p><code>SUM() OVER (ORDER BY ...)</code> for running totals. Remember the default frame is <code>RANGE ... CURRENT ROW</code>, which treats tied order values as peers; write <code>ROWS BETWEEN ...</code> when you mean physical rows. A rolling window of N days over data with missing days needs a calendar (recursive CTE) or a <code>RANGE</code> on a numeric day, otherwise "last 7 rows" is not "last 7 days". Decide what to do for the first days, where the window is not full.</p>
+<h3 id="210-period-over-period">2.10 Period over period</h3>
+<p>Aggregate to the period first (a CTE), then <code>LAG</code> over the aggregated rows. Guard the division: <code>NULLIF(prev, 0)</code>, and say what you return for the first period (NULL).</p>
+<h3 id="211-retention-and-funnels">2.11 Retention and funnels</h3>
+<p>Join the table to itself on user with a date offset, or compare each user's first event date to later activity. Funnels: one conditional count per step (<code>COUNT(DISTINCT CASE WHEN step = 'x' THEN user END)</code>). Decide whether order of steps matters. Make the denominator explicit.</p>
+<h3 id="212-pivot">2.12 Pivot</h3>
+<p>Conditional aggregation: <code>SUM(CASE WHEN col = 'x' THEN val END)</code> per output column, grouped by the row key. The column list is fixed in SQL; dynamic pivots need generated SQL.</p>
+<h3 id="213-percent-of-total">2.13 Percent of total</h3>
+<p><code>value * 100.0 / SUM(value) OVER ()</code>. The <code>100.0</code> avoids integer division. Round at the end only.</p>
+<h3 id="214-bucketing">2.14 Bucketing</h3>
+<p>Integer arithmetic (<code>salary / 10000 * 10000</code>) or <code>CASE</code>. Decide whether empty buckets must be shown; if so you need a generated list of buckets to <code>LEFT JOIN</code> from.</p>
+<h3 id="215-adjacent-row-tricks">2.15 Adjacent row tricks</h3>
+<p>Swapping or pairing neighbours can be done with <code>CASE</code> on id parity plus a self-join or <code>LEAD</code>/<code>LAG</code>. Ask what happens when the row count is odd.</p>
+<h2 id="3-common-mistakes">3. Common mistakes</h2>
+<ul>
+<li><code>RANK</code> when the question wants distinct values (use <code>DENSE_RANK</code>).</li>
+<li><code>COUNT(*)</code> after a LEFT JOIN, counting the NULL-extended row.</li>
+<li>Filtering the right table of a LEFT JOIN in <code>WHERE</code>, which silently makes it an inner join.</li>
+<li><code>NOT IN</code> with a subquery that can return NULL.</li>
+<li>Integer division in percentages and ratios.</li>
+<li>Joining before aggregating and multiplying rows (fan-out), then summing the inflated values.</li>
+<li>Dividing by zero in growth rates.</li>
+<li>Ignoring ties, duplicates and NULLs, then not saying so.</li>
+<li>Forgetting <code>ORDER BY</code> when the problem needs a particular order. Without it, row order is not guaranteed.</li>
+<li>Window functions in <code>WHERE</code>. They need a subquery or CTE.</li>
+</ul>
+<h2 id="4-how-interviewers-probe">4. How interviewers probe</h2>
+<ul>
+<li>"What if two employees tie?" Know the exact behaviour of <code>ROW_NUMBER</code>, <code>RANK</code>, <code>DENSE_RANK</code>.</li>
+<li>"Can you do it without window functions?" Have a correlated subquery or self-join version ready.</li>
+<li>"What if the table has a billion rows?" Talk about indexes, partitions, pre-aggregation, and avoiding self-joins on huge tables.</li>
+<li>"What does your query return for an empty group or a NULL?" Walk through it.</li>
+<li>"Can you make it shorter or faster?" Remove a join, reuse a CTE, filter earlier.</li>
+<li>"Show me the query plan." Use <code>EXPLAIN QUERY PLAN</code> and name the index you would add.</li>
+<li>"How would you test this?" A tiny table with ties, NULLs, a duplicate and an empty group.</li>
+</ul>
+<h2 id="5-study-plan-for-the-week">5. Study plan for the week</h2>
+<ol>
+<li>Do each family cold, no notes, then compare with your own earlier work only after the test passes.</li>
+<li>For every problem, write a second solution with a different technique (window vs subquery).</li>
+<li>Time yourself: 15 minutes per medium problem, 25 for a hard one.</li>
+<li>Read <code>cheatsheet.md</code> the day before an interview.</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../06-sql/week-04-schema-indexes-transactions/schema.py.html">← Week 4 · Schema, indexes, transactions: schema.py</a><a class="next" href="../../06-sql/week-05-interview-problem-set/interview-qa.html">Week 5 · Interview problem set: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

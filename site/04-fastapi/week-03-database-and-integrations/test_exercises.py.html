@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>test_exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="04-fastapi/week-03-database-and-integrations/test_exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../04-fastapi/week-01-first-endpoints/lesson.html">FastAPI</a> / <a href="../../04-fastapi/week-03-database-and-integrations/lesson.html">Week 3 · Database and integrations</a> / <span>Tests (code)</span></nav><button id="mark-done" data-id="04-fastapi/week-03-database-and-integrations/test_exercises.py">Mark as done</button></div><article class="doc">
+<h1>test_exercises.py</h1><p class="code-path"><code>04-fastapi/week-03-database-and-integrations/test_exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">hmac</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">httpx</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sqlalchemy</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">fastapi.testclient</span><span class="w"> </span><span class="kn">import</span> <span class="n">TestClient</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sqlalchemy.exc</span><span class="w"> </span><span class="kn">import</span> <span class="n">IntegrityError</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sqlmodel</span><span class="w"> </span><span class="kn">import</span> <span class="n">Session</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">exercises</span>
+
+
+<span class="c1"># ---------------- fixtures ----------------</span>
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">autouse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_clean</span><span class="p">():</span>
+    <span class="n">exercises</span><span class="o">.</span><span class="n">reset_state</span><span class="p">()</span>
+    <span class="k">yield</span>
+    <span class="n">exercises</span><span class="o">.</span><span class="n">reset_state</span><span class="p">()</span>
+    <span class="n">exercises</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">dependency_overrides</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">db_engine</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">exercises</span><span class="o">.</span><span class="n">make_engine</span><span class="p">(</span><span class="s2">"sqlite://"</span><span class="p">)</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">client</span><span class="p">(</span><span class="n">db_engine</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">override</span><span class="p">():</span>
+        <span class="k">with</span> <span class="n">Session</span><span class="p">(</span><span class="n">db_engine</span><span class="p">)</span> <span class="k">as</span> <span class="n">s</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="n">s</span>
+
+    <span class="n">exercises</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">dependency_overrides</span><span class="p">[</span><span class="n">exercises</span><span class="o">.</span><span class="n">get_session</span><span class="p">]</span> <span class="o">=</span> <span class="n">override</span>
+    <span class="k">return</span> <span class="n">TestClient</span><span class="p">(</span><span class="n">exercises</span><span class="o">.</span><span class="n">app</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">"Ada"</span><span class="p">,</span> <span class="n">email</span><span class="o">=</span><span class="s2">"ada@acme.com"</span><span class="p">,</span> <span class="n">company</span><span class="o">=</span><span class="s2">"Acme"</span><span class="p">):</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/contacts"</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="n">name</span><span class="p">,</span> <span class="s2">"email"</span><span class="p">:</span> <span class="n">email</span><span class="p">,</span> <span class="s2">"company"</span><span class="p">:</span> <span class="n">company</span><span class="p">})</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">201</span><span class="p">,</span> <span class="n">r</span><span class="o">.</span><span class="n">text</span>
+    <span class="k">return</span> <span class="n">r</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+
+<span class="c1"># ---------------- A. database ----------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_contact_model_and_engine</span><span class="p">(</span><span class="n">db_engine</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">,</span> <span class="s2">"name"</span><span class="p">,</span> <span class="s2">"email"</span><span class="p">,</span> <span class="s2">"company"</span><span class="p">}</span> <span class="o">&lt;=</span> <span class="nb">set</span><span class="p">(</span><span class="n">Contact</span><span class="o">.</span><span class="n">model_fields</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="s2">"contact"</span> <span class="ow">in</span> <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">inspect</span><span class="p">(</span><span class="n">db_engine</span><span class="p">)</span><span class="o">.</span><span class="n">get_table_names</span><span class="p">()</span>
+    <span class="k">with</span> <span class="n">Session</span><span class="p">(</span><span class="n">db_engine</span><span class="p">)</span> <span class="k">as</span> <span class="n">s</span><span class="p">:</span>
+        <span class="n">s</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">Contact</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"A"</span><span class="p">,</span> <span class="n">email</span><span class="o">=</span><span class="s2">"a@x.co"</span><span class="p">))</span>
+        <span class="n">s</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+        <span class="n">got</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">Contact</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">got</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">"A"</span> <span class="ow">and</span> <span class="n">got</span><span class="o">.</span><span class="n">company</span> <span class="ow">is</span> <span class="kc">None</span>
+        <span class="n">s</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">Contact</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"B"</span><span class="p">,</span> <span class="n">email</span><span class="o">=</span><span class="s2">"a@x.co"</span><span class="p">))</span>
+        <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">IntegrityError</span><span class="p">):</span>
+            <span class="n">s</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_make_engine_in_memory_is_shared_across_connections</span><span class="p">():</span>
+    <span class="n">eng</span> <span class="o">=</span> <span class="n">make_engine</span><span class="p">()</span>
+    <span class="k">with</span> <span class="n">Session</span><span class="p">(</span><span class="n">eng</span><span class="p">)</span> <span class="k">as</span> <span class="n">s</span><span class="p">:</span>
+        <span class="n">s</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">Contact</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"A"</span><span class="p">,</span> <span class="n">email</span><span class="o">=</span><span class="s2">"a@x.co"</span><span class="p">))</span>
+        <span class="n">s</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+    <span class="k">with</span> <span class="n">Session</span><span class="p">(</span><span class="n">eng</span><span class="p">)</span> <span class="k">as</span> <span class="n">s2</span><span class="p">:</span>  <span class="c1"># a second session must still see the table and row</span>
+        <span class="k">assert</span> <span class="n">s2</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">Contact</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">email</span> <span class="o">==</span> <span class="s2">"a@x.co"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_make_engine_file_persists</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">):</span>
+    <span class="n">url</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"sqlite:///</span><span class="si">{</span><span class="n">tmp_path</span><span class="si">}</span><span class="s2">/t.db"</span>
+    <span class="n">eng</span> <span class="o">=</span> <span class="n">make_engine</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">Session</span><span class="p">(</span><span class="n">eng</span><span class="p">)</span> <span class="k">as</span> <span class="n">s</span><span class="p">:</span>
+        <span class="n">s</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">Contact</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"A"</span><span class="p">,</span> <span class="n">email</span><span class="o">=</span><span class="s2">"a@x.co"</span><span class="p">))</span>
+        <span class="n">s</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+    <span class="n">eng</span><span class="o">.</span><span class="n">dispose</span><span class="p">()</span>
+    <span class="n">eng2</span> <span class="o">=</span> <span class="n">make_engine</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">Session</span><span class="p">(</span><span class="n">eng2</span><span class="p">)</span> <span class="k">as</span> <span class="n">s</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">s</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">Contact</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">"A"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_get_session_yields_session</span><span class="p">(</span><span class="n">monkeypatch</span><span class="p">,</span> <span class="n">db_engine</span><span class="p">):</span>
+    <span class="n">monkeypatch</span><span class="o">.</span><span class="n">setattr</span><span class="p">(</span><span class="n">exercises</span><span class="p">,</span> <span class="s2">"engine"</span><span class="p">,</span> <span class="n">db_engine</span><span class="p">)</span>
+    <span class="n">gen</span> <span class="o">=</span> <span class="n">exercises</span><span class="o">.</span><span class="n">get_session</span><span class="p">()</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">gen</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">Session</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">s</span><span class="o">.</span><span class="n">bind</span> <span class="ow">is</span> <span class="n">db_engine</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">StopIteration</span><span class="p">):</span>
+        <span class="nb">next</span><span class="p">(</span><span class="n">gen</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_create_contact</span><span class="p">(</span><span class="n">client</span><span class="p">):</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/contacts"</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"Ada"</span><span class="p">,</span> <span class="s2">"email"</span><span class="p">:</span> <span class="s2">"ADA@Acme.com"</span><span class="p">})</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">201</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">json</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"Ada"</span><span class="p">,</span> <span class="s2">"email"</span><span class="p">:</span> <span class="s2">"ada@acme.com"</span><span class="p">,</span> <span class="s2">"company"</span><span class="p">:</span> <span class="kc">None</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">add</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="s2">"Bob"</span><span class="p">,</span> <span class="s2">"bob@acme.com"</span><span class="p">)[</span><span class="s2">"id"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_create_contact_duplicate_and_validation</span><span class="p">(</span><span class="n">client</span><span class="p">):</span>
+    <span class="n">add</span><span class="p">(</span><span class="n">client</span><span class="p">)</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/contacts"</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"X"</span><span class="p">,</span> <span class="s2">"email"</span><span class="p">:</span> <span class="s2">"ADA@acme.com"</span><span class="p">})</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">409</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">json</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"detail"</span><span class="p">:</span> <span class="s2">"Email already exists"</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/contacts"</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"X"</span><span class="p">})</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">422</span>
+    <span class="c1"># session still usable after the failed insert</span>
+    <span class="k">assert</span> <span class="n">add</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="s2">"Bob"</span><span class="p">,</span> <span class="s2">"bob@acme.com"</span><span class="p">)[</span><span class="s2">"id"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_get_contact</span><span class="p">(</span><span class="n">client</span><span class="p">):</span>
+    <span class="n">add</span><span class="p">(</span><span class="n">client</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/contacts/1"</span><span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s2">"email"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"ada@acme.com"</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/contacts/5"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">404</span> <span class="ow">and</span> <span class="n">r</span><span class="o">.</span><span class="n">json</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"detail"</span><span class="p">:</span> <span class="s2">"Contact not found"</span><span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_list_contacts_filter_and_paging</span><span class="p">(</span><span class="n">client</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">):</span>
+        <span class="n">add</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"N</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"n</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">@x.co"</span><span class="p">,</span> <span class="n">company</span><span class="o">=</span><span class="s2">"A"</span> <span class="k">if</span> <span class="n">i</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="s2">"B"</span><span class="p">)</span>
+    <span class="n">allc</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/contacts"</span><span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">c</span><span class="p">[</span><span class="s2">"id"</span><span class="p">]</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">allc</span><span class="p">]</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">c</span><span class="p">[</span><span class="s2">"id"</span><span class="p">]</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/contacts"</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">"company"</span><span class="p">:</span> <span class="s2">"A"</span><span class="p">})</span><span class="o">.</span><span class="n">json</span><span class="p">()]</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">5</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="p">[</span><span class="n">c</span><span class="p">[</span><span class="s2">"id"</span><span class="p">]</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/contacts"</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">"limit"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"offset"</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span><span class="o">.</span><span class="n">json</span><span class="p">()]</span> <span class="o">==</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/contacts"</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">"company"</span><span class="p">:</span> <span class="s2">"Z"</span><span class="p">})</span><span class="o">.</span><span class="n">json</span><span class="p">()</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/contacts"</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">"limit"</span><span class="p">:</span> <span class="mi">0</span><span class="p">})</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">422</span>
+    <span class="k">assert</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/contacts"</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">"limit"</span><span class="p">:</span> <span class="mi">101</span><span class="p">})</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">422</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_update_contact</span><span class="p">(</span><span class="n">client</span><span class="p">):</span>
+    <span class="n">add</span><span class="p">(</span><span class="n">client</span><span class="p">)</span>
+    <span class="n">add</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="s2">"Bob"</span><span class="p">,</span> <span class="s2">"bob@acme.com"</span><span class="p">)</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">patch</span><span class="p">(</span><span class="s2">"/contacts/1"</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s2">"company"</span><span class="p">:</span> <span class="s2">"NewCo"</span><span class="p">})</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">json</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"Ada"</span><span class="p">,</span> <span class="s2">"email"</span><span class="p">:</span> <span class="s2">"ada@acme.com"</span><span class="p">,</span> <span class="s2">"company"</span><span class="p">:</span> <span class="s2">"NewCo"</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">client</span><span class="o">.</span><span class="n">patch</span><span class="p">(</span><span class="s2">"/contacts/1"</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s2">"email"</span><span class="p">:</span> <span class="s2">"NEW@acme.com"</span><span class="p">})</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s2">"email"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"new@acme.com"</span>
+    <span class="k">assert</span> <span class="n">client</span><span class="o">.</span><span class="n">patch</span><span class="p">(</span><span class="s2">"/contacts/1"</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s2">"company"</span><span class="p">:</span> <span class="kc">None</span><span class="p">})</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s2">"company"</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="k">assert</span> <span class="n">client</span><span class="o">.</span><span class="n">patch</span><span class="p">(</span><span class="s2">"/contacts/1"</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s2">"email"</span><span class="p">:</span> <span class="s2">"bob@acme.com"</span><span class="p">})</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">409</span>
+    <span class="k">assert</span> <span class="n">client</span><span class="o">.</span><span class="n">patch</span><span class="p">(</span><span class="s2">"/contacts/9"</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"x"</span><span class="p">})</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">404</span>
+    <span class="k">assert</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/contacts/1"</span><span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s2">"email"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"new@acme.com"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_delete_contact</span><span class="p">(</span><span class="n">client</span><span class="p">):</span>
+    <span class="n">add</span><span class="p">(</span><span class="n">client</span><span class="p">)</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s2">"/contacts/1"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">204</span> <span class="ow">and</span> <span class="n">r</span><span class="o">.</span><span class="n">content</span> <span class="o">==</span> <span class="sa">b</span><span class="s2">""</span>
+    <span class="k">assert</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/contacts/1"</span><span class="p">)</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">404</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s2">"/contacts/1"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">404</span> <span class="ow">and</span> <span class="n">r</span><span class="o">.</span><span class="n">json</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"detail"</span><span class="p">:</span> <span class="s2">"Contact not found"</span><span class="p">}</span>
+
+
+<span class="c1"># ---------------- B. outbound HTTP ----------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">mock_client</span><span class="p">(</span><span class="n">handler</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">httpx</span><span class="o">.</span><span class="n">Client</span><span class="p">(</span><span class="n">base_url</span><span class="o">=</span><span class="s2">"https://up.test"</span><span class="p">,</span> <span class="n">transport</span><span class="o">=</span><span class="n">httpx</span><span class="o">.</span><span class="n">MockTransport</span><span class="p">(</span><span class="n">handler</span><span class="p">),</span> <span class="o">**</span><span class="n">kw</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">scripted</span><span class="p">(</span><span class="o">*</span><span class="n">steps</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Handler that plays steps in order: an int status, a (status, json) tuple, or an exception."""</span>
+    <span class="n">calls</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">handler</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+        <span class="n">step</span> <span class="o">=</span> <span class="n">steps</span><span class="p">[</span><span class="nb">min</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">calls</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">steps</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)]</span>
+        <span class="n">calls</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">step</span><span class="p">,</span> <span class="ne">Exception</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">step</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">step</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">httpx</span><span class="o">.</span><span class="n">Response</span><span class="p">(</span><span class="n">step</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">json</span><span class="o">=</span><span class="n">step</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">httpx</span><span class="o">.</span><span class="n">Response</span><span class="p">(</span><span class="n">step</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s2">"n"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">calls</span><span class="p">)})</span>
+
+    <span class="k">return</span> <span class="n">handler</span><span class="p">,</span> <span class="n">calls</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_make_client_config</span><span class="p">():</span>
+    <span class="n">seen</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">h</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+        <span class="n">seen</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">httpx</span><span class="o">.</span><span class="n">Response</span><span class="p">(</span><span class="mi">200</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s2">"ok"</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
+
+    <span class="n">c</span> <span class="o">=</span> <span class="n">make_client</span><span class="p">(</span><span class="s2">"https://api.test"</span><span class="p">,</span> <span class="s2">"tok123"</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mf">2.5</span><span class="p">,</span> <span class="n">transport</span><span class="o">=</span><span class="n">httpx</span><span class="o">.</span><span class="n">MockTransport</span><span class="p">(</span><span class="n">h</span><span class="p">))</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">timeout</span> <span class="o">==</span> <span class="n">httpx</span><span class="o">.</span><span class="n">Timeout</span><span class="p">(</span><span class="mf">2.5</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">base_url</span><span class="o">.</span><span class="n">host</span> <span class="o">==</span> <span class="s2">"api.test"</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/things"</span><span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"ok"</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">seen</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">url</span> <span class="o">==</span> <span class="s2">"https://api.test/things"</span>
+    <span class="k">assert</span> <span class="n">seen</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">headers</span><span class="p">[</span><span class="s2">"authorization"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"Bearer tok123"</span>
+    <span class="k">assert</span> <span class="n">seen</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">headers</span><span class="p">[</span><span class="s2">"accept"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"application/json"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_fetch_json_success_first_try</span><span class="p">():</span>
+    <span class="n">h</span><span class="p">,</span> <span class="n">calls</span> <span class="o">=</span> <span class="n">scripted</span><span class="p">((</span><span class="mi">200</span><span class="p">,</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">:</span> <span class="mi">1</span><span class="p">}))</span>
+    <span class="n">sleeps</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="n">fetch_json</span><span class="p">(</span><span class="n">mock_client</span><span class="p">(</span><span class="n">h</span><span class="p">),</span> <span class="s2">"/x"</span><span class="p">,</span> <span class="n">sleep</span><span class="o">=</span><span class="n">sleeps</span><span class="o">.</span><span class="n">append</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">calls</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">sleeps</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_fetch_json_retries_5xx_then_succeeds_with_backoff</span><span class="p">():</span>
+    <span class="n">h</span><span class="p">,</span> <span class="n">calls</span> <span class="o">=</span> <span class="n">scripted</span><span class="p">(</span><span class="mi">503</span><span class="p">,</span> <span class="mi">500</span><span class="p">,</span> <span class="p">(</span><span class="mi">200</span><span class="p">,</span> <span class="p">{</span><span class="s2">"ok"</span><span class="p">:</span> <span class="mi">1</span><span class="p">}))</span>
+    <span class="n">sleeps</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">fetch_json</span><span class="p">(</span><span class="n">mock_client</span><span class="p">(</span><span class="n">h</span><span class="p">),</span> <span class="s2">"/x"</span><span class="p">,</span> <span class="n">retries</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">backoff</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">sleep</span><span class="o">=</span><span class="n">sleeps</span><span class="o">.</span><span class="n">append</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">out</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"ok"</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">calls</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="n">sleeps</span> <span class="o">==</span> <span class="p">[</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_fetch_json_gives_up_after_retries</span><span class="p">():</span>
+    <span class="n">h</span><span class="p">,</span> <span class="n">calls</span> <span class="o">=</span> <span class="n">scripted</span><span class="p">(</span><span class="mi">500</span><span class="p">)</span>
+    <span class="n">sleeps</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">UpstreamError</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">fetch_json</span><span class="p">(</span><span class="n">mock_client</span><span class="p">(</span><span class="n">h</span><span class="p">),</span> <span class="s2">"/x"</span><span class="p">,</span> <span class="n">retries</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">backoff</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">sleep</span><span class="o">=</span><span class="n">sleeps</span><span class="o">.</span><span class="n">append</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">e</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">500</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">calls</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="n">sleeps</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_fetch_json_no_retry_on_4xx</span><span class="p">():</span>
+    <span class="n">h</span><span class="p">,</span> <span class="n">calls</span> <span class="o">=</span> <span class="n">scripted</span><span class="p">(</span><span class="mi">404</span><span class="p">)</span>
+    <span class="n">sleeps</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">UpstreamError</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">fetch_json</span><span class="p">(</span><span class="n">mock_client</span><span class="p">(</span><span class="n">h</span><span class="p">),</span> <span class="s2">"/x"</span><span class="p">,</span> <span class="n">sleep</span><span class="o">=</span><span class="n">sleeps</span><span class="o">.</span><span class="n">append</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">e</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">404</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">calls</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">sleeps</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_fetch_json_retries_429</span><span class="p">():</span>
+    <span class="n">h</span><span class="p">,</span> <span class="n">calls</span> <span class="o">=</span> <span class="n">scripted</span><span class="p">(</span><span class="mi">429</span><span class="p">,</span> <span class="p">(</span><span class="mi">200</span><span class="p">,</span> <span class="p">{</span><span class="s2">"ok"</span><span class="p">:</span> <span class="mi">1</span><span class="p">}))</span>
+    <span class="k">assert</span> <span class="n">fetch_json</span><span class="p">(</span><span class="n">mock_client</span><span class="p">(</span><span class="n">h</span><span class="p">),</span> <span class="s2">"/x"</span><span class="p">,</span> <span class="n">sleep</span><span class="o">=</span><span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="kc">None</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"ok"</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">calls</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_fetch_json_retries_network_errors_and_timeouts</span><span class="p">():</span>
+    <span class="n">h</span><span class="p">,</span> <span class="n">calls</span> <span class="o">=</span> <span class="n">scripted</span><span class="p">(</span><span class="n">httpx</span><span class="o">.</span><span class="n">ConnectError</span><span class="p">(</span><span class="s2">"boom"</span><span class="p">),</span> <span class="n">httpx</span><span class="o">.</span><span class="n">ReadTimeout</span><span class="p">(</span><span class="s2">"slow"</span><span class="p">),</span> <span class="p">(</span><span class="mi">200</span><span class="p">,</span> <span class="p">{</span><span class="s2">"ok"</span><span class="p">:</span> <span class="mi">1</span><span class="p">}))</span>
+    <span class="k">assert</span> <span class="n">fetch_json</span><span class="p">(</span><span class="n">mock_client</span><span class="p">(</span><span class="n">h</span><span class="p">),</span> <span class="s2">"/x"</span><span class="p">,</span> <span class="n">sleep</span><span class="o">=</span><span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="kc">None</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"ok"</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">calls</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="n">h2</span><span class="p">,</span> <span class="n">calls2</span> <span class="o">=</span> <span class="n">scripted</span><span class="p">(</span><span class="n">httpx</span><span class="o">.</span><span class="n">ReadTimeout</span><span class="p">(</span><span class="s2">"slow"</span><span class="p">))</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">UpstreamError</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">fetch_json</span><span class="p">(</span><span class="n">mock_client</span><span class="p">(</span><span class="n">h2</span><span class="p">),</span> <span class="s2">"/x"</span><span class="p">,</span> <span class="n">retries</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">sleep</span><span class="o">=</span><span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">e</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">status_code</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">calls2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_fetch_json_zero_retries_and_bad_json</span><span class="p">():</span>
+    <span class="n">h</span><span class="p">,</span> <span class="n">calls</span> <span class="o">=</span> <span class="n">scripted</span><span class="p">(</span><span class="mi">500</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">UpstreamError</span><span class="p">):</span>
+        <span class="n">fetch_json</span><span class="p">(</span><span class="n">mock_client</span><span class="p">(</span><span class="n">h</span><span class="p">),</span> <span class="s2">"/x"</span><span class="p">,</span> <span class="n">retries</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sleep</span><span class="o">=</span><span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">calls</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">bad</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">httpx</span><span class="o">.</span><span class="n">Response</span><span class="p">(</span><span class="mi">200</span><span class="p">,</span> <span class="n">content</span><span class="o">=</span><span class="sa">b</span><span class="s2">"&lt;html&gt;not json&lt;/html&gt;"</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">UpstreamError</span><span class="p">):</span>
+        <span class="n">fetch_json</span><span class="p">(</span><span class="n">mock_client</span><span class="p">(</span><span class="n">bad</span><span class="p">),</span> <span class="s2">"/x"</span><span class="p">,</span> <span class="n">sleep</span><span class="o">=</span><span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="kc">None</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">enrichment_client</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">handler</span><span class="p">):</span>
+    <span class="n">exercises</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">dependency_overrides</span><span class="p">[</span><span class="n">exercises</span><span class="o">.</span><span class="n">get_http_client</span><span class="p">]</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">mock_client</span><span class="p">(</span><span class="n">handler</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">client</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_enrichment_happy_path</span><span class="p">(</span><span class="n">client</span><span class="p">):</span>
+    <span class="n">add</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">email</span><span class="o">=</span><span class="s2">"ada@acme.com"</span><span class="p">)</span>
+    <span class="n">seen</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">h</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+        <span class="n">seen</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">url</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">httpx</span><span class="o">.</span><span class="n">Response</span><span class="p">(</span><span class="mi">200</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s2">"domain"</span><span class="p">:</span> <span class="s2">"acme.com"</span><span class="p">,</span> <span class="s2">"employees"</span><span class="p">:</span> <span class="mi">120</span><span class="p">})</span>
+
+    <span class="n">enrichment_client</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">h</span><span class="p">)</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/contacts/1/enrichment"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">json</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span>
+        <span class="s2">"contact"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"Ada"</span><span class="p">,</span> <span class="s2">"email"</span><span class="p">:</span> <span class="s2">"ada@acme.com"</span><span class="p">,</span> <span class="s2">"company"</span><span class="p">:</span> <span class="s2">"Acme"</span><span class="p">},</span>
+        <span class="s2">"company"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"domain"</span><span class="p">:</span> <span class="s2">"acme.com"</span><span class="p">,</span> <span class="s2">"employees"</span><span class="p">:</span> <span class="mi">120</span><span class="p">},</span>
+    <span class="p">}</span>
+    <span class="k">assert</span> <span class="n">seen</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"https://up.test/companies/acme.com"</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_enrichment_upstream_404_gives_null_company</span><span class="p">(</span><span class="n">client</span><span class="p">):</span>
+    <span class="n">add</span><span class="p">(</span><span class="n">client</span><span class="p">)</span>
+    <span class="n">enrichment_client</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">req</span><span class="p">:</span> <span class="n">httpx</span><span class="o">.</span><span class="n">Response</span><span class="p">(</span><span class="mi">404</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s2">"error"</span><span class="p">:</span> <span class="s2">"nope"</span><span class="p">}))</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/contacts/1/enrichment"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span> <span class="ow">and</span> <span class="n">r</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s2">"company"</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_enrichment_upstream_failure_is_502_after_retries</span><span class="p">(</span><span class="n">client</span><span class="p">):</span>
+    <span class="n">add</span><span class="p">(</span><span class="n">client</span><span class="p">)</span>
+    <span class="n">h</span><span class="p">,</span> <span class="n">calls</span> <span class="o">=</span> <span class="n">scripted</span><span class="p">(</span><span class="mi">503</span><span class="p">)</span>
+    <span class="n">enrichment_client</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">h</span><span class="p">)</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/contacts/1/enrichment"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">502</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">json</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"detail"</span><span class="p">:</span> <span class="s2">"Enrichment service unavailable"</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">calls</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span>  <span class="c1"># 1 try + 2 retries</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_enrichment_missing_contact</span><span class="p">(</span><span class="n">client</span><span class="p">):</span>
+    <span class="n">h</span><span class="p">,</span> <span class="n">calls</span> <span class="o">=</span> <span class="n">scripted</span><span class="p">(</span><span class="mi">200</span><span class="p">)</span>
+    <span class="n">enrichment_client</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">h</span><span class="p">)</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/contacts/42/enrichment"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">404</span> <span class="ow">and</span> <span class="n">calls</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="c1"># ---------------- C. webhooks ----------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">sign</span><span class="p">(</span><span class="n">body</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">,</span> <span class="n">secret</span><span class="o">=</span><span class="n">exercises</span><span class="o">.</span><span class="n">WEBHOOK_SECRET</span><span class="p">):</span>
+    <span class="k">return</span> <span class="s2">"sha256="</span> <span class="o">+</span> <span class="n">hmac</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="n">secret</span><span class="o">.</span><span class="n">encode</span><span class="p">(),</span> <span class="n">body</span><span class="p">,</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">)</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_verify_signature</span><span class="p">():</span>
+    <span class="n">body</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">'{"id":"e1"}'</span>
+    <span class="n">good</span> <span class="o">=</span> <span class="n">sign</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="s2">"s3cret"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">verify_signature</span><span class="p">(</span><span class="s2">"s3cret"</span><span class="p">,</span> <span class="n">body</span><span class="p">,</span> <span class="n">good</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span>
+    <span class="k">assert</span> <span class="n">verify_signature</span><span class="p">(</span><span class="s2">"other"</span><span class="p">,</span> <span class="n">body</span><span class="p">,</span> <span class="n">good</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="n">verify_signature</span><span class="p">(</span><span class="s2">"s3cret"</span><span class="p">,</span> <span class="n">body</span> <span class="o">+</span> <span class="sa">b</span><span class="s2">" "</span><span class="p">,</span> <span class="n">good</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="n">verify_signature</span><span class="p">(</span><span class="s2">"s3cret"</span><span class="p">,</span> <span class="n">body</span><span class="p">,</span> <span class="n">good</span><span class="o">.</span><span class="n">removeprefix</span><span class="p">(</span><span class="s2">"sha256="</span><span class="p">))</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="n">verify_signature</span><span class="p">(</span><span class="s2">"s3cret"</span><span class="p">,</span> <span class="n">body</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="n">verify_signature</span><span class="p">(</span><span class="s2">"s3cret"</span><span class="p">,</span> <span class="n">body</span><span class="p">,</span> <span class="s2">"sha256=zzzz"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">post_event</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="n">signature</span><span class="o">=</span><span class="s2">"auto"</span><span class="p">):</span>
+    <span class="n">body</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">event</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span> <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">event</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">)</span> <span class="k">else</span> <span class="n">event</span>
+    <span class="n">headers</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"Content-Type"</span><span class="p">:</span> <span class="s2">"application/json"</span><span class="p">}</span>
+    <span class="k">if</span> <span class="n">signature</span> <span class="o">==</span> <span class="s2">"auto"</span><span class="p">:</span>
+        <span class="n">headers</span><span class="p">[</span><span class="s2">"X-Signature"</span><span class="p">]</span> <span class="o">=</span> <span class="n">sign</span><span class="p">(</span><span class="n">body</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">signature</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">headers</span><span class="p">[</span><span class="s2">"X-Signature"</span><span class="p">]</span> <span class="o">=</span> <span class="n">signature</span>
+    <span class="k">return</span> <span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/webhooks/payments"</span><span class="p">,</span> <span class="n">content</span><span class="o">=</span><span class="n">body</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_webhook_accepts_valid_event</span><span class="p">(</span><span class="n">client</span><span class="p">):</span>
+    <span class="n">ev</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="s2">"evt_1"</span><span class="p">,</span> <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"payment.succeeded"</span><span class="p">,</span> <span class="s2">"amount"</span><span class="p">:</span> <span class="mi">500</span><span class="p">}</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">post_event</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">ev</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">202</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">json</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"status"</span><span class="p">:</span> <span class="s2">"accepted"</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">exercises</span><span class="o">.</span><span class="n">EVENT_LOG</span> <span class="o">==</span> <span class="p">[</span><span class="n">ev</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="s2">"evt_1"</span> <span class="ow">in</span> <span class="n">exercises</span><span class="o">.</span><span class="n">PROCESSED_EVENTS</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_webhook_rejects_bad_signature</span><span class="p">(</span><span class="n">client</span><span class="p">):</span>
+    <span class="n">ev</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="s2">"evt_1"</span><span class="p">,</span> <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"x"</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">post_event</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">ev</span><span class="p">,</span> <span class="n">signature</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">401</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">post_event</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">ev</span><span class="p">,</span> <span class="n">signature</span><span class="o">=</span><span class="s2">"sha256=deadbeef"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">401</span> <span class="ow">and</span> <span class="n">r</span><span class="o">.</span><span class="n">json</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"detail"</span><span class="p">:</span> <span class="s2">"Invalid signature"</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">exercises</span><span class="o">.</span><span class="n">EVENT_LOG</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_webhook_is_idempotent</span><span class="p">(</span><span class="n">client</span><span class="p">):</span>
+    <span class="n">ev</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="s2">"evt_9"</span><span class="p">,</span> <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"payment.succeeded"</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">post_event</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">ev</span><span class="p">)</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">202</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">post_event</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">ev</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">json</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"status"</span><span class="p">:</span> <span class="s2">"duplicate"</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">exercises</span><span class="o">.</span><span class="n">EVENT_LOG</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_webhook_bad_payloads</span><span class="p">(</span><span class="n">client</span><span class="p">):</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">post_event</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="sa">b</span><span class="s2">"{not json"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">400</span> <span class="ow">and</span> <span class="n">r</span><span class="o">.</span><span class="n">json</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"detail"</span><span class="p">:</span> <span class="s2">"Invalid JSON"</span><span class="p">}</span>
+    <span class="k">for</span> <span class="n">ev</span> <span class="ow">in</span> <span class="p">({</span><span class="s2">"id"</span><span class="p">:</span> <span class="s2">"x"</span><span class="p">},</span> <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"x"</span><span class="p">},</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span> <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"x"</span><span class="p">},</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]):</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="n">post_event</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">ev</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">400</span> <span class="ow">and</span> <span class="n">r</span><span class="o">.</span><span class="n">json</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"detail"</span><span class="p">:</span> <span class="s2">"Malformed event"</span><span class="p">},</span> <span class="n">ev</span>
+    <span class="k">assert</span> <span class="n">exercises</span><span class="o">.</span><span class="n">EVENT_LOG</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="c1"># ---------------- D. messy data ----------------</span>
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">parametrize</span><span class="p">(</span>
+    <span class="s2">"raw,expected"</span><span class="p">,</span>
+    <span class="p">[</span>
+        <span class="p">(</span><span class="s2">"(415) 555-0134"</span><span class="p">,</span> <span class="s2">"+14155550134"</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">"1-415-555-0134"</span><span class="p">,</span> <span class="s2">"+14155550134"</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">"415.555.0134"</span><span class="p">,</span> <span class="s2">"+14155550134"</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">"+1 415 555 0134"</span><span class="p">,</span> <span class="s2">"+14155550134"</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">"555-0134"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">""</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">"+44 20 7946 0958"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">"call me"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">"2-415-555-0134"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+    <span class="p">],</span>
+<span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_clean_phone</span><span class="p">(</span><span class="n">raw</span><span class="p">,</span> <span class="n">expected</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">clean_phone</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span> <span class="o">==</span> <span class="n">expected</span>
+
+
+<span class="n">CSV</span> <span class="o">=</span> <span class="s2">"""Full Name, E-mail ,Phone Number,Company Name</span>
+<span class="s2">  Ada   Lovelace ,ADA@Example.com,(415) 555-0134,Analytical Engines</span>
+<span class="s2">Bob,bob@example,1-415-555-0199,</span>
+<span class="s2">,carl@example.com,,Acme</span>
+<span class="s2">Dee,dee@example.com,555-0134,Acme</span>
+<span class="s2">Ada Again,ada@example.com,,Other</span>
+<span class="s2">,,,</span>
+<span class="s2">Eve,eve@example.com</span>
+<span class="s2">"""</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_clean_contacts_csv</span><span class="p">():</span>
+    <span class="n">good</span><span class="p">,</span> <span class="n">bad</span> <span class="o">=</span> <span class="n">clean_contacts_csv</span><span class="p">(</span><span class="n">CSV</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">good</span> <span class="o">==</span> <span class="p">[</span>
+        <span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"Ada Lovelace"</span><span class="p">,</span> <span class="s2">"email"</span><span class="p">:</span> <span class="s2">"ada@example.com"</span><span class="p">,</span> <span class="s2">"phone"</span><span class="p">:</span> <span class="s2">"+14155550134"</span><span class="p">,</span> <span class="s2">"company"</span><span class="p">:</span> <span class="s2">"Analytical Engines"</span><span class="p">},</span>
+        <span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"Dee"</span><span class="p">,</span> <span class="s2">"email"</span><span class="p">:</span> <span class="s2">"dee@example.com"</span><span class="p">,</span> <span class="s2">"phone"</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">"company"</span><span class="p">:</span> <span class="s2">"Acme"</span><span class="p">},</span>
+        <span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"Eve"</span><span class="p">,</span> <span class="s2">"email"</span><span class="p">:</span> <span class="s2">"eve@example.com"</span><span class="p">,</span> <span class="s2">"phone"</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">"company"</span><span class="p">:</span> <span class="kc">None</span><span class="p">},</span>
+    <span class="p">]</span>
+    <span class="k">assert</span> <span class="n">bad</span> <span class="o">==</span> <span class="p">[</span>
+        <span class="p">{</span><span class="s2">"line"</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">"reason"</span><span class="p">:</span> <span class="s2">"invalid email"</span><span class="p">},</span>
+        <span class="p">{</span><span class="s2">"line"</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s2">"reason"</span><span class="p">:</span> <span class="s2">"missing name"</span><span class="p">},</span>
+        <span class="p">{</span><span class="s2">"line"</span><span class="p">:</span> <span class="mi">6</span><span class="p">,</span> <span class="s2">"reason"</span><span class="p">:</span> <span class="s2">"duplicate email"</span><span class="p">},</span>
+    <span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_clean_contacts_csv_bom_and_other_aliases</span><span class="p">():</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="s2">"</span><span class="se">\ufeff</span><span class="s2">name,Email-Address,organization</span><span class="se">\n</span><span class="s2">Zed,Z@Y.io,Zed Inc</span><span class="se">\n</span><span class="s2">"</span>
+    <span class="n">good</span><span class="p">,</span> <span class="n">bad</span> <span class="o">=</span> <span class="n">clean_contacts_csv</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">bad</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="k">assert</span> <span class="n">good</span> <span class="o">==</span> <span class="p">[{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"Zed"</span><span class="p">,</span> <span class="s2">"email"</span><span class="p">:</span> <span class="s2">"z@y.io"</span><span class="p">,</span> <span class="s2">"phone"</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">"company"</span><span class="p">:</span> <span class="s2">"Zed Inc"</span><span class="p">}]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_clean_contacts_csv_empty_inputs</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">clean_contacts_csv</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span> <span class="o">==</span> <span class="p">([],</span> <span class="p">[])</span>
+    <span class="k">assert</span> <span class="n">clean_contacts_csv</span><span class="p">(</span><span class="s2">"name,email</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span> <span class="o">==</span> <span class="p">([],</span> <span class="p">[])</span>
+
+
+<span class="n">DOC</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"b"</span><span class="p">:</span> <span class="p">[{</span><span class="s2">"c"</span><span class="p">:</span> <span class="mi">1</span><span class="p">},</span> <span class="p">{</span><span class="s2">"c"</span><span class="p">:</span> <span class="mi">2</span><span class="p">}]},</span> <span class="s2">"n"</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">"list"</span><span class="p">:</span> <span class="p">[</span><span class="mi">10</span><span class="p">,</span> <span class="mi">20</span><span class="p">]}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_get_path</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">get_path</span><span class="p">(</span><span class="n">DOC</span><span class="p">,</span> <span class="s2">"a.b.1.c"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">get_path</span><span class="p">(</span><span class="n">DOC</span><span class="p">,</span> <span class="s2">"list.0"</span><span class="p">)</span> <span class="o">==</span> <span class="mi">10</span>
+    <span class="k">assert</span> <span class="n">get_path</span><span class="p">(</span><span class="n">DOC</span><span class="p">,</span> <span class="s2">"a.x.y"</span><span class="p">,</span> <span class="s2">"dflt"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"dflt"</span>
+    <span class="k">assert</span> <span class="n">get_path</span><span class="p">(</span><span class="n">DOC</span><span class="p">,</span> <span class="s2">"a.b.5.c"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">get_path</span><span class="p">(</span><span class="n">DOC</span><span class="p">,</span> <span class="s2">"a.b.first"</span><span class="p">,</span> <span class="s2">"d"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"d"</span>
+    <span class="k">assert</span> <span class="n">get_path</span><span class="p">(</span><span class="n">DOC</span><span class="p">,</span> <span class="s2">"n.deeper"</span><span class="p">,</span> <span class="s2">"d"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"d"</span>
+    <span class="k">assert</span> <span class="n">get_path</span><span class="p">(</span><span class="n">DOC</span><span class="p">,</span> <span class="s2">"n"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="k">assert</span> <span class="n">get_path</span><span class="p">(</span><span class="n">DOC</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span> <span class="ow">is</span> <span class="n">DOC</span>
+    <span class="k">assert</span> <span class="n">get_path</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="k">assert</span> <span class="n">get_path</span><span class="p">(</span><span class="s2">"text"</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">,</span> <span class="s2">"d"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"d"</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../04-fastapi/week-03-database-and-integrations/exercises.py.html">← Week 3 · Database and integrations: Exercises (code)</a><a class="next" href="../../04-fastapi/week-04-auth-deploy-project/lesson.html">Week 4 · Auth, deploy, project: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

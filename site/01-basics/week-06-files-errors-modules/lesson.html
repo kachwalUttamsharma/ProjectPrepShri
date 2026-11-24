@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 6: Files, errors, modules | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="01-basics/week-06-files-errors-modules/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../01-basics/week-01-first-steps/lesson.html">Python Basics</a> / <a href="../../01-basics/week-06-files-errors-modules/lesson.html">Week 6 · Files, errors, modules</a> / <span>Lesson</span></nav><button id="mark-done" data-id="01-basics/week-06-files-errors-modules/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-6-files-errors-modules">Week 6: Files, errors, modules</h1>
+<h2 id="1-reading-and-writing-files">1. Reading and writing files</h2>
+<p>Always use <code>with</code>: it closes the file for you, even if an error happens.</p>
+<div class="highlight"><pre><span></span><code><span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"notes.txt"</span><span class="p">,</span> <span class="s2">"w"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>      <span class="c1"># "w" write (overwrites), "a" append, "r" read (default)</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">"line 1</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>                <span class="c1"># write does NOT add newlines</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">"line 2</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"notes.txt"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>                    <span class="c1"># whole file as one string</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"notes.txt"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">f</span><span class="p">:</span>                     <span class="c1"># one line at a time, includes '\n'</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+</code></pre></div>
+
+<p><code>f.readlines()</code> gives a list of lines. Use <code>encoding="utf-8"</code> for non-English text.</p>
+<h2 id="2-pathlib-modern-paths">2. pathlib (modern paths)</h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="n">p</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">"data"</span><span class="p">)</span> <span class="o">/</span> <span class="s2">"notes.txt"</span>    <span class="c1"># / joins parts</span>
+<span class="n">p</span><span class="o">.</span><span class="n">exists</span><span class="p">();</span> <span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">;</span> <span class="n">p</span><span class="o">.</span><span class="n">suffix</span>      <span class="c1"># 'notes.txt', '.txt'</span>
+<span class="n">p</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>     <span class="c1"># make folder</span>
+<span class="n">p</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="s2">"hi</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>              <span class="c1"># shortcut: write whole file</span>
+<span class="n">p</span><span class="o">.</span><span class="n">read_text</span><span class="p">()</span>                     <span class="c1"># shortcut: read whole file</span>
+</code></pre></div>
+
+<h2 id="3-errors-exceptions">3. Errors (exceptions)</h2>
+<p>When something goes wrong Python raises an exception and the program stops, unless you catch it.</p>
+<div class="highlight"><pre><span></span><code><span class="k">try</span><span class="p">:</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="s2">"abc"</span><span class="p">)</span>
+<span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"no error"</span><span class="p">)</span>      <span class="c1"># runs only if no exception</span>
+<span class="k">finally</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"always runs"</span><span class="p">)</span>   <span class="c1"># cleanup</span>
+</code></pre></div>
+
+<p>Common ones: <code>ValueError</code>, <code>TypeError</code>, <code>KeyError</code>, <code>IndexError</code>, <code>ZeroDivisionError</code>, <code>FileNotFoundError</code>.</p>
+<ul>
+<li>Catch the <strong>specific</strong> error you expect. A bare <code>except:</code> hides bugs.</li>
+<li>Keep the <code>try</code> block small.</li>
+</ul>
+<h2 id="4-raising-your-own-errors">4. Raising your own errors</h2>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">set_age</span><span class="p">(</span><span class="n">age</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">age</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"age cannot be negative"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">age</span>
+</code></pre></div>
+
+<p>Tests check this with <code>pytest.raises(ValueError)</code>.</p>
+<h2 id="5-modules-and-imports">5. Modules and imports</h2>
+<p>A module is a <code>.py</code> file. Import to reuse code.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+<span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">16</span><span class="p">)</span>                      <span class="c1"># 4.0</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">Counter</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">math</span><span class="w"> </span><span class="kn">import</span> <span class="n">pi</span> <span class="k">as</span> <span class="n">PI</span>
+</code></pre></div>
+
+<p>Your own file <code>helpers.py</code> can be imported with <code>import helpers</code> (same folder). Useful standard modules: <code>math</code>, <code>random</code>, <code>datetime</code>, <code>os</code>, <code>pathlib</code>, <code>json</code>, <code>collections</code>, <code>itertools</code>.</p>
+<p><code>if __name__ == "__main__":</code> runs code only when the file is run directly, not when imported.</p>
+<h2 id="6-json">6. JSON</h2>
+<p>A text format for dicts/lists/strings/numbers/booleans/null.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="n">text</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span><span class="s2">"a"</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]})</span>       <span class="c1"># to string</span>
+<span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>                <span class="c1"># from string</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"x.json"</span><span class="p">,</span> <span class="s2">"w"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>                 <span class="c1"># to file</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"x.json"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>                <span class="c1"># from file</span>
+</code></pre></div>
+
+<p>Python <code>None</code> becomes <code>null</code>, tuples become lists, dict keys become strings.</p>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li>Forgetting <code>\n</code> when writing lines.</li>
+<li>Opening with <code>"w"</code> when you meant <code>"a"</code> (it erases the file).</li>
+<li>Not stripping <code>\n</code> from lines you read.</li>
+<li><code>except Exception: pass</code> silently hiding problems.</li>
+<li>Reading a file after it was closed (use it inside the <code>with</code> block).</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run:
+<code>.venv/bin/pytest 01-basics/week-06-files-errors-modules -v</code>
+The tests create temporary files for you, so nothing is left on your disk.</p>
+</article><div class="pager"><a class="prev" href="../../01-basics/week-05-dicts-sets/test_exercises.py.html">← Week 5 · Dictionaries and sets: Tests (code)</a><a class="next" href="../../01-basics/week-06-files-errors-modules/exercises.py.html">Week 6 · Files, errors, modules: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 1 - Fundamentals: Estimation, Scalability, Availability, Load Balancing, Caching | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="08-system-design/week-01-fundamentals/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../08-system-design/README.html">System Design</a> / <a href="../../08-system-design/week-01-fundamentals/lesson.html">Week 1 · Fundamentals</a> / <span>Lesson</span></nav><button id="mark-done" data-id="08-system-design/week-01-fundamentals/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-1-fundamentals-estimation-scalability-availability-load-balancing-caching">Week 1 - Fundamentals: Estimation, Scalability, Availability, Load Balancing, Caching</h1>
+<p>Time budget: ~3 hrs. Read lesson (1.5h), Q&amp;A aloud (1h), cheatsheet (30m).
+Numbers marked "(check current docs)" change over time; verify before quoting. Latency numbers are order-of-magnitude, which is all an interview needs.</p>
+<p>AWS cross-links: ELB/Auto Scaling in <code>../../07-aws/week-02-compute/lesson.md</code>; ElastiCache/DynamoDB in <code>../../07-aws/week-03-storage-databases/lesson.md</code>; CloudFront/Route 53 in <code>../../07-aws/week-04-networking/lesson.md</code>.</p>
+<hr />
+<h2 id="1-latency-vs-throughput-and-why-they-are-not-the-same">1. Latency vs throughput (and why they are not the same)</h2>
+<ul>
+<li>Latency: time for ONE request (ms). Think "how long does one car take to cross the bridge".</li>
+<li>Throughput: requests (or bytes) per unit time (QPS, MB/s). Think "cars per hour".</li>
+<li>Bandwidth: maximum capacity of the pipe (upper bound on throughput).</li>
+<li>You can have high throughput with high latency (a cargo ship), and low latency with low throughput (a single-threaded server).</li>
+</ul>
+<p>Little's Law (the one formula worth memorizing):</p>
+<div class="highlight"><pre><span></span><code>  L = lambda * W
+  L      = average number of requests in the system (concurrency)
+  lambda = arrival rate (QPS)
+  W      = average time each request spends in system (latency)
+
+  Example: 2,000 QPS, 50 ms avg latency  -&gt; L = 2000 * 0.05 = 100 concurrent requests.
+  If a downstream slows to 500 ms, concurrency needed becomes 1,000.
+  =&gt; thread pools / connection pools exhaust -&gt; cascading failure (see week 3).
+</code></pre></div>
+
+<h3 id="percentiles-not-averages">Percentiles, not averages</h3>
+<ul>
+<li>p50 (median), p95, p99, p99.9. Averages hide the tail.</li>
+<li>Tail latency amplification: if one user request fans out to N backends in parallel, the request is as slow as the slowest. With N=100 and each backend slow 1% of the time, P(at least one slow) = 1 - 0.99^100 = ~63%. So the user sees "p99" behaviour most of the time. (Dean &amp; Barroso, "The Tail at Scale".)</li>
+<li>Mitigations: hedged requests (send a duplicate after p95 timeout, take first), timeouts, load shedding, smaller fan-out, caching.</li>
+<li>Latency numbers on SLOs are almost always p99 (or p99.9), not mean.</li>
+</ul>
+<h3 id="latency-numbers-every-engineer-should-know-approximate-order-of-magnitude">Latency numbers every engineer should know (approximate, order of magnitude)</h3>
+<div class="highlight"><pre><span></span><code>  L1 cache reference                         ~1 ns
+  Branch mispredict                          ~3 ns
+  L2 cache reference                         ~4 ns
+  Mutex lock/unlock                          ~17-25 ns
+  Main memory (RAM) reference                ~100 ns
+  Compress 1 KB (fast codec)                 ~2-3 us
+  Send 1 KB over 1 Gbps network              ~10 us
+  SSD random read (NVMe)                     ~16-100 us
+  Read 1 MB sequentially from RAM            ~3-30 us   (varies a lot by source)
+  Round trip within same data center         ~0.5 ms
+  Read 1 MB sequentially from SSD            ~50-200 us (NVMe) up to ~1 ms (SATA)
+  HDD seek                                   ~2-10 ms
+  Read 1 MB sequentially from HDD            ~1-20 ms
+  Cross-region round trip (US east&lt;-&gt;west)   ~60-80 ms
+  US &lt;-&gt; Europe round trip                   ~80-150 ms
+  US &lt;-&gt; Asia round trip                     ~150-250 ms
+  TCP handshake + TLS 1.3 handshake          ~1-2 RTT (TLS 1.2: 2 RTT)
+</code></pre></div>
+
+<p>Rules of thumb derived from the table:</p>
+<ol>
+<li>Memory is ~100x faster than SSD, SSD ~100x faster than HDD seek.</li>
+<li>Network inside a DC is cheap; across continents is bounded by the speed of light (~200,000 km/s in fiber; NYC&lt;-&gt;London ~5,600 km =&gt; &gt;= ~56 ms RTT physics floor).</li>
+<li>Avoid round trips: batching, caching, CDN, co-location.</li>
+<li>Sequential beats random on every medium.</li>
+<li>Serialization/compression cost is small next to a network hop (unless payloads are huge).</li>
+</ol>
+<hr />
+<h2 id="2-back-of-envelope-estimation">2. Back-of-envelope estimation</h2>
+<p>Why: shows you can size a system and pick architecture accordingly (does this fit on one box? need sharding? need a CDN?). Aim for ~5 minutes, round aggressively, state assumptions out loud.</p>
+<h3 id="numbers-to-memorize">Numbers to memorize</h3>
+<div class="highlight"><pre><span></span><code>  Powers of two                        Time
+  2^10 = 1 thousand  (KB)              1 day   = 86,400 s  ~ 10^5 s  (use 100,000)
+  2^20 = 1 million   (MB)              1 month ~ 2.5 million s
+  2^30 = 1 billion   (GB)              1 year  ~ 31.5 million s ~ 3 * 10^7 s
+  2^40 = 1 trillion  (TB)
+  2^50 = 1 quadrillion (PB)
+
+  Handy conversions
+  1 million req/day   ~ 12 QPS          (10^6 / 10^5)
+  100 million req/day ~ 1,200 QPS
+  1 billion req/day   ~ 12,000 QPS
+  Peak ~ 2-5x average (state your assumption; social apps often 2-3x, event-driven 10x+)
+
+  Availability -&gt; downtime per year
+  99%      3.65 days
+  99.9%    8.76 hours
+  99.99%   52.6 minutes
+  99.999%  5.26 minutes
+</code></pre></div>
+
+<p>Typical capacity of one machine (very rough, check current docs / benchmark):</p>
+<ul>
+<li>Web/app server doing simple work: ~1k-10k QPS per core-ish range; a typical stateless API instance: hundreds to few thousand QPS.</li>
+<li>Single Postgres/MySQL node: ~1k-10k+ simple writes/s, ~10k-50k+ simple reads/s depending on hardware, schema, cache hit rate.</li>
+<li>Redis single node: ~100k ops/s (more with pipelining).</li>
+<li>Kafka broker: hundreds of MB/s throughput per broker is common on good disks/NICs.</li>
+<li>SSD: ~100s of thousands of IOPS (NVMe); NIC: 10-25 Gbps common in cloud; 1 Gbps = ~125 MB/s.</li>
+<li>RAM on a big box: 256 GB - several TB. Disk per box: tens of TB.</li>
+</ul>
+<p>Typical data sizes:</p>
+<ul>
+<li>char/ASCII: 1 byte; UUID: 16 B (36 chars as text); int64: 8 B; timestamp: 8 B.</li>
+<li>Tweet-like text: ~300 B incl. metadata; DB row w/ a few columns: ~100 B - 1 KB.</li>
+<li>Image (compressed photo): ~200 KB - 2 MB; thumbnail: ~10-50 KB.</li>
+<li>Video: ~1 MB/min low quality, 5-10 MB/min HD (varies with codec; ~3-8 Mbps HD streaming).</li>
+</ul>
+<h3 id="worked-example-a-twitter-like-service">Worked example A: Twitter-like service</h3>
+<p>Assumptions (state them!): 300M MAU, 100M DAU, each user posts 0.5 tweets/day, reads 100 tweets/day (timeline views).</p>
+<div class="highlight"><pre><span></span><code>  Write QPS
+    tweets/day     = 100M * 0.5 = 50M
+    avg write QPS  = 50M / 100k s = 500 QPS
+    peak (x3)      = 1,500 QPS
+
+  Read QPS
+    reads/day      = 100M * 100 = 10B tweet-reads/day
+    avg read QPS   = 10B / 100k = 100,000 QPS
+    peak (x3)      = 300,000 QPS
+    read:write     = 200:1  -&gt; read-heavy -&gt; cache, replicas, fan-out on write
+
+  Storage (text only)
+    tweet size     = ~300 B (text 140-280 chars + ids + timestamps)
+    per day        = 50M * 300 B = 15 GB/day
+    per year       = ~5.5 TB/year; 5 years ~ 27 TB  (x3 replication ~ 80 TB)  -&gt; fits sharded, trivially
+  Storage (media): 20% have a 500 KB image
+    50M * 0.2 * 500 KB = 5 TB/day -&gt; 1.8 PB/year  -&gt; object store + CDN, NOT the DB
+  Bandwidth
+    egress  : 100k read QPS * 1 KB (text payload) = 100 MB/s ~ 0.8 Gbps (text) -- easy
+              media dominates: if 10% of reads include 200 KB image: 10k * 200 KB = 2 GB/s = 16 Gbps -&gt; CDN
+</code></pre></div>
+
+<p>Takeaway: text is small; media dominates storage and bandwidth; read QPS drives the cache design.</p>
+<h3 id="worked-example-b-url-shortener">Worked example B: URL shortener</h3>
+<div class="highlight"><pre><span></span><code>  Writes: 100M new URLs/month -&gt; 100M / 2.5M s = ~40 QPS write (peak ~120)
+  Read:write = 100:1       -&gt; 4,000 QPS read (peak ~12k)
+  Record = short code 7 B + long url ~200 B + metadata ~50 B ~ 300 B (round up to 500 B)
+  Storage: 100M * 12 months * 5 years = 6B records * 500 B = 3 TB. Fits on one big box; shard for throughput/availability, not size.
+  Key space: base62, 7 chars = 62^7 = ~3.5 trillion &gt;&gt; 6B. OK.
+  Cache: 80/20 rule: cache top 20% of daily reads. Daily reads = 4,000*100k = 400M; unique ~?? say 100M; 20% * 100M * 500 B = 10 GB -&gt; one Redis node.
+</code></pre></div>
+
+<h3 id="worked-example-c-photo-upload-service-bandwidth">Worked example C: Photo upload service bandwidth</h3>
+<div class="highlight"><pre><span></span><code>  10M DAU, each uploads 2 photos/day of 2 MB.
+  Uploads/day = 20M -&gt; 230 QPS avg (~700 peak)
+  Ingress     = 230 * 2 MB = 460 MB/s avg (~3.7 Gbps)  peak ~1.4 GB/s
+  Storage/day = 40 TB; per year = ~14.6 PB (before replication/erasure coding)
+  =&gt; object storage (S3-like), multipart/presigned uploads straight to storage, async thumbnailing via queue, CDN for reads.
+</code></pre></div>
+
+<h3 id="estimation-method-say-this-out-loud">Estimation method (say this out loud)</h3>
+<ol>
+<li>Clarify scale (DAU/MAU, read:write).</li>
+<li>Derive QPS (avg + peak). 3. Derive storage (per-record size * count * retention * replication).</li>
+<li>Derive bandwidth (QPS * payload). 5. Derive memory for cache (hot set).</li>
+<li>Conclude: "so single node suffices / we need N shards / need CDN".
+Common mistakes: forgetting peak vs average, forgetting replication factor (x3), mixing bits and bytes (Gbps vs GB/s: divide by 8), 86,400 vs 100,000 (use 10^5 and say so), over-precise arithmetic.</li>
+</ol>
+<hr />
+<h2 id="3-scalability-vertical-vs-horizontal">3. Scalability: vertical vs horizontal</h2>
+<div class="highlight"><pre><span></span><code>  Vertical (scale up)                 Horizontal (scale out)
+  +----------+                        +----+ +----+ +----+ +----+
+  |  BIGGER  |                        | S1 | | S2 | | S3 | | S4 |
+  |   BOX    |                        +----+ +----+ +----+ +----+
+  +----------+                              ^ load balancer
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Vertical</th>
+<th>Horizontal</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Complexity</td>
+<td>Low (no code change)</td>
+<td>High (distribution, consistency, partial failure)</td>
+</tr>
+<tr>
+<td>Ceiling</td>
+<td>Hard limit (largest instance)</td>
+<td>Practically unbounded</td>
+</tr>
+<tr>
+<td>Failure</td>
+<td>Single point of failure</td>
+<td>Survives node loss</td>
+</tr>
+<tr>
+<td>Cost curve</td>
+<td>Superlinear at the top end</td>
+<td>Roughly linear, commodity</td>
+</tr>
+<tr>
+<td>Downtime to scale</td>
+<td>Often restart</td>
+<td>Add nodes live</td>
+</tr>
+</tbody>
+</table>
+<p>Guidance: scale vertically first while it is cheap and simple (one big Postgres goes a long way: many companies run on a single primary + replicas for years), but design so that horizontal is possible: stateless services, partitionable data, idempotent operations.</p>
+<p>Scaling a typical system in stages (a good narrative for interviews):</p>
+<ol>
+<li>Single server (app + DB). 2. Split DB from app. 3. Add load balancer + multiple stateless app servers. 4. Add read replicas + cache. 5. CDN for static/media. 6. Message queue for async work. 7. Shard the DB. 8. Multi-AZ, then multi-region. 9. Observability + autoscaling throughout.</li>
+</ol>
+<p>Scaling axes (Scale Cube): X = clone (replicas behind LB), Y = functional split (microservices), Z = data partitioning (sharding by key).</p>
+<p>Amdahl's law: speedup is limited by the serial fraction. If 5% of work is serial (e.g. a single lock, a single leader), max speedup is 20x no matter how many nodes. Universal Scalability Law adds coherence cost: adding nodes can reduce throughput (contention + crosstalk). Hot spots (one hot key / one lock / one primary) are the practical form of this.</p>
+<h3 id="autoscaling-basics">Autoscaling basics</h3>
+<ul>
+<li>Scale on a leading metric that correlates with load (CPU, requests per target, queue depth) not lagging errors.</li>
+<li>Scale-out is quick (minutes), keep headroom for the warm-up time; scale-in slowly (cooldowns) to avoid flapping.</li>
+<li>Pre-warm for known events (sales, launches). See AWS Auto Scaling in <code>../../07-aws/week-02-compute/lesson.md</code>.</li>
+<li>Stateful tiers (DB, cache) do not autoscale nearly as easily as stateless ones.</li>
+</ul>
+<hr />
+<h2 id="4-stateless-services">4. Stateless services</h2>
+<p>A service is stateless if any request can be served by any instance, because no per-client state lives in instance memory/disk between requests.</p>
+<div class="highlight"><pre><span></span><code>  STATEFUL (sticky)                          STATELESS
+  client -&gt; LB -&gt; S1 (session in RAM)        client -&gt; LB -&gt; any of S1..Sn
+  if S1 dies the session is lost             state in: DB, Redis, signed token (JWT), client cookie
+</code></pre></div>
+
+<p>Where state goes:</p>
+<ul>
+<li>Session -&gt; Redis / DB, or stateless signed tokens (JWT). Tradeoff: JWT cannot be revoked easily (needs short expiry + deny-list/refresh tokens), larger request size.</li>
+<li>Uploaded files -&gt; object storage (S3), never local disk.</li>
+<li>Background jobs/schedules -&gt; queue + workers, or a distributed scheduler with leader election (week 4).</li>
+<li>Websocket connections are inherently stateful: keep a connection registry (user -&gt; gateway node) in Redis (week 6 chat design).</li>
+<li>Local caches are fine as an optimization (not the source of truth), but accept inconsistency across nodes.</li>
+</ul>
+<p>Benefits: trivial horizontal scaling, rolling deploys, easy failover, autoscaling, spot instances.
+12-factor hints: config in env, logs to stdout, disposable processes, fast startup/graceful shutdown.
+Sticky sessions (LB affinity) are a crutch: uneven load, lost on node failure, complicate deploys. Use only if unavoidable.</p>
+<p>FastAPI tie-in: your app instances should hold no per-user state in module globals; use dependency-injected DB/Redis clients; run multiple uvicorn workers/containers behind a LB; use <code>/healthz</code> (liveness) and <code>/readyz</code> (readiness) endpoints.</p>
+<hr />
+<h2 id="5-availability-and-reliability">5. Availability and reliability</h2>
+<ul>
+<li>Availability = fraction of time the system is able to serve correct requests = uptime / (uptime + downtime). Also = MTBF / (MTBF + MTTR).</li>
+<li>Reliability = probability of performing correctly over a period (fewer failures). Durability = data not lost (S3 quotes "11 nines" annual durability design target - check current docs). Availability and durability are different: you can be down but lose nothing.</li>
+<li>Fault (component deviates) vs failure (system stops serving users). Goal: fault tolerance - faults do not become failures.</li>
+</ul>
+<h3 id="the-nines">The nines</h3>
+<div class="highlight"><pre><span></span><code>  Availability   Downtime/year   Downtime/month   Typical meaning
+  99%            3.65 days       7.3 h            hobby
+  99.9%          8.76 h          43.8 min         "three nines" typical SaaS
+  99.95%         4.38 h          21.9 min
+  99.99%         52.6 min        4.4 min          "four nines" needs automation, multi-AZ
+  99.999%        5.26 min        26 s             "five nines" needs multi-region, hard
+</code></pre></div>
+
+<h3 id="composing-availability">Composing availability</h3>
+<div class="highlight"><pre><span></span><code>  Serial (all must work):   A = A1 * A2 * A3
+     3 services at 99.9% each =&gt; 0.999^3 = 99.7%  (~26 hours/year!)
+     =&gt; deep dependency chains destroy availability. Reduce hard dependencies; make some soft (degrade gracefully).
+
+  Parallel (any one suffices, independent failures):  A = 1 - (1-A1)(1-A2)
+     2 replicas at 99%   =&gt; 1 - 0.01*0.01 = 99.99%
+     Caveat: failures are rarely independent (shared deploy, shared config, shared region, same bug). Correlated failure is the real enemy.
+</code></pre></div>
+
+<h3 id="techniques">Techniques</h3>
+<ul>
+<li>Redundancy: N+1 instances across AZs; no single point of failure (SPOF). Ask for every box on the diagram: "what if this dies?"</li>
+<li>Failover: active-passive (standby takes over; detection + promotion delay) vs active-active (all serve; need conflict handling for state).</li>
+<li>Health checks + automatic removal from LB; fast detection vs false positives tradeoff.</li>
+<li>Graceful degradation: serve stale cache, disable recommendations, read-only mode.</li>
+<li>Load shedding &amp; rate limiting; bulkheads (isolate resource pools per dependency); timeouts; retries with backoff (week 3); circuit breakers (week 3).</li>
+<li>Safe deploys: canary, blue/green, feature flags, fast rollback (week 5). Most outages are caused by changes.</li>
+<li>Chaos engineering; game days; capacity planning.</li>
+<li>Blast radius reduction: cells/shards so one bad tenant/shard affects a fraction.</li>
+</ul>
+<h3 id="common-failure-modes-name-these-in-interviews">Common failure modes (name these in interviews)</h3>
+<ul>
+<li>Cascading failure: slow dependency -&gt; threads pile up -&gt; upstream times out -&gt; retries multiply load (retry storm) -&gt; total outage.</li>
+<li>Thundering herd / cache stampede after a restart or expiry.</li>
+<li>Split brain: two nodes both think they are leader.</li>
+<li>Gray failure: node is "up" but slow/partial; health checks pass; hardest to detect.</li>
+<li>Correlated failure: bad config push, expired certificate, full disk, clock skew, leap-second, DNS.</li>
+<li>Metastable failure: system stuck in overloaded state even after trigger is gone (retries + cold caches keep it down).</li>
+<li>Resource exhaustion: connection pools, file descriptors, memory leaks, ephemeral ports.</li>
+</ul>
+<h3 id="mttr-matters-more-than-mtbf">MTTR matters more than MTBF</h3>
+<p>You cannot prevent all failures; shorten detection and recovery. Good alerts, runbooks, automated rollback, one-click failover.</p>
+<hr />
+<h2 id="6-sli-slo-sla-error-budgets">6. SLI, SLO, SLA, error budgets</h2>
+<div class="highlight"><pre><span></span><code>  SLI  (indicator): a measured number.            e.g. fraction of requests &lt; 300 ms and non-5xx
+  SLO  (objective): internal target on an SLI.    e.g. 99.9% over 30 days
+  SLA  (agreement): contract with consequences.   e.g. below 99.5% =&gt; service credits
+  Rule: SLO is stricter than SLA, so you notice before you owe money.
+</code></pre></div>
+
+<ul>
+<li>Choose SLIs the user feels: availability (good requests / total), latency (p99 &lt; X ms), correctness/freshness, durability, throughput for batch. The "four golden signals": latency, traffic, errors, saturation. RED (Rate, Errors, Duration) for services; USE (Utilization, Saturation, Errors) for resources.</li>
+<li>Error budget = 1 - SLO. SLO 99.9% over 30 days =&gt; 43.2 min of allowed badness. Budget remaining -&gt; ship features; budget spent -&gt; freeze risky launches, work on reliability. This turns reliability vs velocity into an objective negotiation.</li>
+<li>Burn-rate alerts: alert when budget is consumed too fast (e.g. 14.4x burn over 1 hour pages; slower burn opens a ticket) rather than on every blip. Multi-window multi-burn-rate is the Google SRE workbook recommendation.</li>
+<li>SLO of a dependency bounds yours: cannot promise 99.99% on top of a 99.9% hard dependency (see serial math).</li>
+<li>Measure from the user's perspective (load balancer / client / synthetic probes), not from inside the server which cannot see its own outages.</li>
+<li>Good SLO is not 100%: users cannot tell 99.99 from 99.999 when their own network is 99.9; cost grows ~10x per nine.</li>
+</ul>
+<hr />
+<h2 id="7-load-balancing">7. Load balancing</h2>
+<p>Purpose: spread requests over many servers, remove dead ones, terminate TLS, give one stable entry point.</p>
+<div class="highlight"><pre><span></span><code>                 +-- DNS (round robin / geo / latency routing) --+
+   clients ----&gt; |      L4/L7 Load Balancer (HA pair/managed)    | ---&gt; app1
+                 +-----------------------------------------------+ ---&gt; app2
+                        health checks &lt;----------------------------&gt; app3
+</code></pre></div>
+
+<h3 id="l4-vs-l7">L4 vs L7</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>L4 (transport)</th>
+<th>L7 (application)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sees</td>
+<td>IP, port, TCP/UDP</td>
+<td>HTTP: path, headers, cookies, method</td>
+</tr>
+<tr>
+<td>Speed</td>
+<td>Very fast, low CPU, millions of conns</td>
+<td>Slower (parses HTTP, terminates TLS)</td>
+</tr>
+<tr>
+<td>Features</td>
+<td>Simple forwarding, NAT-like</td>
+<td>Path/host routing, TLS termination, auth, rewrites, WAF, gRPC-aware, sticky via cookie, canary by header</td>
+</tr>
+<tr>
+<td>Examples</td>
+<td>AWS NLB, HAProxy tcp mode, LVS, IPVS, Maglev (Google)</td>
+<td>AWS ALB, Nginx, Envoy, HAProxy http mode</td>
+</tr>
+<tr>
+<td>Use</td>
+<td>Extreme throughput, non-HTTP protocols, static IPs</td>
+<td>Microservices routing, HTTP features</td>
+</tr>
+</tbody>
+</table>
+<p>AWS mapping: NLB (L4), ALB (L7), Gateway LB (L3 appliances); see <code>../../07-aws/week-02-compute/lesson.md</code>.
+Layering pattern: DNS/GeoDNS -&gt; L4 (anycast/ECMP) -&gt; L7 fleet -&gt; services. Also client-side LB (gRPC, service mesh sidecar) and server-side.
+Important: the LB itself must not be a SPOF - managed LBs are multi-AZ; self-run use active-passive with VRRP/keepalived or ECMP + anycast.
+TLS termination at LB (offload) vs passthrough vs re-encrypt to backend (zero-trust).
+Connection draining on deploy: stop new requests, finish in-flight ones.</p>
+<h3 id="algorithms">Algorithms</h3>
+<table>
+<thead>
+<tr>
+<th>Algorithm</th>
+<th>How</th>
+<th>Good for</th>
+<th>Caveat</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Round robin</td>
+<td>rotate</td>
+<td>Homogeneous, similar request cost</td>
+<td>Ignores load</td>
+</tr>
+<tr>
+<td>Weighted round robin</td>
+<td>rotate by weight</td>
+<td>Heterogeneous machines</td>
+<td>Static weights</td>
+</tr>
+<tr>
+<td>Least connections</td>
+<td>fewest active conns</td>
+<td>Variable-duration requests (websockets, long calls)</td>
+<td>Needs conn tracking</td>
+</tr>
+<tr>
+<td>Least response time / EWMA</td>
+<td>fastest + fewest</td>
+<td>Latency-sensitive</td>
+<td>Can herd to a "fast" node</td>
+</tr>
+<tr>
+<td>Power of two choices (P2C)</td>
+<td>pick 2 at random, take less loaded</td>
+<td>Large fleets, distributed LBs; near-optimal</td>
+<td>Needs load info</td>
+</tr>
+<tr>
+<td>IP hash / source hash</td>
+<td>hash(client IP) % N</td>
+<td>Cheap affinity</td>
+<td>Remapping when N changes; NAT skew</td>
+</tr>
+<tr>
+<td>Consistent hashing</td>
+<td>hash ring, minimal remap</td>
+<td>Caches, sharded backends, sticky by key</td>
+<td>Needs virtual nodes for balance (week 2)</td>
+</tr>
+<tr>
+<td>Random</td>
+<td>random</td>
+<td>Simple</td>
+<td>Variance</td>
+</tr>
+<tr>
+<td>Resource-based</td>
+<td>agents report CPU/mem</td>
+<td>Heavy heterogenous work</td>
+<td>Staleness</td>
+</tr>
+</tbody>
+</table>
+<p>Health checks: active (LB probes /healthz at intervals; N failures to eject, M successes to re-add) and passive (outlier detection on observed errors). Shallow vs deep check: deep check that touches the DB can take the whole fleet out when DB hiccups -&gt; prefer shallow liveness + separate readiness and be careful what readiness depends on.
+Slow start: ramp traffic to new instances while JVM/caches warm up.
+Pitfall: "least connections" with a new empty node can flood it; fix with slow start.
+Pitfall: retries at LB + client + service = multiplicative amplification; budget retries.
+Global load balancing: GeoDNS, anycast, latency-based routing (Route 53 policies, see <code>../../07-aws/week-04-networking/lesson.md</code>); failover with health checks; DNS TTL tradeoff (low TTL = fast failover but more DNS load; clients/ISPs may ignore TTL).</p>
+<hr />
+<h2 id="8-caching">8. Caching</h2>
+<p>Why: reduce latency, offload backends, absorb read spikes. Works because of locality (temporal and spatial) and skewed popularity (Zipf: a few keys get most reads).
+Key metrics: hit ratio, latency, eviction rate, memory. Effective latency = h * t_cache + (1-h) * t_origin. With 95% hit at 1 ms vs 50 ms origin: 0.95<em>1 + 0.05</em>50 = 3.45 ms. Going 95% -&gt; 99% hit gives 1.5 ms: tail matters.</p>
+<h3 id="where-caches-live">Where caches live</h3>
+<div class="highlight"><pre><span></span><code>  Browser cache -&gt; CDN edge -&gt; API gateway/reverse proxy -&gt; app local (in-process) -&gt; distributed cache (Redis/Memcached) -&gt; DB buffer pool/page cache -&gt; disk
+</code></pre></div>
+
+<p>In-process: fastest, no network, but per-node, duplicated, inconsistent, cleared on deploy. Distributed: shared, bigger, extra hop (~0.5-1 ms), a new dependency to run. Often use both (L1 local small TTL + L2 Redis).</p>
+<h3 id="strategies">Strategies</h3>
+<div class="highlight"><pre><span></span><code>  Cache-aside (lazy loading)               Read-through
+  app: get(k) from cache                   app only talks to cache;
+   miss -&gt; read DB -&gt; set cache -&gt; return  cache loads from DB on miss (library/provider)
+  writes: update DB, then DELETE key
+  + resilient to cache outage              + simpler app code
+  - first read slow, stale window          - cache layer must know the loader
+
+  Write-through                            Write-back (write-behind)
+  write -&gt; cache AND DB synchronously      write -&gt; cache only; flushed to DB async
+  + cache always consistent with DB        + very fast writes, batching/coalescing
+  - write latency = both; cache pollution  - data loss if cache dies before flush; complex
+    for never-read data                    use for counters, metrics, with durable log/AOF
+
+  Write-around: write to DB only, cache fills on read (avoid polluting cache with write-once data)
+  Refresh-ahead: proactively refresh hot keys before TTL expiry (avoids stampede, wastes work on cold keys)
+</code></pre></div>
+
+<p>Default answer: cache-aside + TTL + invalidate (delete) on write. Delete rather than update the cache on writes to avoid races (two writers can leave an older value in the cache: W1 writes DB, W2 writes DB, W2 sets cache, W1 sets cache =&gt; stale). Even delete has a race: reader reads old DB value, writer updates DB and deletes key, reader sets cache with old value. Mitigations: short TTL, versioned values/CAS, delayed double-delete, or invalidation via CDC/binlog stream (Debezium) - what Facebook's "Scaling Memcache" does with leases to prevent stale sets and stampedes.</p>
+<h3 id="eviction-policies">Eviction policies</h3>
+<ul>
+<li>LRU (least recently used): the default; good for recency. Approximate LRU in Redis (sampling).</li>
+<li>LFU (least frequently used): resists scan pollution, better for stable popularity; Redis <code>allkeys-lfu</code>; TinyLFU/W-TinyLFU (Caffeine) high hit ratio.</li>
+<li>FIFO, random, TTL-based (expire soonest), CLOCK (cheap LRU approximation), ARC/2Q (scan-resistant).</li>
+<li>Redis <code>maxmemory-policy</code>: noeviction, allkeys-lru, volatile-lru, allkeys-lfu, volatile-ttl, etc. (check current docs). Be able to implement LRU with hashmap + doubly linked list: O(1) get/put (classic DSA tie-in).</li>
+</ul>
+<h3 id="invalidation-two-hard-things">Invalidation ("two hard things")</h3>
+<ul>
+<li>TTL: simple, bounded staleness; choose from business tolerance; add jitter to TTLs to avoid synchronized expiry.</li>
+<li>Explicit invalidation on write (delete key / publish event); needs knowing all keys derived from the changed data (tag/dependency keys).</li>
+<li>Versioned keys: <code>user:42:v17</code> - bump version rather than delete; old entries age out. Great for CDN assets (content-hash filenames, cache-forever).</li>
+<li>Event-driven (CDC -&gt; invalidate).</li>
+<li>Accept eventual consistency for most reads; read-your-own-writes may need bypass/short-lived "recently written" flag.</li>
+</ul>
+<h3 id="cache-problems">Cache problems</h3>
+<div class="highlight"><pre><span></span><code>  Stampede / thundering herd / dogpile: hot key expires; 10,000 requests miss simultaneously and hit DB.
+     Fixes: request coalescing / single-flight (one loader, others wait), mutex/lease on key,
+            stale-while-revalidate (serve stale, refresh in background), TTL jitter, refresh-ahead, probabilistic early expiration (XFetch).
+  Penetration: requests for keys that don't exist always miss and hit DB (often malicious).
+     Fixes: cache negative results (short TTL), Bloom filter in front (week 4), input validation.
+  Breakdown (hot key expiring) = stampede on a single key; same fixes.
+  Avalanche: many keys expire at once, or the whole cache goes down.
+     Fixes: TTL jitter, multi-AZ replicated cache, circuit breaker + load shedding to protect DB, warm-up before cutover.
+  Hot key: one key exceeds a single node's capacity (celebrity). Fixes: local in-process replica, key splitting `key#0..k` with random suffix on read, replicate hot keys.
+  Cold start: empty cache after deploy/failover -&gt; pre-warm or ramp traffic.
+  Consistency: stale reads, dual-write races (above).
+  Big keys / big values: block single-threaded Redis; split or compress.
+</code></pre></div>
+
+<h3 id="redis-vs-memcached-quick">Redis vs Memcached (quick)</h3>
+<ul>
+<li>Redis: rich types (hash, list, set, sorted set, streams), persistence (RDB/AOF), replication, Cluster (16384 hash slots), Lua/transactions, pub/sub; mostly single-threaded command execution (I/O threads optional). Use for cache + counters + leaderboards + rate limiting + locks (caveat week 4).</li>
+<li>Memcached: simple key-value, multithreaded, no persistence; very simple and fast for pure cache.</li>
+<li>Managed: ElastiCache / MemoryDB (see <code>../../07-aws/week-03-storage-databases/lesson.md</code>).</li>
+<li>Redis is a cache and may lose data on failover (async replication) - do not treat as the system of record unless you accept that.</li>
+</ul>
+<h3 id="cdn">CDN</h3>
+<div class="highlight"><pre><span></span><code>   user -&gt; nearest edge POP -(miss)-&gt; regional/origin shield -(miss)-&gt; origin (S3/app)
+</code></pre></div>
+
+<ul>
+<li>Caches static assets (images, JS/CSS, video segments) and can cache API GETs; reduces origin load and latency (user hits nearby POP; TLS terminates near user; persistent connections to origin).</li>
+<li>Control with <code>Cache-Control: max-age, s-maxage, stale-while-revalidate, no-store, private/public</code>, <code>ETag</code>/<code>If-None-Match</code> (conditional GET -&gt; 304), <code>Vary</code> (careful: Vary: Cookie kills hit ratio).</li>
+<li>Invalidation: purge API (slow/expensive/rate-limited) vs versioned URLs (preferred).</li>
+<li>Push vs pull CDN: pull (lazy from origin; default) vs push (you upload; good for large, rarely-changing files).</li>
+<li>Origin shield: collapses misses from many POPs into one to protect origin.</li>
+<li>Security: signed URLs/cookies for private content; DDoS absorption; WAF at edge.</li>
+<li>AWS CloudFront details: <code>../../07-aws/week-04-networking/lesson.md</code>.</li>
+</ul>
+<h3 id="real-world-examples">Real-world examples</h3>
+<ul>
+<li>Facebook Memcache: look-aside cache, leases against stampede/stale sets, regional pools, McSqueal invalidations reading MySQL commit log.</li>
+<li>Twitter timeline: Redis lists of tweet IDs per user (fan-out on write; week 6).</li>
+<li>Netflix Open Connect: CDN appliances inside ISPs, pre-positioned popular content overnight.</li>
+<li>DynamoDB DAX: write-through item cache in front of DynamoDB (microsecond reads).</li>
+</ul>
+<hr />
+<h2 id="9-how-interviewers-probe-this-weeks-topics">9. How interviewers probe this week's topics</h2>
+<ul>
+<li>"How many servers do you need?" -&gt; expect QPS math and per-server capacity assumption, then headroom (target 50-70% utilization peak) and N+1/AZ redundancy.</li>
+<li>"What if the cache goes down?" -&gt; DB overload; circuit breaker, load shed, multi-AZ replicas, warm-up, local fallback.</li>
+<li>"What is your SLO and how would you measure it?" -&gt; SLI definition, error budget, where measured.</li>
+<li>"Walk me through a hot key / celebrity problem." -&gt; local caching, key splitting, replicas.</li>
+<li>"Why not just scale vertically?" -&gt; ceiling, SPOF, cost; but say it is a fine first step.</li>
+<li>"L4 or L7 here?" -&gt; match features needed; mention both in layers.</li>
+<li>"Your three services are 99.9% each - what is the combined availability?" -&gt; 99.7% and how to improve (parallel redundancy, async decoupling, caching, degrading).</li>
+<li>"Cache and DB are inconsistent. How?" -&gt; race conditions; TTL; delete-after-write; CDC.</li>
+<li>"Where do sessions go?" -&gt; externalize.</li>
+<li>Follow-ups probe whether you reason about failure modes unprompted. Always state: assumptions, numbers, tradeoffs, what breaks first.</li>
+</ul>
+<hr />
+<h2 id="10-self-check-answer-without-notes">10. Self-check (answer without notes)</h2>
+<ol>
+<li>State Little's law and use it to size a thread pool.</li>
+<li>Compute QPS for 50M requests/day, with peak 3x.</li>
+<li>Availability of 3 serial 99.95% components?</li>
+<li>Name 4 cache failure modes and a fix each.</li>
+<li>L4 vs L7: two differences and one example of each.</li>
+<li>Cache-aside vs write-through: when each?</li>
+<li>Why delete instead of update the cache on write?</li>
+<li>What is an error budget and what happens when it is exhausted?</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../08-system-design/README.html">← System Design: Overview</a><a class="next" href="../../08-system-design/week-01-fundamentals/interview-qa.html">Week 1 · Fundamentals: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

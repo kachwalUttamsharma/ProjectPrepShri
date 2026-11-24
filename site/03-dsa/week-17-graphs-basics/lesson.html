@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 17: Graph basics (BFS, DFS, grids, adjacency lists) | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-17-graphs-basics/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-17-graphs-basics/lesson.html">Week 17 · Graph basics</a> / <span>Lesson</span></nav><button id="mark-done" data-id="03-dsa/week-17-graphs-basics/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-17-graph-basics-bfs-dfs-grids-adjacency-lists">Week 17: Graph basics (BFS, DFS, grids, adjacency lists)</h1>
+<h2 id="1-concept">1. Concept</h2>
+<p>A graph is vertices (nodes) plus edges (connections). Edges can be directed or
+undirected, and weighted or unweighted. Almost every "map", "network",
+"dependencies", "grid", "state transitions" problem is a graph in disguise.</p>
+<p>Representations:</p>
+<ul>
+<li><strong>Adjacency list</strong>: <code>adj[u] = [v1, v2, ...]</code>. O(V + E) space. The default choice.</li>
+<li><strong>Adjacency matrix</strong>: <code>m[u][v]</code>. O(V^2) space. Only for dense graphs / tiny V.</li>
+<li><strong>Edge list</strong>: <code>[[u, v], ...]</code>. What interviews hand you; convert it first.</li>
+<li><strong>Implicit graph</strong>: grid cells (neighbors = 4 or 8 directions), word ladders
+  (neighbors = words one letter apart). You never build it, you compute neighbors on the fly.</li>
+</ul>
+<p>Two traversals:</p>
+<ul>
+<li><strong>DFS</strong> (stack / recursion): go deep first. Connectivity, components, cycle detection, flood fill.</li>
+<li><strong>BFS</strong> (queue): level by level. <strong>Shortest path in an unweighted graph</strong>, minimum steps, multi-source spreading.</li>
+</ul>
+<h2 id="2-how-to-recognize-the-pattern">2. How to recognize the pattern</h2>
+<ul>
+<li>"Connected", "reachable", "number of islands/provinces/components" -&gt; DFS/BFS (or union-find, week 18).</li>
+<li>"Minimum number of steps/moves/transformations" with unit cost -&gt; <strong>BFS</strong>.</li>
+<li>Everything spreads simultaneously (rotting oranges, fire, walls and gates) -&gt; <strong>multi-source BFS</strong>.</li>
+<li>Grid with obstacles -&gt; BFS/DFS with direction array.</li>
+<li>Need a copy of a structure with cycles -&gt; traversal with old-&gt;new map.</li>
+<li>"Can water/ball reach X from Y" over many starts -&gt; search <strong>backwards</strong> from the targets.</li>
+</ul>
+<h2 id="3-template-code">3. Template code</h2>
+<p>Build adjacency list:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">defaultdict</span><span class="p">,</span> <span class="n">deque</span>
+<span class="n">adj</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">u</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">edges</span><span class="p">:</span>
+    <span class="n">adj</span><span class="p">[</span><span class="n">u</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+    <span class="n">adj</span><span class="p">[</span><span class="n">v</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">u</span><span class="p">)</span>        <span class="c1"># drop this line if directed</span>
+</code></pre></div>
+
+<p>Iterative DFS (safe from Python's recursion limit of ~1000):</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">dfs</span><span class="p">(</span><span class="n">start</span><span class="p">):</span>
+    <span class="n">seen</span> <span class="o">=</span> <span class="p">{</span><span class="n">start</span><span class="p">}</span>
+    <span class="n">stack</span> <span class="o">=</span> <span class="p">[</span><span class="n">start</span><span class="p">]</span>
+    <span class="k">while</span> <span class="n">stack</span><span class="p">:</span>
+        <span class="n">u</span> <span class="o">=</span> <span class="n">stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">adj</span><span class="p">[</span><span class="n">u</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">v</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+                <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+                <span class="n">stack</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">seen</span>
+</code></pre></div>
+
+<p>BFS with distance (level-by-level):</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">bfs</span><span class="p">(</span><span class="n">start</span><span class="p">):</span>
+    <span class="n">seen</span> <span class="o">=</span> <span class="p">{</span><span class="n">start</span><span class="p">}</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="n">deque</span><span class="p">([</span><span class="n">start</span><span class="p">])</span>
+    <span class="n">steps</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">while</span> <span class="n">q</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">)):</span>          <span class="c1"># one full level</span>
+            <span class="n">u</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">adj</span><span class="p">[</span><span class="n">u</span><span class="p">]:</span>
+                <span class="k">if</span> <span class="n">v</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+                    <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>          <span class="c1"># mark when ENQUEUED</span>
+                    <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+        <span class="n">steps</span> <span class="o">+=</span> <span class="mi">1</span>
+</code></pre></div>
+
+<p>Grid neighbors:</p>
+<div class="highlight"><pre><span></span><code><span class="n">DIRS</span> <span class="o">=</span> <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+<span class="k">for</span> <span class="n">dr</span><span class="p">,</span> <span class="n">dc</span> <span class="ow">in</span> <span class="n">DIRS</span><span class="p">:</span>
+    <span class="n">nr</span><span class="p">,</span> <span class="n">nc</span> <span class="o">=</span> <span class="n">r</span> <span class="o">+</span> <span class="n">dr</span><span class="p">,</span> <span class="n">c</span> <span class="o">+</span> <span class="n">dc</span>
+    <span class="k">if</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">nr</span> <span class="o">&lt;</span> <span class="n">R</span> <span class="ow">and</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">nc</span> <span class="o">&lt;</span> <span class="n">C</span> <span class="ow">and</span> <span class="n">grid</span><span class="p">[</span><span class="n">nr</span><span class="p">][</span><span class="n">nc</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="p">(</span><span class="n">nr</span><span class="p">,</span> <span class="n">nc</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+        <span class="o">...</span>
+</code></pre></div>
+
+<p>Connected components: loop over all nodes, start a traversal at each unseen node, count starts.
+Multi-source BFS: push <strong>all</strong> sources into the queue before the loop starts.
+Cloning: <code>clones = {node: Node(node.val)}</code>; create the clone when first discovered, then wire neighbors.</p>
+<h2 id="4-complexity">4. Complexity</h2>
+<ul>
+<li>Traversal: O(V + E) time, O(V) space for seen + stack/queue.</li>
+<li>Grid: O(R * C) time and space (E &lt;= 4 * V, or 8 * V).</li>
+<li>Word ladder: O(N * L^2) with wildcard buckets vs O(N^2 * L) pairwise comparison.</li>
+</ul>
+<h2 id="5-common-mistakes">5. Common mistakes</h2>
+<ul>
+<li>Marking visited when <strong>dequeuing</strong> instead of enqueuing in BFS: nodes enter the queue many times (blow-up/TLE).</li>
+<li>No visited set on cyclic or undirected graphs: infinite loop. In undirected graphs every edge points back.</li>
+<li>Flood fill when new color == old color: infinite loop. Guard it.</li>
+<li>Recursive DFS on a 300x300 grid or 50k-node chain: RecursionError. Use an explicit stack.</li>
+<li>Mutating the input grid when the caller may need it (or document it). Using a <code>seen</code> set is safer.</li>
+<li>Mixing up <code>[row][col]</code> with <code>(x, y)</code>.</li>
+<li>Diagonal adjacency when the problem says 4-directional (and vice versa; 1091 is 8-directional).</li>
+<li>Counting nodes vs edges for "path length" (cells on path = edges + 1).</li>
+<li>Forgetting disconnected components (loop over all start nodes).</li>
+<li>DFS does <strong>not</strong> give shortest paths. Use BFS for unweighted shortest paths.</li>
+</ul>
+<h2 id="6-interview-tips">6. Interview tips</h2>
+<ul>
+<li>Clarify: directed or undirected? Duplicates / self loops? Can the graph be disconnected? Node labels 0..n-1?</li>
+<li>Say your representation out loud: "I'll build an adjacency list, then BFS because we need the minimum number of steps."</li>
+<li>Name the complexity in V and E, not just N.</li>
+<li>Always sketch a tiny example including a cycle and a disconnected node.</li>
+<li>Offer iterative DFS if recursion depth could be large; mention it proactively.</li>
+<li>Follow-ups at Google/Uber: bidirectional BFS (word ladder), BFS on state space (lock combinations),
+  grids with keys/doors (state = position + bitmask), "what if the graph does not fit in memory".</li>
+<li>Tree check shortcut: connected AND exactly n - 1 edges.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p><code>Node</code> in <code>exercises.py</code> is already implemented. Fill in the functions, then run the tests from this directory with <code>../../.venv/bin/pytest</code> (see PROGRESS.md).</p>
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-16-tries/test_exercises.py.html">← Week 16 · Tries: Tests (code)</a><a class="next" href="../../03-dsa/week-17-graphs-basics/exercises.py.html">Week 17 · Graph basics: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="10-python-depth/week-04-quality-and-tooling/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../10-python-depth/week-01-functions-deep-dive/lesson.html">Python Depth</a> / <a href="../../10-python-depth/week-04-quality-and-tooling/lesson.html">Week 4 · Quality and tooling</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="10-python-depth/week-04-quality-and-tooling/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>10-python-depth/week-04-quality-and-tooling/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 4 exercises: quality and tooling. Replace each `...` with your code.</span>
+
+<span class="sd">Run the tests from this folder:</span>
+<span class="sd">    ../../.venv/bin/pytest -q</span>
+<span class="sd">Read test_exercises.py too: it shows fixtures, parametrize, caplog, Mock,</span>
+<span class="sd">monkeypatch and tmp_path in action. Copy those patterns into your own work.</span>
+<span class="sd">"""</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">cProfile</span>  <span class="c1"># noqa: F401  (hint for exercise 10)</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>  <span class="c1"># noqa: F401  (hint for exercise 7)</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pstats</span>  <span class="c1"># noqa: F401  (hint for exercise 10)</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">timeit</span>  <span class="c1"># noqa: F401  (hint for exercise 9)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>  <span class="c1"># noqa: F401  (hint for exercise 8)</span>
+
+
+<span class="c1"># Exercise 1 -------------------------------------------------------------</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">AppError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Base error for the app. Takes (message, code=500).</span>
+
+<span class="sd">    Store them as .message and .code, and pass message to super().__init__</span>
+<span class="sd">    so str(err) == message.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">NotFoundError</span><span class="p">(</span><span class="n">AppError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""AppError with code 404. Constructor takes only (message)."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ValidationFailed</span><span class="p">(</span><span class="n">AppError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""AppError with code 422. Constructor takes only (message)."""</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 2 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">parse_age</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Convert text to an int age in 0..150 inclusive.</span>
+
+<span class="sd">    - not an int (e.g. 'abc', '', '3.5', None): raise ValidationFailed</span>
+<span class="sd">      *chained* from the original error: `raise X(...) from exc`.</span>
+<span class="sd">    - out of range: raise ValidationFailed.</span>
+<span class="sd">    Hint: int(" 42 ") works; int(None) raises TypeError, int("x") ValueError.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 3 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">retry</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">attempts</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">exceptions</span><span class="o">=</span><span class="p">(</span><span class="ne">Exception</span><span class="p">,)):</span>
+<span class="w">    </span><span class="sd">"""Call func() up to `attempts` times and return its result.</span>
+
+<span class="sd">    - Only exceptions in `exceptions` trigger a retry; others propagate at once.</span>
+<span class="sd">    - If the last attempt fails, re-raise that exception (bare `raise`).</span>
+<span class="sd">    - attempts &lt; 1: raise ValueError.</span>
+<span class="sd">    - Do NOT sleep (keeps tests fast; real code would back off).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 4 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_logger</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">stream</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return logging.getLogger(name) configured to write to `stream`.</span>
+
+<span class="sd">    - level INFO, propagate = False</span>
+<span class="sd">    - one StreamHandler(stream) with format '%(levelname)s:%(message)s'</span>
+<span class="sd">    - calling twice with the same name must NOT add a second handler</span>
+<span class="sd">      (check `logger.handlers`).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 5 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">process_orders</span><span class="p">(</span><span class="n">orders</span><span class="p">,</span> <span class="n">logger</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""orders: list of dicts {'id': ..., 'amount': ...}. Return total amount.</span>
+
+<span class="sd">    - amount &lt; 0: logger.warning('skipping order %s: negative amount', id)</span>
+<span class="sd">      and skip it.</span>
+<span class="sd">    - otherwise: logger.info('processed order %s', id) and add to the total.</span>
+<span class="sd">    Use lazy %-style args (not f-strings) in logging calls.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 6 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">fetch_username</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">client</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Call client.get(f'/users/{user_id}') exactly once. Response has</span>
+<span class="sd">    .status_code and .json().</span>
+
+<span class="sd">    - 404: raise NotFoundError(f'user {user_id} not found')</span>
+<span class="sd">    - any other status &gt;= 400: raise AppError(f'upstream error {status}', code=502)</span>
+<span class="sd">    - else return response.json()['name']</span>
+<span class="sd">    The client is injected, so tests pass in a unittest.mock.Mock.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 7 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_config</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Read settings from os.environ AT CALL TIME (so monkeypatch works).</span>
+
+<span class="sd">    Return {'debug': bool, 'port': int, 'name': str}</span>
+<span class="sd">    - APP_DEBUG: True only for '1' or 'true' (case-insensitive); default False</span>
+<span class="sd">    - APP_PORT: int, default 8000</span>
+<span class="sd">    - APP_NAME: default 'app'</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 8 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">count_words_in_file</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return {word: count} for a text file; lowercase, split on whitespace.</span>
+
+<span class="sd">    Hint: Path(path).read_text(). Accepts str or Path.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 9 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">best_time</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">number</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">repeat</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">timer</span><span class="o">=</span><span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the best (minimum) seconds-per-call of func.</span>
+
+<span class="sd">    Use timeit.Timer(func, timer=timer).repeat(repeat=repeat, number=number),</span>
+<span class="sd">    then min(...) / number. `timer` is injectable so tests are deterministic.</span>
+<span class="sd">    Why min and not mean? Noise only ever makes runs slower.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 10 ------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">profile_calls</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Run func() under cProfile and return {function_name: call_count}.</span>
+
+<span class="sd">    Hint: pr = cProfile.Profile(); pr.enable(); ...; pr.disable() (use</span>
+<span class="sd">    try/finally so errors still disable it), then pstats.Stats(pr).stats maps</span>
+<span class="sd">    (file, line, name) -&gt; (cc, nc, tt, ct, callers). nc is the call count.</span>
+<span class="sd">    If one name appears twice, sum the counts.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../10-python-depth/week-04-quality-and-tooling/interview-qa.html">← Week 4 · Quality and tooling: Interview Q&amp;A</a><a class="next" href="../../10-python-depth/week-04-quality-and-tooling/test_exercises.py.html">Week 4 · Quality and tooling: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

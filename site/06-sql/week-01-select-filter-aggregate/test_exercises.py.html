@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>test_exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="06-sql/week-01-select-filter-aggregate/test_exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">Week 1 · SELECT, filter, aggregate</a> / <span>Tests (code)</span></nav><button id="mark-done" data-id="06-sql/week-01-select-filter-aggregate/test_exercises.py">Mark as done</button></div><article class="doc">
+<h1>test_exercises.py</h1><p class="code-path"><code>06-sql/week-01-select-filter-aggregate/test_exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">schema</span><span class="w"> </span><span class="kn">import</span> <span class="n">assert_result</span><span class="p">,</span> <span class="n">make_db</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">db</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">make_db</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_nyc_employees</span><span class="p">(</span><span class="n">db</span><span class="p">):</span>
+    <span class="n">assert_result</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">nyc_employees</span><span class="p">(),</span> <span class="p">[</span><span class="s2">"name"</span><span class="p">,</span> <span class="s2">"salary"</span><span class="p">],</span> <span class="p">[</span>
+        <span class="p">(</span><span class="s2">"Alice"</span><span class="p">,</span> <span class="mi">120000</span><span class="p">),</span> <span class="p">(</span><span class="s2">"Carol"</span><span class="p">,</span> <span class="mi">105000</span><span class="p">),</span> <span class="p">(</span><span class="s2">"Frank"</span><span class="p">,</span> <span class="mi">82000</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">"Heidi"</span><span class="p">,</span> <span class="mi">72000</span><span class="p">),</span> <span class="p">(</span><span class="s2">"Mallory"</span><span class="p">,</span> <span class="mi">68000</span><span class="p">)])</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_high_earners</span><span class="p">(</span><span class="n">db</span><span class="p">):</span>
+    <span class="n">assert_result</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">high_earners</span><span class="p">(),</span> <span class="p">[</span><span class="s2">"name"</span><span class="p">,</span> <span class="s2">"salary"</span><span class="p">],</span> <span class="p">[</span>
+        <span class="p">(</span><span class="s2">"Alice"</span><span class="p">,</span> <span class="mi">120000</span><span class="p">),</span> <span class="p">(</span><span class="s2">"Carol"</span><span class="p">,</span> <span class="mi">105000</span><span class="p">),</span> <span class="p">(</span><span class="s2">"Bob"</span><span class="p">,</span> <span class="mi">95000</span><span class="p">),</span> <span class="p">(</span><span class="s2">"Ivan"</span><span class="p">,</span> <span class="mi">95000</span><span class="p">)],</span>
+        <span class="n">ordered</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_top3_paid</span><span class="p">(</span><span class="n">db</span><span class="p">):</span>
+    <span class="n">assert_result</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">top3_paid</span><span class="p">(),</span> <span class="p">[</span><span class="s2">"name"</span><span class="p">,</span> <span class="s2">"salary"</span><span class="p">],</span> <span class="p">[</span>
+        <span class="p">(</span><span class="s2">"Alice"</span><span class="p">,</span> <span class="mi">120000</span><span class="p">),</span> <span class="p">(</span><span class="s2">"Carol"</span><span class="p">,</span> <span class="mi">105000</span><span class="p">),</span> <span class="p">(</span><span class="s2">"Bob"</span><span class="p">,</span> <span class="mi">95000</span><span class="p">)],</span> <span class="n">ordered</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_page_two</span><span class="p">(</span><span class="n">db</span><span class="p">):</span>
+    <span class="n">assert_result</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">page_two</span><span class="p">(),</span> <span class="p">[</span><span class="s2">"id"</span><span class="p">,</span> <span class="s2">"name"</span><span class="p">],</span> <span class="p">[</span>
+        <span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="s2">"Eve"</span><span class="p">),</span> <span class="p">(</span><span class="mi">6</span><span class="p">,</span> <span class="s2">"Frank"</span><span class="p">),</span> <span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="s2">"Grace"</span><span class="p">),</span> <span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="s2">"Heidi"</span><span class="p">)],</span> <span class="n">ordered</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_hired_2019_2020</span><span class="p">(</span><span class="n">db</span><span class="p">):</span>
+    <span class="n">assert_result</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">hired_2019_2020</span><span class="p">(),</span> <span class="p">[</span><span class="s2">"name"</span><span class="p">,</span> <span class="s2">"hire_date"</span><span class="p">],</span> <span class="p">[</span>
+        <span class="p">(</span><span class="s2">"Alice"</span><span class="p">,</span> <span class="s2">"2019-03-15"</span><span class="p">),</span> <span class="p">(</span><span class="s2">"Heidi"</span><span class="p">,</span> <span class="s2">"2019-06-25"</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">"Bob"</span><span class="p">,</span> <span class="s2">"2020-07-01"</span><span class="p">),</span> <span class="p">(</span><span class="s2">"Grace"</span><span class="p">,</span> <span class="s2">"2020-11-12"</span><span class="p">)],</span> <span class="n">ordered</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_names_ending_in_e</span><span class="p">(</span><span class="n">db</span><span class="p">):</span>
+    <span class="n">assert_result</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">names_ending_in_e</span><span class="p">(),</span> <span class="p">[</span><span class="s2">"name"</span><span class="p">],</span>
+                  <span class="p">[(</span><span class="s2">"Alice"</span><span class="p">,),</span> <span class="p">(</span><span class="s2">"Dave"</span><span class="p">,),</span> <span class="p">(</span><span class="s2">"Eve"</span><span class="p">,),</span> <span class="p">(</span><span class="s2">"Grace"</span><span class="p">,)])</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_no_bonus_recorded</span><span class="p">(</span><span class="n">db</span><span class="p">):</span>
+    <span class="n">assert_result</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">no_bonus_recorded</span><span class="p">(),</span> <span class="p">[</span><span class="s2">"name"</span><span class="p">],</span>
+                  <span class="p">[(</span><span class="s2">"Bob"</span><span class="p">,),</span> <span class="p">(</span><span class="s2">"Eve"</span><span class="p">,),</span> <span class="p">(</span><span class="s2">"Grace"</span><span class="p">,),</span> <span class="p">(</span><span class="s2">"Judy"</span><span class="p">,),</span> <span class="p">(</span><span class="s2">"Niaj"</span><span class="p">,),</span> <span class="p">(</span><span class="s2">"Oleg"</span><span class="p">,)])</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_total_compensation</span><span class="p">(</span><span class="n">db</span><span class="p">):</span>
+    <span class="n">assert_result</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">total_compensation</span><span class="p">(),</span> <span class="p">[</span><span class="s2">"name"</span><span class="p">,</span> <span class="s2">"total_comp"</span><span class="p">],</span> <span class="p">[</span>
+        <span class="p">(</span><span class="s2">"Alice"</span><span class="p">,</span> <span class="mi">125000</span><span class="p">),</span> <span class="p">(</span><span class="s2">"Carol"</span><span class="p">,</span> <span class="mi">113000</span><span class="p">),</span> <span class="p">(</span><span class="s2">"Ivan"</span><span class="p">,</span> <span class="mi">96000</span><span class="p">),</span> <span class="p">(</span><span class="s2">"Bob"</span><span class="p">,</span> <span class="mi">95000</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">"Frank"</span><span class="p">,</span> <span class="mi">88000</span><span class="p">),</span> <span class="p">(</span><span class="s2">"Heidi"</span><span class="p">,</span> <span class="mi">74000</span><span class="p">),</span> <span class="p">(</span><span class="s2">"Dave"</span><span class="p">,</span> <span class="mi">73000</span><span class="p">),</span> <span class="p">(</span><span class="s2">"Judy"</span><span class="p">,</span> <span class="mi">68000</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">"Mallory"</span><span class="p">,</span> <span class="mi">68000</span><span class="p">),</span> <span class="p">(</span><span class="s2">"Eve"</span><span class="p">,</span> <span class="mi">65000</span><span class="p">),</span> <span class="p">(</span><span class="s2">"Grace"</span><span class="p">,</span> <span class="mi">60000</span><span class="p">),</span> <span class="p">(</span><span class="s2">"Oleg"</span><span class="p">,</span> <span class="mi">50000</span><span class="p">)],</span> <span class="n">ordered</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_not_in_hr</span><span class="p">(</span><span class="n">db</span><span class="p">):</span>
+    <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"Alice"</span><span class="p">,</span> <span class="s2">"Bob"</span><span class="p">,</span> <span class="s2">"Carol"</span><span class="p">,</span> <span class="s2">"Dave"</span><span class="p">,</span> <span class="s2">"Eve"</span><span class="p">,</span> <span class="s2">"Frank"</span><span class="p">,</span> <span class="s2">"Ivan"</span><span class="p">,</span>
+             <span class="s2">"Judy"</span><span class="p">,</span> <span class="s2">"Mallory"</span><span class="p">,</span> <span class="s2">"Niaj"</span><span class="p">,</span> <span class="s2">"Oleg"</span><span class="p">]</span>
+    <span class="n">assert_result</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">not_in_hr</span><span class="p">(),</span> <span class="p">[</span><span class="s2">"name"</span><span class="p">],</span> <span class="p">[(</span><span class="n">n</span><span class="p">,)</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">names</span><span class="p">])</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_distinct_cities</span><span class="p">(</span><span class="n">db</span><span class="p">):</span>
+    <span class="n">assert_result</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">distinct_cities</span><span class="p">(),</span> <span class="p">[</span><span class="s2">"city"</span><span class="p">],</span> <span class="p">[(</span><span class="s2">"NYC"</span><span class="p">,),</span> <span class="p">(</span><span class="s2">"SF"</span><span class="p">,),</span> <span class="p">(</span><span class="s2">"Austin"</span><span class="p">,)])</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_null_aware_counts</span><span class="p">(</span><span class="n">db</span><span class="p">):</span>
+    <span class="n">assert_result</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">null_aware_counts</span><span class="p">(),</span>
+                  <span class="p">[</span><span class="s2">"total_rows"</span><span class="p">,</span> <span class="s2">"salary_count"</span><span class="p">,</span> <span class="s2">"bonus_count"</span><span class="p">],</span> <span class="p">[(</span><span class="mi">13</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">7</span><span class="p">)])</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_avg_salary_by_dept</span><span class="p">(</span><span class="n">db</span><span class="p">):</span>
+    <span class="n">assert_result</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">avg_salary_by_dept</span><span class="p">(),</span> <span class="p">[</span><span class="s2">"dept"</span><span class="p">,</span> <span class="s2">"headcount"</span><span class="p">,</span> <span class="s2">"avg_salary"</span><span class="p">],</span> <span class="p">[</span>
+        <span class="p">(</span><span class="s2">"Engineering"</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mf">103750.0</span><span class="p">),</span> <span class="p">(</span><span class="s2">"Sales"</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mf">72333.33</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">"HR"</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mf">66000.0</span><span class="p">),</span> <span class="p">(</span><span class="s2">"Marketing"</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mf">68000.0</span><span class="p">)])</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_big_departments</span><span class="p">(</span><span class="n">db</span><span class="p">):</span>
+    <span class="n">assert_result</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">big_departments</span><span class="p">(),</span> <span class="p">[</span><span class="s2">"dept"</span><span class="p">,</span> <span class="s2">"headcount"</span><span class="p">],</span>
+                  <span class="p">[(</span><span class="s2">"Engineering"</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span> <span class="p">(</span><span class="s2">"Sales"</span><span class="p">,</span> <span class="mi">4</span><span class="p">)])</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_revenue_by_status</span><span class="p">(</span><span class="n">db</span><span class="p">):</span>
+    <span class="n">assert_result</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">revenue_by_status</span><span class="p">(),</span> <span class="p">[</span><span class="s2">"status"</span><span class="p">,</span> <span class="s2">"order_count"</span><span class="p">,</span> <span class="s2">"total_amount"</span><span class="p">],</span> <span class="p">[</span>
+        <span class="p">(</span><span class="s2">"shipped"</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mf">1545.0</span><span class="p">),</span> <span class="p">(</span><span class="s2">"cancelled"</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mf">95.5</span><span class="p">),</span> <span class="p">(</span><span class="s2">"pending"</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mf">140.0</span><span class="p">)])</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_monthly_shipped_revenue</span><span class="p">(</span><span class="n">db</span><span class="p">):</span>
+    <span class="n">assert_result</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">monthly_shipped_revenue</span><span class="p">(),</span> <span class="p">[</span><span class="s2">"month"</span><span class="p">,</span> <span class="s2">"revenue"</span><span class="p">],</span> <span class="p">[</span>
+        <span class="p">(</span><span class="s2">"2024-01"</span><span class="p">,</span> <span class="mf">350.0</span><span class="p">),</span> <span class="p">(</span><span class="s2">"2024-02"</span><span class="p">,</span> <span class="mf">425.0</span><span class="p">),</span> <span class="p">(</span><span class="s2">"2024-03"</span><span class="p">,</span> <span class="mf">770.0</span><span class="p">)],</span> <span class="n">ordered</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_big_customers</span><span class="p">(</span><span class="n">db</span><span class="p">):</span>
+    <span class="n">assert_result</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">big_customers</span><span class="p">(),</span> <span class="p">[</span><span class="s2">"customer"</span><span class="p">,</span> <span class="s2">"total"</span><span class="p">],</span> <span class="p">[</span>
+        <span class="p">(</span><span class="s2">"acme"</span><span class="p">,</span> <span class="mf">750.0</span><span class="p">),</span> <span class="p">(</span><span class="s2">"globex"</span><span class="p">,</span> <span class="mf">300.0</span><span class="p">),</span> <span class="p">(</span><span class="s2">"hooli"</span><span class="p">,</span> <span class="mf">240.0</span><span class="p">)],</span> <span class="n">ordered</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_distinct_city_count</span><span class="p">(</span><span class="n">db</span><span class="p">):</span>
+    <span class="n">assert_result</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">distinct_city_count</span><span class="p">(),</span> <span class="p">[</span><span class="s2">"cities"</span><span class="p">],</span> <span class="p">[(</span><span class="mi">3</span><span class="p">,)])</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_small_or_unknown_orders</span><span class="p">(</span><span class="n">db</span><span class="p">):</span>
+    <span class="n">assert_result</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">small_or_unknown_orders</span><span class="p">(),</span> <span class="p">[</span><span class="s2">"id"</span><span class="p">],</span>
+                  <span class="p">[(</span><span class="mi">2</span><span class="p">,),</span> <span class="p">(</span><span class="mi">3</span><span class="p">,),</span> <span class="p">(</span><span class="mi">5</span><span class="p">,),</span> <span class="p">(</span><span class="mi">8</span><span class="p">,),</span> <span class="p">(</span><span class="mi">10</span><span class="p">,),</span> <span class="p">(</span><span class="mi">11</span><span class="p">,)])</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../06-sql/week-01-select-filter-aggregate/exercises.py.html">← Week 1 · SELECT, filter, aggregate: Exercises (code)</a><a class="next" href="../../06-sql/week-01-select-filter-aggregate/schema.py.html">Week 1 · SELECT, filter, aggregate: schema.py →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

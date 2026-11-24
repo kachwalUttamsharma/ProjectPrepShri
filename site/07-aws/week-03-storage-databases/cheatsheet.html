@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 3 Cheatsheet - Storage and Databases | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="07-aws/week-03-storage-databases/cheatsheet" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../07-aws/README.html">AWS</a> / <a href="../../07-aws/week-03-storage-databases/lesson.html">Week 3 · Storage and databases</a> / <span>Cheatsheet</span></nav><button id="mark-done" data-id="07-aws/week-03-storage-databases/cheatsheet">Mark as done</button></div><article class="doc">
+<h1 id="week-3-cheatsheet-storage-and-databases">Week 3 Cheatsheet - Storage and Databases</h1>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>One-liner</th>
+<th>Typical use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>S3</td>
+<td>Regional object store, 11 9s, strong consistency</td>
+<td>Files, data lake, backups, static assets</td>
+</tr>
+<tr>
+<td>S3 Glacier classes</td>
+<td>Archive tiers (90/90/180 d min)</td>
+<td>Compliance/archives</td>
+</tr>
+<tr>
+<td>S3 Intelligent-Tiering</td>
+<td>Auto-tier by access</td>
+<td>Unknown access patterns</td>
+</tr>
+<tr>
+<td>Presigned URL</td>
+<td>Temporary signed access to one object</td>
+<td>Direct browser upload/download</td>
+</tr>
+<tr>
+<td>EBS</td>
+<td>Block disk, one AZ</td>
+<td>EC2 boot/DB</td>
+</tr>
+<tr>
+<td>EFS</td>
+<td>Shared NFS, multi-AZ</td>
+<td>Shared Linux file storage</td>
+</tr>
+<tr>
+<td>FSx</td>
+<td>Managed Windows/Lustre/ONTAP/OpenZFS</td>
+<td>Windows shares, HPC</td>
+</tr>
+<tr>
+<td>Storage Gateway / DataSync / Snow</td>
+<td>Hybrid / bulk transfer / offline</td>
+<td>Migration</td>
+</tr>
+<tr>
+<td>RDS</td>
+<td>Managed relational (MySQL/PG/MariaDB/Oracle/SQLServer)</td>
+<td>Standard OLTP</td>
+</tr>
+<tr>
+<td>Aurora</td>
+<td>Cloud-native MySQL/PG, 6-copy storage, 15 replicas</td>
+<td>HA, scale, global, pgvector</td>
+</tr>
+<tr>
+<td>RDS Proxy</td>
+<td>Connection pooler</td>
+<td>Lambda -&gt; RDS</td>
+</tr>
+<tr>
+<td>DynamoDB</td>
+<td>Serverless key-value/document, ms latency</td>
+<td>Sessions, carts, high-scale lookups</td>
+</tr>
+<tr>
+<td>DAX</td>
+<td>DynamoDB in-memory cache</td>
+<td>Microsecond reads</td>
+</tr>
+<tr>
+<td>ElastiCache (Redis/Valkey, Memcached)</td>
+<td>In-memory cache</td>
+<td>Caching, sessions, rate limits</td>
+</tr>
+<tr>
+<td>MemoryDB</td>
+<td>Durable Redis-compatible DB</td>
+<td>Primary in-memory store</td>
+</tr>
+<tr>
+<td>Redshift</td>
+<td>Columnar data warehouse</td>
+<td>BI/analytics</td>
+</tr>
+<tr>
+<td>Athena</td>
+<td>Serverless SQL on S3</td>
+<td>Ad hoc lake queries</td>
+</tr>
+<tr>
+<td>OpenSearch</td>
+<td>Search/log/vector</td>
+<td>Search, RAG retrieval</td>
+</tr>
+<tr>
+<td>DocumentDB / Neptune / Keyspaces / Timestream</td>
+<td>Mongo / graph / Cassandra / time series</td>
+<td>Specialty</td>
+</tr>
+</tbody>
+</table>
+<p>Numbers: S3 object 5 TB max, 5 GB single PUT, 3,500 write / 5,500 read rps per prefix; DDB item 400 KB, 1 RCU = 4 KB strong read, 1 WCU = 1 KB write, LSI max 5 (creation-time), GSI default 20; Aurora 6 copies/3 AZs, 128 TiB, 15 replicas; RDS backups 1-35 d; RDS Multi-AZ failover ~1-2 min.
+Multi-AZ = HA (sync). Read replica = scale reads (async).</p>
+</article><div class="pager"><a class="prev" href="../../07-aws/week-03-storage-databases/interview-qa.html">← Week 3 · Storage and databases: Interview Q&amp;A</a><a class="next" href="../../07-aws/week-03-storage-databases/labs.html">Week 3 · Storage and databases: Labs →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

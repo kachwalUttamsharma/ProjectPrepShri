@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rapid-fire: 50 questions (cover the answer, one or two sentences each) | Study Hub</title><link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/pygments.css"></head>
+<body data-root="../" data-page-id="13-llm-ai-concepts/rapid-fire" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../index.html">Home</a> / <a href="../13-llm-ai-concepts/README.html">LLM and AI Concepts</a> / <span>Rapid-fire: 50 questions (cover the answer, one or two sentences each)</span></nav><button id="mark-done" data-id="13-llm-ai-concepts/rapid-fire">Mark as done</button></div><article class="doc">
+<h1 id="rapid-fire-50-questions-cover-the-answer-one-or-two-sentences-each">Rapid-fire: 50 questions (cover the answer, one or two sentences each)</h1>
+<p>Model names, prices and limits change: say "check current docs" for any number.</p>
+<h2 id="llm-fundamentals-1-12">LLM fundamentals (1-12)</h2>
+<ol>
+<li><strong>What is a token?</strong> A sub-word unit from a fixed vocabulary; the unit of billing, context and latency. About 4 English characters.</li>
+<li><strong>Why can't LLMs count letters reliably?</strong> They see tokens, not characters; use code tools.</li>
+<li><strong>Attention in one sentence?</strong> Each token mixes information from other tokens weighted by query-key relevance.</li>
+<li><strong>What is the KV cache?</strong> Stored keys/values of past tokens so decoding does not recompute them; grows with length and concurrency.</li>
+<li><strong>Prefill vs decode?</strong> Prefill processes the prompt in parallel (sets time to first token); decode generates one token at a time (sets tokens per second).</li>
+<li><strong>Pretraining vs SFT vs RLHF?</strong> Knowledge from next-token prediction; instruction following from supervised examples; preference alignment from ranked outputs.</li>
+<li><strong>What does temperature do?</strong> Rescales logits before softmax: low is focused, high is random.</li>
+<li><strong>Top-p?</strong> Sample from the smallest token set whose cumulative probability reaches p.</li>
+<li><strong>Why might temperature 0 still vary?</strong> Numerical nondeterminism, model updates, tie-breaking, differing context.</li>
+<li><strong>Name three hallucination mitigations.</strong> Grounding with retrieval, verified citations, abstention plus schema validation (also verification passes).</li>
+<li><strong>Few-shot: when and risks?</strong> When format/judgment needs showing; costs tokens and can bias toward example labels.</li>
+<li><strong>Indirect prompt injection?</strong> Instructions hidden in content the system ingests (docs, web, tool output) that the model obeys; defend with least privilege, approvals, isolation.</li>
+</ol>
+<h2 id="retrieval-and-rag-13-24">Retrieval and RAG (13-24)</h2>
+<ol start="13">
+<li><strong>RAG in one line?</strong> Retrieve relevant chunks at query time and have the model answer from them with citations.</li>
+<li><strong>Cosine vs dot product?</strong> Cosine ignores magnitude; equal on normalized vectors.</li>
+<li><strong>Why ANN?</strong> Exact search is O(N*d); ANN trades a little recall for big speedups.</li>
+<li><strong>HNSW in one line?</strong> Layered proximity graph with greedy descent; knob efSearch.</li>
+<li><strong>IVF in one line?</strong> k-means cells; search only nprobe nearest cells.</li>
+<li><strong>Chunk size tradeoff?</strong> Small = precise but context-poor; large = context-rich but diluted and costly.</li>
+<li><strong>Why hybrid search?</strong> Dense handles meaning, BM25 handles exact terms and IDs.</li>
+<li><strong>RRF formula?</strong> sum over rankers of 1/(k + rank), k about 60.</li>
+<li><strong>What does a reranker do?</strong> Cross-encoder rescoring of top candidates for precision.</li>
+<li><strong>Query rewriting examples?</strong> Conversational rewrite, multi-query, HyDE, decomposition, filter extraction.</li>
+<li><strong>RAG debug order?</strong> Corpus, retrieved, ranked into prompt, used correctly, supported by citation.</li>
+<li><strong>RAG vs fine-tune?</strong> RAG for knowledge, fine-tune for behavior and format.</li>
+</ol>
+<h2 id="agents-and-tool-use-25-33">Agents and tool use (25-33)</h2>
+<ol start="25">
+<li><strong>How does function calling work?</strong> Model emits a structured call; your code validates, authorizes, executes and returns the result.</li>
+<li><strong>Agent vs workflow?</strong> Agent chooses the path; workflow code fixes it. Prefer workflows when path is known.</li>
+<li><strong>Agent stop conditions?</strong> Final answer, max steps, budget, timeout, repeated failure, human needed.</li>
+<li><strong>Why idempotency keys?</strong> Retries must not duplicate side effects.</li>
+<li><strong>ReAct?</strong> Alternate reasoning, action, observation.</li>
+<li><strong>MCP in one line?</strong> A standard client-server protocol for discovering and calling tools/resources from independent servers.</li>
+<li><strong>Main MCP risk?</strong> Untrusted or changing tool descriptions and over-broad credentials; allowlist and least privilege.</li>
+<li><strong>Why do agent costs balloon?</strong> Full history is resent each step; trim, cache, route, cap.</li>
+<li><strong>Where do you add humans?</strong> Irreversible or high-impact actions, low confidence, ambiguity.</li>
+</ol>
+<h2 id="evaluation-and-production-34-43">Evaluation and production (34-43)</h2>
+<ol start="34">
+<li><strong>First eval-set ingredients?</strong> Real queries, edge cases, unanswerables, past failures, held-out slice.</li>
+<li><strong>LLM judge biases?</strong> Position, verbosity, self-preference; calibrate with humans.</li>
+<li><strong>Offline vs online evals?</strong> Fixed dataset gate vs shadow/canary/A-B on live traffic.</li>
+<li><strong>Prompt regression testing?</strong> Eval suite in CI on every prompt/model/retrieval change.</li>
+<li><strong>What goes in a trace?</strong> Retrieval, each LLM call with version and tokens, tool calls, validation, latency.</li>
+<li><strong>Prompt caching rule?</strong> Static content first, dynamic last.</li>
+<li><strong>Semantic cache danger?</strong> False hits and cross-user leakage; scope and tune threshold.</li>
+<li><strong>How to handle 429s?</strong> Backoff with jitter, Retry-After, limiter, queue, fallback, quota request.</li>
+<li><strong>Cost formula?</strong> (in<em>P_in + out</em>P_out)/1e6 per call; report cost per successful outcome.</li>
+<li><strong>When fine-tune with LoRA?</strong> After prompt/RAG plateau, stable task, clean labeled data, volume or latency justify.</li>
+</ol>
+<h2 id="classic-ml-44-50">Classic ML (44-50)</h2>
+<ol start="44">
+<li><strong>Overfitting fixes?</strong> More data, regularization, simpler model, early stopping, ensembling.</li>
+<li><strong>Precision vs recall definitions?</strong> TP/(TP+FP) vs TP/(TP+FN).</li>
+<li><strong>When ROC-AUC misleads?</strong> Rare positives; use PR-AUC.</li>
+<li><strong>Name three leakage sources.</strong> Future/target features, preprocessing before split, duplicates or same entity across splits.</li>
+<li><strong>Bagging vs boosting?</strong> Bagging averages independent trees to cut variance; boosting fits sequential residuals to cut bias.</li>
+<li><strong>k-means limits?</strong> Need k, spherical clusters, scale and init sensitivity.</li>
+<li><strong>Backprop in one line?</strong> Chain rule computes each weight's gradient of the loss; step against it by the learning rate.</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../13-llm-ai-concepts/week-05-classic-ml-essentials/cheatsheet.html">← Week 5 · Classic ML essentials: Cheatsheet</a><a class="next" href="../13-llm-ai-concepts/mock-interview.html">LLM and AI Concepts: Mock interview →</a></div></main><aside id="toc"></aside></div>
+<script src="../assets/data.js"></script><script src="../assets/app.js"></script></body></html>

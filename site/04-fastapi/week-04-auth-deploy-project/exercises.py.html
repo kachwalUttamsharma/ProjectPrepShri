@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="04-fastapi/week-04-auth-deploy-project/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../04-fastapi/week-01-first-endpoints/lesson.html">FastAPI</a> / <a href="../../04-fastapi/week-04-auth-deploy-project/lesson.html">Week 4 · Auth, deploy, project</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="04-fastapi/week-04-auth-deploy-project/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>04-fastapi/week-04-auth-deploy-project/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 4 exercises: config, auth, logging, then the Ticket API project.</span>
+
+<span class="sd">Part 1 (ex 1-8): small, testable building blocks -- settings from env vars, masking</span>
+<span class="sd">secrets, API-key and bearer-token auth, JSON logging, request-id middleware.</span>
+<span class="sd">Part 2 (ex 9-14): the project. Service functions (plain Python + a Session), an</span>
+<span class="sd">outbound notifier, and `create_app(...)` which wires everything into a FastAPI app.</span>
+<span class="sd">Read lesson.md for the full spec and the stage review checklist.</span>
+
+<span class="sd">Replace each `...` with your code. Tests are offline: in-memory SQLite, httpx.MockTransport.</span>
+<span class="sd">Run the real thing:</span>
+<span class="sd">    API_KEYS=dev-key-1 ../../.venv/bin/uvicorn --factory exercises:build_app_from_env --reload</span>
+<span class="sd">"""</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">base64</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">hmac</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">uuid</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timezone</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Collection</span><span class="p">,</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">Mapping</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">httpx</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">APIRouter</span><span class="p">,</span> <span class="n">Depends</span><span class="p">,</span> <span class="n">FastAPI</span><span class="p">,</span> <span class="n">HTTPException</span><span class="p">,</span> <span class="n">Query</span><span class="p">,</span> <span class="n">Request</span><span class="p">,</span> <span class="n">Security</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">fastapi.responses</span><span class="w"> </span><span class="kn">import</span> <span class="n">JSONResponse</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">fastapi.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">APIKeyHeader</span><span class="p">,</span> <span class="n">HTTPAuthorizationCredentials</span><span class="p">,</span> <span class="n">HTTPBearer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sqlalchemy</span><span class="w"> </span><span class="kn">import</span> <span class="n">func</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sqlalchemy.pool</span><span class="w"> </span><span class="kn">import</span> <span class="n">StaticPool</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sqlmodel</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span><span class="p">,</span> <span class="n">Session</span><span class="p">,</span> <span class="n">SQLModel</span><span class="p">,</span> <span class="n">create_engine</span><span class="p">,</span> <span class="n">select</span>
+
+<span class="n">LOGGER_NAME</span> <span class="o">=</span> <span class="s2">"ticketapi"</span>
+
+
+<span class="c1"># ======================= Part 1: building blocks ========================</span>
+
+<span class="c1"># Exercise 1 -------------------------------------------------------------</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ConfigError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Provided. Raised when the environment is misconfigured."""</span>
+
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Settings</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Provided."""</span>
+
+    <span class="n">api_keys</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+    <span class="n">database_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"sqlite://"</span>
+    <span class="n">log_level</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"INFO"</span>
+    <span class="n">max_page_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span>
+    <span class="n">notify_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">load_settings</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Settings</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Build Settings from environment variables (pass os.environ, or a dict in tests).</span>
+<span class="sd">    - API_KEYS: required, comma-separated, whitespace around each key stripped, empty</span>
+<span class="sd">      entries ignored. No keys at all -&gt; ConfigError("API_KEYS is required").</span>
+<span class="sd">    - DATABASE_URL: default "sqlite://"</span>
+<span class="sd">    - LOG_LEVEL: default "INFO"; upper-cased; must be DEBUG/INFO/WARNING/ERROR else ConfigError</span>
+<span class="sd">    - MAX_PAGE_SIZE: default 100; must be an integer &gt;= 1 else ConfigError</span>
+<span class="sd">    - NOTIFY_URL: optional; empty or missing -&gt; None</span>
+<span class="sd">    Fail fast at startup with a clear message instead of crashing on the first request.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 2 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">mask_secret</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Safe-to-log version of a secret: keep the last 4 characters, replace the rest</span>
+<span class="sd">    with '*' (same length). Values of 4 chars or fewer, empty or None -&gt; "****".</span>
+<span class="sd">    mask_secret("sk-abcdef1234") == "*********1234"</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 3 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">make_api_key_dependency</span><span class="p">(</span><span class="n">valid_keys</span><span class="p">:</span> <span class="n">Collection</span><span class="p">[</span><span class="nb">str</span><span class="p">]):</span>
+<span class="w">    </span><span class="sd">"""Return a FastAPI dependency function `require_api_key` that reads the X-API-Key</span>
+<span class="sd">    header and returns the key when valid.</span>
+<span class="sd">    Missing or unknown key -&gt; HTTPException(401, "Invalid or missing API key",</span>
+<span class="sd">    headers={"WWW-Authenticate": "ApiKey"}).</span>
+<span class="sd">    Compare with hmac.compare_digest against every valid key (no early `in` shortcut).</span>
+<span class="sd">    Hint: inside, define</span>
+<span class="sd">        def require_api_key(api_key: str | None = Security(APIKeyHeader(name="X-API-Key", auto_error=False))): ...</span>
+<span class="sd">    and return it. (Security() also puts the scheme into /docs so you get an Authorize button.)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 4 -------------------------------------------------------------</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">InvalidToken</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Provided. Bad, tampered, or expired token."""</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_b64</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">base64</span><span class="o">.</span><span class="n">urlsafe_b64encode</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="sa">b</span><span class="s2">"="</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_unb64</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">base64</span><span class="o">.</span><span class="n">urlsafe_b64decode</span><span class="p">(</span><span class="n">text</span> <span class="o">+</span> <span class="s2">"="</span> <span class="o">*</span> <span class="p">(</span><span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="o">%</span> <span class="mi">4</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">create_token</span><span class="p">(</span><span class="n">secret</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">subject</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">ttl_seconds</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">now</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""A tiny signed token (the idea behind JWT, minus the standards).</span>
+<span class="sd">    payload = json {"sub": subject, "exp": int(now + ttl_seconds)}   (now defaults to time.time())</span>
+<span class="sd">    token   = _b64(payload_json_bytes) + "." + hex(HMAC-SHA256(secret, the _b64 part))</span>
+<span class="sd">    In real systems use a library (PyJWT) or your identity provider; never invent crypto.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">decode_token</span><span class="p">(</span><span class="n">secret</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">token</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">now</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the subject, or raise InvalidToken if: malformed (not exactly two</span>
+<span class="sd">    dot-separated parts, bad base64/JSON), signature mismatch (compare_digest!),</span>
+<span class="sd">    or expired (now &gt;= exp). Check the signature BEFORE trusting the payload.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 5 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">make_bearer_dependency</span><span class="p">(</span><span class="n">secret</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a dependency `current_user` that returns the token's subject.</span>
+<span class="sd">    - No Authorization header -&gt; 401 "Not authenticated"</span>
+<span class="sd">    - Header present but decode_token fails -&gt; 401 "Invalid token"</span>
+<span class="sd">    Both with headers={"WWW-Authenticate": "Bearer"}.</span>
+<span class="sd">    Hint: def current_user(creds: HTTPAuthorizationCredentials | None = Security(HTTPBearer(auto_error=False))):</span>
+<span class="sd">    creds.credentials is the token text.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 6 -------------------------------------------------------------</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">JsonFormatter</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">Formatter</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""One JSON object per log line (what log aggregators like Splunk/Datadog want).</span>
+<span class="sd">    format(record) -&gt; json string with keys "level" (levelname), "logger" (name),</span>
+<span class="sd">    "message" (record.getMessage()); plus "request_id" if the record has that attribute</span>
+<span class="sd">    (set via logger.info(..., extra={"request_id": ...})); plus "exception" (formatted</span>
+<span class="sd">    traceback text) if record.exc_info is set.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">format</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">record</span><span class="p">:</span> <span class="n">logging</span><span class="o">.</span><span class="n">LogRecord</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="o">...</span>
+
+
+<span class="c1"># Exercise 7 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">configure_logging</span><span class="p">(</span><span class="n">level</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"INFO"</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">logging</span><span class="o">.</span><span class="n">Logger</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Configure and return logging.getLogger(LOGGER_NAME): set its level, remove any</span>
+<span class="sd">    handlers it already has (so calling twice doesn't duplicate lines), add one</span>
+<span class="sd">    logging.StreamHandler(stream) using JsonFormatter. Leave propagate as True.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 8 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">add_request_id_middleware</span><span class="p">(</span><span class="n">app</span><span class="p">:</span> <span class="n">FastAPI</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Register an HTTP middleware on `app` that:</span>
+<span class="sd">    - takes the request id from the incoming X-Request-ID header or makes uuid.uuid4().hex</span>
+<span class="sd">    - calls the route, then sets X-Request-ID on the response</span>
+<span class="sd">    - logs one INFO line to logging.getLogger(LOGGER_NAME) like "GET /tickets -&gt; 200",</span>
+<span class="sd">      with extra={"request_id": rid}</span>
+<span class="sd">    Hint: @app.middleware("http") async def mw(request, call_next): response = await call_next(request)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># ======================= Part 2: Ticket API project =====================</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">utcnow</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">datetime</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(</span><span class="n">timezone</span><span class="o">.</span><span class="n">utc</span><span class="p">)</span>  <span class="c1"># SQLModel's datetime column wants timezone-aware values</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Ticket</span><span class="p">(</span><span class="n">SQLModel</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Provided."""</span>
+
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
+    <span class="n">priority</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"medium"</span>
+    <span class="n">status</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"open"</span>
+    <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">utcnow</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Comment</span><span class="p">(</span><span class="n">SQLModel</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Provided."""</span>
+
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">ticket_id</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">foreign_key</span><span class="o">=</span><span class="s2">"ticket.id"</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">body</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">utcnow</span><span class="p">)</span>
+
+
+<span class="n">Priority</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"low"</span><span class="p">,</span> <span class="s2">"medium"</span><span class="p">,</span> <span class="s2">"high"</span><span class="p">]</span>
+<span class="n">Status</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"open"</span><span class="p">,</span> <span class="s2">"in_progress"</span><span class="p">,</span> <span class="s2">"closed"</span><span class="p">]</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TicketCreate</span><span class="p">(</span><span class="n">SQLModel</span><span class="p">):</span>
+    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">120</span><span class="p">)</span>
+    <span class="n">description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
+    <span class="n">priority</span><span class="p">:</span> <span class="n">Priority</span> <span class="o">=</span> <span class="s2">"medium"</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TicketUpdate</span><span class="p">(</span><span class="n">SQLModel</span><span class="p">):</span>
+    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">120</span><span class="p">)</span>
+    <span class="n">description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">priority</span><span class="p">:</span> <span class="n">Priority</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">status</span><span class="p">:</span> <span class="n">Status</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TicketRead</span><span class="p">(</span><span class="n">SQLModel</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">description</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">priority</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">status</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">CommentCreate</span><span class="p">(</span><span class="n">SQLModel</span><span class="p">):</span>
+    <span class="n">body</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">CommentRead</span><span class="p">(</span><span class="n">SQLModel</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">ticket_id</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">body</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">NotFound</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Provided. A ticket doesn't exist."""</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TicketClosed</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Provided. The ticket is closed and the operation isn't allowed."""</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">make_engine</span><span class="p">(</span><span class="n">url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"sqlite://"</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Provided (same as week 3)."""</span>
+    <span class="n">kwargs</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"connect_args"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"check_same_thread"</span><span class="p">:</span> <span class="kc">False</span><span class="p">}}</span>
+    <span class="k">if</span> <span class="n">url</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"sqlite://"</span><span class="p">,</span> <span class="s2">"sqlite:///:memory:"</span><span class="p">):</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s2">"poolclass"</span><span class="p">]</span> <span class="o">=</span> <span class="n">StaticPool</span>
+    <span class="n">engine</span> <span class="o">=</span> <span class="n">create_engine</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="n">SQLModel</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">create_all</span><span class="p">(</span><span class="n">engine</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">engine</span>
+
+
+<span class="c1"># Exercise 9 -------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">create_ticket</span><span class="p">(</span><span class="n">session</span><span class="p">:</span> <span class="n">Session</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">TicketCreate</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Ticket</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Insert a Ticket (status "open"), commit, refresh, return it."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">list_tickets</span><span class="p">(</span>
+    <span class="n">session</span><span class="p">:</span> <span class="n">Session</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">status</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">priority</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">20</span><span class="p">,</span>
+    <span class="n">offset</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Ticket</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Tickets ordered by id ascending; filter by status/priority when given; then offset/limit."""</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 10 ------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">update_ticket</span><span class="p">(</span><span class="n">session</span><span class="p">:</span> <span class="n">Session</span><span class="p">,</span> <span class="n">ticket_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">changes</span><span class="p">:</span> <span class="n">TicketUpdate</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Ticket</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Partial update (exclude_unset!). NotFound if missing.</span>
+<span class="sd">    Rule: a closed ticket can only be reopened, i.e. the only accepted change is exactly</span>
+<span class="sd">    {"status": "open"}; anything else (including an empty change) raises TicketClosed.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">delete_ticket</span><span class="p">(</span><span class="n">session</span><span class="p">:</span> <span class="n">Session</span><span class="p">,</span> <span class="n">ticket_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Delete the ticket AND its comments (foreign key!). NotFound if missing."""</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 11 ------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">add_comment</span><span class="p">(</span><span class="n">session</span><span class="p">:</span> <span class="n">Session</span><span class="p">,</span> <span class="n">ticket_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">CommentCreate</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Comment</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""NotFound if the ticket is missing; TicketClosed if it is closed; else add + return the comment."""</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">list_comments</span><span class="p">(</span><span class="n">session</span><span class="p">:</span> <span class="n">Session</span><span class="p">,</span> <span class="n">ticket_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Comment</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""NotFound if the ticket is missing; comments ordered by id."""</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 12 ------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">ticket_stats</span><span class="p">(</span><span class="n">session</span><span class="p">:</span> <span class="n">Session</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""{"open": n, "in_progress": n, "closed": n, "total": n} -- every key always present (0 if none).</span>
+<span class="sd">    Hint: select(Ticket.status, func.count()).group_by(Ticket.status), or just count in Python first.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 13 ------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">notify_high_priority</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">httpx</span><span class="o">.</span><span class="n">Client</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">ticket</span><span class="p">:</span> <span class="n">Ticket</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Tell a chat/webhook endpoint about urgent tickets. Returns True if a notification was delivered.</span>
+<span class="sd">    - client is None, url empty/None, or ticket.priority != "high": return False, make NO request.</span>
+<span class="sd">    - POST json {"text": "[HIGH] #&lt;id&gt;: &lt;title&gt;"} to url; 2xx -&gt; True.</span>
+<span class="sd">    - Non-2xx response or any httpx.HTTPError: log a WARNING on the LOGGER_NAME logger and return False.</span>
+<span class="sd">    It must NEVER raise: a broken chat integration must not break ticket creation.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Exercise 14 ------------------------------------------------------------</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">create_app</span><span class="p">(</span><span class="n">settings</span><span class="p">:</span> <span class="n">Settings</span><span class="p">,</span> <span class="n">notifier_client</span><span class="p">:</span> <span class="n">httpx</span><span class="o">.</span><span class="n">Client</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FastAPI</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""App factory: build a fresh app + database from settings (tests make many apps).</span>
+<span class="sd">    Complete the TODOs. Behaviour spec:</span>
+<span class="sd">      GET  /health                      public -&gt; {"status": "ok"}</span>
+<span class="sd">      every other route requires a valid X-API-Key (401 otherwise)</span>
+<span class="sd">      POST /tickets          201 TicketRead; if priority is high call notify_high_priority(notifier_client, settings.notify_url, ticket)</span>
+<span class="sd">      GET  /tickets          ?status= &amp;priority= &amp;limit= &amp;offset=0 ; limit defaults to min(20, max_page_size);</span>
+<span class="sd">                             limit &lt; 1 or &gt; settings.max_page_size -&gt; 422</span>
+<span class="sd">      GET  /tickets/{id}     TicketRead</span>
+<span class="sd">      PATCH /tickets/{id}    TicketRead</span>
+<span class="sd">      DELETE /tickets/{id}   204</span>
+<span class="sd">      POST /tickets/{id}/comments   201 CommentRead</span>
+<span class="sd">      GET  /tickets/{id}/comments   list[CommentRead]</span>
+<span class="sd">      GET  /stats            ticket_stats</span>
+<span class="sd">      NotFound -&gt; 404 {"detail": "Ticket not found"};  TicketClosed -&gt; 409 {"detail": "Ticket is closed"}</span>
+<span class="sd">    """</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">"Ticket API"</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s2">"1.0.0"</span><span class="p">)</span>
+    <span class="n">engine</span> <span class="o">=</span> <span class="n">make_engine</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">database_url</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_session</span><span class="p">():</span>
+        <span class="k">with</span> <span class="n">Session</span><span class="p">(</span><span class="n">engine</span><span class="p">)</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="n">session</span>
+
+    <span class="c1"># TODO (a): configure logging from settings.log_level and add the request-id middleware.</span>
+
+    <span class="c1"># TODO (b): protect the routes. Build require_key = make_api_key_dependency(settings.api_keys)</span>
+    <span class="c1"># and give the router dependencies=[Depends(require_key)] so every route on it is checked.</span>
+    <span class="n">protected</span> <span class="o">=</span> <span class="n">APIRouter</span><span class="p">()</span>
+
+    <span class="c1"># TODO (c): translate domain errors into HTTP responses.</span>
+    <span class="nd">@app</span><span class="o">.</span><span class="n">exception_handler</span><span class="p">(</span><span class="n">NotFound</span><span class="p">)</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">not_found_handler</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span> <span class="n">exc</span><span class="p">:</span> <span class="n">NotFound</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="nd">@app</span><span class="o">.</span><span class="n">exception_handler</span><span class="p">(</span><span class="n">TicketClosed</span><span class="p">)</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">ticket_closed_handler</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span> <span class="n">exc</span><span class="p">:</span> <span class="n">TicketClosed</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/health"</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">health</span><span class="p">():</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">"status"</span><span class="p">:</span> <span class="s2">"ok"</span><span class="p">}</span>
+
+    <span class="c1"># TODO (d): routes. Keep them thin: parse input -&gt; call a service function -&gt; return.</span>
+    <span class="nd">@protected</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/tickets"</span><span class="p">,</span> <span class="n">status_code</span><span class="o">=</span><span class="mi">201</span><span class="p">,</span> <span class="n">response_model</span><span class="o">=</span><span class="n">TicketRead</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">post_ticket</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">TicketCreate</span><span class="p">,</span> <span class="n">session</span><span class="p">:</span> <span class="n">Session</span> <span class="o">=</span> <span class="n">Depends</span><span class="p">(</span><span class="n">get_session</span><span class="p">)):</span>
+        <span class="o">...</span>
+
+    <span class="nd">@protected</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/tickets"</span><span class="p">,</span> <span class="n">response_model</span><span class="o">=</span><span class="nb">list</span><span class="p">[</span><span class="n">TicketRead</span><span class="p">])</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_tickets</span><span class="p">(</span>
+        <span class="n">status</span><span class="p">:</span> <span class="n">Status</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">priority</span><span class="p">:</span> <span class="n">Priority</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">offset</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">Query</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">ge</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
+        <span class="n">session</span><span class="p">:</span> <span class="n">Session</span> <span class="o">=</span> <span class="n">Depends</span><span class="p">(</span><span class="n">get_session</span><span class="p">),</span>
+    <span class="p">):</span>
+        <span class="c1"># limit defaults to min(20, settings.max_page_size); an explicit limit must be</span>
+        <span class="c1"># 1..settings.max_page_size: raise HTTPException(422, ...) otherwise</span>
+        <span class="o">...</span>
+
+    <span class="nd">@protected</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/tickets/</span><span class="si">{ticket_id}</span><span class="s2">"</span><span class="p">,</span> <span class="n">response_model</span><span class="o">=</span><span class="n">TicketRead</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_ticket</span><span class="p">(</span><span class="n">ticket_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">session</span><span class="p">:</span> <span class="n">Session</span> <span class="o">=</span> <span class="n">Depends</span><span class="p">(</span><span class="n">get_session</span><span class="p">)):</span>
+        <span class="c1"># no service function for a single read: session.get(Ticket, id) or raise NotFound</span>
+        <span class="o">...</span>
+
+    <span class="nd">@protected</span><span class="o">.</span><span class="n">patch</span><span class="p">(</span><span class="s2">"/tickets/</span><span class="si">{ticket_id}</span><span class="s2">"</span><span class="p">,</span> <span class="n">response_model</span><span class="o">=</span><span class="n">TicketRead</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">patch_ticket</span><span class="p">(</span><span class="n">ticket_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">changes</span><span class="p">:</span> <span class="n">TicketUpdate</span><span class="p">,</span> <span class="n">session</span><span class="p">:</span> <span class="n">Session</span> <span class="o">=</span> <span class="n">Depends</span><span class="p">(</span><span class="n">get_session</span><span class="p">)):</span>
+        <span class="o">...</span>
+
+    <span class="nd">@protected</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s2">"/tickets/</span><span class="si">{ticket_id}</span><span class="s2">"</span><span class="p">,</span> <span class="n">status_code</span><span class="o">=</span><span class="mi">204</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">remove_ticket</span><span class="p">(</span><span class="n">ticket_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">session</span><span class="p">:</span> <span class="n">Session</span> <span class="o">=</span> <span class="n">Depends</span><span class="p">(</span><span class="n">get_session</span><span class="p">)):</span>
+        <span class="o">...</span>
+
+    <span class="nd">@protected</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/tickets/</span><span class="si">{ticket_id}</span><span class="s2">/comments"</span><span class="p">,</span> <span class="n">status_code</span><span class="o">=</span><span class="mi">201</span><span class="p">,</span> <span class="n">response_model</span><span class="o">=</span><span class="n">CommentRead</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">post_comment</span><span class="p">(</span><span class="n">ticket_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">CommentCreate</span><span class="p">,</span> <span class="n">session</span><span class="p">:</span> <span class="n">Session</span> <span class="o">=</span> <span class="n">Depends</span><span class="p">(</span><span class="n">get_session</span><span class="p">)):</span>
+        <span class="o">...</span>
+
+    <span class="nd">@protected</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/tickets/</span><span class="si">{ticket_id}</span><span class="s2">/comments"</span><span class="p">,</span> <span class="n">response_model</span><span class="o">=</span><span class="nb">list</span><span class="p">[</span><span class="n">CommentRead</span><span class="p">])</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_comments</span><span class="p">(</span><span class="n">ticket_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">session</span><span class="p">:</span> <span class="n">Session</span> <span class="o">=</span> <span class="n">Depends</span><span class="p">(</span><span class="n">get_session</span><span class="p">)):</span>
+        <span class="o">...</span>
+
+    <span class="nd">@protected</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/stats"</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">stats</span><span class="p">(</span><span class="n">session</span><span class="p">:</span> <span class="n">Session</span> <span class="o">=</span> <span class="n">Depends</span><span class="p">(</span><span class="n">get_session</span><span class="p">)):</span>
+        <span class="o">...</span>
+
+    <span class="n">app</span><span class="o">.</span><span class="n">include_router</span><span class="p">(</span><span class="n">protected</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">app</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">build_app_from_env</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">FastAPI</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Provided: entry point for uvicorn --factory and Docker."""</span>
+    <span class="k">return</span> <span class="n">create_app</span><span class="p">(</span><span class="n">load_settings</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">))</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../04-fastapi/week-04-auth-deploy-project/lesson.html">← Week 4 · Auth, deploy, project: Lesson</a><a class="next" href="../../04-fastapi/week-04-auth-deploy-project/test_exercises.py.html">Week 4 · Auth, deploy, project: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

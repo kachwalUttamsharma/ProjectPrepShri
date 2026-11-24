@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-16-tries/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-16-tries/lesson.html">Week 16 · Tries</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="03-dsa/week-16-tries/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>03-dsa/week-16-tries/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 16 exercises: Tries (prefix trees). Replace each `...` with your code.</span>
+
+<span class="sd">Problems are ordered easy -&gt; hard. Tip: a dict-of-dicts trie is fastest to</span>
+<span class="sd">write in an interview: node = {}, children keyed by char, "$" marks word end.</span>
+<span class="sd">"""</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">bisect</span><span class="w"> </span><span class="kn">import</span> <span class="n">bisect_left</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Trie</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""LeetCode 208. Implement a prefix tree.</span>
+
+<span class="sd">    Trie()                 creates an empty trie.</span>
+<span class="sd">    insert(word)           adds word (lowercase letters).</span>
+<span class="sd">    search(word) -&gt; bool   True only if word was inserted as a whole word.</span>
+<span class="sd">    starts_with(prefix) -&gt; bool   True if any inserted word begins with prefix.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        t = Trie(); t.insert("apple")</span>
+<span class="sd">        t.search("apple") -&gt; True;  t.search("app") -&gt; False</span>
+<span class="sd">        t.starts_with("app") -&gt; True; t.insert("app"); t.search("app") -&gt; True</span>
+
+<span class="sd">    Expected: O(L) per operation, L = length of the string.</span>
+<span class="sd">    Hint: node = {}; walk with node.setdefault(ch, {}); mark the end with "$".</span>
+<span class="sd">    A shared private helper that walks a string (return node or None) removes</span>
+<span class="sd">    duplication between search and starts_with.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Create the root node."""</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">insert</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">word</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Insert word."""</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_walk</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">word</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Return True if word is in the trie as a complete word."""</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">starts_with</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prefix</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Return True if any word in the trie starts with prefix."""</span>
+        <span class="o">...</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">longest_common_prefix</span><span class="p">(</span><span class="n">strs</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 14. Return the longest common prefix of all strings ("" if none).</span>
+
+<span class="sd">    Examples:</span>
+<span class="sd">        ["flower","flow","flight"] -&gt; "fl"</span>
+<span class="sd">        ["dog","racecar","car"]    -&gt; ""</span>
+<span class="sd">        []                         -&gt; ""</span>
+<span class="sd">        ["alone"]                  -&gt; "alone"</span>
+
+<span class="sd">    Expected: O(total characters). O(1) extra space is possible without a trie.</span>
+<span class="sd">    Hint: compare column by column against strs[0]; or use min/max of the list</span>
+<span class="sd">    (lexicographic extremes) and compare only those two strings.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">replace_words</span><span class="p">(</span><span class="n">dictionary</span><span class="p">,</span> <span class="n">sentence</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 648. Replace every word in sentence with its shortest root.</span>
+
+<span class="sd">    A root is any word in dictionary that is a prefix of the word. If several</span>
+<span class="sd">    roots match, use the shortest. Words with no root stay unchanged.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        dictionary = ["cat","bat","rat"], sentence = "the cattle was rattled by the battery"</span>
+<span class="sd">        -&gt; "the cat was rat by the bat"</span>
+
+<span class="sd">    Expected: O(D + S) time where D, S are total characters of dictionary / sentence.</span>
+<span class="sd">    Hint: build a trie of roots; for each word walk the trie and stop at the</span>
+<span class="sd">    FIRST "$" you meet (that is the shortest root).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">WordDictionary</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""LeetCode 211. Add words, search with '.' wildcard (matches any one letter).</span>
+
+<span class="sd">    add_word(word)</span>
+<span class="sd">    search(word) -&gt; bool   word may contain '.'</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        add_word("bad"); add_word("dad"); add_word("mad")</span>
+<span class="sd">        search("pad") -&gt; False; search("bad") -&gt; True</span>
+<span class="sd">        search(".ad") -&gt; True;  search("b..") -&gt; True; search("b.") -&gt; False</span>
+
+<span class="sd">    Expected: add O(L); search O(L) typical, O(26^dots * L) worst case.</span>
+<span class="sd">    Hint: recursive DFS(node, i); on '.', try every child (skip the "$" key!).</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Create an empty dictionary."""</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_word</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">word</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Add word."""</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">word</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Return True if some added word matches the pattern."""</span>
+        <span class="o">...</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">MapSum</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""LeetCode 677. Map with prefix sums.</span>
+
+<span class="sd">    insert(key, val)   sets key -&gt; val (overwrites an existing key!)</span>
+<span class="sd">    sum(prefix) -&gt; int  sum of values of all keys starting with prefix (0 if none)</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        insert("apple", 3); sum("ap") -&gt; 3</span>
+<span class="sd">        insert("app", 2);   sum("ap") -&gt; 5</span>
+<span class="sd">        insert("apple", 5); sum("ap") -&gt; 7   (apple overwritten: 5 + 2)</span>
+
+<span class="sd">    Expected: O(L) per operation.</span>
+<span class="sd">    Hint: store at each node the running total of the subtree; on overwrite add</span>
+<span class="sd">    the DELTA (val - old) along the path. Keep a dict key -&gt; old value.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Create an empty map."""</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">insert</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Set key to val."""</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">sum</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prefix</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Return the sum of values of keys starting with prefix."""</span>
+        <span class="o">...</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">longest_word</span><span class="p">(</span><span class="n">words</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 720. Longest word buildable one letter at a time.</span>
+
+<span class="sd">    Return the longest word in words such that every prefix of it (of length</span>
+<span class="sd">    1..len-1) is also in words. Ties: lexicographically smallest. Return ""</span>
+<span class="sd">    if there is none.</span>
+
+<span class="sd">    Examples:</span>
+<span class="sd">        ["w","wo","wor","worl","world"] -&gt; "world"</span>
+<span class="sd">        ["a","banana","app","appl","ap","apply","apple"] -&gt; "apple"</span>
+<span class="sd">        ["b","c"] -&gt; "b"</span>
+<span class="sd">        []        -&gt; ""</span>
+
+<span class="sd">    Expected: O(N log N * L) with sorting, or O(total chars) with a trie + DFS.</span>
+<span class="sd">    Hint: sort the words; a word is buildable if word[:-1] is buildable (or empty).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">suggested_products</span><span class="p">(</span><span class="n">products</span><span class="p">,</span> <span class="n">search_word</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 1268. Search suggestions system.</span>
+
+<span class="sd">    After each character of search_word is typed, return up to 3 products</span>
+<span class="sd">    (lexicographically smallest) that share the typed prefix.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        products = ["mobile","mouse","moneypot","monitor","mousepad"], search_word = "mouse"</span>
+<span class="sd">        -&gt; [["mobile","moneypot","monitor"],</span>
+<span class="sd">            ["mobile","moneypot","monitor"],</span>
+<span class="sd">            ["mouse","mousepad"],</span>
+<span class="sd">            ["mouse","mousepad"],</span>
+<span class="sd">            ["mouse","mousepad"]]</span>
+
+<span class="sd">    Expected: O(N log N + W log N) with sort + binary search.</span>
+<span class="sd">    Hint: sort products once; for each prefix, bisect_left to the first</span>
+<span class="sd">    candidate, then check the next 3 entries with startswith. Or a trie that</span>
+<span class="sd">    keeps the 3 smallest words at each node.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">StreamChecker</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""LeetCode 1032. Stream of characters.</span>
+
+<span class="sd">    StreamChecker(words)   words is a list of non-empty strings.</span>
+<span class="sd">    query(letter) -&gt; bool  Append letter to the stream. Return True if SOME</span>
+<span class="sd">                           suffix of the stream equals one of the words.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        sc = StreamChecker(["cd","f","kl"])</span>
+<span class="sd">        query("a") F, "b" F, "c" F, "d" T (suffix "cd"), "e" F, "f" T, "g" F, "h" F, "i" F, "j" F, "k" F, "l" T</span>
+
+<span class="sd">    Expected: query O(max word length).</span>
+<span class="sd">    Hint: insert each word REVERSED into a trie; on query walk backwards from</span>
+<span class="sd">    the newest letter. Remember the longest word length to bound the walk.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">words</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Build the reversed-word trie."""</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">query</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">letter</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Append letter; return True if a suffix of the stream is a word."""</span>
+        <span class="o">...</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">find_maximum_xor</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 421. Maximum XOR of two numbers in an array.</span>
+
+<span class="sd">    Return max(nums[i] ^ nums[j]) over all i, j (i may equal j, giving 0).</span>
+<span class="sd">    nums are non-negative ints &lt; 2**31. Empty list -&gt; 0.</span>
+
+<span class="sd">    Examples:</span>
+<span class="sd">        [3,10,5,25,2,8] -&gt; 28   (5 ^ 25)</span>
+<span class="sd">        [14,70,53,83,49,91,36,80,92,51,66,70] -&gt; 127</span>
+<span class="sd">        [8]  -&gt; 0</span>
+
+<span class="sd">    Expected: O(31 * N) time, O(31 * N) space. Beats the O(N^2) brute force.</span>
+<span class="sd">    Hint: binary trie over bits 30..0. For each number greedily walk to the</span>
+<span class="sd">    OPPOSITE bit whenever that child exists.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">find_words</span><span class="p">(</span><span class="n">board</span><span class="p">,</span> <span class="n">words</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LeetCode 212. Word Search II.</span>
+
+<span class="sd">    Given an m x n board of lowercase letters and a list of words, return all</span>
+<span class="sd">    words that can be built from sequentially adjacent cells (up/down/left/</span>
+<span class="sd">    right), using each cell at most once per word. Return each word once, in</span>
+<span class="sd">    any order. Do not leave the board modified.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        board = [["o","a","a","n"],</span>
+<span class="sd">                 ["e","t","a","e"],</span>
+<span class="sd">                 ["i","h","k","r"],</span>
+<span class="sd">                 ["i","f","l","v"]]</span>
+<span class="sd">        words = ["oath","pea","eat","rain"]  -&gt; ["eat","oath"] (any order)</span>
+
+<span class="sd">    Expected: O(m * n * 4 * 3^(L-1)) worst case, but trie pruning makes it fast.</span>
+<span class="sd">    Hint: build ONE trie of all words, DFS from every cell following trie</span>
+<span class="sd">    children; store the full word at the terminal node; when found, remove it</span>
+<span class="sd">    (pop) to avoid duplicates; mark visited cells temporarily (e.g. "#").</span>
+<span class="sd">    Pruning empty trie branches after a hit is the classic optimisation.</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-16-tries/lesson.html">← Week 16 · Tries: Lesson</a><a class="next" href="../../03-dsa/week-16-tries/test_exercises.py.html">Week 16 · Tries: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 13: Binary trees and traversals (DFS / BFS) | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="03-dsa/week-13-binary-trees/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../03-dsa/week-01-big-o-complexity/lesson.html">Data Structures and Algorithms</a> / <a href="../../03-dsa/week-13-binary-trees/lesson.html">Week 13 · Binary trees</a> / <span>Lesson</span></nav><button id="mark-done" data-id="03-dsa/week-13-binary-trees/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-13-binary-trees-and-traversals-dfs-bfs">Week 13: Binary trees and traversals (DFS / BFS)</h1>
+<h2 id="1-concept">1. Concept</h2>
+<p>A binary tree is a node with up to two children (<code>left</code>, <code>right</code>). Almost every tree problem is
+"visit every node once" (O(n)) while carrying some information up or down.</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">TreeNode</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">left</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">right</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">val</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">left</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">right</span> <span class="o">=</span> <span class="n">val</span><span class="p">,</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span>
+</code></pre></div>
+
+<p>Vocabulary: root, leaf, height (edges or nodes - ASK which), depth, subtree, balanced, complete, full.</p>
+<h2 id="2-how-to-recognize-the-pattern">2. How to recognize the pattern</h2>
+<ul>
+<li>"For every node ..." / "any path ..." / "depth/height/diameter" -&gt; recursive DFS that <strong>returns</strong> a value.</li>
+<li>"Level by level", "shortest", "right side view", "zigzag" -&gt; BFS with a queue.</li>
+<li>Input is two traversals -&gt; reconstruct using the root position in one of them.</li>
+<li>"Ancestor", "path from root" -&gt; DFS carrying state <strong>down</strong> (parameters).</li>
+<li>"Best path through a node" -&gt; DFS returning one thing up while updating a global answer with another.</li>
+</ul>
+<h2 id="3-templates">3. Templates</h2>
+<h3 id="recursive-dfs-return-value-up">Recursive DFS (return value up)</h3>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">solve</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">node</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">BASE</span>
+    <span class="n">left</span> <span class="o">=</span> <span class="n">solve</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>
+    <span class="n">right</span> <span class="o">=</span> <span class="n">solve</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">combine</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">val</span><span class="p">,</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">)</span>
+</code></pre></div>
+
+<h3 id="traversal-orders">Traversal orders</h3>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">pre</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>  <span class="k">return</span> <span class="p">[]</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">n</span> <span class="k">else</span> <span class="p">[</span><span class="n">n</span><span class="o">.</span><span class="n">val</span><span class="p">]</span> <span class="o">+</span> <span class="n">pre</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">left</span><span class="p">)</span> <span class="o">+</span> <span class="n">pre</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>   <span class="c1"># node, L, R</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">ino</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>  <span class="k">return</span> <span class="p">[]</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">n</span> <span class="k">else</span> <span class="n">ino</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">left</span><span class="p">)</span> <span class="o">+</span> <span class="p">[</span><span class="n">n</span><span class="o">.</span><span class="n">val</span><span class="p">]</span> <span class="o">+</span> <span class="n">ino</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>   <span class="c1"># L, node, R</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">post</span><span class="p">(</span><span class="n">n</span><span class="p">):</span> <span class="k">return</span> <span class="p">[]</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">n</span> <span class="k">else</span> <span class="n">post</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">left</span><span class="p">)</span> <span class="o">+</span> <span class="n">post</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">right</span><span class="p">)</span> <span class="o">+</span> <span class="p">[</span><span class="n">n</span><span class="o">.</span><span class="n">val</span><span class="p">]</span> <span class="c1"># L, R, node</span>
+</code></pre></div>
+
+<h3 id="iterative-inorder-explicit-stack">Iterative inorder (explicit stack)</h3>
+<div class="highlight"><pre><span></span><code><span class="n">out</span><span class="p">,</span> <span class="n">stack</span><span class="p">,</span> <span class="n">cur</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[],</span> <span class="n">root</span>
+<span class="k">while</span> <span class="n">cur</span> <span class="ow">or</span> <span class="n">stack</span><span class="p">:</span>
+    <span class="k">while</span> <span class="n">cur</span><span class="p">:</span>
+        <span class="n">stack</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cur</span><span class="p">);</span> <span class="n">cur</span> <span class="o">=</span> <span class="n">cur</span><span class="o">.</span><span class="n">left</span>
+    <span class="n">cur</span> <span class="o">=</span> <span class="n">stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+    <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cur</span><span class="o">.</span><span class="n">val</span><span class="p">)</span>
+    <span class="n">cur</span> <span class="o">=</span> <span class="n">cur</span><span class="o">.</span><span class="n">right</span>
+</code></pre></div>
+
+<h3 id="bfs-by-level">BFS by level</h3>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">deque</span>
+<span class="n">q</span> <span class="o">=</span> <span class="n">deque</span><span class="p">([</span><span class="n">root</span><span class="p">])</span> <span class="k">if</span> <span class="n">root</span> <span class="k">else</span> <span class="n">deque</span><span class="p">()</span>
+<span class="k">while</span> <span class="n">q</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">)):</span>       <span class="c1"># freeze the level size</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+        <span class="o">...</span>
+        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">:</span>  <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">:</span> <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+</code></pre></div>
+
+<h3 id="return-one-thing-record-another-diameter-max-path-sum">"Return one thing, record another" (diameter, max path sum)</h3>
+<div class="highlight"><pre><span></span><code><span class="n">best</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">height</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+    <span class="k">nonlocal</span> <span class="n">best</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">n</span><span class="p">:</span> <span class="k">return</span> <span class="mi">0</span>
+    <span class="n">l</span><span class="p">,</span> <span class="n">r</span> <span class="o">=</span> <span class="n">height</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">left</span><span class="p">),</span> <span class="n">height</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+    <span class="n">best</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">best</span><span class="p">,</span> <span class="n">l</span> <span class="o">+</span> <span class="n">r</span><span class="p">)</span>       <span class="c1"># path THROUGH n (what we record)</span>
+    <span class="k">return</span> <span class="mi">1</span> <span class="o">+</span> <span class="nb">max</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">r</span><span class="p">)</span>          <span class="c1"># path ENDING at n going down (what parent can use)</span>
+</code></pre></div>
+
+<h3 id="build-from-preorder-inorder">Build from preorder + inorder</h3>
+<p>Preorder's first element is the root; its index in inorder tells how many nodes are in the left subtree.
+Use a dict <code>value -&gt; inorder index</code> for O(1) lookups and an iterator over preorder.</p>
+<h2 id="4-complexity">4. Complexity</h2>
+<ul>
+<li>Time O(n) for all of the above (each node visited once).</li>
+<li>Space: DFS O(h) stack (h = log n balanced, n skewed); BFS O(w) where w is the max width (up to n/2).</li>
+<li>Building a tree from traversals: O(n) with a hashmap, O(n^2) with <code>list.index</code>.</li>
+</ul>
+<h2 id="5-common-mistakes">5. Common mistakes</h2>
+<ul>
+<li>Forgetting the <code>None</code> base case, or testing <code>if not node.left and not node.right</code> where None is possible.</li>
+<li>Height in nodes vs edges (diameter asks edges; <code>max_depth</code> counts nodes). Clarify with the interviewer.</li>
+<li>Python recursion limit is ~1000: a skewed tree of 10^5 nodes crashes recursive DFS. Mention iterative as the fix.</li>
+<li>BFS: using <code>len(q)</code> live inside the loop instead of freezing it before the level loop.</li>
+<li>Max path sum: not clamping negative child gains to 0; initializing best to 0 (all-negative trees).</li>
+<li>LCA: comparing <code>.val</code> when the problem gives node references (or vice versa); not handling p being an ancestor of q.</li>
+<li>Mutating the tree (invert) when the caller expects a copy - state whether you mutate.</li>
+</ul>
+<h2 id="6-interview-tips">6. Interview tips</h2>
+<ul>
+<li>Say the recurrence out loud first: "answer(node) depends on answer(left), answer(right)".</li>
+<li>Decide <strong>top-down</strong> (state in parameters) vs <strong>bottom-up</strong> (state in return value) before coding.</li>
+<li>Always test: empty tree, single node, skewed tree, all-negative values.</li>
+<li>Expect the follow-up "now do it iteratively" - know iterative inorder and BFS cold. Morris traversal (O(1) space) is a bonus.</li>
+<li>Serialize/deserialize, zigzag level order, and vertical order are common Google/Uber extensions of BFS.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code> (10 problems, easy to hard), then run:
+<code>cd 03-dsa/week-13-binary-trees &amp;&amp; ../../.venv/bin/pytest -q</code>
+Target: 7-8 hours. Do the first 6 in the first sitting; leave <code>build_tree</code> and <code>max_path_sum</code> for a fresh day.</p>
+</article><div class="pager"><a class="prev" href="../../03-dsa/week-12-sorting-checkpoint/test_exercises.py.html">← Week 12 · Sorting and checkpoint: Tests (code)</a><a class="next" href="../../03-dsa/week-13-binary-trees/exercises.py.html">Week 13 · Binary trees: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HLD 7 - Ride-Hailing Dispatch (Uber-style) | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="08-system-design/week-06-hld-designs/07-ride-hailing-dispatch" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../08-system-design/README.html">System Design</a> / <a href="../../08-system-design/week-06-hld-designs/framework.html">Week 6 · HLD designs</a> / <span>HLD 7 - Ride-Hailing Dispatch (Uber-style)</span></nav><button id="mark-done" data-id="08-system-design/week-06-hld-designs/07-ride-hailing-dispatch">Mark as done</button></div><article class="doc">
+<h1 id="hld-7-ride-hailing-dispatch-uber-style">HLD 7 - Ride-Hailing Dispatch (Uber-style)</h1>
+<p>Background: <a href="../week-02-data-storage/lesson.html">sharding, replication</a>, <a href="../week-03-coordination-messaging/lesson.html">queues/Kafka, backpressure</a>, <a href="../week-04-distributed-algorithms/lesson.html">locks, consensus, clocks</a>. Framework: <a href="framework.html">framework.md</a>.</p>
+<h2 id="1-clarify-requirements">1. Clarify requirements</h2>
+<p>Functional: rider requests a ride (pickup/dropoff); system finds nearby available drivers, offers the trip, driver accepts; live tracking; ETA and fare estimate; surge pricing; trip lifecycle and payments (payments out of scope but state integration).
+Non-functional: match latency few seconds; location freshness ~ 4-5 s; high availability in dispatch; a driver must not be double-assigned; a rider must not get two cars; regional isolation (a city outage must not take down others).
+Scope question: single-city or global? Say "cell/region sharded by city".</p>
+<h2 id="2-estimate">2. Estimate</h2>
+<ul>
+<li>5M drivers online at peak globally, each sends GPS every 4 s -&gt; 1.25M updates/s. Payload ~100 B -&gt; 125 MB/s ingest. (Check: 5M/4 = 1.25M.)</li>
+<li>Rides: 20M/day -&gt; ~230/s avg, peak ~1k/s requests. Each request queries nearby drivers: small compared to location writes.</li>
+<li>Location state in memory: 5M x ~100 B = 500 MB - trivially fits in memory; the problem is write rate, not size.</li>
+<li>Trip storage: 20M/day x 2 KB = 40 GB/day; ~15 TB/yr; plus GPS traces to cold storage (object store) for analytics: 1.25M x 100 B x 86,400 ~ 10 TB/day if all retained - so sample/compress.</li>
+</ul>
+<h2 id="3-api">3. API</h2>
+<div class="highlight"><pre><span></span><code>POST /v1/rides            {rider_id, pickup:{lat,lng}, dropoff, product} -&gt; 202 {ride_id}
+GET  /v1/rides/{id}       status, driver, ETA
+WS   /v1/rides/{id}/stream  driver location, state changes (WebSocket/SSE)
+POST /v1/drivers/location {driver_id, lat, lng, heading, ts}   (batched, UDP/MQTT/gRPC stream)
+POST /v1/drivers/{id}/offers/{offer_id}/accept | decline
+PUT  /v1/drivers/{id}/status  online|offline
+</code></pre></div>
+
+<h2 id="4-data-model">4. Data model</h2>
+<ul>
+<li>Driver location (hot, in-memory): <code>driver_id -&gt; {lat,lng,cell,ts,status,vehicle}</code> plus per-cell set <code>cell -&gt; {driver_ids}</code> (Redis/in-memory service).</li>
+<li>Trip (durable, strongly consistent per trip): <code>trip_id, rider_id, driver_id, state, pickup, dropoff, fare, timestamps</code>. Sharded by trip_id (or city); SQL/Spanner-like or Cassandra with LWT for state transitions.</li>
+<li>Driver state machine: offline -&gt; available -&gt; offered -&gt; on_trip -&gt; available.</li>
+<li>Event log in Kafka for location and trip events -&gt; analytics, ETA models, surge.</li>
+</ul>
+<h2 id="5-high-level-diagram">5. High-level diagram</h2>
+<div class="highlight"><pre><span></span><code> Driver app --(GPS every 4s)--&gt; [Location gateway] --&gt; Kafka(loc, key=driver/cell)
+                                                        |       |
+                                         [Location index svc]  [GPS trace sink -&gt; S3]
+                                         in-memory geo index (sharded by city/cell)
+ Rider app --request--&gt; [API GW] --&gt; [Ride service] --&gt; [Dispatch/Matching svc (per region)]
+                                         |  trip DB            | 1 query nearby cells (index)
+                                         |                     | 2 rank by ETA (routing svc)
+                                         |                     | 3 offer to best driver (push)
+                                         |                     | 4 timeout/decline -&gt; next candidate
+                                         v                     v
+                                   [Trip state machine] &lt;-- driver accepts (atomic CAS)
+ [Pricing/surge svc] &lt;-- demand/supply per cell (stream agg)     [ETA/Routing svc]
+ [WebSocket tracking svc] &lt;-- location events for active trips
+</code></pre></div>
+
+<h2 id="6-deep-dives">6. Deep dives</h2>
+<p><strong>Geospatial indexing.</strong></p>
+<ul>
+<li>Geohash: string prefix = cell; neighbors via prefix + 8 adjacent cells; edge discontinuities and varying cell shape (distorted near poles).</li>
+<li>Quadtree: adaptive to density (split when &gt; K drivers); in-memory, harder to distribute.</li>
+<li>S2 (Google): sphere projected onto cube, Hilbert-curve cell ids, hierarchical, good area-covering of a radius.</li>
+<li>H3 (Uber): hexagonal grid, uniform neighbor distance (6 neighbors, equidistant) - good for surge and ETA aggregations.
+Approach: index each driver by cell id at a chosen resolution (~ a few hundred meters to 1 km); a nearby query expands rings (k-ring) around the pickup cell until enough candidates; then exact distance filter. Shard the index by cell range or city so each shard is in memory.
+<strong>Location ingestion.</strong> 1.25M writes/s: use lightweight protocol, batching, and drop-oldest semantics (only latest position matters). Update the in-memory index directly, write to Kafka async. Skip update if the driver barely moved. Cell changes require removing from old cell set and adding to new.
+<strong>Matching.</strong> Naive: nearest driver. Better: rank by ETA via routing graph (road distance, not straight line), driver rating, acceptance probability. Batch matching (collect requests for ~2 s and solve assignment, e.g., bipartite/Hungarian-like) improves global efficiency vs greedy. Offer sequentially or to a small wave; offer timeout ~10-15 s.
+<strong>No double assignment.</strong> Offer a driver =&gt; driver state <code>available -&gt; offered</code> via atomic compare-and-set (per-driver lock/lease with TTL, or DB conditional write). Accept =&gt; <code>offered -&gt; on_trip</code> and trip <code>requested -&gt; matched</code> as one atomic step (single-shard transaction or state machine with CAS). Lease expiry returns driver to the pool. Use fencing/version numbers so a delayed accept from an expired offer is rejected. See distributed locks in week 4.
+<strong>Dispatch service scaling.</strong> Shard by geography (city/cell range); a request is routed to its region's dispatcher (consistent hashing or ownership via ringpop-style gossip). Dispatcher state in memory + recoverable from the log. Failover: another node takes the range; re-read state.
+<strong>Surge pricing.</strong> Stream-aggregate demand (requests) vs supply (available drivers) per H3 cell over sliding windows -&gt; multiplier with smoothing and caps to avoid oscillation; publish via cache. Regulatory/ethical limits apply.
+<strong>ETA.</strong> Road graph with contraction-hierarchies-type precompute plus live traffic from GPS streams and ML correction; cache popular segments.
+<strong>Tracking.</strong> WebSocket/SSE fan-out only for active trips (~ millions); pub/sub keyed by trip_id; fall back to polling.
+<strong>Reliability.</strong> Driver app offline/flaky network: heartbeat TTL marks driver unavailable; idempotent accept; trip state persisted so app reconnect resumes.</li>
+</ul>
+<h2 id="7-bottlenecks-and-failure-modes">7. Bottlenecks and failure modes</h2>
+<ul>
+<li>Hot cells (airport, stadium event): sub-shard dense cells, finer resolution adaptively.</li>
+<li>Location write storm after network blip (all drivers reconnect): jittered reconnect, rate limits.</li>
+<li>Stale locations =&gt; offers to ghost drivers: TTL + status checks.</li>
+<li>Dispatcher crash mid-offer: leases expire; offers idempotent.</li>
+<li>Region outage: failover to neighboring region with replicated trip state (async; accept small data loss window or use sync consensus for trips).</li>
+<li>Matching thrash or starvation of far riders: batch window + max-wait escalation.</li>
+</ul>
+<h2 id="8-tradeoffs">8. Tradeoffs</h2>
+<ul>
+<li>Greedy vs batch matching (latency vs efficiency). Straight-line vs routed ETA (speed vs accuracy).</li>
+<li>Geohash (simple, string-indexable in any KV) vs H3/S2 (better geometry, library dependency).</li>
+<li>In-memory index (fast, rebuild on crash from stream) vs durable geo DB (slower).</li>
+<li>Strong consistency for trip state only; eventual for locations.</li>
+</ul>
+<h2 id="9-what-to-say-out-loud">9. What to say out loud</h2>
+<p>"Two very different workloads: a huge write stream of locations that only needs the latest value, and a small low-volume but strongly consistent trip state machine. I will keep locations in a sharded in-memory geo index (H3 cells) fed via Kafka, and make assignment atomic with a CAS on driver and trip state so no one is double-booked. Dispatch is partitioned by geography so cities fail independently."</p>
+<h2 id="10-follow-ups">10. Follow-ups</h2>
+<ul>
+<li>How do you find drivers near a rider at a cell boundary? (k-ring neighbors)</li>
+<li>Handle driver GPS drift/spoofing? (map matching, speed sanity checks)</li>
+<li>Shared rides/pooling? (route insertion heuristics, more complex matching)</li>
+<li>Cancel race: rider cancels as driver accepts? (state machine, single serialization point on trip row)</li>
+<li>How do you test dispatch changes safely? (shadow traffic, simulation, canary by city)</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../../08-system-design/week-06-hld-designs/06-distributed-cache-kv-store.html">← Week 6 · HLD designs: Distributed cache and KV store</a><a class="next" href="../../08-system-design/week-06-hld-designs/08-enterprise-rag-platform.html">Week 6 · HLD designs: Enterprise RAG platform →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

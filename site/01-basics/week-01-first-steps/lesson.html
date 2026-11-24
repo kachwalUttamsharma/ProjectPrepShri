@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 1: First steps | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="01-basics/week-01-first-steps/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../01-basics/week-01-first-steps/lesson.html">Python Basics</a> / <a href="../../01-basics/week-01-first-steps/lesson.html">Week 1 · First steps</a> / <span>Lesson</span></nav><button id="mark-done" data-id="01-basics/week-01-first-steps/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-1-first-steps">Week 1: First steps</h1>
+<h2 id="1-running-python">1. Running Python</h2>
+<ul>
+<li>REPL (interactive): <code>.venv/bin/python</code>, type code, press Enter. Exit with <code>exit()</code>.</li>
+<li>Script: save code in <code>hello.py</code>, run <code>.venv/bin/python hello.py</code>.</li>
+</ul>
+<h2 id="2-variables">2. Variables</h2>
+<p>A variable is a name pointing to a value.</p>
+<div class="highlight"><pre><span></span><code><span class="n">age</span> <span class="o">=</span> <span class="mi">25</span>
+<span class="n">name</span> <span class="o">=</span> <span class="s2">"Uttam"</span>
+<span class="n">price</span> <span class="o">=</span> <span class="mf">9.99</span>
+<span class="n">is_student</span> <span class="o">=</span> <span class="kc">True</span>
+</code></pre></div>
+
+<p>Types: <code>int</code>, <code>float</code>, <code>str</code>, <code>bool</code>. Check with <code>type(age)</code>.
+Names: lowercase_with_underscores. <code>=</code> means "assign", not "equals".</p>
+<h2 id="3-numbers">3. Numbers</h2>
+<div class="highlight"><pre><span></span><code><span class="mi">7</span> <span class="o">+</span> <span class="mi">2</span>    <span class="c1"># 9</span>
+<span class="mi">7</span> <span class="o">-</span> <span class="mi">2</span>    <span class="c1"># 5</span>
+<span class="mi">7</span> <span class="o">*</span> <span class="mi">2</span>    <span class="c1"># 14</span>
+<span class="mi">7</span> <span class="o">/</span> <span class="mi">2</span>    <span class="c1"># 3.5   (always a float)</span>
+<span class="mi">7</span> <span class="o">//</span> <span class="mi">2</span>   <span class="c1"># 3     (floor division)</span>
+<span class="mi">7</span> <span class="o">%</span> <span class="mi">2</span>    <span class="c1"># 1     (remainder)</span>
+<span class="mi">7</span> <span class="o">**</span> <span class="mi">2</span>   <span class="c1"># 49    (power)</span>
+</code></pre></div>
+
+<p><code>%</code> is used constantly in interviews (even/odd, wrap-around).</p>
+<h2 id="4-strings">4. Strings</h2>
+<div class="highlight"><pre><span></span><code><span class="n">s</span> <span class="o">=</span> <span class="s2">"hello"</span>
+<span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>            <span class="c1"># 5</span>
+<span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>              <span class="c1"># 'h'  (indexing starts at 0)</span>
+<span class="n">s</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>             <span class="c1"># 'o'  (last character)</span>
+<span class="n">s</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="mi">4</span><span class="p">]</span>            <span class="c1"># 'ell' (slice: start included, end excluded)</span>
+<span class="n">s</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>         <span class="c1"># 'HELLO'</span>
+<span class="n">s</span> <span class="o">+</span> <span class="s2">" world"</span>      <span class="c1"># 'hello world'</span>
+<span class="n">s</span> <span class="o">*</span> <span class="mi">3</span>             <span class="c1"># 'hellohellohello'</span>
+<span class="s2">"ell"</span> <span class="ow">in</span> <span class="n">s</span>        <span class="c1"># True</span>
+<span class="sa">f</span><span class="s2">"Hi </span><span class="si">{</span><span class="n">s</span><span class="si">}</span><span class="s2">, 2+2=</span><span class="si">{</span><span class="mi">2</span><span class="o">+</span><span class="mi">2</span><span class="si">}</span><span class="s2">"</span>   <span class="c1"># f-string: embed values</span>
+</code></pre></div>
+
+<p>Strings are <strong>immutable</strong>: you can't change <code>s[0]</code>, only build a new string.</p>
+<h2 id="5-input-and-output">5. Input and output</h2>
+<div class="highlight"><pre><span></span><code><span class="n">name</span> <span class="o">=</span> <span class="nb">input</span><span class="p">(</span><span class="s2">"Name? "</span><span class="p">)</span>      <span class="c1"># always returns a str</span>
+<span class="n">age</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">input</span><span class="p">(</span><span class="s2">"Age? "</span><span class="p">))</span>   <span class="c1"># convert to int</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Hello"</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Conversions: <code>int("5")</code>, <code>float("2.5")</code>, <code>str(10)</code>.</p>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li><code>"5" + 5</code> raises TypeError. Convert first.</li>
+<li><code>=</code> vs <code>==</code> (comparison).</li>
+<li>Off-by-one in slices: <code>s[1:4]</code> has 3 characters, not 4.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run the tests (see PROGRESS.md).</p>
+</article><div class="pager"><a class="next" href="../../01-basics/week-01-first-steps/exercises.py.html">Week 1 · First steps: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

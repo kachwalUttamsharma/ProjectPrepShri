@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SQL Week 4: Schema design, indexes, transactions | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="06-sql/week-04-schema-indexes-transactions/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../06-sql/week-04-schema-indexes-transactions/lesson.html">Week 4 · Schema, indexes, transactions</a> / <span>Lesson</span></nav><button id="mark-done" data-id="06-sql/week-04-schema-indexes-transactions/lesson">Mark as done</button></div><article class="doc">
+<h1 id="sql-week-4-schema-design-indexes-transactions">SQL Week 4: Schema design, indexes, transactions</h1>
+<p>Goal: design tables that stay correct, make queries fast with the right index, and explain transactions, isolation and trade-offs like an engineer who ships to production. Much of this week is <em>conceptual</em>: interviews for backend/forward-deployed roles ask "why", not just "how".
+Budget: ~3 h reading + running the demos, ~2.5 h exercises, ~1.5 h interview Q&amp;A.
+Run tests: <code>.venv/bin/pytest 06-sql/week-04-schema-indexes-transactions -v</code></p>
+<p>SQLite vs Postgres vs MySQL notes appear as <strong>[PG]</strong>, <strong>[MySQL]</strong>, <strong>[SQLite]</strong> tags. Learn the concepts on SQLite; know where the big engines differ.</p>
+<h2 id="1-modelling-tables-keys-relationships">1. Modelling: tables, keys, relationships</h2>
+<ul>
+<li><strong>Primary key (PK):</strong> uniquely identifies a row, NOT NULL. <strong>Surrogate key</strong> = meaningless generated id (<code>INTEGER PRIMARY KEY</code> in SQLite, <code>BIGINT GENERATED ... AS IDENTITY</code> or <code>uuid</code> in PG, <code>AUTO_INCREMENT</code> in MySQL). <strong>Natural key</strong> = real-world attribute (email, ISBN). Common practice: surrogate PK plus a UNIQUE constraint on the natural key (emails change; ids should not).</li>
+<li><strong>Foreign key (FK):</strong> column referencing another table's key; guarantees <em>referential integrity</em>. <code>ON DELETE CASCADE | SET NULL | RESTRICT | NO ACTION</code>. <strong>[SQLite]</strong> FKs are OFF per connection until <code>PRAGMA foreign_keys = ON</code>.</li>
+<li><strong>Candidate key / composite key / unique constraint:</strong> any minimal column set that identifies a row; a table has one PK but many UNIQUE constraints.</li>
+<li><strong>Relationships:</strong> 1:1 (FK with UNIQUE), 1:N (FK on the many side), M:N (junction table with composite PK, e.g. <code>enrollments(student_id, course_id)</code>).</li>
+<li>Data types: money -&gt; integer cents or <code>NUMERIC/DECIMAL</code>, never float. Timestamps in UTC. <strong>[SQLite]</strong> uses <em>type affinity</em>: an INTEGER column happily stores <code>'abc'</code> as text unless the table is <code>STRICT</code>:</li>
+</ul>
+<div class="highlight"><pre><span></span><code>CREATE TABLE a(n INTEGER); INSERT INTO a VALUES ('abc'),('12');  -&gt;  [('abc','text'), (12,'integer')]
+CREATE TABLE s(n INTEGER) STRICT; INSERT INTO s VALUES ('abc')   -&gt;  IntegrityError: cannot store TEXT value in INTEGER column s.n
+</code></pre></div>
+
+<h2 id="2-constraints-let-the-database-defend-the-data">2. Constraints: let the database defend the data</h2>
+<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">members</span><span class="w"> </span><span class="p">(</span>
+<span class="w">  </span><span class="n">id</span><span class="w">     </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
+<span class="w">  </span><span class="n">handle</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">UNIQUE</span><span class="p">,</span>
+<span class="w">  </span><span class="n">city</span><span class="w">   </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">  </span><span class="n">rating</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">CHECK</span><span class="w"> </span><span class="p">(</span><span class="n">rating</span><span class="w"> </span><span class="k">BETWEEN</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="mi">5</span><span class="p">)</span><span class="w">   </span><span class="c1">-- NULL passes CHECK (unknown is not false)</span>
+<span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">loans</span><span class="w"> </span><span class="p">(</span>
+<span class="w">  </span><span class="n">id</span><span class="w">        </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
+<span class="w">  </span><span class="n">member_id</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">members</span><span class="p">(</span><span class="n">id</span><span class="p">)</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="k">DELETE</span><span class="w"> </span><span class="k">CASCADE</span><span class="p">,</span>
+<span class="w">  </span><span class="n">fee</span><span class="w">       </span><span class="nb">REAL</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">CHECK</span><span class="w"> </span><span class="p">(</span><span class="n">fee</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">0</span><span class="p">),</span>
+<span class="w">  </span><span class="k">state</span><span class="w">     </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="s1">'open'</span><span class="w"> </span><span class="k">CHECK</span><span class="w"> </span><span class="p">(</span><span class="k">state</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span><span class="s1">'open'</span><span class="p">,</span><span class="s1">'returned'</span><span class="p">,</span><span class="s1">'lost'</span><span class="p">)),</span>
+<span class="w">  </span><span class="n">loaned_at</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="k">CURRENT_TIMESTAMP</span>
+<span class="p">);</span>
+</code></pre></div>
+
+<p><code>NOT NULL</code>, <code>UNIQUE</code>, <code>CHECK</code>, <code>DEFAULT</code>, <code>PRIMARY KEY</code>, <code>FOREIGN KEY</code>. Application-level validation is not enough: races between two requests break "check then insert"; a UNIQUE constraint cannot be raced. A UNIQUE column allows multiple NULLs in SQLite/PG/MySQL (SQL Server allows one).
+Violations raise <code>sqlite3.IntegrityError</code> in Python; catch it and report conflict instead of pre-checking.
+<strong>Partial unique index:</strong> "at most one open loan per book" = <code>CREATE UNIQUE INDEX uq ON loans(book_id) WHERE state = 'open'</code> (SQLite and PG; MySQL lacks partial indexes).</p>
+<h2 id="3-normalization">3. Normalization</h2>
+<p>Goal: one fact stored in one place, to avoid <em>update, insert and delete anomalies</em>.
+Start from a flat table <code>flat_enrollments(student_name, student_email, course_title, grade)</code>: a student's email is repeated on every enrollment; changing it means updating many rows (miss one and the data disagrees).</p>
+<ul>
+<li><strong>1NF:</strong> atomic values (no lists in a cell, no repeating column groups like <code>phone1, phone2</code>), each row unique.</li>
+<li><strong>2NF:</strong> (1NF +) no non-key column depends on only <em>part</em> of a composite key. Matters only with composite keys: in <code>order_items(order_id, product_id, product_name, qty)</code>, <code>product_name</code> depends only on <code>product_id</code>, so move it to <code>products</code>.</li>
+<li><strong>3NF:</strong> (2NF +) no non-key column depends on another non-key column (transitive): <code>employees(id, dept_id, dept_name)</code> -&gt; <code>dept_name</code> depends on <code>dept_id</code>; split <code>departments</code>. Slogan: "every non-key attribute depends on the key, the whole key and nothing but the key".</li>
+<li><strong>BCNF:</strong> every determinant is a candidate key (a slightly stricter 3NF).
+Result for the example: <code>students(id, name, email UNIQUE)</code>, <code>courses(id, title UNIQUE)</code>, <code>enrollments(student_id, course_id, grade, PRIMARY KEY (student_id, course_id))</code>. A snapshot such as a price at purchase time is a <em>historical fact</em>, not a duplicate of the current price, so it stays on the line item.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">courses</span><span class="w"> </span><span class="p">(</span><span class="n">id</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span><span class="w"> </span><span class="n">title</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">UNIQUE</span><span class="p">);</span>
+<span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">courses</span><span class="w"> </span><span class="p">(</span><span class="n">title</span><span class="p">)</span><span class="w"> </span><span class="k">SELECT</span><span class="w"> </span><span class="k">DISTINCT</span><span class="w"> </span><span class="n">course_title</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">flat_enrollments</span><span class="p">;</span>
+</code></pre></div>
+
+<p><strong>Denormalization</strong> is a deliberate trade for read speed: precomputed counters, copied columns, summary tables, star schemas in warehouses. Costs: extra writes and a risk of inconsistency. Normalise first, denormalise with a measured reason.</p>
+<h2 id="4-indexes">4. Indexes</h2>
+<p>An index is a separate sorted structure (almost always a <strong>B-tree</strong>; leaf entries point to rows) that lets the database <em>seek</em> instead of scanning every row. Lookup O(log n) instead of O(n); range scans and ORDER BY on the indexed order are cheap.</p>
+<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_cust</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">requests</span><span class="p">(</span><span class="n">customer_id</span><span class="p">);</span>
+</code></pre></div>
+
+<p>Sample plans on a 3000-row <code>requests(id, customer_id, status, created_at, body)</code> table (<code>EXPLAIN QUERY PLAN</code>):</p>
+<div class="highlight"><pre><span></span><code>SELECT * FROM requests WHERE customer_id = 5
+  before:  SCAN requests
+  after:   SEARCH requests USING INDEX idx_cust (customer_id=?)
+SELECT * FROM requests WHERE id = 10
+           SEARCH requests USING INTEGER PRIMARY KEY (rowid=?)
+</code></pre></div>
+
+<p>Key ideas:</p>
+<ul>
+<li><strong>Clustered vs secondary.</strong> In InnoDB (MySQL) the table <em>is</em> the PK B-tree (clustered); secondary indexes store the PK and need a second lookup. In SQLite a rowid table is a B-tree keyed on rowid, and <code>INTEGER PRIMARY KEY</code> aliases it. In PG the table is a heap and every index is secondary (extra heap fetch, avoided with index-only scans).</li>
+<li><strong>Composite index, leftmost prefix rule.</strong> Index <code>(customer_id, created_at)</code> helps filters on <code>customer_id</code> and on <code>customer_id AND created_at</code>, <strong>not</strong> on <code>created_at</code> alone. Order columns: equality columns first, then the range/sort column. With only <code>idx(user_id)</code> the query below needs a sort; with the composite it does not:</li>
+</ul>
+<div class="highlight"><pre><span></span><code>SELECT id FROM requests WHERE customer_id = 5 AND created_at &gt;= '2024-01-05' ORDER BY created_at
+  idx(customer_id):              SEARCH requests USING INDEX idx_cust (customer_id=?)
+                                 USE TEMP B-TREE FOR ORDER BY
+  idx(customer_id, created_at):  SEARCH requests USING COVERING INDEX idx_cust_ts (customer_id=? AND created_at&gt;?)
+</code></pre></div>
+
+<ul>
+<li><strong>Covering index.</strong> If the index contains every column the query needs, the table is never touched (<code>COVERING INDEX</code>; PG "Index Only Scan", MySQL "Using index"):</li>
+</ul>
+<div class="highlight"><pre><span></span><code>SELECT status, created_at FROM requests WHERE customer_id = 7
+  idx(customer_id):                      SEARCH requests USING INDEX idx_cust (customer_id=?)
+  idx(customer_id, status, created_at):  SEARCH requests USING COVERING INDEX idx_cov (customer_id=?)
+</code></pre></div>
+
+<p>[PG] <code>CREATE INDEX ... INCLUDE (col)</code> adds payload columns without making them part of the key.
+- <strong>Selectivity/cardinality.</strong> Indexes pay off when the predicate filters out most rows. An index on a boolean flag (50/50) is rarely used; the planner may prefer a scan. Partial indexes (<code>WHERE active = 1</code>) fix skewed data.
+- <strong>When an index is NOT used:</strong> function on the column (<code>WHERE substr(created_at,1,7) = '2024-01'</code> -&gt; SCAN; use a range or an <em>expression index</em> <code>CREATE INDEX ... ON requests(substr(created_at,1,7))</code>), leading wildcard <code>LIKE '%x'</code>, type mismatch/implicit casts, <code>OR</code> across columns, non-leftmost composite column, small tables, low selectivity, stale statistics (<code>ANALYZE</code>).
+- <strong>Cost.</strong> Every INSERT/UPDATE/DELETE must maintain every index: more indexes = slower writes and more disk. Index for your real query patterns; drop unused ones. UNIQUE and PK constraints create indexes automatically. <strong>FK columns are not auto-indexed in PG/SQLite</strong> (MySQL does): index them or joins and cascading deletes scan.
+- <strong>Other index types.</strong> Hash (equality only), GIN/GiST (PG: arrays, JSONB, full text, geometry), full-text, bitmap (warehouses), LSM trees (RocksDB/Cassandra: write-optimised alternatives to B-trees).</p>
+<h3 id="reading-plans">Reading plans</h3>
+<ul>
+<li><strong>[SQLite]</strong> <code>EXPLAIN QUERY PLAN &lt;query&gt;</code>: look for <code>SCAN</code> (full) vs <code>SEARCH ... USING INDEX</code>, <code>USE TEMP B-TREE FOR ORDER BY</code> (extra sort).</li>
+<li><strong>[PG]</strong> <code>EXPLAIN (ANALYZE, BUFFERS) &lt;query&gt;</code>: Seq Scan vs Index Scan / Index Only Scan / Bitmap Heap Scan; join types Nested Loop / Hash Join / Merge Join; compare estimated vs actual rows (bad estimates = stale stats).</li>
+<li><strong>[MySQL]</strong> <code>EXPLAIN</code> / <code>EXPLAIN ANALYZE</code>: <code>type</code> (ALL = full scan, ref, range, const), <code>key</code>, <code>rows</code>, <code>Extra</code> (Using filesort, Using temporary, Using index).</li>
+<li>Process: measure, read the plan, add/adjust one index, re-check, confirm with real timings.</li>
+<li>Two classic app-level problems: <strong>N+1 queries</strong> (one query for the list, then one per row: replace with a join or <code>IN (...)</code>), and <strong><code>SELECT *</code></strong> defeating covering indexes.</li>
+</ul>
+<h2 id="5-transactions-and-acid">5. Transactions and ACID</h2>
+<p>A transaction groups statements into one all-or-nothing unit.</p>
+<div class="highlight"><pre><span></span><code><span class="k">BEGIN</span><span class="p">;</span>
+<span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">purchases</span><span class="w"> </span><span class="p">(</span><span class="n">item_id</span><span class="p">,</span><span class="w"> </span><span class="n">qty</span><span class="p">)</span><span class="w"> </span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="mi">7</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">);</span>
+<span class="k">UPDATE</span><span class="w"> </span><span class="n">items</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">on_hand</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">on_hand</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">7</span><span class="p">;</span>
+<span class="k">COMMIT</span><span class="p">;</span><span class="w">            </span><span class="c1">-- or ROLLBACK; to undo both</span>
+</code></pre></div>
+
+<ul>
+<li><strong>Atomicity:</strong> all or nothing (a crash between the two statements leaves neither applied; implemented with undo logs / WAL).</li>
+<li><strong>Consistency:</strong> a transaction moves the DB from one valid state to another; constraints hold at commit (consistency is partly the <em>application's</em> job: CHECKs, FKs, invariants).</li>
+<li><strong>Isolation:</strong> concurrent transactions do not see each other's partial work (degree depends on level).</li>
+<li><strong>Durability:</strong> once COMMIT returns, the data survives crashes (write-ahead log fsync'd; <code>synchronous</code> settings trade this for speed).
+Demo of atomic rollback and visibility (SQLite file DB, two connections):</li>
+</ul>
+<div class="highlight"><pre><span></span><code>A: BEGIN IMMEDIATE; INSERT INTO t VALUES (1);
+B: INSERT INTO t VALUES (2)        -&gt; OperationalError: database is locked   (one writer at a time)
+B: SELECT COUNT(*) FROM t          -&gt; 0   (B does not see A's uncommitted row)
+A: COMMIT;   B: SELECT COUNT(*)    -&gt; 1
+A: BEGIN; DELETE FROM t; (count inside = 0); ROLLBACK; (count after = 1)
+</code></pre></div>
+
+<p><strong>Savepoints</strong> give partial rollback inside a transaction (<code>SAVEPOINT s1; ... ROLLBACK TO s1;</code>); ORMs use them for nested transactions.
+In Python: with <code>sqlite3</code> use <code>with conn:</code> (commit on success, rollback on exception); with SQLAlchemy <code>with engine.begin() as conn:</code>. Keep transactions short: long ones hold locks, bloat undo/MVCC history, and block vacuum.
+Idempotency/upserts: <code>INSERT INTO page_views(url, hits) VALUES (:url, 1) ON CONFLICT(url) DO UPDATE SET hits = hits + 1</code> (PG and SQLite; MySQL <code>ON DUPLICATE KEY UPDATE</code>). <code>ON CONFLICT DO NOTHING</code> makes retries safe.</p>
+<h2 id="6-isolation-levels-and-anomalies">6. Isolation levels and anomalies</h2>
+<p>Anomalies:</p>
+<ul>
+<li><strong>Dirty read:</strong> reading another transaction's uncommitted data.</li>
+<li><strong>Non-repeatable read:</strong> same row read twice in one transaction gives different values (someone committed an UPDATE between).</li>
+<li><strong>Phantom read:</strong> same range query returns different <em>sets</em> of rows (someone committed an INSERT/DELETE).</li>
+<li><strong>Lost update:</strong> two transactions read a value, both write; one overwrite is lost (<code>read balance; balance+10; write</code>).</li>
+<li><strong>Write skew:</strong> two transactions read overlapping data, each updates a <em>different</em> row, jointly breaking an invariant (two on-call doctors both go off-call because each saw the other still on).</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Level (SQL standard)</th>
+<th>Dirty read</th>
+<th>Non-repeatable</th>
+<th>Phantom</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>READ UNCOMMITTED</td>
+<td>possible</td>
+<td>possible</td>
+<td>possible</td>
+</tr>
+<tr>
+<td>READ COMMITTED</td>
+<td>no</td>
+<td>possible</td>
+<td>possible</td>
+</tr>
+<tr>
+<td>REPEATABLE READ</td>
+<td>no</td>
+<td>no</td>
+<td>possible (but not in PG or MySQL InnoDB snapshots, mostly)</td>
+</tr>
+<tr>
+<td>SERIALIZABLE</td>
+<td>no</td>
+<td>no</td>
+<td>no</td>
+</tr>
+</tbody>
+</table>
+<p>Reality check:</p>
+<ul>
+<li><strong>[PG]</strong> default READ COMMITTED; implements MVCC (each statement sees a snapshot of committed data). REPEATABLE READ = snapshot isolation for the whole transaction (no phantoms, but write skew possible). SERIALIZABLE uses SSI and may abort with a serialization failure: <strong>retry the transaction</strong>. READ UNCOMMITTED behaves as READ COMMITTED.</li>
+<li><strong>[MySQL InnoDB]</strong> default REPEATABLE READ with MVCC + gap/next-key locks to limit phantoms; <code>SELECT ... FOR UPDATE</code> reads latest committed data and locks.</li>
+<li><strong>[SQLite]</strong> effectively SERIALIZABLE: a single writer at a time. In WAL mode readers do not block the writer and the writer does not block readers (readers see a snapshot). Great for embedded/single-node use, not for high write concurrency.
+<strong>MVCC</strong> keeps multiple versions of rows so readers do not block writers; old versions are cleaned up (PG VACUUM, InnoDB purge).</li>
+</ul>
+<h3 id="preventing-lost-updates">Preventing lost updates</h3>
+<ol>
+<li>Atomic statement: <code>UPDATE accounts SET balance = balance + 10 WHERE id = 1</code> (no read-modify-write in the app).</li>
+<li>Pessimistic lock: <code>SELECT ... FOR UPDATE</code> [PG/MySQL] (SQLite: <code>BEGIN IMMEDIATE</code>).</li>
+<li><strong>Optimistic locking:</strong> version column; <code>UPDATE documents SET body = :body, rev = rev + 1 WHERE id = :id AND rev = :rev</code>; rowcount 0 means someone else won, so re-read and retry.</li>
+<li>Higher isolation level + retry on failure.</li>
+<li>Unique constraints for "at most one" rules (race-proof).</li>
+</ol>
+<h3 id="deadlocks">Deadlocks</h3>
+<p>T1 locks row A then wants B; T2 locks B then wants A: each waits forever. Databases detect cycles (PG after <code>deadlock_timeout</code>; InnoDB immediately) and abort one victim (error 40P01 / 1213): <strong>the app must retry</strong>. Prevent by: acquiring locks in a consistent order (always lower id first), keeping transactions short, touching fewer rows, indexing the columns used in locking reads/updates (so fewer rows are locked), lower isolation where safe. Diagnose with <code>pg_locks</code>/<code>pg_stat_activity</code> [PG], <code>SHOW ENGINE INNODB STATUS</code> [MySQL].</p>
+<h2 id="7-sql-vs-nosql-oltp-vs-olap">7. SQL vs NoSQL, OLTP vs OLAP</h2>
+<p><strong>SQL (relational):</strong> schema, joins, ACID, strong consistency, ad-hoc queries; scales up well and out with read replicas/sharding at effort. <strong>NoSQL</strong> families: key-value (Redis, DynamoDB), document (MongoDB), wide-column (Cassandra), graph (Neo4j). Choose them for: massive write scale/horizontal partitioning, flexible/evolving schemas, simple access by key, very low latency, specific data shapes (graphs, time series). Cost: weaker/no joins, eventual consistency (CAP/PACELC trade-offs), you model data around your queries, transactions are limited or per-item. Modern relational DBs also do JSON (<code>JSONB</code> in PG). Default answer: start with Postgres unless you can name the requirement it fails.
+<strong>OLTP</strong> (online transaction processing): many small reads/writes, point lookups, row-oriented storage, normalised schema, B-tree indexes, ACID, latency in ms (Postgres, MySQL). <strong>OLAP</strong> (analytics): few huge scans/aggregations over history, <strong>column-oriented</strong> storage (reads only needed columns, compresses well), denormalised star schema (fact table + dimension tables), batch/ELT loads (BigQuery, Snowflake, Redshift, ClickHouse, DuckDB). Pipeline: OLTP -&gt; CDC/ETL -&gt; warehouse. Do not run heavy reports on the primary OLTP database; use a replica or warehouse.</p>
+<h2 id="8-other-practical-topics">8. Other practical topics</h2>
+<ul>
+<li><strong>Views:</strong> stored named query (<code>CREATE VIEW dept_payroll AS SELECT dept, SUM(salary) AS payroll FROM staff GROUP BY dept</code>), always up to date; <strong>materialized views</strong> [PG] store results and must be refreshed.</li>
+<li><strong>Migrations:</strong> schema changes versioned in code (Alembic, Flyway). <code>ALTER TABLE ADD COLUMN archived INTEGER NOT NULL DEFAULT 0</code> is cheap in SQLite and modern PG (11+); on big tables avoid long locks: add nullable column, backfill in batches, then add the constraint. <strong>[SQLite]</strong> cannot drop/alter most column constraints in place (rebuild the table).</li>
+<li><strong>Connection pooling:</strong> opening connections is expensive; apps use a pool (PgBouncer, SQLAlchemy pool). Pool size x app instances must stay below the DB's max connections.</li>
+<li><strong>Replication &amp; scaling:</strong> read replicas (replication lag = stale reads), partitioning (split a table by range/hash), sharding (split across servers; cross-shard joins/transactions are hard).</li>
+<li><strong>Backups:</strong> logical dumps vs physical + WAL archiving (point-in-time recovery).</li>
+<li><strong>SQL injection:</strong> never format values into SQL; use parameters (<code>conn.execute("... WHERE id = ?", (x,))</code> or <code>:name</code>). Identifiers cannot be parameterised: whitelist them.</li>
+</ul>
+<h2 id="sqlite-vs-postgres-vs-mysql-cheat-table">SQLite vs Postgres vs MySQL cheat table</h2>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>SQLite</th>
+<th>Postgres</th>
+<th>MySQL (InnoDB)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Typing</td>
+<td>dynamic (affinity), STRICT optional</td>
+<td>strict</td>
+<td>strict (mode dependent)</td>
+</tr>
+<tr>
+<td>Foreign keys</td>
+<td>OFF by default (<code>PRAGMA</code>)</td>
+<td>on</td>
+<td>on</td>
+</tr>
+<tr>
+<td>Concurrency</td>
+<td>1 writer, WAL helps readers</td>
+<td>MVCC, many writers</td>
+<td>MVCC, row locks</td>
+</tr>
+<tr>
+<td>Default isolation</td>
+<td>serializable (effectively)</td>
+<td>READ COMMITTED</td>
+<td>REPEATABLE READ</td>
+</tr>
+<tr>
+<td>Partial/expr indexes</td>
+<td>yes</td>
+<td>yes</td>
+<td>no / functional only (8.0)</td>
+</tr>
+<tr>
+<td>Window fns, CTEs</td>
+<td>3.25+/3.8+</td>
+<td>yes</td>
+<td>8.0+</td>
+</tr>
+<tr>
+<td>FULL OUTER JOIN</td>
+<td>3.39+</td>
+<td>yes</td>
+<td>no</td>
+</tr>
+<tr>
+<td>Upsert</td>
+<td><code>ON CONFLICT</code></td>
+<td><code>ON CONFLICT</code></td>
+<td><code>ON DUPLICATE KEY UPDATE</code></td>
+</tr>
+<tr>
+<td>Auto id</td>
+<td><code>INTEGER PRIMARY KEY</code></td>
+<td><code>IDENTITY</code>/<code>SERIAL</code></td>
+<td><code>AUTO_INCREMENT</code></td>
+</tr>
+<tr>
+<td>Case-sensitive LIKE</td>
+<td>no (ASCII)</td>
+<td>yes (<code>ILIKE</code>)</td>
+<td>depends on collation</td>
+</tr>
+<tr>
+<td><code>ALTER</code> support</td>
+<td>limited</td>
+<td>rich, transactional DDL</td>
+<td>rich, DDL auto-commits</td>
+</tr>
+</tbody>
+</table>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ol>
+<li>Storing money as floating point; storing lists in a column.</li>
+<li>No FK or UNIQUE constraints ("the app will check").</li>
+<li>Indexing every column, or never indexing FK / filter / join columns.</li>
+<li>Composite index in the wrong column order; expecting it to serve the second column alone.</li>
+<li>Wrapping an indexed column in a function in WHERE.</li>
+<li>Reading in the app, then writing back (lost updates) without lock/version/atomic UPDATE.</li>
+<li>Holding a transaction open while calling an external API or waiting for a user.</li>
+<li>Not retrying on deadlock/serialization errors.</li>
+<li>Assuming SQLite behaviour (FKs, typing, locking) carries over to production databases.</li>
+<li>Treating EXPLAIN on a tiny dev table as representative of production data volume.</li>
+</ol>
+<h2 id="how-interviewers-probe-this-topic">How interviewers probe this topic</h2>
+<ul>
+<li>"Design the schema for X" (Twitter follows, library, ride sharing, URL shortener): entities, keys, relationships, constraints, indexes for the main queries, then "how does it scale?"</li>
+<li>"Is this table in 3NF? Why would you denormalize?"</li>
+<li>"Why is this query slow? What index would you add and what's the column order?" Often with an EXPLAIN output.</li>
+<li>"What does an index cost?" and "when would the database ignore your index?"</li>
+<li>"Explain ACID with an example," "isolation levels and the anomalies each prevents," "what is MVCC?"</li>
+<li>"Two users buy the last item at once. How do you prevent overselling?" (atomic UPDATE with <code>WHERE stock &gt; 0</code>, row lock, optimistic version, constraint).</li>
+<li>"How would you transfer money between accounts safely? What if the process dies midway? What about deadlocks?"</li>
+<li>"SQL or NoSQL for X? OLTP or OLAP?" (reason from access patterns, consistency needs and scale; avoid dogma).</li>
+<li>For forward-deployed roles: how you would model a customer's messy data, migrate it safely (idempotent loads, upserts, constraints), and diagnose slow queries live.</li>
+</ul>
+<h2 id="your-task">Your task</h2>
+<ol>
+<li>Run the lesson snippets in a REPL with <code>schema.db_events()</code> etc.</li>
+<li>Fill in <code>exercises.py</code> (16 functions) until green. The tests check behaviour (constraint violations, query plans, transaction results).</li>
+<li>Do <code>interview-qa.md</code> aloud.</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../06-sql/week-03-cte-window-case-dates/schema.py.html">← Week 3 · CTEs, windows, CASE, dates: schema.py</a><a class="next" href="../../06-sql/week-04-schema-indexes-transactions/interview-qa.html">Week 4 · Schema, indexes, transactions: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 2: Spark | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="14-data-engineering/week-02-spark/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../14-data-engineering/week-02-spark/lesson.html">Week 2 · Spark</a> / <span>Lesson</span></nav><button id="mark-done" data-id="14-data-engineering/week-02-spark/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-2-spark">Week 2: Spark</h1>
+<p>pyspark is not installed here. Code blocks below are <strong>not run here</strong>; they show what you would write on a real cluster. The exercises simulate the same ideas in plain Python so you can test your understanding offline.</p>
+<h2 id="1-architecture">1. Architecture</h2>
+<ul>
+<li><strong>Driver</strong>: runs your <code>main</code>, builds the plan (DAG), schedules tasks, holds the SparkSession. A single point of failure; collecting big data to it causes driver OOM.</li>
+<li><strong>Executors</strong>: JVM processes on workers that run <strong>tasks</strong> and hold cached data and shuffle files. Each has cores (parallel task slots) and memory.</li>
+<li><strong>Cluster manager</strong>: allocates resources (YARN, Kubernetes, standalone, Mesos is deprecated; managed offerings like Databricks/EMR wrap these).</li>
+<li>Deploy mode: client (driver on submitter) vs cluster (driver on the cluster).</li>
+<li>Parallelism = executors x cores per executor. A task processes exactly one partition.</li>
+</ul>
+<h2 id="2-lazy-evaluation-transformations-actions">2. Lazy evaluation, transformations, actions</h2>
+<ul>
+<li><strong>Transformations</strong> (<code>select</code>, <code>filter</code>, <code>withColumn</code>, <code>join</code>, <code>groupBy().agg</code>) only build a logical plan and return a new immutable DataFrame.</li>
+<li><strong>Actions</strong> (<code>count</code>, <code>collect</code>, <code>show</code>, <code>write</code>, <code>take</code>) trigger a job.</li>
+<li>Why lazy: Spark sees the whole plan and can prune columns, push filters down, and fuse steps (Catalyst).</li>
+<li>Consequence: an expensive DataFrame used by two actions is computed twice unless cached.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="c1"># not run here</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pyspark.sql</span><span class="w"> </span><span class="kn">import</span> <span class="n">SparkSession</span><span class="p">,</span> <span class="n">functions</span> <span class="k">as</span> <span class="n">F</span>
+<span class="n">spark</span> <span class="o">=</span> <span class="n">SparkSession</span><span class="o">.</span><span class="n">builder</span><span class="o">.</span><span class="n">appName</span><span class="p">(</span><span class="s2">"demo"</span><span class="p">)</span><span class="o">.</span><span class="n">getOrCreate</span><span class="p">()</span>
+
+<span class="n">orders</span> <span class="o">=</span> <span class="n">spark</span><span class="o">.</span><span class="n">read</span><span class="o">.</span><span class="n">parquet</span><span class="p">(</span><span class="s2">"s3://bucket/orders/"</span><span class="p">)</span>           <span class="c1"># no data read yet (schema only)</span>
+<span class="n">big</span> <span class="o">=</span> <span class="n">orders</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"amount"</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">100</span><span class="p">)</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"user_id"</span><span class="p">,</span> <span class="s2">"amount"</span><span class="p">)</span>  <span class="c1"># still lazy</span>
+<span class="n">big</span><span class="o">.</span><span class="n">explain</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>             <span class="c1"># parsed -&gt; analyzed -&gt; optimized -&gt; physical plan</span>
+<span class="n">big</span><span class="o">.</span><span class="n">groupBy</span><span class="p">(</span><span class="s2">"user_id"</span><span class="p">)</span><span class="o">.</span><span class="n">agg</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="s2">"amount"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"total"</span><span class="p">))</span><span class="o">.</span><span class="n">write</span><span class="o">.</span><span class="n">mode</span><span class="p">(</span><span class="s2">"overwrite"</span><span class="p">)</span><span class="o">.</span><span class="n">parquet</span><span class="p">(</span><span class="s2">"out/"</span><span class="p">)</span>  <span class="c1"># action</span>
+</code></pre></div>
+
+<h2 id="3-narrow-vs-wide-dag-stages-tasks">3. Narrow vs wide, DAG, stages, tasks</h2>
+<ul>
+<li><strong>Narrow dependency</strong>: each output partition depends on one input partition (<code>map</code>, <code>filter</code>, <code>select</code>, <code>union</code>, <code>coalesce</code>). Pipelined in memory, no network.</li>
+<li><strong>Wide dependency</strong>: output partition depends on many inputs (<code>groupBy</code>, <code>join</code> (non-broadcast), <code>distinct</code>, <code>orderBy</code>, <code>repartition</code>). Requires a <strong>shuffle</strong>: write partitioned map output to local disk, then fetch over the network.</li>
+<li><strong>Job</strong> = one action. <strong>Stage</strong> = a run of narrow ops between shuffles. <strong>Task</strong> = one stage applied to one partition. Stages = shuffles + 1 along a linear chain.</li>
+<li>Shuffles are the main cost: disk I/O, serialization, network, plus skew risk. Minimise and place them wisely (filter before the shuffle, pre-aggregate).</li>
+</ul>
+<h2 id="4-partitions">4. Partitions</h2>
+<ul>
+<li>Input partitions follow file splits (<code>spark.sql.files.maxPartitionBytes</code>, default 128 MB, check current docs).</li>
+<li>After a shuffle, partitions = <code>spark.sql.shuffle.partitions</code> (default 200; with AQE it is coalesced at runtime, check current docs).</li>
+<li>Rule of thumb: partitions about 2-4x total cores, each roughly 100-200 MB. Too few: idle cores, OOM, spill. Too many: scheduling overhead, tiny files.</li>
+<li><code>repartition(n[, cols])</code>: full shuffle, can grow or shrink, balances data. <code>coalesce(n)</code>: only merges existing partitions, no shuffle, can only shrink, can leave imbalance.</li>
+<li><code>repartition("col")</code> hash-partitions by column (co-locates keys); <code>partitionBy</code> on <strong>write</strong> controls directory layout, a different thing.</li>
+</ul>
+<h2 id="5-joins">5. Joins</h2>
+<table>
+<thead>
+<tr>
+<th>Strategy</th>
+<th>When</th>
+<th>Cost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Broadcast hash join</td>
+<td>one side small (under <code>spark.sql.autoBroadcastJoinThreshold</code>, default 10 MB, check current docs)</td>
+<td>no shuffle of the big side; small side sent to every executor</td>
+</tr>
+<tr>
+<td>Sort-merge join</td>
+<td>default for two large sides, equi-joins</td>
+<td>shuffle + sort both sides; scales, spills safely</td>
+</tr>
+<tr>
+<td>Shuffle hash join</td>
+<td>one side noticeably smaller but too big to broadcast</td>
+<td>shuffle both, build hash table per partition; OOM risk</td>
+</tr>
+<tr>
+<td>Broadcast nested loop / cartesian</td>
+<td>non-equi joins</td>
+<td>very expensive</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><span class="c1"># not run here</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pyspark.sql.functions</span><span class="w"> </span><span class="kn">import</span> <span class="n">broadcast</span>
+<span class="n">enriched</span> <span class="o">=</span> <span class="n">events</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">broadcast</span><span class="p">(</span><span class="n">dim_country</span><span class="p">),</span> <span class="s2">"country_code"</span><span class="p">,</span> <span class="s2">"left"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Join hints: <code>broadcast</code>, <code>merge</code>, <code>shuffle_hash</code>, <code>shuffle_replicate_nl</code>. Always check <code>explain()</code> for <code>BroadcastHashJoin</code> vs <code>SortMergeJoin</code>.</p>
+<h2 id="6-data-skew">6. Data skew</h2>
+<p>Symptom: in the Spark UI stage page, most tasks finish in seconds while a few run for minutes; max task time and shuffle read are far above the median.
+Causes: hot keys (null, "unknown", a celebrity user), bad partition column.
+Fixes, in the order to try:</p>
+<ol>
+<li><strong>AQE skew join</strong> (Spark 3+): <code>spark.sql.adaptive.enabled</code> + <code>spark.sql.adaptive.skewJoin.enabled</code> splits oversized shuffle partitions at runtime.</li>
+<li><strong>Broadcast</strong> the smaller side (removes the shuffle).</li>
+<li><strong>Filter or handle hot keys separately</strong> (nulls never match in joins anyway: drop or split them out).</li>
+<li><strong>Salting</strong>: append a random 0..N-1 suffix to the hot key on the big side, replicate the small side N times, join on (key, salt), then (for aggregations) aggregate again to remove the salt.</li>
+<li>Pre-aggregate before the join; increase shuffle partitions.</li>
+</ol>
+<div class="highlight"><pre><span></span><code><span class="c1"># not run here: salting an aggregation (two-phase)</span>
+<span class="n">N</span> <span class="o">=</span> <span class="mi">8</span>
+<span class="n">salted</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s2">"salt"</span><span class="p">,</span> <span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">rand</span><span class="p">()</span> <span class="o">*</span> <span class="n">N</span><span class="p">)</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">"int"</span><span class="p">))</span>
+<span class="n">partial</span> <span class="o">=</span> <span class="n">salted</span><span class="o">.</span><span class="n">groupBy</span><span class="p">(</span><span class="s2">"user_id"</span><span class="p">,</span> <span class="s2">"salt"</span><span class="p">)</span><span class="o">.</span><span class="n">agg</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="s2">"amt"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"s"</span><span class="p">))</span>
+<span class="n">final</span> <span class="o">=</span> <span class="n">partial</span><span class="o">.</span><span class="n">groupBy</span><span class="p">(</span><span class="s2">"user_id"</span><span class="p">)</span><span class="o">.</span><span class="n">agg</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="s2">"s"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"total"</span><span class="p">))</span>
+</code></pre></div>
+
+<h2 id="7-caching">7. Caching</h2>
+<ul>
+<li><code>df.cache()</code> = <code>persist(MEMORY_AND_DISK)</code> for DataFrames (lazy: filled by first action). <code>persist(StorageLevel.X)</code>: <code>MEMORY_ONLY</code>, <code>MEMORY_AND_DISK</code>, <code>DISK_ONLY</code>, <code>_SER</code> variants, <code>_2</code> replicated (levels vary by API/version, check current docs).</li>
+<li>Cache only data reused multiple times and expensive to recompute. <code>unpersist()</code> when done.</li>
+<li>Caching is not free: it uses executor storage memory, evicts LRU, and a lost executor means recompute from lineage.</li>
+<li><code>checkpoint()</code> truncates lineage by writing to reliable storage (long iterative jobs).</li>
+</ul>
+<h2 id="8-api-levels-catalyst-tungsten">8. API levels, Catalyst, Tungsten</h2>
+<ul>
+<li><strong>RDD</strong>: low-level, typed objects, no optimizer, Python RDDs pay serialization costs. Use rarely.</li>
+<li><strong>DataFrame</strong>: rows with a schema; goes through <strong>Catalyst</strong> (logical plan -&gt; optimizer rules such as predicate pushdown, column pruning, constant folding, join reordering -&gt; physical plan, plus cost-based choices). Execution on <strong>Tungsten</strong>: off-heap binary format and whole-stage code generation.</li>
+<li><strong>Dataset</strong>: typed API, Scala/Java only. In PySpark you use DataFrames.</li>
+<li>SQL, DataFrame and Dataset code compile to the same plans; prefer them over RDDs.</li>
+</ul>
+<h2 id="9-window-functions">9. Window functions</h2>
+<div class="highlight"><pre><span></span><code><span class="c1"># not run here</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pyspark.sql.window</span><span class="w"> </span><span class="kn">import</span> <span class="n">Window</span>
+<span class="n">w</span> <span class="o">=</span> <span class="n">Window</span><span class="o">.</span><span class="n">partitionBy</span><span class="p">(</span><span class="s2">"user_id"</span><span class="p">)</span><span class="o">.</span><span class="n">orderBy</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ts"</span><span class="p">)</span><span class="o">.</span><span class="n">desc</span><span class="p">())</span>
+<span class="n">latest</span> <span class="o">=</span> <span class="p">(</span><span class="n">events</span><span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s2">"rn"</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">row_number</span><span class="p">()</span><span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="n">w</span><span class="p">))</span>
+                <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="s2">"rn = 1"</span><span class="p">)</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="s2">"rn"</span><span class="p">))</span>             <span class="c1"># latest row per user</span>
+<span class="n">running</span> <span class="o">=</span> <span class="n">events</span><span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s2">"running"</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="s2">"amt"</span><span class="p">)</span><span class="o">.</span><span class="n">over</span><span class="p">(</span>
+    <span class="n">Window</span><span class="o">.</span><span class="n">partitionBy</span><span class="p">(</span><span class="s2">"user_id"</span><span class="p">)</span><span class="o">.</span><span class="n">orderBy</span><span class="p">(</span><span class="s2">"ts"</span><span class="p">)</span><span class="o">.</span><span class="n">rowsBetween</span><span class="p">(</span><span class="n">Window</span><span class="o">.</span><span class="n">unboundedPreceding</span><span class="p">,</span> <span class="n">Window</span><span class="o">.</span><span class="n">currentRow</span><span class="p">)))</span>
+</code></pre></div>
+
+<p>A window partition is shuffled to one task: a window without <code>partitionBy</code> puts all data in a single partition. <code>rank</code> vs <code>dense_rank</code> vs <code>row_number</code>; <code>lag</code>/<code>lead</code> for deltas.</p>
+<h2 id="10-udf-pitfalls">10. UDF pitfalls</h2>
+<ul>
+<li>A Python UDF is a black box to Catalyst (no pushdown, no codegen) and ships each row JVM &lt;-&gt; Python worker (pickle).</li>
+<li>Prefer built-ins (<code>F.when</code>, <code>F.regexp_extract</code>, <code>F.transform</code>, SQL expressions). Next best: <strong>pandas UDF</strong> (Arrow, vectorised, <code>@pandas_udf</code>) or <code>applyInPandas</code>. Scala UDFs are cheaper than Python ones.</li>
+<li>UDFs must be deterministic (or marked non-deterministic), handle nulls, and avoid large closures (they are serialized per task).</li>
+</ul>
+<h2 id="11-memory-oom-spill">11. Memory, OOM, spill</h2>
+<ul>
+<li>Executor memory = heap (execution + storage in a unified region, <code>spark.memory.fraction</code>) + overhead (off-heap, Python workers; <code>spark.executor.memoryOverhead</code>). YARN/K8s killing a container usually means overhead too small.</li>
+<li><strong>Spill</strong>: when shuffle/sort/aggregation does not fit, data is written to disk. Visible as "Spill (memory/disk)" in the UI. Slow but alive; heavy spill means too few/too large partitions.</li>
+<li>Driver OOM: <code>collect()</code>, <code>toPandas()</code>, big broadcast variables, huge number of partitions/files in the plan.</li>
+<li>Executor OOM: skewed partitions, huge groups in <code>collect_list</code>, shuffle hash join build side, too few partitions.</li>
+</ul>
+<h2 id="12-small-files">12. Small files</h2>
+<p>Thousands of tiny files hurt: listing cost, a task per file, NameNode/S3 request pressure. Causes: too many shuffle partitions at write, high-cardinality <code>partitionBy</code>, streaming micro-batches. Fixes: <code>coalesce</code>/<code>repartition</code> before write, <code>maxRecordsPerFile</code>, AQE coalescing, table compaction (Delta <code>OPTIMIZE</code>, Iceberg <code>rewrite_data_files</code>). The opposite: one huge unsplittable gzip file means one task.</p>
+<h2 id="13-reading-the-spark-ui">13. Reading the Spark UI</h2>
+<ul>
+<li><strong>Jobs / Stages</strong>: duration, shuffle read/write, spill, GC time. Compare min/median/max task durations: a big gap = skew.</li>
+<li><strong>SQL tab</strong>: the physical plan with metrics; find the join type, rows output per node, whether filters were pushed down (<code>PushedFilters</code>).</li>
+<li><strong>Executors</strong>: memory use, GC time, failed tasks, dead executors.</li>
+<li><strong>Storage</strong>: what is cached and what fraction.</li>
+<li>Debug order: which stage is slow -&gt; skew or spill or shuffle-bound? -&gt; which operator in the SQL plan -&gt; fix (partitioning, join type, caching).</li>
+</ul>
+<h2 id="14-structured-streaming-pointer">14. Structured Streaming pointer</h2>
+<p>Same DataFrame API on unbounded input: <code>readStream</code>, triggers, output modes (append/update/complete), event-time windows + <strong>watermark</strong> for late data, <strong>checkpoints</strong> for state and offsets, exactly-once sinks via idempotent/transactional writes. Out of scope for the exercises; know the vocabulary.</p>
+<h2 id="15-exercises-map">15. Exercises map</h2>
+<p>1 hash_partition, 2 wordcount_shuffle, 3 skew detection, 4 broadcast vs shuffle join, 5 salted join, 6 LazyDataset, 7 narrow/wide + stages, 8 partition sizing, 9 coalesce vs repartition, 10 row_number window.</p>
+</article><div class="pager"><a class="prev" href="../../14-data-engineering/week-01-modeling-warehousing/scd2_demo.sql.html">← Week 1 · Modeling and warehousing: scd2_demo.sql</a><a class="next" href="../../14-data-engineering/week-02-spark/interview-qa.html">Week 2 · Spark: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

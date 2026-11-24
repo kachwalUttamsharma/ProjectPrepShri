@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LLD 07: Pub-sub broker + notification service | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="11-lld/problem-07-pubsub-notifications/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../11-lld/README.html">Low-Level Design</a> / <a href="../../11-lld/problem-07-pubsub-notifications/lesson.html">Problem 7 · Pub-sub and notifications</a> / <span>Lesson</span></nav><button id="mark-done" data-id="11-lld/problem-07-pubsub-notifications/lesson">Mark as done</button></div><article class="doc">
+<h1 id="lld-07-pub-sub-broker-notification-service">LLD 07: Pub-sub broker + notification service</h1>
+<p>Classic "design a notification system / event bus" question. Core ideas: <strong>Observer</strong> (decoupled fan-out), <strong>Strategy</strong> (channels), retry with <strong>exponential backoff</strong>, <strong>dead-letter</strong> handling, and <strong>idempotency</strong> so retries don't double-send. Budget: ~45 min in an interview, ~3 hours to build here.</p>
+<h2 id="1-requirements-to-clarify-ask-these-first">1. Requirements to clarify (ask these first)</h2>
+<ul>
+<li>In-process library or distributed service? (Assume in-process; talk about Kafka/SQS later.)</li>
+<li>Sync or async delivery? Ordering guarantees? (Here: synchronous, subscription order.)</li>
+<li>Delivery semantics: at-most-once, at-least-once, exactly-once? (Retries make it at-least-once; idempotency recovers "effectively once".)</li>
+<li>What counts as failure, how many retries, what backoff? What happens after the last retry? (Dead-letter queue.)</li>
+<li>Can one bad subscriber block others? (No: isolation.)</li>
+<li>Channels: email / SMS / push? Per-user preferences? Muting? Templates? Priority? Rate limits?</li>
+<li>Scale: how many topics/subscribers? Persistence needed? (Out of scope: persistence, real threads.)</li>
+<li>Testability: how do we test backoff without sleeping? (Inject <code>sleeper</code>.)</li>
+</ul>
+<h2 id="2-entities">2. Entities</h2>
+<table>
+<thead>
+<tr>
+<th>Entity</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Message</code></td>
+<td>immutable (id, topic, payload)</td>
+</tr>
+<tr>
+<td><code>Subscriber</code> (ABC)</td>
+<td><code>handle(message)</code>; raise to signal failure</td>
+</tr>
+<tr>
+<td><code>PubSubBroker</code></td>
+<td>topics -&gt; subscribers, publish, retry, dead letters</td>
+</tr>
+<tr>
+<td><code>DeadLetter</code></td>
+<td>message + subscriber + attempts + last error</td>
+</tr>
+<tr>
+<td><code>Channel</code> (ABC) + fakes</td>
+<td>how a notification physically leaves (email/sms/push)</td>
+</tr>
+<tr>
+<td><code>NotificationService</code></td>
+<td>per-user preferences, mute, follow/unfollow; adapts users to <code>Subscriber</code>s</td>
+</tr>
+</tbody>
+</table>
+<h2 id="3-class-diagram">3. Class diagram</h2>
+<pre class="mermaid">classDiagram
+    class Subscriber { &lt;&lt;abstract&gt;&gt; +handle(message) }
+    class PubSubBroker {
+      -subs: dict[topic, list[Subscriber]]
+      -dead: list[DeadLetter]
+      +subscribe() +unsubscribe() +publish() +redrive_dead_letters()
+    }
+    class Message { +message_id +topic +payload }
+    class DeadLetter { +message +subscriber +attempts +error }
+    class Channel { &lt;&lt;abstract&gt;&gt; +send(user_id, text) }
+    class EmailChannel
+    class SMSChannel
+    class PushChannel
+    class NotificationService { +set_preferences() +mute() +follow() +unfollow() }
+    class UserSubscriber { -done: set }
+    Subscriber &lt;|-- UserSubscriber
+    Channel &lt;|-- EmailChannel
+    Channel &lt;|-- SMSChannel
+    Channel &lt;|-- PushChannel
+    PubSubBroker o-- Subscriber
+    PubSubBroker ..&gt; Message
+    PubSubBroker --&gt; DeadLetter
+    NotificationService --&gt; PubSubBroker
+    NotificationService o-- Channel
+    NotificationService *-- UserSubscriber</pre>
+<h2 id="4-patterns-and-why">4. Patterns and why</h2>
+<ul>
+<li><strong>Observer / pub-sub</strong>: publishers know only a topic, never the consumers. Adding a consumer = zero change to publishers (OCP).</li>
+<li><strong>Strategy</strong>: <code>Channel</code> implementations are interchangeable; a new channel (Slack) is a new class plus a dict entry.</li>
+<li><strong>Adapter</strong>: <code>UserSubscriber</code> adapts "a user with preferences" to the <code>Subscriber</code> interface.</li>
+<li><strong>Dependency injection</strong>: the <code>sleeper</code> (and channels, broker) are injected, so tests run instantly and deterministically.</li>
+<li><strong>Dead-letter queue</strong>: poison messages don't loop forever or block the rest, and they remain inspectable and replayable.</li>
+<li><strong>Snapshot iteration</strong>: publish iterates a copy of the subscriber list, so handlers that (un)subscribe cannot corrupt the loop.</li>
+</ul>
+<h2 id="5-extensibility-follow-ups-interviewers-ask">5. Extensibility follow-ups interviewers ask</h2>
+<ul>
+<li>Async delivery: a queue per subscriber + worker threads/asyncio; broker becomes a router.</li>
+<li>Ordering: per-topic (or per-key) FIFO; partitioning like Kafka.</li>
+<li>Filtering: subscribe with a predicate / content-based routing.</li>
+<li>Priorities and rate limiting per channel (reuse the rate limiter from problem 02).</li>
+<li>Templates and localization: payload becomes a template id + params.</li>
+<li>Persistence: outbox table, replay from offset, consumer groups.</li>
+<li>Jitter on backoff, max-delay cap, circuit breaker per channel.</li>
+</ul>
+<h2 id="6-what-to-say-out-loud">6. What to say out loud</h2>
+<ol>
+<li>"I'll assume in-process and synchronous first, then discuss making it async."</li>
+<li>"Delivery is at-least-once because of retries, so handlers must be idempotent. I track <code>(message_id, channel)</code> already done."</li>
+<li>"A failing subscriber is isolated: I catch <code>Exception</code> (not <code>BaseException</code>) per subscriber, retry with exponential backoff, then dead-letter."</li>
+<li>"Time is injected, so backoff is testable without sleeping."</li>
+<li>"I iterate over a snapshot of subscribers so re-entrancy is safe."</li>
+<li>"Not thread-safe by design; I'd guard topic maps with a lock or move to per-subscriber queues."</li>
+</ol>
+<h2 id="7-common-mistakes">7. Common mistakes</h2>
+<ul>
+<li>Calling <code>time.sleep</code> directly (untestable, slow tests).</li>
+<li>Sleeping after the final failed attempt.</li>
+<li>Letting one subscriber's exception abort delivery to the rest.</li>
+<li>Catching bare <code>except:</code> and swallowing <code>KeyboardInterrupt</code>.</li>
+<li>Retrying a multi-channel notification as a whole and sending duplicates on channels that already succeeded.</li>
+<li>Mutating the subscriber list while iterating it.</li>
+<li>Subscribing the same object twice (double delivery).</li>
+<li>Handing out a mutable internal list from <code>subscribers()</code> / <code>dead_letters()</code>.</li>
+<li>Hard-coding <code>if channel == "email"</code> chains instead of polymorphism.</li>
+</ul>
+<h2 id="8-follow-up-qa">8. Follow-up Q&amp;A</h2>
+<p><strong>Q: At-least-once vs exactly-once?</strong> Exactly-once is impossible end to end over unreliable links; do at-least-once plus idempotent consumers (dedupe key = message id).</p>
+<p><strong>Q: Why exponential backoff?</strong> Gives a struggling dependency room to recover and avoids synchronized retry storms; add jitter in production.</p>
+<p><strong>Q: Retry in the broker or the subscriber?</strong> Broker-level gives uniform policy; per-subscriber policy is a natural extension (policy object injected per subscription).</p>
+<p><strong>Q: How would you make it concurrent?</strong> Per-subscriber bounded queue + worker; publish just enqueues. Preserves isolation (slow subscriber backs up only its own queue); decide the backpressure policy (block, drop, spill).</p>
+<p><strong>Q: How do you guarantee ordering with retries?</strong> Either block the subscriber's queue until the head message succeeds (strict order) or accept reordering; partition by key.</p>
+<p><strong>Q: What would you store for a real DLQ?</strong> Message, subscriber id, attempts, error, timestamps; plus a redrive tool (we have <code>redrive_dead_letters</code>).</p>
+<p><strong>Q: Why <code>Subscriber</code> as an ABC and not just callables?</strong> Gives a named contract and room for state (like <code>done</code> set); callables can be adapted with a tiny wrapper.</p>
+<p><strong>Q: How do user preferences stay consistent mid-retry?</strong> Preferences are read at <code>handle</code> time; the <code>done</code> set ensures channels already served are not repeated.</p>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run
+<code>.venv/bin/pytest 11-lld/problem-07-pubsub-notifications -v</code></p>
+<p>Checklist: all tests pass; you can draw the diagram from memory; you can explain the backoff schedule <code>base * 2**(k-1)</code> and why there is no trailing sleep; you can describe how you'd add async delivery.</p>
+</article><div class="pager"><a class="prev" href="../../11-lld/problem-06-game-engine/test_exercises.py.html">← Problem 6 · Game engine: Tests (code)</a><a class="next" href="../../11-lld/problem-07-pubsub-notifications/exercises.py.html">Problem 7 · Pub-sub and notifications: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

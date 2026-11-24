@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LLM and AI Concepts Study Track (interview-focused, ~5 weeks at 6-8 hrs/week) | Study Hub</title><link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/pygments.css"></head>
+<body data-root="../" data-page-id="13-llm-ai-concepts/README" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../index.html">Home</a> / <a href="../13-llm-ai-concepts/README.html">LLM and AI Concepts</a> / <span>LLM and AI Concepts Study Track (interview-focused, ~5 weeks at 6-8 hrs/week)</span></nav><button id="mark-done" data-id="13-llm-ai-concepts/README">Mark as done</button></div><article class="doc">
+<h1 id="llm-and-ai-concepts-study-track-interview-focused-5-weeks-at-6-8-hrsweek">LLM and AI Concepts Study Track (interview-focused, ~5 weeks at 6-8 hrs/week)</h1>
+<p>Goal: conceptual fluency for forward-deployed-engineer and AI-engineering interviews. This track is reading, Q&amp;A and small runnable Python snippets (no API keys needed). The hands-on build track lives in <code>../05-fde-projects/</code>; this folder explains the "why" behind those projects. Model names, prices and limits change quickly: where a number matters, say "check current docs". Prices in worked examples are hypothetical.</p>
+<h2 id="study-order">Study order</h2>
+<table>
+<thead>
+<tr>
+<th>Week</th>
+<th>Folder</th>
+<th>Topics</th>
+<th>Pairs with project</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>week-01-llm-fundamentals</td>
+<td>Tokens, transformers (attention, context, KV cache), training stages, sampling, model tradeoffs, hallucination, prompt patterns, prompt injection</td>
+<td>project-01-llm-basics</td>
+</tr>
+<tr>
+<td>2</td>
+<td>week-02-retrieval-rag</td>
+<td>Embeddings, similarity, ANN (HNSW, IVF), chunking, hybrid search, reranking, query rewriting, citations, RAG debugging, RAG vs fine-tune vs long context</td>
+<td>project-03-document-qa-rag</td>
+</tr>
+<tr>
+<td>3</td>
+<td>week-03-agents-tool-use</td>
+<td>Function calling, agent loops, planning, memory, MCP-style protocols, multi-agent, reliability, HITL, cost control</td>
+<td>project-04-tool-calling-agent</td>
+</tr>
+<tr>
+<td>4</td>
+<td>week-04-evaluation-production</td>
+<td>Eval design, LLM judges, offline/online, regression tests, tracing, latency, caching, rate limits, cost math, versioning, safety/PII, LoRA, customer data privacy</td>
+<td>project-05-evaluation, project-06-capstone</td>
+</tr>
+<tr>
+<td>5</td>
+<td>week-05-classic-ml-essentials</td>
+<td>Supervised/unsupervised, overfitting, bias-variance, splits and leakage, metrics, regression, trees/boosting, clustering, neural nets/backprop</td>
+<td>project-02-ticket-triage (metrics)</td>
+</tr>
+</tbody>
+</table>
+<p>Then: <code>rapid-fire.md</code> (50 quick Q&amp;A) and <code>mock-interview.md</code> (6 FDE scenarios with rubrics).</p>
+<h2 id="weekly-routine">Weekly routine</h2>
+<ol>
+<li>Read <code>lesson.md</code> (about 2-3 hrs). Run each Python snippet; tweak numbers and predict outputs first.</li>
+<li>Do <code>interview-qa.md</code> out loud, covering the answers (about 2 hrs). Record yourself on the scenario questions.</li>
+<li>Memorize <code>cheatsheet.md</code>; redraw the main diagram from memory (30-45 min).</li>
+<li>Cross-link: reread the matching <code>05-fde-projects/project-0*/lesson.md</code> and map each concept to code you wrote.</li>
+<li>Last 30 min: explain the week's three key tradeoffs without notes.</li>
+</ol>
+<h2 id="final-two-weeks-after-finishing-week-5">Final two weeks (after finishing week 5)</h2>
+<ul>
+<li>Daily: 10 random questions from <code>rapid-fire.md</code>.</li>
+<li>Twice per week: one scenario from <code>mock-interview.md</code>, timed, self-scored with the rubric.</li>
+</ul>
+<h2 id="files">Files</h2>
+<ul>
+<li>week-NN-*/lesson.md, interview-qa.md (20 Qs each), cheatsheet.md</li>
+<li>rapid-fire.md, mock-interview.md at the folder root</li>
+</ul>
+<h2 id="interview-habits-to-practice">Interview habits to practice</h2>
+<ul>
+<li>Clarify before designing: user, success metric, data, constraints.</li>
+<li>Bring evaluation, security/privacy and cost up unprompted.</li>
+<li>Give a phased plan with a first small deliverable.</li>
+<li>When unsure of a number, give the order of magnitude and how you would verify it.</li>
+<li>Treat the model as an untrusted component; enforce authorization in code.</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../05-fde-projects/project-06-capstone-messy-data-demo/test_exercises.py.html">← Project 6 · Capstone: Tests (code)</a><a class="next" href="../13-llm-ai-concepts/week-01-llm-fundamentals/lesson.html">Week 1 · LLM fundamentals: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../assets/data.js"></script><script src="../assets/app.js"></script></body></html>

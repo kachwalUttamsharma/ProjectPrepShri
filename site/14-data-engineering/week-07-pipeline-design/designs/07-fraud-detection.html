@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Design 7: Real-Time Fraud / Anomaly Detection Pipeline | Study Hub</title><link rel="stylesheet" href="../../../assets/style.css"><link rel="stylesheet" href="../../../assets/pygments.css"></head>
+<body data-root="../../../" data-page-id="14-data-engineering/week-07-pipeline-design/designs/07-fraud-detection" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../../index.html">Home</a> / <a href="../../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../../14-data-engineering/week-07-pipeline-design/designs/01-clickstream-analytics.html">Week 7 · Pipeline design</a> / <a href="../../../14-data-engineering/week-07-pipeline-design/designs/01-clickstream-analytics.html">Designs</a> / <span>Design 7: Real-Time Fraud / Anomaly Detection Pipeline</span></nav><button id="mark-done" data-id="14-data-engineering/week-07-pipeline-design/designs/07-fraud-detection">Mark as done</button></div><article class="doc">
+<h1 id="design-7-real-time-fraud-anomaly-detection-pipeline">Design 7: Real-Time Fraud / Anomaly Detection Pipeline</h1>
+<p>Prompt: "Design the data pipeline that scores every card/payment transaction for fraud in under 100 ms and also detects emerging fraud rings and anomalies over time."</p>
+<h2 id="requirements">Requirements</h2>
+<p>Functional</p>
+<ul>
+<li>Score each transaction synchronously before approval (approve, step-up auth, decline) using rules plus an ML model.</li>
+<li>Compute behavioral features in real time (velocity: count and amount per card/device/IP/merchant over 1 min, 1 h, 24 h).</li>
+<li>Near-real-time graph/ring detection (shared devices, shared addresses) every few minutes.</li>
+<li>Feedback loop: chargebacks and analyst decisions become labels for retraining.</li>
+<li>Case management and audit of every decision.</li>
+</ul>
+<p>Non-functional</p>
+<ul>
+<li>Decision latency: p99 under 100 ms for the scoring API (the entire pipeline budget, feature fetch under 20 ms).</li>
+<li>Availability: 99.99%; on failure, fall back to rules-only or a safe default (policy decision with the business).</li>
+<li>Throughput: 10K TPS average, 40K peak (peak shopping day).</li>
+<li>Precision/recall targets set with business (for example block less than 0.1% of good users).</li>
+<li>Compliance: PCI scope minimization (tokenized PANs), explainability for declines, retention.</li>
+<li>Out of scope: model research, card network integration.</li>
+</ul>
+<h2 id="capacity-estimates">Capacity estimates</h2>
+<ul>
+<li>10K TPS x 86,400 = 860M transactions/day, 40K TPS peak.</li>
+<li>Event 1 KB: 40 MB/s peak into Kafka, about 860 GB/day raw; 7-day retention x 3 replicas approx 18 TB.</li>
+<li>Online state: 100M active cards/devices x 5 windows x 100 bytes = 50 GB; fits in a sharded in-memory store.</li>
+<li>Labels: fraud rate about 0.1% = 860K fraud transactions/day; chargebacks arrive 30-90 days later, so labels are delayed.</li>
+<li>Offline training data: 860M rows/day x 200 features; keep 12 months sampled (downsample non-fraud).</li>
+</ul>
+<h2 id="architecture">Architecture</h2>
+<pre class="mermaid">flowchart LR
+  APP[Payment API] --&gt;|sync call| SC[Scoring service]
+  SC --&gt; FS[(Online feature store: Redis/Aerospike/DynamoDB)]
+  SC --&gt; RULES[Rules engine]
+  SC --&gt; MODEL[Model server: GBDT / NN]
+  SC --&gt;|decision + features logged| K[(Kafka: transactions + decisions)]
+  APP --&gt;|async event| K
+  K --&gt; FL[Flink: velocity features, windows, enrichment]
+  FL --&gt; FS
+  K --&gt; GR[Graph builder: shared device/address links]
+  GR --&gt; GDB[(Graph store)] --&gt; FL
+  K --&gt; LAKE[(Lakehouse bronze/silver)]
+  LAKE --&gt; TR[Training pipeline: PIT features + delayed labels]
+  CB[Chargebacks / analyst labels] --&gt; LAKE
+  TR --&gt; REG[Model registry] --&gt; MODEL
+  K --&gt; AN[Anomaly jobs: batch + streaming stats]
+  AN --&gt; CASE[Case management / alerts]
+  SC -.-&gt; MON[Monitoring: latency, score drift, approval rate]</pre>
+<h2 id="data-model">Data model</h2>
+<ul>
+<li>Event: <code>txn_id, card_token, device_id, ip, merchant_id, amount, currency, event_ts, channel, geo</code>.</li>
+<li>Decision log: <code>txn_id, model_version, rule_hits[], score, decision, feature_snapshot (exact vector served), latency_ms</code>.</li>
+<li>Online features: <code>key = card_token</code> -&gt; <code>cnt_1m, cnt_1h, amt_24h, distinct_merchants_24h, last_geo, last_ts</code>; similar for device, IP, merchant. Updated by Flink; stored with TTL.</li>
+<li>Labels: <code>txn_id, label [fraud|legit|unknown], label_source, label_ts</code> (chargeback, analyst, customer dispute).</li>
+<li>Feature snapshots in the decision log are the key to leak-free training and for replay/debugging.</li>
+</ul>
+<h2 id="step-by-step-flow">Step-by-step flow</h2>
+<ol>
+<li>Payment API calls the scoring service with the transaction (tokenized card).</li>
+<li>Scoring service fetches precomputed features from the online store (single multi-get), computes request-time features (amount vs user average, geo distance from last txn), runs rules, then the model. Rules handle hard blocks (sanctions, blocklists) and cheap catches; the model handles nuanced patterns.</li>
+<li>Decision returned within budget; the full feature snapshot and decision are written to Kafka asynchronously (never on the critical path).</li>
+<li>Flink consumes transaction events and updates velocity windows (sliding/tumbling with event time) and writes to the online store; the scoring service also adds the current txn to counters atomically (read-your-writes) or accepts a tiny lag.</li>
+<li>Graph job links entities (card-device-address), computes connected components or risk propagation every few minutes, and writes ring/risk features back to the online store.</li>
+<li>Labels arrive late; the training pipeline joins decision-time feature snapshots to labels with a label-maturity cutoff (for example only use transactions older than 60 days for "legit" labels), and handles selection bias (declined transactions have no label).</li>
+<li>Retrain weekly/daily, evaluate offline and in shadow mode, canary then promote through the registry; monitor drift and approval rate.</li>
+<li>Anomaly detection (statistical baselines per merchant, seasonality-aware) generates alerts into case management for analysts.</li>
+</ol>
+<h2 id="failure-modes">Failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Failure</th>
+<th>Handling</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Online store slow or down</td>
+<td>Strict timeout (for example 15 ms), fallback to rules-only plus conservative defaults, circuit breaker; replicate across AZs</td>
+</tr>
+<tr>
+<td>Stale velocity features (Flink lag)</td>
+<td>Lag alert; scoring includes feature timestamp, model tolerant; counters also updated synchronously by scoring service</td>
+</tr>
+<tr>
+<td>Model server failure/bad model</td>
+<td>Canary, automatic rollback, previous model warm, shadow evaluation</td>
+</tr>
+<tr>
+<td>Label delay and bias</td>
+<td>Maturity windows, reject inference for declined traffic, exploration traffic where allowed</td>
+</tr>
+<tr>
+<td>Adversarial adaptation</td>
+<td>Frequent retrain, rules for new patterns, ring detection</td>
+</tr>
+<tr>
+<td>Feature skew between serving and training</td>
+<td>Log served features; train on logged snapshots</td>
+</tr>
+<tr>
+<td>Kafka lag affecting async feedback</td>
+<td>Doesn't affect the sync path; alert and scale consumers</td>
+</tr>
+<tr>
+<td>Cold start (new card/merchant)</td>
+<td>Defaults, population-level priors, stricter rules for new entities</td>
+</tr>
+<tr>
+<td>False-positive storm after deploy</td>
+<td>Real-time approval-rate monitor, auto-rollback threshold</td>
+</tr>
+</tbody>
+</table>
+<h2 id="trade-offs">Trade-offs</h2>
+<ul>
+<li>Sync scoring needs a tight latency budget: precompute features and keep the model small (GBDT) rather than heavy neural nets, or distill.</li>
+<li>Streaming features (seconds-fresh) vs batch features (hourly): velocity features must be streaming; long-term profile features can be batch.</li>
+<li>Rules vs ML: rules are explainable and instantly changeable; ML catches subtle patterns. Use both with a clear override hierarchy.</li>
+<li>Decline threshold: precision versus recall is a business cost curve (fraud loss vs lost sales vs customer friction); tune per segment.</li>
+<li>Graph features add power against rings but add pipeline complexity and latency (compute asynchronously, serve cached).</li>
+<li>Consistency: using eventually consistent counters risks allowing a burst of parallel fraud transactions within the lag window; mitigate with atomic increments on the hot path.</li>
+</ul>
+<h2 id="follow-up-questions">Follow-up questions</h2>
+<ol>
+<li>How do you compute "transactions in last 10 minutes per card" at 40K TPS, correctly under retries? (keyed state or atomic counters with bucketed windows, dedupe by txn_id)</li>
+<li>How do you train when labels arrive 60 days later? (maturity cutoff, label-delay-aware sampling, proxy labels such as analyst decisions)</li>
+<li>How do you shadow-test a new model safely? (score in parallel, log, compare, no decision impact)</li>
+<li>How do you explain a decline to a customer or regulator? (reason codes from rules, SHAP-style attribution on the model; store with decision)</li>
+<li>How do you detect a model silently degrading? (score distribution drift, approval rate, chargeback rate by cohort, alert)</li>
+<li>What changes for multi-region active-active? (regional feature stores, global entity linking tradeoffs, replication lag handling)</li>
+</ol>
+</article><div class="pager"><a class="prev" href="../../../14-data-engineering/week-07-pipeline-design/designs/06-self-serve-ingestion-platform.html">← Design 6: Self-Serve Data Lake Ingestion Platform for Many Heterogeneous Sources</a><a class="next" href="../../../14-data-engineering/week-07-pipeline-design/designs/08-gdpr-erasure.html">Design 8: GDPR Deletion / Right to Erasure Across a Lakehouse →</a></div></main><aside id="toc"></aside></div>
+<script src="../../../assets/data.js"></script><script src="../../../assets/app.js"></script></body></html>

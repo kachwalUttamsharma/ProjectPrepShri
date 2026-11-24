@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 2 interview Q&amp;A: data model and memory | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="10-python-depth/week-02-data-model-and-memory/interview-qa" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../10-python-depth/week-01-functions-deep-dive/lesson.html">Python Depth</a> / <a href="../../10-python-depth/week-02-data-model-and-memory/lesson.html">Week 2 · Data model and memory</a> / <span>Interview Q&amp;A</span></nav><button id="mark-done" data-id="10-python-depth/week-02-data-model-and-memory/interview-qa">Mark as done</button></div><article class="doc">
+<h1 id="week-2-interview-qa-data-model-and-memory">Week 2 interview Q&amp;A: data model and memory</h1>
+<p><strong>1. Is Python pass-by-value or pass-by-reference?</strong>
+Neither exactly: pass by object reference (assignment). The parameter is a new name bound to the same object. Mutating it is visible to the caller; rebinding it is not.</p>
+<p><strong>2. <code>is</code> vs <code>==</code>?</strong>
+<code>is</code> compares identity (same object); <code>==</code> calls <code>__eq__</code> (same value). Use <code>is</code> for <code>None</code>/singletons. CPython caches small ints and interns some strings, so <code>is</code> on those is an implementation detail.</p>
+<p><strong>3. Shallow vs deep copy?</strong>
+Shallow copy creates a new container holding references to the same children; deep copy recursively copies children (with a memo to handle cycles and shared references). <code>list(x)</code>, <code>x[:]</code>, <code>x.copy()</code>, <code>copy.copy</code> are shallow.</p>
+<p><strong>4. Why does <code>[[0]*3]*3</code> misbehave?</strong>
+The outer <code>*</code> repeats the same inner list reference three times; changing one row changes all. Use a comprehension.</p>
+<p><strong>5. What makes an object hashable? What is the contract?</strong>
+It has <code>__hash__</code> and the hash never changes during its life; if <code>a == b</code> then <code>hash(a) == hash(b)</code>. Defining <code>__eq__</code> alone sets <code>__hash__</code> to None. Lists, dicts, sets are unhashable; tuples are hashable only if all elements are.</p>
+<p><strong>6. How does a dict work, and what is lookup complexity?</strong>
+Open-addressing hash table with a compact index table plus a dense, insertion-ordered entries array. Average O(1) get/set/delete, worst O(n) with pathological collisions. Resizes at ~2/3 load, so inserts are amortised O(1).</p>
+<p><strong>7. Is dict ordering guaranteed?</strong>
+Yes since 3.7 (language guarantee): insertion order. Re-assigning an existing key keeps its position. Equality between plain dicts ignores order; <code>OrderedDict</code> equality respects it.</p>
+<p><strong>8. Why can't you modify a dict while iterating it?</strong>
+Resizing/inserting invalidates the iteration; Python raises <code>RuntimeError: dictionary changed size during iteration</code>. Iterate over <code>list(d)</code> or build a new dict.</p>
+<p><strong>9. Is <code>sorted</code> stable? Why does it matter?</strong>
+Yes (Timsort). Equal-key elements keep original order, so you can do multi-key sorts by sorting repeatedly from least to most significant key. Complexity O(n log n), O(n) best case.</p>
+<p><strong>10. What does <code>__slots__</code> do and what are the trade-offs?</strong>
+Declares fixed attributes stored in slots rather than a per-instance <code>__dict__</code>: less memory, slightly faster access, no arbitrary new attributes. Costs: no dynamic attrs, no weakrefs unless <code>__weakref__</code> listed, subclasses need own <code>__slots__</code>, multiple inheritance with slots is awkward.</p>
+<p><strong>11. What is a descriptor? Where do you already use them?</strong>
+An object with <code>__get__</code>/<code>__set__</code>/<code>__delete__</code> defined on a class. <code>property</code>, functions-as-methods (binding), <code>classmethod</code>, <code>staticmethod</code>, <code>__slots__</code> members are all descriptors. Data descriptors beat the instance dict in attribute lookup.</p>
+<p><strong>12. Explain CPython memory management.</strong>
+Reference counting frees an object the instant its count reaches zero. A generational cyclic GC (<code>gc</code> module) finds unreachable reference cycles that refcounting can't. Small objects come from the pymalloc arena allocator. <code>weakref</code> avoids keeping objects alive.</p>
+<p><strong>13. Does Python's GC make <code>__del__</code> reliable?</strong>
+No. <code>__del__</code> timing isn't guaranteed (cycles, other interpreters, exit). Use context managers or <code>weakref.finalize</code> for cleanup.</p>
+<p><strong>14. <code>defaultdict</code> vs <code>dict.setdefault</code> vs <code>Counter</code>?</strong>
+<code>defaultdict(factory)</code> creates missing values on <code>d[k]</code> (also inserts on read). <code>setdefault(k, v)</code> evaluates <code>v</code> every call. <code>Counter</code> is a dict subclass for counting hashables with <code>most_common</code>; missing keys return 0 without inserting.</p>
+<p><strong>15. When use <code>deque</code> over <code>list</code>?</strong>
+When you add/remove at both ends: <code>appendleft/popleft</code> are O(1), while <code>list.pop(0)</code>/<code>insert(0, x)</code> are O(n). <code>maxlen</code> gives a ring buffer. Downside: indexing in the middle is O(n).</p>
+<p><strong>16. <code>namedtuple</code> vs <code>dataclass</code> vs <code>TypedDict</code> vs Pydantic model?</strong>
+namedtuple: immutable, tuple-like, unpackable, small. dataclass: regular class with generated methods, mutable by default, optional frozen/slots/order. TypedDict: type-checker-only shape of a dict. Pydantic: runtime validation/coercion/serialisation (FastAPI).</p>
+<p><strong>17. Why is <code>field(default_factory=list)</code> required in dataclasses?</strong>
+A shared mutable default would be one object for every instance; dataclasses raise <code>ValueError</code> for list/dict/set defaults to prevent it. The factory runs per instance.</p>
+<p><strong>18. Protocol vs ABC?</strong>
+ABC: nominal typing, explicit inheritance (or registration), can provide shared code and runtime enforcement. Protocol: structural typing; any class with matching methods satisfies it, no inheritance (add <code>@runtime_checkable</code> for isinstance, which checks only method presence).</p>
+<p><strong>19. What is type narrowing, and what does <code>Optional[int]</code> mean?</strong>
+After <code>if x is None: return</code>, a checker knows <code>x</code> is <code>int</code>. <code>isinstance</code>, truthiness, <code>match</code>, and <code>TypeGuard</code> narrow unions. <code>Optional[int]</code> is <code>int | None</code>; it does NOT mean the argument is optional (that's a default).</p>
+<p><strong>20. Enum: <code>Enum</code> vs <code>IntEnum</code> vs <code>StrEnum</code>, and how to compare?</strong>
+<code>Enum</code> members aren't equal to raw values; <code>IntEnum</code>/<code>StrEnum</code> are, which eases JSON/DB interop but weakens type safety. Members are singletons so use <code>is</code>. Look up by value <code>Color(1)</code> (ValueError) or name <code>Color["RED"]</code> (KeyError). <code>auto()</code> assigns values.</p>
+</article><div class="pager"><a class="prev" href="../../10-python-depth/week-02-data-model-and-memory/lesson.html">← Week 2 · Data model and memory: Lesson</a><a class="next" href="../../10-python-depth/week-02-data-model-and-memory/exercises.py.html">Week 2 · Data model and memory: Exercises (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

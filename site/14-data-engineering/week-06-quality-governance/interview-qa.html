@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 6 interview Q&amp;A: data quality and governance | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="14-data-engineering/week-06-quality-governance/interview-qa" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../14-data-engineering/README.html">Data Engineering</a> / <a href="../../14-data-engineering/week-06-quality-governance/lesson.html">Week 6 · Quality and governance</a> / <span>Interview Q&amp;A</span></nav><button id="mark-done" data-id="14-data-engineering/week-06-quality-governance/interview-qa">Mark as done</button></div><article class="doc">
+<h1 id="week-6-interview-qa-data-quality-and-governance">Week 6 interview Q&amp;A: data quality and governance</h1>
+<p><strong>1. How do you define and measure data quality?</strong>
+By dimensions tied to use: completeness, validity, uniqueness, consistency, timeliness, accuracy. For each critical dataset agree with consumers on measurable rules and thresholds, track pass rate over time, and tie severity to business impact.
+<em>Follow-ups:</em> Which dimension is hardest and why? (Accuracy: needs an external truth.) How do you prioritize which tables to monitor? (Usage via lineage/query logs, business criticality, blast radius.)</p>
+<p><strong>2. Where in a pipeline do you place checks?</strong>
+At ingestion (schema, basic validity, quarantine), after key transforms (assertions on invariants: row counts after joins, uniqueness), and at the serving layer (freshness, reconciliation to source). Early checks fail cheaply; late checks protect consumers.
+<em>Follow-ups:</em> Block vs warn? (Block when wrong data is worse than late; otherwise quarantine/warn.) Write-Audit-Publish? (Stage, audit, atomically publish.)</p>
+<p><strong>3. A table loads daily; yesterday the row count was 40% lower and no job failed. How would you have caught it, and what now?</strong>
+Volume anomaly detection against a seasonal baseline (median/MAD by weekday). Now: check upstream freshness and partial extract, compare to source counts, quarantine the partition, notify consumers, backfill, add the missing check/contract.
+<em>Follow-ups:</em> Why median/MAD over mean/stdev? (Robust to earlier outages and heavy tails.) False positives on holidays? (Calendar features, manual suppression, wider thresholds.)</p>
+<p><strong>4. Freshness vs timeliness vs latency?</strong>
+Freshness: age of the newest data. Timeliness: availability by the agreed time (SLO). Latency: delay of one record through the pipeline. Measure freshness from event time when possible, not job-finish time (a job can succeed on stale input).
+<em>Follow-ups:</em> How to distinguish "no new data" from "pipeline broken"? (Heartbeat/synthetic rows, source-side counters, separate ingestion lag metric.)</p>
+<p><strong>5. How do you detect distribution drift?</strong>
+Compare current vs reference windows: PSI or KS for numerics, category share shifts (chi-square/JS divergence), null-rate and cardinality changes. Pick the reference deliberately (last week vs training set). Alert on sustained drift, not single-day noise.
+<em>Follow-ups:</em> PSI thresholds? (&lt;0.1/0.25 are rules of thumb.) Bin choice effects? (Quantile bins from the reference are more stable.)</p>
+<p><strong>6. dbt tests vs Great Expectations vs Soda vs Deequ?</strong>
+dbt tests: SQL-native, in the transformation DAG, simple generics; great for warehouse models. GE: Python expectation suites and docs, flexible for files/Spark. Soda: declarative YAML checks plus cloud UI. Deequ: Spark-scale, metrics-based constraint suggestion. Choose by stack and who writes checks; don't run four. (Check current docs.)
+<em>Follow-ups:</em> How do tests gate deployment? (<code>dbt build</code> stops downstream on failure; CI runs on slim/changed models.) Storing results? (Persist results to a table for trend and SLO reporting.)</p>
+<p><strong>7. What is a data contract and how is it enforced?</strong>
+A versioned agreement between producer and consumers covering schema, semantics, SLAs, ownership, PII tags and change policy. Enforced in CI (breaking change detection against a registry), at publish time (schema validation), and at runtime (checks/quarantine), with a deprecation process.
+<em>Follow-ups:</em> Who owns it? (Producer, with consumers consulted.) How is it different from a schema? (Adds semantics, SLAs, ownership, process.) Pitfall? (Contracts without enforcement or without producer buy-in.)</p>
+<p><strong>8. Explain backward vs forward vs full compatibility with an example.</strong>
+Backward: new schema reads old data; adding <code>email</code> with a default or deleting a field is OK. Forward: old schema reads new data; adding a field is OK (old readers ignore it), deleting needs the field to have had a default. Full: both. Which to choose depends on who upgrades first: backward -&gt; consumers first; forward -&gt; producers first.
+<em>Follow-ups:</em> Is renaming compatible? (No, unless aliases.) Why default BACKWARD in Schema Registry? (Allows rewinding consumers to old data.) Parquet/warehouse analogue? (Adding nullable column OK; type change often breaks.)</p>
+<p><strong>9. What is lineage and what do you use it for?</strong>
+A graph of how datasets and columns derive from one another (OpenLineage events, SQL parsing, dbt manifest). Impact analysis before changes, root-cause upstream search, compliance (PII flow), deprecation of unused assets, ownership routing of alerts.
+<em>Follow-ups:</em> Column-level vs table-level? (Column-level is costlier but needed for PII/impact.) Gaps? (Dynamic SQL, notebooks, external tools.)</p>
+<p><strong>10. SLI, SLO, SLA for a data product?</strong>
+SLI: "fraction of days the daily_sales table is complete by 07:00". SLO: 99% over 30 days. SLA: contractual commitment with penalties. Error budget decides whether to pause features for reliability work.
+<em>Follow-ups:</em> What do you do when you burn the budget? (Freeze risky changes, invest in checks/automation.) How to alert? (Burn-rate alerts rather than every miss.)</p>
+<p><strong>11. How do you reduce alert fatigue for data quality?</strong>
+Tier by severity and business impact, ownership routing, dedupe/grouping by root cause via lineage, thresholds tuned from history, auto-resolve, weekly review of noisy checks, and delete checks nobody acts on.
+<em>Follow-ups:</em> Metric for alert quality? (Actionable ratio, time to acknowledge/resolve.)</p>
+<p><strong>12. Describe a data incident process.</strong>
+Detect, declare severity, assign an incident lead, assess blast radius (lineage), mitigate (stop downstream publishing, rollback/restore, backfill), communicate to consumers with ETA, resolve, blameless postmortem with root cause and prevention (new check/contract/test), follow-up tracking.
+<em>Follow-ups:</em> How do you restore a bad overwrite? (Time travel/snapshots, rerun idempotent job from raw.) Communicating wrong numbers already consumed? (Proactive notice, versioned fix, restate reports.)</p>
+<p><strong>13. How would you implement GDPR right-to-erasure in a lake + warehouse + Kafka platform?</strong>
+Central subject registry/ID resolution; a deletion service fans requests out to every store; lakehouse DELETE/MERGE then compaction and snapshot expiry/VACUUM so old files disappear; warehouse deletes plus time-travel expiry; downstream marts/features rebuilt; Kafka: short retention, compaction with tombstones, or crypto-shredding with per-subject keys; backups age out with documented lag; audit evidence without PII; SLA to complete (one month under GDPR, check current law).
+<em>Follow-ups:</em> Immutable logs? (Crypto-shredding or avoid PII in logs.) Analytics needing history? (Pseudonymize/aggregate so deletion doesn't break metrics.) ML models trained on the data? (Policy question; retrain cadence; legal guidance.)</p>
+<p><strong>14. Masking vs tokenization vs hashing vs encryption?</strong>
+Masking: obscure display (irreversible, role-based or static copies). Tokenization: random surrogate with vault mapping, reversible for authorized services, preserves joins if deterministic. Hashing: one-way; use HMAC with secret since unsalted hashes of emails/phones can be brute-forced. Encryption: reversible with keys; protects at rest/in transit and field-level for high sensitivity.
+<em>Follow-ups:</em> Join across datasets without exposing email? (Deterministic HMAC/token with shared key under access control.) Is a hash of a user ID anonymous? (No, pseudonymous; still personal data under GDPR.)</p>
+<p><strong>15. Row-level and column-level security: how do you implement them?</strong>
+RLS: policy/filter bound to role or session attributes (Snowflake row access policies, BigQuery row access policies, Postgres RLS, Unity Catalog filters; check current docs). CLS: policy tags/masking policies so unauthorized roles see masked or null values. Manage via groups, not users; test policies; audit access.
+<em>Follow-ups:</em> Performance cost? (Predicate pushdown/caching differences.) Derived tables leaking? (Policies don't follow copies: enforce at the source, propagate tags via lineage.)</p>
+<p><strong>16. How do you test a data pipeline?</strong>
+Unit tests for transformations; integration tests on a small dataset in an ephemeral environment; contract tests at boundaries; idempotency and backfill-equivalence tests; data diff between old and new logic on a sample; production data-quality tests continue after deploy.
+<em>Follow-ups:</em> Test data with PII? (Synthetic or masked; never prod PII in dev.) Testing time logic? (Inject clock; boundary and timezone cases.)</p>
+<p><strong>17. How do you verify a backfill or migration?</strong>
+Shadow-write to a new table; compare counts, key sums, min/max dates, distinct keys; partition-level checksums to localize diffs; row-level diff on mismatches; define tolerances (late data, rounding); swap atomically; keep rollback.
+<em>Follow-ups:</em> Equal counts but different data? (Checksums catch it.) Reconciling against a moving source? (Snapshot/as-of both sides.)</p>
+<p><strong>18. How do you handle duplicates in a warehouse where PKs are not enforced?</strong>
+Detect with GROUP BY HAVING COUNT&gt;1 on the business key per snapshot; prevent by idempotent loads (MERGE/upsert, dedupe with ROW_NUMBER over latest ingestion), natural/surrogate key strategy, unique tests in CI/prod; investigate source of duplicates (at-least-once delivery, retries).
+<em>Follow-ups:</em> Which row wins? (Latest by event time then ingestion time, documented rule.) Late duplicates? (Dedupe window or full-key MERGE.)</p>
+<p><strong>19. What goes in a data catalog and what makes it succeed?</strong>
+Technical metadata (schema, stats, lineage), business context (glossary, owner, description, certification), usage/popularity, quality status and tags (PII). Success needs automated ingestion from code/orchestrator, enforced ownership, and integration in workflows (access requests, alerts).
+<em>Follow-ups:</em> Build vs buy? (OpenMetadata/DataHub vs commercial; depends on team capacity.) How to keep docs fresh? (Docs-as-code, CI requires descriptions.)</p>
+<p><strong>20. Where does data cost go and how do you cut it?</strong>
+Storage, compute (scans, shuffles, always-on clusters), egress, streaming infra, and people-time on reprocessing. Cut with partition pruning, incremental processing, compaction, right-sizing/auto-suspend, lifecycle tiers, retention, eliminating unused assets, query guardrails, and showback. Challenge freshness SLAs that drive cost.
+<em>Follow-ups:</em> How to find waste? (Query/billing logs by table, cost per pipeline, access-recency report.) Tradeoff with reliability? (Retries/duplicated environments cost money: tier by criticality.)</p>
+<p><strong>21. What is MDM and how does it relate to quality?</strong>
+Managing shared master entities (customer/product) with matching, merge/survivorship rules, and cross-reference IDs to produce a golden record. It attacks duplication and inconsistency at the root, supported by stewardship and governance.
+<em>Follow-ups:</em> Deterministic vs probabilistic matching? (Exact keys vs scored fuzzy matches with review thresholds.) How to handle unmerge? (Keep source records and match history.)</p>
+<p><strong>22. Who owns data quality?</strong>
+Producers own correctness at the source and the contract; the data platform provides tooling and defaults; consumers define fitness-for-use and report issues; stewards arbitrate definitions. "Everyone" with no named owner means no one.
+<em>Follow-ups:</em> How to get producers to care? (Contracts in CI, quality metrics visible to their leadership, incident attribution.)</p>
+</article><div class="pager"><a class="prev" href="../../14-data-engineering/week-06-quality-governance/lesson.html">← Week 6 · Quality and governance: Lesson</a><a class="next" href="../../14-data-engineering/week-06-quality-governance/cheatsheet.html">Week 6 · Quality and governance: Cheatsheet →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

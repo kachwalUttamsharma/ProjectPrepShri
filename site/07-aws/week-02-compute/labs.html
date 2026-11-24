@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 2 Labs (OPTIONAL) | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="07-aws/week-02-compute/labs" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../07-aws/README.html">AWS</a> / <a href="../../07-aws/week-02-compute/lesson.html">Week 2 · Compute</a> / <span>Labs</span></nav><button id="mark-done" data-id="07-aws/week-02-compute/labs">Mark as done</button></div><article class="doc">
+<h1 id="week-2-labs-optional">Week 2 Labs (OPTIONAL)</h1>
+<p>COST WARNING: Lambda has a generous free tier. EC2 t3/t4g.micro may be free-tier depending on account type (check current free tier terms). ALB, NAT Gateway, Fargate and EKS are NOT free; ALB bills hourly. Do these fast and clean up the same day.</p>
+<ol>
+<li>Lambda: console &gt; create function (Python) &gt; add a test event &gt; view logs in CloudWatch. Add a function URL, call it with curl. Try changing memory and observe duration/billed duration.</li>
+<li>EC2: launch one free-tier-eligible instance in the default VPC, no key pair, connect via Session Manager (needs SSM instance profile). Install nginx via user data.</li>
+<li>Optional (small cost): ECS Fargate - run a public nginx image as a service with 1 task in a public subnet; view logs; then delete the service.</li>
+</ol>
+<p>Cleanup checklist: terminate EC2, delete unattached EBS volumes and Elastic IPs, delete load balancers and target groups, delete ECS services/clusters, delete NAT gateways, delete Lambda function and log groups. Check Billing &gt; Bills next day.</p>
+</article><div class="pager"><a class="prev" href="../../07-aws/week-02-compute/cheatsheet.html">← Week 2 · Compute: Cheatsheet</a><a class="next" href="../../07-aws/week-03-storage-databases/lesson.html">Week 3 · Storage and databases: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

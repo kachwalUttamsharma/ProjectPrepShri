@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>test_exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="02-oop/week-01-classes-objects/test_exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../02-oop/week-01-classes-objects/lesson.html">Object-Oriented Python</a> / <a href="../../02-oop/week-01-classes-objects/lesson.html">Week 1 · Classes and objects</a> / <span>Tests (code)</span></nav><button id="mark-done" data-id="02-oop/week-01-classes-objects/test_exercises.py">Mark as done</button></div><article class="doc">
+<h1>test_exercises.py</h1><p class="code-path"><code>02-oop/week-01-classes-objects/test_exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">exercises</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_point</span><span class="p">():</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">y</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">p</span><span class="o">.</span><span class="n">distance_to</span><span class="p">(</span><span class="n">Point</span><span class="p">())</span> <span class="o">==</span> <span class="mf">5.0</span>
+    <span class="k">assert</span> <span class="n">p</span><span class="o">.</span><span class="n">translate</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="k">assert</span> <span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">y</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="n">Point</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="p">(</span><span class="n">q</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">q</span><span class="o">.</span><span class="n">y</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_counter</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">value</span> <span class="o">==</span> <span class="mi">5</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">increment</span><span class="p">()</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">increment</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">value</span> <span class="o">==</span> <span class="mi">16</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">decrement</span><span class="p">(</span><span class="mi">6</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">value</span> <span class="o">==</span> <span class="mi">10</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">value</span> <span class="o">==</span> <span class="mi">5</span>
+    <span class="k">assert</span> <span class="n">Counter</span><span class="p">()</span><span class="o">.</span><span class="n">value</span> <span class="o">==</span> <span class="mi">0</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_counters_independent</span><span class="p">():</span>
+    <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">(),</span> <span class="n">Counter</span><span class="p">()</span>
+    <span class="n">a</span><span class="o">.</span><span class="n">increment</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">b</span><span class="o">.</span><span class="n">value</span> <span class="o">==</span> <span class="mi">0</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_bank_account_basic</span><span class="p">():</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">BankAccount</span><span class="p">(</span><span class="s2">"Sam"</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">a</span><span class="o">.</span><span class="n">owner</span> <span class="o">==</span> <span class="s2">"Sam"</span>
+    <span class="k">assert</span> <span class="n">a</span><span class="o">.</span><span class="n">deposit</span><span class="p">(</span><span class="mi">50</span><span class="p">)</span> <span class="o">==</span> <span class="mi">150</span>
+    <span class="k">assert</span> <span class="n">a</span><span class="o">.</span><span class="n">withdraw</span><span class="p">(</span><span class="mi">30</span><span class="p">)</span> <span class="o">==</span> <span class="mi">120</span>
+    <span class="k">assert</span> <span class="n">a</span><span class="o">.</span><span class="n">balance</span> <span class="o">==</span> <span class="mi">120</span>
+    <span class="k">assert</span> <span class="n">BankAccount</span><span class="p">(</span><span class="s2">"Z"</span><span class="p">)</span><span class="o">.</span><span class="n">balance</span> <span class="o">==</span> <span class="mi">0</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_bank_account_errors</span><span class="p">():</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">BankAccount</span><span class="p">(</span><span class="s2">"Sam"</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">a</span><span class="o">.</span><span class="n">deposit</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">a</span><span class="o">.</span><span class="n">withdraw</span><span class="p">(</span><span class="o">-</span><span class="mi">5</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">"insufficient funds"</span><span class="p">):</span>
+        <span class="n">a</span><span class="o">.</span><span class="n">withdraw</span><span class="p">(</span><span class="mi">101</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">BankAccount</span><span class="p">(</span><span class="s2">"X"</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">a</span><span class="o">.</span><span class="n">balance</span> <span class="o">==</span> <span class="mi">100</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_transfer</span><span class="p">():</span>
+    <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">BankAccount</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="mi">100</span><span class="p">),</span> <span class="n">BankAccount</span><span class="p">(</span><span class="s2">"b"</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="n">a</span><span class="o">.</span><span class="n">transfer_to</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="mi">40</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">balance</span><span class="p">,</span> <span class="n">b</span><span class="o">.</span><span class="n">balance</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="mi">60</span><span class="p">,</span> <span class="mi">50</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">a</span><span class="o">.</span><span class="n">transfer_to</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="mi">1000</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">balance</span><span class="p">,</span> <span class="n">b</span><span class="o">.</span><span class="n">balance</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="mi">60</span><span class="p">,</span> <span class="mi">50</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_rectangle</span><span class="p">():</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">Rectangle</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">area</span><span class="p">()</span> <span class="o">==</span> <span class="mi">6</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">perimeter</span><span class="p">()</span> <span class="o">==</span> <span class="mi">10</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">r</span><span class="o">.</span><span class="n">is_square</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">Rectangle</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span><span class="o">.</span><span class="n">is_square</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">r</span><span class="o">.</span><span class="n">scale</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="k">assert</span> <span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">width</span><span class="p">,</span> <span class="n">r</span><span class="o">.</span><span class="n">height</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">Rectangle</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">Rectangle</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_student</span><span class="p">():</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="n">Student</span><span class="p">(</span><span class="s2">"Ann"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">s</span><span class="o">.</span><span class="n">average</span><span class="p">()</span> <span class="o">==</span> <span class="mf">0.0</span>
+    <span class="k">assert</span> <span class="n">s</span><span class="o">.</span><span class="n">highest</span><span class="p">()</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="n">s</span><span class="o">.</span><span class="n">add_grade</span><span class="p">(</span><span class="mi">80</span><span class="p">)</span>
+    <span class="n">s</span><span class="o">.</span><span class="n">add_grade</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">s</span><span class="o">.</span><span class="n">average</span><span class="p">()</span> <span class="o">==</span> <span class="mi">90</span>
+    <span class="k">assert</span> <span class="n">s</span><span class="o">.</span><span class="n">highest</span><span class="p">()</span> <span class="o">==</span> <span class="mi">100</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">s</span><span class="o">.</span><span class="n">add_grade</span><span class="p">(</span><span class="mi">101</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">s</span><span class="o">.</span><span class="n">add_grade</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">s</span><span class="o">.</span><span class="n">grades</span> <span class="o">==</span> <span class="p">[</span><span class="mi">80</span><span class="p">,</span> <span class="mi">100</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_student_grades_not_shared</span><span class="p">():</span>
+    <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">Student</span><span class="p">(</span><span class="s2">"a"</span><span class="p">),</span> <span class="n">Student</span><span class="p">(</span><span class="s2">"b"</span><span class="p">)</span>
+    <span class="n">a</span><span class="o">.</span><span class="n">add_grade</span><span class="p">(</span><span class="mi">50</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">b</span><span class="o">.</span><span class="n">grades</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_dog_class_attributes</span><span class="p">():</span>
+    <span class="n">start</span> <span class="o">=</span> <span class="n">Dog</span><span class="o">.</span><span class="n">count</span>
+    <span class="n">d1</span><span class="p">,</span> <span class="n">d2</span> <span class="o">=</span> <span class="n">Dog</span><span class="p">(</span><span class="s2">"Rex"</span><span class="p">),</span> <span class="n">Dog</span><span class="p">(</span><span class="s2">"Fido"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">Dog</span><span class="o">.</span><span class="n">count</span> <span class="o">==</span> <span class="n">start</span> <span class="o">+</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">d1</span><span class="o">.</span><span class="n">species</span> <span class="o">==</span> <span class="n">d2</span><span class="o">.</span><span class="n">species</span> <span class="o">==</span> <span class="s2">"Canis familiaris"</span>
+    <span class="k">assert</span> <span class="s2">"count"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="nb">vars</span><span class="p">(</span><span class="n">d1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="s2">"species"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="nb">vars</span><span class="p">(</span><span class="n">d1</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_dog_tricks</span><span class="p">():</span>
+    <span class="n">d1</span><span class="p">,</span> <span class="n">d2</span> <span class="o">=</span> <span class="n">Dog</span><span class="p">(</span><span class="s2">"a"</span><span class="p">),</span> <span class="n">Dog</span><span class="p">(</span><span class="s2">"b"</span><span class="p">)</span>
+    <span class="n">d1</span><span class="o">.</span><span class="n">add_trick</span><span class="p">(</span><span class="s2">"sit"</span><span class="p">)</span>
+    <span class="n">d1</span><span class="o">.</span><span class="n">add_trick</span><span class="p">(</span><span class="s2">"sit"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">d1</span><span class="o">.</span><span class="n">tricks</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"sit"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">d2</span><span class="o">.</span><span class="n">tricks</span> <span class="o">==</span> <span class="p">[]</span>
+    <span class="n">src</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"roll"</span><span class="p">]</span>
+    <span class="n">d3</span> <span class="o">=</span> <span class="n">Dog</span><span class="p">(</span><span class="s2">"c"</span><span class="p">,</span> <span class="n">src</span><span class="p">)</span>
+    <span class="n">d3</span><span class="o">.</span><span class="n">add_trick</span><span class="p">(</span><span class="s2">"beg"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">src</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"roll"</span><span class="p">]</span>  <span class="c1"># argument must not be mutated</span>
+    <span class="k">assert</span> <span class="n">d3</span><span class="o">.</span><span class="n">tricks</span> <span class="o">==</span> <span class="p">[</span><span class="s2">"roll"</span><span class="p">,</span> <span class="s2">"beg"</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_stack</span><span class="p">():</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="n">Stack</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">s</span><span class="o">.</span><span class="n">is_empty</span><span class="p">()</span> <span class="ow">and</span> <span class="n">s</span><span class="o">.</span><span class="n">size</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="n">s</span><span class="o">.</span><span class="n">push</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">s</span><span class="o">.</span><span class="n">push</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">s</span><span class="o">.</span><span class="n">peek</span><span class="p">()</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">s</span><span class="o">.</span><span class="n">size</span><span class="p">()</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">s</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">s</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">s</span><span class="o">.</span><span class="n">is_empty</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_stack_empty_errors</span><span class="p">():</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="n">Stack</span><span class="p">()</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">IndexError</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">"stack is empty"</span><span class="p">):</span>
+        <span class="n">s</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">IndexError</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">"stack is empty"</span><span class="p">):</span>
+        <span class="n">s</span><span class="o">.</span><span class="n">peek</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_cart</span><span class="p">():</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">ShoppingCart</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">total</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">c</span><span class="o">.</span><span class="n">item_count</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">"apple"</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">"pen"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">"apple"</span><span class="p">,</span> <span class="mi">99</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>  <span class="c1"># price stays 0.5</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">item_count</span><span class="p">()</span> <span class="o">==</span> <span class="mi">7</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">total</span><span class="p">()</span> <span class="o">==</span> <span class="n">pytest</span><span class="o">.</span><span class="n">approx</span><span class="p">(</span><span class="mf">0.5</span> <span class="o">*</span> <span class="mi">6</span> <span class="o">+</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="s2">"pen"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">item_count</span><span class="p">()</span> <span class="o">==</span> <span class="mi">6</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">KeyError</span><span class="p">):</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="s2">"pen"</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">"x"</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">"x"</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_team</span><span class="p">():</span>
+    <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">Team</span><span class="p">(</span><span class="s2">"a"</span><span class="p">),</span> <span class="n">Team</span><span class="p">(</span><span class="s2">"b"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">a</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">"x"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span>
+    <span class="k">assert</span> <span class="n">a</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">"x"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="n">a</span><span class="o">.</span><span class="n">size</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">b</span><span class="o">.</span><span class="n">size</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">assert</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">Team</span><span class="o">.</span><span class="n">all_teams</span> <span class="ow">and</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">Team</span><span class="o">.</span><span class="n">all_teams</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_make_points</span><span class="p">():</span>
+    <span class="n">pts</span> <span class="o">=</span> <span class="n">make_points</span><span class="p">([(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">)])</span>
+    <span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">Point</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">pts</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">[(</span><span class="n">p</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">y</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">pts</span><span class="p">]</span> <span class="o">==</span> <span class="p">[(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">)]</span>
+    <span class="k">assert</span> <span class="n">make_points</span><span class="p">([])</span> <span class="o">==</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_farthest</span><span class="p">():</span>
+    <span class="n">pts</span> <span class="o">=</span> <span class="n">make_points</span><span class="p">([(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mi">5</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">)])</span>
+    <span class="k">assert</span> <span class="n">farthest_from_origin</span><span class="p">(</span><span class="n">pts</span><span class="p">)</span> <span class="ow">is</span> <span class="n">pts</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">farthest_from_origin</span><span class="p">([])</span> <span class="ow">is</span> <span class="kc">None</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../02-oop/week-01-classes-objects/exercises.py.html">← Week 1 · Classes and objects: Exercises (code)</a><a class="next" href="../../02-oop/week-02-encapsulation-dunders/lesson.html">Week 2 · Encapsulation and dunders: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

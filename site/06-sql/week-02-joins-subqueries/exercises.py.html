@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="06-sql/week-02-joins-subqueries/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../06-sql/week-01-select-filter-aggregate/lesson.html">SQL</a> / <a href="../../06-sql/week-02-joins-subqueries/lesson.html">Week 2 · Joins and subqueries</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="06-sql/week-02-joins-subqueries/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>06-sql/week-02-joins-subqueries/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Week 2 SQL exercises: joins and subqueries. Replace each `...` with `return "&lt;your SQL&gt;"`.</span>
+
+<span class="sd">Tables (see schema.py):</span>
+<span class="sd">  departments(id, name, location)</span>
+<span class="sd">  employees(id, name, dept_id, manager_id, salary)   -- Ian has NULL dept, Ava has NULL manager</span>
+<span class="sd">  projects(id, name, dept_id)</span>
+<span class="sd">  assignments(emp_id, project_id, hours)</span>
+<span class="sd">  customers(id, name, country)</span>
+<span class="sd">  orders(id, customer_id, order_date, total)</span>
+
+<span class="sd">The tests compare rows AND column names/aliases. Order matters only where stated.</span>
+<span class="sd">"""</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">inner_join_employee_dept</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Each employee together with their department name (employees without a department are dropped).</span>
+<span class="sd">    Columns: employee, department</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">all_employees_with_dept</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Every employee with their department name; department is NULL if they have none.</span>
+<span class="sd">    Columns: employee, department</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">empty_departments</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Departments that have no employees (anti-join).</span>
+<span class="sd">    Columns: name</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">unassigned_employees</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Employees who are not assigned to any project. Use NOT EXISTS (or LEFT JOIN ... IS NULL).</span>
+<span class="sd">    Columns: name</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">employee_manager_pairs</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Each employee with the name of their manager (self-join). The CEO has no manager: leave her out.</span>
+<span class="sd">    Columns: employee, manager</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">earn_more_than_manager</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Employees who earn strictly more than their direct manager.</span>
+<span class="sd">    Columns: name</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">department_headcounts</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Headcount of every department, including departments with 0 employees.</span>
+<span class="sd">    Columns: department, headcount</span>
+<span class="sd">    Hint: LEFT JOIN, then COUNT(e.id) (not COUNT(*), which would count the NULL-extended row as 1).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">customer_order_stats</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""For customers that have placed orders: number of orders and total spent.</span>
+<span class="sd">    Columns: name, order_count, total_spent</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">customers_without_orders</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Customers that never ordered.</span>
+<span class="sd">    Columns: name</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">all_customer_totals</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Every customer with total spent; 0 if they never ordered.</span>
+<span class="sd">    Columns: name, total_spent     (ordered by total_spent DESC, name ASC)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">assignment_report</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Three-table join: employee name, project name and hours for every assignment.</span>
+<span class="sd">    Columns: employee, project, hours     (ordered by hours DESC)</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">colleague_pairs</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""All unordered pairs of different employees in the same department, each pair once</span>
+<span class="sd">    (self-join with e1.id &lt; e2.id). Employees without a department never pair up.</span>
+<span class="sd">    Columns: emp1, emp2</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">department_quarter_grid</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""A reporting skeleton: every department paired with each of the quarters 'Q1' and 'Q2'</span>
+<span class="sd">    (CROSS JOIN). Build the quarters inline with SELECT ... UNION ALL SELECT ... </span>
+<span class="sd">    Columns: department, quarter</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">above_company_average</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Employees paid more than the company-wide average salary (scalar subquery).</span>
+<span class="sd">    Columns: name, salary</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">above_department_average</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Employees paid more than the average salary of THEIR department (correlated subquery).</span>
+<span class="sd">    Employees without a department are not compared with anyone, so they are excluded.</span>
+<span class="sd">    Columns: name, salary</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">top_paid_in_department</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""The best-paid employee of each department (correlated subquery on MAX; no ties in this data).</span>
+<span class="sd">    Employees without a department are excluded.</span>
+<span class="sd">    Columns: name, salary</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">people_managers</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Employees who manage at least one other employee (use EXISTS).</span>
+<span class="sd">    Columns: name</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">engineering_project_staff</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Distinct employees assigned to at least one project owned by the 'Engineering' department</span>
+<span class="sd">    (use IN with a subquery, or EXISTS).</span>
+<span class="sd">    Columns: name</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">latest_order_per_customer</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""For every customer that has orders: the date of their most recent order.</span>
+<span class="sd">    Columns: name, last_order</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">big_payroll_departments</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Departments whose total salary exceeds 200000, with that total.</span>
+<span class="sd">    Columns: department, total_salary</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">orders_above_average</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Orders whose total is above the average order total.</span>
+<span class="sd">    Columns: id, total</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../06-sql/week-02-joins-subqueries/interview-qa.html">← Week 2 · Joins and subqueries: Interview Q&amp;A</a><a class="next" href="../../06-sql/week-02-joins-subqueries/test_exercises.py.html">Week 2 · Joins and subqueries: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 1 Labs (OPTIONAL, free-tier friendly) | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="07-aws/week-01-core-iam/labs" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../07-aws/README.html">AWS</a> / <a href="../../07-aws/week-01-core-iam/lesson.html">Week 1 · Core ideas and IAM</a> / <span>Labs</span></nav><button id="mark-done" data-id="07-aws/week-01-core-iam/labs">Mark as done</button></div><article class="doc">
+<h1 id="week-1-labs-optional-free-tier-friendly">Week 1 Labs (OPTIONAL, free-tier friendly)</h1>
+<p>COST WARNING: IAM/Organizations/Budgets are free. Do not create paid resources in this week. Use a personal account, never a work account.</p>
+<ol>
+<li>Secure the root: enable MFA on root, create an admin via IAM Identity Center (or an IAM user with MFA if Identity Center is unavailable), stop using root.</li>
+<li>Budget: Billing &gt; Budgets &gt; create a zero-spend or $5 budget with email alert.</li>
+<li>Least privilege: create a role <code>StudyReadS3</code> with a custom policy allowing only <code>s3:ListBucket</code> on one bucket ARN; use the IAM Policy Simulator to test allowed/denied actions.</li>
+<li>Assume role: create a role trusting your user; run <code>aws sts assume-role ...</code> then <code>aws sts get-caller-identity</code> with the temporary env vars.</li>
+<li>Read the credential report (IAM &gt; Credential report) and Access Analyzer findings.</li>
+</ol>
+<p>Cleanup: delete test roles/users/policies; keep the budget (it is free).</p>
+</article><div class="pager"><a class="prev" href="../../07-aws/week-01-core-iam/cheatsheet.html">← Week 1 · Core ideas and IAM: Cheatsheet</a><a class="next" href="../../07-aws/week-02-compute/lesson.html">Week 2 · Compute: Lesson →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

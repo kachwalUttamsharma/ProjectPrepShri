@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>04 - Resume and Portfolio | Study Hub</title><link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/pygments.css"></head>
+<body data-root="../" data-page-id="09-behavioral-career/04-resume-and-portfolio" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../index.html">Home</a> / <a href="../09-behavioral-career/README.html">Behavioral and Career</a> / <span>04 - Resume and Portfolio</span></nav><button id="mark-done" data-id="09-behavioral-career/04-resume-and-portfolio">Mark as done</button></div><article class="doc">
+<h1 id="04-resume-and-portfolio">04 - Resume and Portfolio</h1>
+<h2 id="1-resume-principles">1. Resume principles</h2>
+<ul>
+<li>One page (two only with 10+ years). Plain single-column format, standard fonts; applicant tracking systems parse plain structure best.</li>
+<li>Every line proves impact. Recruiters spend seconds on first pass; make the top third count.</li>
+<li>Tailor 2-3 bullets and the skills list per role (FDE: customer-facing, integrations, LLMs; SWE: systems, scale).</li>
+<li>No photo, no personal data beyond email, phone, city, LinkedIn, GitHub.</li>
+</ul>
+<h2 id="2-structure-for-a-career-changer-or-beginner">2. Structure for a career-changer or beginner</h2>
+<ol>
+<li>Header: name, email, phone, city, LinkedIn, GitHub, portfolio link.</li>
+<li>Summary (2 lines, optional): "Backend engineer (Python, FastAPI, SQL, AWS) with 4 years in [prior field]; built RAG and agent projects with measured evals."</li>
+<li><strong>Projects</strong> (near top if little SWE experience): 3-4 items, each 2-3 bullets with links.</li>
+<li>Experience: prior roles, reframed for transferable skills (ownership, customers, data, automation).</li>
+<li>Skills: grouped (Languages, Backend, Data, Cloud, AI/LLM, Tools); only what you can discuss deeply.</li>
+<li>Education / certifications (brief; AWS cert if earned).</li>
+<li>Optional: open source, talks, writing.</li>
+</ol>
+<h2 id="3-bullet-formula">3. Bullet formula</h2>
+<p><strong>Action verb + what you built/did + how (tech) + measurable result.</strong>
+"Accomplished [X], as measured by [Y], by doing [Z]."</p>
+<p>Impact metrics to hunt for: time saved, error or ticket reduction, latency, cost, throughput, users, test coverage, accuracy on an eval set, revenue, adoption. If no hard number, use scale (records, endpoints, requests/day) or honest estimates ("~").</p>
+<h3 id="before-after-examples">Before / after examples</h3>
+<table>
+<thead>
+<tr>
+<th>Before</th>
+<th>After</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Worked on API for tickets</td>
+<td>Built FastAPI ticket service (CRUD, JWT auth, pagination) with 40+ pytest cases and Postgres migrations; cut manual triage steps from 6 to 2 in demo workflow</td>
+</tr>
+<tr>
+<td>Made a chatbot using LLM</td>
+<td>Built RAG assistant over 500 support docs (chunking, embeddings, reranking); raised answer accuracy from 62% to 84% on a 100-question eval set</td>
+</tr>
+<tr>
+<td>Responsible for reports</td>
+<td>Automated weekly sales reporting with Python and SQL, saving ~5 hrs/week for a team of 8</td>
+</tr>
+<tr>
+<td>Helped customers with issues</td>
+<td>Resolved 30+ customer escalations per month with root-cause fixes; reduced repeat tickets by 25%</td>
+</tr>
+<tr>
+<td>Learned AWS</td>
+<td>Deployed containerized API to AWS (ECS Fargate, RDS, ALB) with IaC and CloudWatch alarms; documented runbook</td>
+</tr>
+<tr>
+<td>Managed team tasks</td>
+<td>Led a 4-person project to migrate a spreadsheet process to a web app; delivered in 6 weeks, 90% adoption</td>
+</tr>
+</tbody>
+</table>
+<p>Avoid: "responsible for", "worked on", tool lists with no outcomes, unverifiable superlatives, anything you can't explain in an interview. Everything on the resume is fair game for deep questions.</p>
+<h2 id="4-github-portfolio-plan-using-the-course-projects">4. GitHub portfolio plan (using the course projects)</h2>
+<p>Four flagship repos, each with a strong README, tests, and a run command that works from scratch.</p>
+<table>
+<thead>
+<tr>
+<th>Repo</th>
+<th>Contents</th>
+<th>What it signals</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ticket-api (FastAPI)</td>
+<td>CRUD, auth, validation, pagination, SQL, tests, Docker</td>
+<td>Backend fundamentals</td>
+</tr>
+<tr>
+<td>rag-demo</td>
+<td>Ingestion, chunking, embeddings, retrieval, citations, simple UI/API</td>
+<td>LLM integration</td>
+</tr>
+<tr>
+<td>support-agent</td>
+<td>Tool-using agent with guardrails, logging, human-approval step</td>
+<td>Agent design and safety</td>
+</tr>
+<tr>
+<td>eval-harness</td>
+<td>Test set, metrics, regression run, comparison report across prompts/models</td>
+<td>Rigor, FDE-critical skill</td>
+</tr>
+</tbody>
+</table>
+<p>Optional fifth: a deployment (AWS or similar) with IaC and a short architecture write-up; an integrated mini-project connecting all four.</p>
+<p>Portfolio hygiene:</p>
+<ul>
+<li>Pin README to GitHub profile top 4-6 repos; write a profile README.</li>
+<li>Commit regularly with clear messages; small PRs even on your own repos.</li>
+<li>No secrets in git (use .env.example); check history before publishing.</li>
+<li>Add CI (lint + tests) badge if possible.</li>
+<li>Short demo GIF or Loom-style recording linked in README.</li>
+<li>Keep scope focused; fewer polished projects beat many abandoned ones.</li>
+<li>Write one blog-style post per project: problem, decisions, trade-offs, results.</li>
+</ul>
+<h2 id="5-project-readme-template">5. Project README template</h2>
+<div class="highlight"><pre><span></span><code># Project Name
+One-sentence description and who it is for.
+
+## Demo
+GIF/screenshot or link. Live URL if hosted.
+
+## Problem
+What problem, why it matters (2-3 sentences).
+
+## Features
+- ...
+
+## Architecture
+Diagram (ASCII or image) + 1 paragraph. Key components and data flow.
+
+## Tech stack
+Python 3.x, FastAPI, Postgres, ...
+
+## Getting started
+1. Clone, create venv, install: pip install -r requirements.txt
+2. Copy .env.example to .env and set values
+3. Run: ...
+4. Test: pytest
+
+## API / Usage examples
+curl or code snippets.
+
+## Evaluation / Results
+Metrics, test set description, before/after table.
+
+## Design decisions and trade-offs
+Why X over Y. Known limitations.
+
+## Roadmap
+- ...
+
+## License / Contact
+</code></pre></div>
+
+<h2 id="6-linkedin-tips">6. LinkedIn tips</h2>
+<ul>
+<li>Headline: role and value, not just "Student": "Backend &amp; AI engineer | Python, FastAPI, RAG | Building customer-facing LLM systems".</li>
+<li>About: 3-4 short paragraphs: what you do, proof (projects with numbers), what you want, how to reach you.</li>
+<li>Featured: pin GitHub repos, a demo video, a write-up.</li>
+<li>Experience: mirror resume bullets; add skills.</li>
+<li>Use a clear photo; custom URL; open to work setting limited to recruiters if you prefer discretion.</li>
+<li>Post occasionally: what you learned building a project. Comment thoughtfully on engineers' posts.</li>
+<li>Connect with recruiters and engineers with a short personalized note (2 sentences, specific ask).</li>
+<li>Keep resume, LinkedIn, and GitHub consistent.</li>
+</ul>
+<h2 id="7-final-resume-checks">7. Final resume checks</h2>
+<ul>
+<li>Run spell-check; read aloud; ask a friend in industry to review.</li>
+<li>One page, PDF, filename "FirstLast_Resume.pdf".</li>
+<li>Every bullet starts with a verb, has a result, and fits two lines max.</li>
+<li>Links work.</li>
+</ul>
+</article><div class="pager"><a class="prev" href="../09-behavioral-career/03-interview-process-and-strategy.html">← 03 · Interview process and strategy</a><a class="next" href="../09-behavioral-career/05-communication-in-technical-interviews.html">05 · Communication in technical interviews →</a></div></main><aside id="toc"></aside></div>
+<script src="../assets/data.js"></script><script src="../assets/app.js"></script></body></html>

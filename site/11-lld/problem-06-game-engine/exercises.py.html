@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>exercises.py | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="11-lld/problem-06-game-engine/exercises.py" data-page-type="code">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../11-lld/README.html">Low-Level Design</a> / <a href="../../11-lld/problem-06-game-engine/lesson.html">Problem 6 · Game engine</a> / <span>Exercises (code)</span></nav><button id="mark-done" data-id="11-lld/problem-06-game-engine/exercises.py">Mark as done</button></div><article class="doc">
+<h1>exercises.py</h1><p class="code-path"><code>11-lld/problem-06-game-engine/exercises.py</code></p>
+<div class="highlight"><pre><span></span><span class="sd">"""Problem 06: extensible board-game engine (tic-tac-toe NxN + chess-lite).</span>
+<span class="sd">Read lesson.md for the full spec.</span>
+
+<span class="sd">Enums and exceptions are provided. Implement everything marked `...`</span>
+<span class="sd">(and add the fields to the dataclasses).</span>
+<span class="sd">"""</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">ABC</span><span class="p">,</span> <span class="n">abstractmethod</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">Enum</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">GameResult</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+    <span class="n">IN_PROGRESS</span> <span class="o">=</span> <span class="s2">"in_progress"</span>
+    <span class="n">WIN</span> <span class="o">=</span> <span class="s2">"win"</span>
+    <span class="n">DRAW</span> <span class="o">=</span> <span class="s2">"draw"</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">GameError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Base class for all game errors."""</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">InvalidMoveError</span><span class="p">(</span><span class="n">GameError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Rules reject the move (occupied, out of bounds, illegal for the piece...)."""</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">OutOfTurnError</span><span class="p">(</span><span class="n">GameError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""move.player is not the current player."""</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">GameOverError</span><span class="p">(</span><span class="n">GameError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""play() called after the game ended."""</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">NothingToUndoError</span><span class="p">(</span><span class="n">GameError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""undo() with an empty history."""</span>
+
+
+<span class="c1"># ------------------------------------------------------------------ value types</span>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Position</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Fields: row: int, col: int. Ordered row-major (row, then col).</span>
+<span class="sd">    offset(dr, dc) -&gt; new Position shifted by (dr, dc)."""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">offset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dr</span><span class="p">,</span> <span class="n">dc</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Player</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Fields: name: str, symbol: str."""</span>
+
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Move</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Fields: player: Player, to: Position, frm: Position | None = None.</span>
+<span class="sd">    `frm` is None for placement games (tic-tac-toe), required for piece games."""</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Board</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Board(rows, cols=None): cols defaults to rows. ValueError if either &lt; 1.</span>
+<span class="sd">    Attributes: rows, cols. Cells hold arbitrary objects (None = empty).</span>
+
+<span class="sd">    in_bounds(pos) -&gt; bool</span>
+<span class="sd">    get(pos) -&gt; cell or None          (ValueError if out of bounds)</span>
+<span class="sd">    set(pos, item) -&gt; None            (ValueError if out of bounds)</span>
+<span class="sd">    remove(pos) -&gt; removed item or None (ValueError if out of bounds)</span>
+<span class="sd">    is_empty(pos) -&gt; bool</span>
+<span class="sd">    is_full() -&gt; bool</span>
+<span class="sd">    empty_positions() -&gt; list[Position], row-major</span>
+<span class="sd">    items() -&gt; list[(Position, item)] for occupied cells, row-major</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rows</span><span class="p">,</span> <span class="n">cols</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">in_bounds</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pos</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pos</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">set</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">remove</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pos</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_empty</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pos</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_full</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">empty_positions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">items</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="c1"># ------------------------------------------------------------------ engine</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">GameRules</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Strategy: everything game-specific lives here; Game knows none of it.</span>
+
+<span class="sd">    validate(board, move) -&gt; None; raise InvalidMoveError if illegal.</span>
+<span class="sd">    apply(board, move) -&gt; captured item or None (mutates board).</span>
+<span class="sd">    revert(board, move, captured) -&gt; None (exactly undoes apply).</span>
+<span class="sd">    evaluate(board, move) -&gt; GameResult, called AFTER apply for the mover.</span>
+<span class="sd">        WIN means the mover (move.player) won.</span>
+<span class="sd">    All four are abstract.</span>
+<span class="sd">    """</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">validate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">board</span><span class="p">,</span> <span class="n">move</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">board</span><span class="p">,</span> <span class="n">move</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">revert</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">board</span><span class="p">,</span> <span class="n">move</span><span class="p">,</span> <span class="n">captured</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">evaluate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">board</span><span class="p">,</span> <span class="n">move</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Game</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Game(board, players, rules). Attributes: board, players (list), rules.</span>
+<span class="sd">    ValueError if fewer than 2 players or duplicate player symbols.</span>
+
+<span class="sd">    Properties: current_player, result (GameResult), winner (Player | None),</span>
+<span class="sd">    history (a NEW list of Move, oldest first).</span>
+
+<span class="sd">    play(move) -&gt; GameResult. Check order:</span>
+<span class="sd">      1. result != IN_PROGRESS -&gt; GameOverError</span>
+<span class="sd">      2. move.player != current_player -&gt; OutOfTurnError</span>
+<span class="sd">      3. rules.validate (InvalidMoveError)</span>
+<span class="sd">      4. rules.apply, record (move, captured), result = rules.evaluate</span>
+<span class="sd">      5. WIN -&gt; winner = move.player; IN_PROGRESS -&gt; turn passes to the next</span>
+<span class="sd">         player (round-robin); WIN/DRAW -&gt; current_player stays the last mover.</span>
+<span class="sd">    A rejected move changes nothing (board, turn, history).</span>
+
+<span class="sd">    undo() -&gt; the undone Move. NothingToUndoError if history empty. Reverts the</span>
+<span class="sd">    board via rules.revert, makes the undone mover current again, result back</span>
+<span class="sd">    to IN_PROGRESS, winner None.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">board</span><span class="p">,</span> <span class="n">players</span><span class="p">,</span> <span class="n">rules</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">current_player</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">result</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">winner</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">history</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">play</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">move</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">undo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="c1"># ------------------------------------------------------------------ tic-tac-toe</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">WinCondition</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Abstract: is_win(board, move) -&gt; bool, called after the move is applied."""</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_win</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">board</span><span class="p">,</span> <span class="n">move</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">LineWinCondition</span><span class="p">(</span><span class="n">WinCondition</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""LineWinCondition(length): True if, after `move`, there are &gt;= `length`</span>
+<span class="sd">    consecutive cells equal to move.player.symbol in a row, column or either</span>
+<span class="sd">    diagonal THROUGH move.to. ValueError if length &lt; 2.</span>
+<span class="sd">    Only look at lines through the last move (O(length), not O(board))."""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">length</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_win</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">board</span><span class="p">,</span> <span class="n">move</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TicTacToeRules</span><span class="p">(</span><span class="n">GameRules</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""TicTacToeRules(win_condition). Cells store the player's symbol (a str).</span>
+
+<span class="sd">    validate: move.frm must be None, move.to in bounds and empty, else InvalidMoveError.</span>
+<span class="sd">    apply: place symbol; return None.  revert: remove it.</span>
+<span class="sd">    evaluate: win_condition.is_win -&gt; WIN; elif board full -&gt; DRAW; else IN_PROGRESS.</span>
+<span class="sd">    A winning move that fills the board is a WIN, not a DRAW.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">win_condition</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">validate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">board</span><span class="p">,</span> <span class="n">move</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">board</span><span class="p">,</span> <span class="n">move</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">revert</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">board</span><span class="p">,</span> <span class="n">move</span><span class="p">,</span> <span class="n">captured</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">evaluate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">board</span><span class="p">,</span> <span class="n">move</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">tic_tac_toe</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">win_length</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">players</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Build a Game: Board(size), TicTacToeRules(LineWinCondition(win_length or size)).</span>
+<span class="sd">    Default players: [Player("X", "X"), Player("O", "O")]."""</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># ------------------------------------------------------------------ chess-lite</span>
+<span class="n">ORTHOGONAL</span> <span class="o">=</span> <span class="p">[(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)]</span>
+<span class="n">DIAGONAL</span> <span class="o">=</span> <span class="p">[(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)]</span>
+<span class="n">KNIGHT_JUMPS</span> <span class="o">=</span> <span class="p">[(</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">)]</span>
+<span class="n">KING_STEPS</span> <span class="o">=</span> <span class="n">ORTHOGONAL</span> <span class="o">+</span> <span class="n">DIAGONAL</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">MovementStrategy</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Abstract: targets(board, pos, owner) -&gt; sorted list[Position] of squares a</span>
+<span class="sd">    piece owned by `owner` standing on `pos` may move to: empty squares or squares</span>
+<span class="sd">    holding an enemy piece (a board item whose .owner != owner). Never own pieces."""</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">targets</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">board</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">owner</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">SlidingMovement</span><span class="p">(</span><span class="n">MovementStrategy</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""SlidingMovement(directions): from pos, walk each (dr, dc) until the edge;</span>
+<span class="sd">    stop BEFORE an own piece, stop ON (include) an enemy piece."""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">directions</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">targets</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">board</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">owner</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">StepMovement</span><span class="p">(</span><span class="n">MovementStrategy</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""StepMovement(offsets): exactly one jump per (dr, dc); jumps ignore pieces</span>
+<span class="sd">    in between. In bounds and not own-occupied."""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">offsets</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">targets</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">board</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">owner</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Piece</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Piece(owner, movement): owner is a Player.symbol str, movement a</span>
+<span class="sd">    MovementStrategy. Attributes: owner, movement. Abstract property `kind` (str).</span>
+
+<span class="sd">    legal_moves(board, pos) -&gt; sorted list of Position (delegates to movement)</span>
+<span class="sd">    can_move(board, frm, to) -&gt; bool (to in legal_moves)</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">owner</span><span class="p">,</span> <span class="n">movement</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">kind</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">legal_moves</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">board</span><span class="p">,</span> <span class="n">pos</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">can_move</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">board</span><span class="p">,</span> <span class="n">frm</span><span class="p">,</span> <span class="n">to</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Rook</span><span class="p">(</span><span class="n">Piece</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Rook(owner): kind "rook"; SlidingMovement(ORTHOGONAL)."""</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Knight</span><span class="p">(</span><span class="n">Piece</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Knight(owner): kind "knight"; StepMovement(KNIGHT_JUMPS)."""</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">King</span><span class="p">(</span><span class="n">Piece</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""King(owner): kind "king"; StepMovement(KING_STEPS)."""</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ChessLiteRules</span><span class="p">(</span><span class="n">GameRules</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Cells store Piece objects. Move needs frm.</span>
+
+<span class="sd">    validate -&gt; InvalidMoveError unless: frm given, frm and to in bounds, a piece</span>
+<span class="sd">      sits on frm, piece.owner == move.player.symbol, and piece.can_move(...).</span>
+<span class="sd">    apply: remove any piece on `to` (the captured one, returned), move the piece.</span>
+<span class="sd">    revert: move the piece back; put `captured` back on `to` if not None.</span>
+<span class="sd">    evaluate: WIN if no enemy King remains on the board, else IN_PROGRESS.</span>
+<span class="sd">      (No draws, check, castling or promotion; every position needs both kings.)</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">validate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">board</span><span class="p">,</span> <span class="n">move</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">board</span><span class="p">,</span> <span class="n">move</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">revert</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">board</span><span class="p">,</span> <span class="n">move</span><span class="p">,</span> <span class="n">captured</span><span class="p">):</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">evaluate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">board</span><span class="p">,</span> <span class="n">move</span><span class="p">):</span>
+        <span class="o">...</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">chess_lite_game</span><span class="p">(</span><span class="n">pieces</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">8</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""pieces: dict[Position, Piece]. Build a size x size Board, place them, and</span>
+<span class="sd">    return Game(board, [Player("White", "W"), Player("Black", "B")], ChessLiteRules()).</span>
+<span class="sd">    White moves first."""</span>
+    <span class="o">...</span>
+</pre></div>
+
+</article><div class="pager"><a class="prev" href="../../11-lld/problem-06-game-engine/lesson.html">← Problem 6 · Game engine: Lesson</a><a class="next" href="../../11-lld/problem-06-game-engine/test_exercises.py.html">Problem 6 · Game engine: Tests (code) →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>

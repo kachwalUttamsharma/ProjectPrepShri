@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 1: Functions deep-dive | Study Hub</title><link rel="stylesheet" href="../../assets/style.css"><link rel="stylesheet" href="../../assets/pygments.css"></head>
+<body data-root="../../" data-page-id="10-python-depth/week-01-functions-deep-dive/lesson" data-page-type="doc">
+<header id="topbar"><button id="menu-toggle" aria-label="Toggle menu">☰</button><a class="brand" href="../../index.html">Study Hub</a><input id="search" type="search" placeholder="Search (press /)" autocomplete="off"><div id="search-results" hidden></div><button id="theme-toggle" aria-label="Toggle theme">◐</button></header>
+<div id="layout"><nav id="sidebar"><div id="nav-tree"></div></nav><main id="content"><div class="page-meta"><nav class="breadcrumb"><a href="../../index.html">Home</a> / <a href="../../10-python-depth/week-01-functions-deep-dive/lesson.html">Python Depth</a> / <a href="../../10-python-depth/week-01-functions-deep-dive/lesson.html">Week 1 · Functions deep dive</a> / <span>Lesson</span></nav><button id="mark-done" data-id="10-python-depth/week-01-functions-deep-dive/lesson">Mark as done</button></div><article class="doc">
+<h1 id="week-1-functions-deep-dive">Week 1: Functions deep-dive</h1>
+<p>Goal: by the end you can explain and write closures, decorators (plain, with arguments, class decorators), context managers, generators and custom iterators, and use <code>functools</code>/<code>itertools</code> fluently. These are the "Python depth" questions that separate a strong candidate from someone who only knows syntax. Budget ~8 hours: lesson + experiments in the REPL (3h), exercises (4h), <code>interview-qa.md</code> out loud (1h).</p>
+<h2 id="1-functions-are-objects">1. Functions are objects</h2>
+<p>Functions are first-class: you can store them in variables, pass them as arguments, return them, and attach attributes.</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">greet</span><span class="p">(</span><span class="n">name</span><span class="p">):</span> <span class="k">return</span> <span class="sa">f</span><span class="s2">"hi </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span>
+<span class="n">f</span> <span class="o">=</span> <span class="n">greet</span>                 <span class="c1"># no call, just another name for the same object</span>
+<span class="n">fs</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"g"</span><span class="p">:</span> <span class="n">greet</span><span class="p">}</span>         <span class="c1"># store in a dict</span>
+<span class="n">greet</span><span class="o">.</span><span class="n">calls</span> <span class="o">=</span> <span class="mi">0</span>           <span class="c1"># attributes on functions are legal (we use this for decorators)</span>
+</code></pre></div>
+
+<p><code>def</code> is an executable statement: it runs at definition time and binds a name. Defaults and decorators are evaluated at that moment too.</p>
+<h2 id="2-arguments-and-evaluation-order">2. Arguments and evaluation order</h2>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">f</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">d</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span> <span class="o">...</span>
+<span class="c1">#      positional  *args  keyword-only   **kwargs</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">g</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">d</span><span class="p">):</span> <span class="o">...</span>     <span class="c1"># a, b positional-only; d keyword-only</span>
+</code></pre></div>
+
+<ul>
+<li>Arguments are evaluated <strong>left to right</strong>, positional first, then keywords, at call time: <code>f(a(), b(), c=c())</code> calls a, b, c in that order. The function is looked up (the expression before the parentheses) <strong>before</strong> its arguments are evaluated.</li>
+<li>Python passes <strong>object references by value</strong> ("call by assignment"): the parameter name is bound to the same object. Mutating it is visible to the caller; rebinding the name is not.</li>
+<li>Unpacking: <code>f(*lst, **dct)</code>; <code>[*a, *b]</code>, <code>{**d1, **d2}</code> (later keys win).</li>
+</ul>
+<h3 id="mutable-default-arguments-top-interview-trap">Mutable default arguments (top interview trap)</h3>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">bucket</span><span class="o">=</span><span class="p">[]):</span>      <span class="c1"># the list is created ONCE, when `def` runs</span>
+    <span class="n">bucket</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">x</span><span class="p">);</span> <span class="k">return</span> <span class="n">bucket</span>
+<span class="n">add</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span> <span class="n">add</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>              <span class="c1"># [1, 2]  (shared state!)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">bucket</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>    <span class="c1"># fix: None sentinel, create inside</span>
+    <span class="k">if</span> <span class="n">bucket</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span> <span class="n">bucket</span> <span class="o">=</span> <span class="p">[]</span>
+</code></pre></div>
+
+<p>You can see the stored default in <code>add.__defaults__</code>. Use a sentinel <code>object()</code> when <code>None</code> is itself a valid value.</p>
+<h2 id="3-scope-legb">3. Scope: LEGB</h2>
+<p>Name lookup order: <strong>L</strong>ocal -&gt; <strong>E</strong>nclosing function -&gt; <strong>G</strong>lobal (module) -&gt; <strong>B</strong>uilt-in.</p>
+<div class="highlight"><pre><span></span><code><span class="n">x</span> <span class="o">=</span> <span class="s2">"global"</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">outer</span><span class="p">():</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="s2">"enclosing"</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">inner</span><span class="p">():</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>        <span class="c1"># finds "enclosing" (E)</span>
+    <span class="n">inner</span><span class="p">()</span>
+</code></pre></div>
+
+<ul>
+<li>Assigning to a name anywhere in a function makes it <strong>local for the whole function</strong>: reading it before assignment raises <code>UnboundLocalError</code>.</li>
+<li><code>global x</code> rebinds a module-level name; <code>nonlocal x</code> rebinds a name in the nearest enclosing function.</li>
+<li>Class bodies are not enclosing scopes for methods. Comprehensions have their own scope (the loop variable does not leak).</li>
+</ul>
+<h2 id="4-closures">4. Closures</h2>
+<p>A closure is a function plus the variables it captured from an enclosing scope. Python keeps them in "cells" (<code>fn.__closure__</code>).</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">make_counter</span><span class="p">():</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">counter</span><span class="p">():</span>
+        <span class="k">nonlocal</span> <span class="n">n</span>          <span class="c1"># without this: UnboundLocalError</span>
+        <span class="n">n</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">n</span>
+    <span class="k">return</span> <span class="n">counter</span>
+</code></pre></div>
+
+<p><strong>Late binding trap</strong>: closures capture the <em>variable</em>, not the value at that moment.</p>
+<div class="highlight"><pre><span></span><code><span class="n">fs</span> <span class="o">=</span> <span class="p">[</span><span class="k">lambda</span><span class="p">:</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">)]</span>
+<span class="p">[</span><span class="n">f</span><span class="p">()</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">fs</span><span class="p">]</span>           <span class="c1"># [2, 2, 2]</span>
+<span class="n">fs</span> <span class="o">=</span> <span class="p">[</span><span class="k">lambda</span> <span class="n">i</span><span class="o">=</span><span class="n">i</span><span class="p">:</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">)]</span>   <span class="c1"># [0, 1, 2]  (default evaluated now)</span>
+</code></pre></div>
+
+<h2 id="5-decorators">5. Decorators</h2>
+<p><code>@d</code> above <code>def f</code> is exactly <code>f = d(f)</code>.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">functools</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">timed</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+    <span class="nd">@functools</span><span class="o">.</span><span class="n">wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>            <span class="c1"># copies __name__, __doc__, __wrapped__...</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">wrapper</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># before</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="c1"># after</span>
+        <span class="k">return</span> <span class="n">result</span>
+    <span class="k">return</span> <span class="n">wrapper</span>
+</code></pre></div>
+
+<p>Without <code>functools.wraps</code>, <code>f.__name__</code> becomes <code>"wrapper"</code>, docs and introspection (and FastAPI's signature inspection!) break.</p>
+<p><strong>Decorators with arguments</strong> add one more level (a decorator <em>factory</em>):</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">retry</span><span class="p">(</span><span class="n">times</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">decorator</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+        <span class="nd">@functools</span><span class="o">.</span><span class="n">wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">wrapper</span><span class="p">(</span><span class="o">*</span><span class="n">a</span><span class="p">,</span> <span class="o">**</span><span class="n">k</span><span class="p">):</span> <span class="o">...</span>
+        <span class="k">return</span> <span class="n">wrapper</span>
+    <span class="k">return</span> <span class="n">decorator</span>
+
+<span class="nd">@retry</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>          <span class="c1"># == f = retry(3)(f)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">fetch</span><span class="p">():</span> <span class="o">...</span>
+</code></pre></div>
+
+<p><strong>Stacking</strong>: <code>@a @b def f</code> == <code>f = a(b(f))</code>; b wraps first (innermost), a runs first at call time.</p>
+<p><strong>Class decorators</strong> take a class and return a class (or anything):</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">register</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+    <span class="n">REGISTRY</span><span class="p">[</span><span class="bp">cls</span><span class="o">.</span><span class="vm">__name__</span><span class="p">]</span> <span class="o">=</span> <span class="bp">cls</span>
+    <span class="k">return</span> <span class="bp">cls</span>
+</code></pre></div>
+
+<p><strong>Class-based decorators</strong> implement <code>__call__</code> (and <code>functools.update_wrapper(self, func)</code> for metadata). Decorating methods: the wrapper is a plain function, so it becomes a method automatically via the descriptor protocol; the first <code>*args</code> item is <code>self</code>.</p>
+<p>Real examples you already use: <code>@app.get(...)</code> (registers and returns the function), <code>@property</code>, <code>@staticmethod</code>, <code>@functools.lru_cache</code>, <code>@pytest.fixture</code>.</p>
+<h2 id="6-context-managers">6. Context managers</h2>
+<p><code>with</code> guarantees cleanup. The protocol:</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Timer</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">();</span> <span class="k">return</span> <span class="bp">self</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exc_type</span><span class="p">,</span> <span class="n">exc</span><span class="p">,</span> <span class="n">tb</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">elapsed</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span>
+        <span class="k">return</span> <span class="kc">False</span>        <span class="c1"># True would SUPPRESS the exception</span>
+</code></pre></div>
+
+<p><code>__exit__</code> receives the exception info (or <code>None, None, None</code>). Return a truthy value only when you deliberately swallow the error.</p>
+<p>The shortcut, <code>contextlib.contextmanager</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">contextlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">contextmanager</span>
+<span class="nd">@contextmanager</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">opened</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">yield</span> <span class="n">f</span>             <span class="c1"># value bound by `as`</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>           <span class="c1"># runs on success AND exception</span>
+</code></pre></div>
+
+<p>Without <code>try/finally</code>, an exception in the block is re-raised at the <code>yield</code> and cleanup is skipped. Other tools: <code>contextlib.suppress(KeyError)</code>, <code>ExitStack</code> (dynamic number of contexts), <code>closing</code>, <code>redirect_stdout</code>, and <code>asynccontextmanager</code> (week 3). Multiple managers: <code>with a() as x, b() as y:</code>.</p>
+<h2 id="7-iterators-and-generators">7. Iterators and generators</h2>
+<ul>
+<li><strong>Iterable</strong>: has <code>__iter__</code> returning an iterator (list, dict, str, file).</li>
+<li><strong>Iterator</strong>: has <code>__next__</code> (raises <code>StopIteration</code> at the end) and <code>__iter__</code> returning itself. One-shot.</li>
+<li><code>for x in obj</code> is: <code>it = iter(obj)</code>, then <code>next(it)</code> until <code>StopIteration</code>.</li>
+</ul>
+<p>A <strong>generator function</strong> has <code>yield</code>; calling it returns a generator (an iterator) without running the body. Execution pauses at each <code>yield</code> and keeps local state.</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">countdown</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+    <span class="k">while</span> <span class="n">n</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">yield</span> <span class="n">n</span>
+        <span class="n">n</span> <span class="o">-=</span> <span class="mi">1</span>
+</code></pre></div>
+
+<ul>
+<li>Generators are lazy and use O(1) memory: great for large files and streams.</li>
+<li>Generator expression: <code>sum(x*x for x in range(10**6))</code> (parentheses, not brackets).</li>
+<li><code>yield from sub</code> delegates to a sub-iterator.</li>
+<li><code>send()</code> / <code>close()</code> / <code>throw()</code> make generators coroutines (the ancestor of <code>async</code>).</li>
+<li><code>return value</code> inside a generator ends it; the value rides on <code>StopIteration.value</code>.</li>
+<li>A generator can only be consumed once. <code>list(g)</code> twice gives <code>[...]</code> then <code>[]</code>.</li>
+<li>A list comprehension builds everything now; a generator computes on demand.</li>
+</ul>
+<h2 id="8-functools">8. functools</h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">lru_cache</span><span class="p">,</span> <span class="n">cache</span><span class="p">,</span> <span class="n">partial</span><span class="p">,</span> <span class="n">reduce</span><span class="p">,</span> <span class="n">wraps</span><span class="p">,</span> <span class="n">cached_property</span><span class="p">,</span> <span class="n">singledispatch</span><span class="p">,</span> <span class="n">total_ordering</span>
+
+<span class="nd">@lru_cache</span><span class="p">(</span><span class="n">maxsize</span><span class="o">=</span><span class="mi">256</span><span class="p">)</span>     <span class="c1"># memoize; args must be hashable; fn.cache_info(), fn.cache_clear()</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">fib</span><span class="p">(</span><span class="n">n</span><span class="p">):</span> <span class="k">return</span> <span class="n">n</span> <span class="k">if</span> <span class="n">n</span> <span class="o">&lt;</span> <span class="mi">2</span> <span class="k">else</span> <span class="n">fib</span><span class="p">(</span><span class="n">n</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">fib</span><span class="p">(</span><span class="n">n</span><span class="o">-</span><span class="mi">2</span><span class="p">)</span>
+
+<span class="n">pow2</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span><span class="nb">pow</span><span class="p">,</span> <span class="n">exp</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>  <span class="c1"># freeze arguments</span>
+<span class="n">reduce</span><span class="p">(</span><span class="k">lambda</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">a</span> <span class="o">*</span> <span class="n">b</span><span class="p">,</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">])</span>   <span class="c1"># 24 (fold left)</span>
+</code></pre></div>
+
+<p><code>@cache</code> = unbounded <code>lru_cache</code>. Caveats: caching methods keeps <code>self</code> alive (memory leak) and caches mutable results by reference. <code>cached_property</code> computes once per instance.</p>
+<h2 id="9-itertools-lazy-building-blocks">9. itertools (lazy building blocks)</h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>chain(a, b)</code> / <code>chain.from_iterable(xs)</code></td>
+<td>concatenate / flatten one level</td>
+</tr>
+<tr>
+<td><code>islice(it, 5)</code> / <code>islice(it, 2, 8, 2)</code></td>
+<td>slice any iterator</td>
+</tr>
+<tr>
+<td><code>count(10)</code>, <code>cycle("ab")</code>, <code>repeat(0, 3)</code></td>
+<td>infinite/finite sources</td>
+</tr>
+<tr>
+<td><code>groupby(data, key)</code></td>
+<td>group <strong>consecutive</strong> items; sort first for full grouping</td>
+</tr>
+<tr>
+<td><code>product(a, b)</code>, <code>permutations(x, r)</code>, <code>combinations(x, r)</code></td>
+<td>combinatorics</td>
+</tr>
+<tr>
+<td><code>accumulate(xs)</code></td>
+<td>running totals</td>
+</tr>
+<tr>
+<td><code>zip_longest(a, b, fillvalue=0)</code></td>
+<td>zip without truncating</td>
+</tr>
+<tr>
+<td><code>pairwise(xs)</code></td>
+<td>(x0,x1), (x1,x2), ... (3.10+)</td>
+</tr>
+<tr>
+<td><code>batched(xs, n)</code></td>
+<td>chunks as tuples (3.12+)</td>
+</tr>
+<tr>
+<td><code>tee(it, 2)</code></td>
+<td>independent copies of an iterator</td>
+</tr>
+<tr>
+<td><code>takewhile</code>, <code>dropwhile</code>, <code>filterfalse</code>, <code>starmap</code></td>
+<td>predicate helpers</td>
+</tr>
+</tbody>
+</table>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li>Mutable default arguments; closures in loops (late binding).</li>
+<li>Forgetting <code>functools.wraps</code>, or forgetting <code>return func(...)</code> in the wrapper (function now returns <code>None</code>).</li>
+<li><code>@retry</code> instead of <code>@retry(3)</code> for a decorator factory (the function ends up passed as <code>times</code>).</li>
+<li><code>groupby</code> on unsorted data; reusing an exhausted generator/iterator.</li>
+<li><code>@contextmanager</code> without <code>try/finally</code>; returning <code>True</code> from <code>__exit__</code> by accident.</li>
+<li><code>lru_cache</code> on functions with unhashable arguments (list/dict) -&gt; <code>TypeError</code>.</li>
+</ul>
+<h2 id="experiments-to-run-in-the-repl">Experiments to run in the REPL</h2>
+<ol>
+<li><code>def f(x, l=[]): ...</code> then inspect <code>f.__defaults__</code> after two calls.</li>
+<li>Print <code>make_counter().__closure__[0].cell_contents</code> after a few calls.</li>
+<li>Stack two decorators that print "enter"/"exit" and observe the order.</li>
+<li><code>g = (i for i in range(3)); list(g); list(g)</code>.</li>
+<li><code>fib.cache_info()</code> before and after <code>fib(30)</code>.</li>
+</ol>
+<h2 id="your-task">Your task</h2>
+<p>Fill in <code>exercises.py</code>, then run <code>../../.venv/bin/pytest -q</code> from this folder. Then answer every question in <code>interview-qa.md</code> out loud without looking.</p>
+</article><div class="pager"><a class="prev" href="../../02-oop/week-05-project-parking-lot/test_exercises.py.html">← Week 5 · Project: parking lot: Tests (code)</a><a class="next" href="../../10-python-depth/week-01-functions-deep-dive/interview-qa.html">Week 1 · Functions deep dive: Interview Q&amp;A →</a></div></main><aside id="toc"></aside></div>
+<script src="../../assets/data.js"></script><script src="../../assets/app.js"></script></body></html>
